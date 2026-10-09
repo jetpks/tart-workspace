@@ -56,51 +56,52 @@ Per design: feasibility (ran / exact error), event latency p50/p95, SSE chunks d
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse seam-spike` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze seam-spike` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+**AC1 (the deliverable — architect-read, per spike rules).** The Builder Report contains a comparative recommendation among designs A, B, and C that names one winner with rationale grounded in measured numbers from the common workload, with per-design measured results (event latency p50/p95, SSE throughput + max inter-chunk gap, subprocess streaming + timeout-kill verdict, timer cadence, CPU with stated method). The gates below are tripwires and artifact floors — the proof is the architect reading the recommendation against **BRIEF §4.1**.
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC2 (evidence floor).** Every measured claim in the report is backed by raw run artifacts preserved in scratch — at least one raw artifact/log per design that ran, and the scripts that produced the numbers remain runnable in scratch.
 
-**AC1.** ...
+**AC3 (honesty floor — all three attempted).** Each of the three designs was built and run, or is reported infeasible with the exact recorded error. No design silently dropped; no inferred numbers.
+
+**AC4 (spike discipline).** The repo worktree is pristine — zero writes inside `repos/raspberry-pi` (or any repo); all experiments confined to the scratch dir.
+
+**AC5 (PHASE 0).** Disagreements with this spec were raised with reasons in the report (or an explicit statement of what was checked before concluding the spec is sound) — silent compliance is a defect.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse seam-spike` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: report-present
+  ac: AC1
+  cwd: build/I01-seam-spike-seam-probe
+  cmd: |-
+    test -f report.md && test "$(grep -c '^STATUS: ' report.md)" -eq 1 && echo REPORT_OK
+  expect:
+    exit_code: 0
+    stdout_match: REPORT_OK
+
+- id: report-structure
+  ac: AC3
+  cwd: build/I01-seam-spike-seam-probe
+  cmd: |-
+    grep -q 'Design A' report.md && grep -q 'Design B' report.md && grep -q 'Design C' report.md && grep -qi 'recommendation' report.md && echo STRUCTURE_OK
+  expect:
+    exit_code: 0
+    stdout_match: STRUCTURE_OK
+
+- id: scratch-artifacts
+  ac: AC2
+  cwd: build/I01-seam-spike-seam-probe
+  cmd: |-
+    test -d scratch && test "$(find scratch -type f | wc -l | tr -d ' ')" -ge 3 && echo ARTIFACTS_OK
+  expect:
+    exit_code: 0
+    stdout_match: ARTIFACTS_OK
+
+- id: worktree-pristine
+  ac: AC4
+  cwd: repos/raspberry-pi
+  cmd: |-
+    test -z "$(git status --porcelain)" && echo CLEAN_OK
+  expect:
+    exit_code: 0
+    stdout_match: CLEAN_OK
 ```
 
 ## Builder Prompt
