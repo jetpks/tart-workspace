@@ -4,8 +4,54 @@ id: 20261009-pi-port
 title: pi-port
 status: active
 created_at: '2026-10-09T02:03:09-06:00'
-updated_at: '2026-10-09T02:03:09-06:00'
-repos: []
+updated_at: '2026-10-09T02:10:51-06:00'
+repos:
+- provider: github.com
+  organization: earendil-works
+  name: pi
+  full_name: github.com/earendil-works/pi
+  clone_url: git@github.com:earendil-works/pi.git
+  path: repos/pi
+  added_at: '2026-10-09T02:05:19-06:00'
+- provider: github.com
+  organization: jetpks
+  name: space-architect
+  full_name: github.com/jetpks/space-architect
+  clone_url: git@github.com:jetpks/space-architect.git
+  path: repos/space-architect
+  added_at: '2026-10-09T02:10:51-06:00'
+- provider: github.com
+  organization: jetpks
+  name: space-inference-gateway
+  full_name: github.com/jetpks/space-inference-gateway
+  clone_url: git@github.com:jetpks/space-inference-gateway.git
+  path: repos/space-inference-gateway
+  added_at: '2026-10-09T02:10:51-06:00'
+- provider: github.com
+  organization: jetpks
+  name: repo-tender
+  full_name: github.com/jetpks/repo-tender
+  clone_url: git@github.com:jetpks/repo-tender.git
+  path: repos/repo-tender
+  added_at: '2026-10-09T02:10:51-06:00'
+- provider: github.com
+  organization: jetpks
+  name: gigatoken-rb
+  full_name: github.com/jetpks/gigatoken-rb
+  clone_url: git@github.com:jetpks/gigatoken-rb.git
+  path: repos/gigatoken-rb
+  added_at: '2026-10-09T02:10:51-06:00'
+- provider: github.com
+  organization: jetpks
+  name: space-cadet
+  full_name: github.com/jetpks/space-cadet
+  clone_url: git@github.com:jetpks/space-cadet.git
+  path: repos/space-cadet
+  added_at: '2026-10-09T02:10:51-06:00'
 notes: []
 tickets: []
 tags: []
+project:
+  status: active
+  current_iteration:
+  iterations: []
