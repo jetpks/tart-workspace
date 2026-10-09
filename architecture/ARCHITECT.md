@@ -11,9 +11,9 @@
 
 ## TL;DR (keep current)
 
-- Goal: _[one sentence]_
-- Last iteration: _[I<NN>-name — CONTINUE / KILL / awaiting verdict]_
-- Next action: _[exact command or decision needed]_
+- Goal: port the used parts of the pi coding harness to async-Ruby (`raspberry-pi`) — single-user daily driver on socketry `async` + `ratatui_ruby` + `ruby_llm`.
+- Last iteration: I01 seam-spike — ADOPT (CONTINUE): Design B seam picked by measurement; BRIEF §4.1 resolved.
+- Next action: spec the **core-loop** build iteration (`architect new core-loop`) — harness core loop on the Design B seam (reactor-owned tasks, poller thread → `Async::Queue`, `SyntheticEvents.push` drain, 16 ms frame constant, in-band Ctrl+C 0x03 + ISIG safety net).
 
 ## Repos in scope
 
@@ -25,6 +25,7 @@
 | github.com/jetpks/repo-tender | repos/repo-tender |
 | github.com/jetpks/gigatoken-rb | repos/gigatoken-rb |
 | github.com/jetpks/space-cadet | repos/space-cadet |
+| github.com/jetpks/raspberry-pi | repos/raspberry-pi (the port itself — target of all build iterations) |
 
 ## Verification gate (exact commands, per repo)
 
@@ -40,7 +41,7 @@
 
 | I# | Iteration | Status | freeze_sha | Integration branch | Verdict | File |
 |----|-----------|--------|-----------|--------------------|---------|------|
-
+| 01 | seam-spike | done (spike: ADOPT) | 240b98e4 | none (spike — nothing to integrate; scratch evidence in `build/I01-seam-spike-seam-probe/`) | ADOPT — Design B seam; all 5 AC PASS | architecture/I01-seam-spike.md |
 Status values: speccing → frozen → dispatched → in-flight → awaiting-verdict → done.
 
 ## Backlog (ordered; no ordinal until `architect new`)
@@ -52,6 +53,9 @@ Status values: speccing → frozen → dispatched → in-flight → awaiting-ver
 
 - _[next planned item]_
 
+1. **core-loop** (build) — harness core loop on the adopted Design B seam (BRIEF §4/§4.1): `Async::Reactor`-owned tasks, poller thread → `Async::Queue` native bridge, `SyntheticEvents.push` + in-loop drain, 16 ms frame budget constant, in-band Ctrl+C 0x03 + ISIG safety net. Carry-ins from I01: `minitest ~> 5.20` pin; mutex for any shared state beyond the two sanctioned seams; watch `Async::Queue` depth under real input bursts (latency was measured on synthetic events only).
+2. TUI iteration (streaming render, inline viewport chat, approval gates) — after core-loop.
+
 ## Open items for the human / architect
 
 <!-- Blocking items: unresolved disagreements (which iteration), scope questions,
@@ -61,3 +65,4 @@ stop-condition checkpoints. Detail lives in the iteration file; link it. -->
 
 | Date | Decision | Why |
 |------|----------|-----|
+| 2026-10-09 | BRIEF §4.1 resolved: Design B seam adopted; §4.1 text rewritten (corrects `SyntheticEvents.inject_event` → `SyntheticEvents.push`, `Async::Scheduler` → `Async::Reactor`) | I01 seam-spike measured verdict (ADOPT): B bounded structural latency (p95 ≈ 17.6 ms ≈ 16 ms frame budget) vs A unbounded cadence/CPU (97.7–106 fps, 1.9–16.6% CPU spread) vs C hard ~18 ms floor; two spec/BRIEF API-name defects found by the lane's PHASE 0 and verified against gem source — logged here rather than silently drifted |
