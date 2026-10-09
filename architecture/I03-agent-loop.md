@@ -17,34 +17,41 @@ no research. Write + commit: `architect section agent-loop grounds --from <file>
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section agent-loop specification --from <file>`. -->
-
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+- **Objective:** Build the **agent/tool loop** (BRIEF §3/§4) as a behavior-parity port of pi's agent core on the I02 kernel: the outer loop over queued user messages and inner loop over tool-call batches, driven through `ruby_llm` (`Chat#step`/`run_tools`-family APIs, BRIEF §2), with the seven built-in tools (`read`, `edit`, `write`, `bash`, `find`, `grep`, `ls`) ported **verbatim-parity** from `repos/pi/packages/coding-agent/src/core/tools/`, schema-gated safety, and approval gating. **Parity-first discipline (BRIEF §5, deferred 2026-10-09): pi is the oracle.** The tool pipeline round-trips trailing whitespace exactly as pi's does (edit strips only in match-space, `edit-diff.ts:29–44`); **no whitespace normalization at any write boundary** — the §5 fix is post-parity work and is explicitly out of scope here. Any place the port's semantics would differ from pi's is a *disagreement to raise*, never a silent improvement. Also folds in the six I02 carry-ins (kernel/bench hygiene, I02 Verdict) — they're small, kernel-local, and this lane touches the same files. **Why now:** the kernel substrate is gate-held in-repo (I02), and the TUI iteration needs real agent content to stream; building it the other way means mocking the message shapes and reworking them later.
+- **Output format:** raw tables/JSON only in the report (absolute path below): PHASE 0 findings table (spec-vs-reality, with evidence — every ruby_llm verify item), test-suite output verbatim (pass/fail counts), gate-command outputs verbatim, list of files created, plus the recorded judgment calls: the approval mechanism as built (ruby_llm native vs hook wrapper — with the gem-source evidence), the mock endpoint's wire details, the system-prompt dynamic segments, the blockless-`run` disposition, and **a parity-deviation table (must be empty or itemized as raised disagreements — any silent deviation is a defect)**. No interpretation beyond what the spec asks to record. Every status claim backed by a command result from this run.
+- **Tool guidance:**
+  - Environment: Ruby 4.0.7, arm64-darwin. Runtime deps → `raspberry-pi.gemspec`: keep `async ~> 2.46`, `ratatui_ruby` exact `1.5.0`; **add `ruby_llm ~> 2.1`** (BRIEF §2: ≥ 2.1.0). Dev deps → `Gemfile`: `minitest ~> 5.20`, `rake`, `irb`.
+  - **Verify against the installed gems before coding** (read gem source: `bundle info <gem> --path`), record each in the findings table: `Chat#generate`/`step`/`complete?`/`waiting?`/`run_tools` semantics in the resolved 2.x (which exist, what they return, how a tool-call batch executes); the `Tool` definition API (parameter schemas) and **`requires_approval` mechanics — exactly what happens on pending/denied approval, and what result shape the model sees**; custom OpenAI-compatible endpoint registration (`base_url`/`api_key`) and the SSE wire format the client expects (your test mock must be wire-compatible — record it); streaming event shapes (text deltas, tool-call events) and how tool results return into the context; `RubyLLM::ContextLengthExceededError` presence (record only — compaction is out of scope).
+  - **pi reference (read-only oracle, `repos/pi`):** `packages/agent/src/agent-loop.ts` (loop shape: `runAgentLoop`, `runToolCall`, `ToolCallHooks` — permission checks are hooks, line ~805), `packages/agent/src/types.ts` (AgentEvent shapes), `packages/coding-agent/src/core/tools/{read,write,edit,bash,find,grep,ls}.ts` + `edit-diff.ts`, `path-utils.ts`, `truncate.ts`, `file-mutation-queue.ts`, `output-accumulator.ts`, and `packages/coding-agent/src/core/system-prompt.ts` (port the composed prompt verbatim; record its dynamic segments). Port behavior, not TypeScript shape — Ruby-idiomatic code with pi-identical observable semantics.
+  - **I02 carry-ins (defect ledger, file:line per the I02 Verdict):** (1) `Core::Loop#run` teardown (currently loop.rb:90–93) must be exception-safe (`ensure`) and `Signal.trap("INT")` (loop.rb:82) restored after run; (2) `Poller#stop` (poller.rb:32) must surface a missed `join`; (3) blockless `run` (supervise's early return skips STOP) — guard or documented event-only mode, recorded; (4) bench hardening: `state[:native_seen]` never initialized (seam_bench.rb:155), `finish` crashes on nil `extras` masking the original error, `drain.value` joined unbounded (seam_bench.rb:91), kill-probe spawned without fd redirection so it can hold the pty slave in its own pgroup (seam_bench.rb:295). Minor, fix if cheap and record: unlocked `stats`/`interrupted?` reads; single-use `Loop`.
+  - **House style:** as I02 (gemspec-driven gem, `lib/raspberry_pi/**`, terse public-behavior minitest with the shared base, `# frozen_string_literal: true` everywhere, Rake default `:test`). The I02 `ScriptedSession` seam-double pattern extends to the model: **a local mock OpenAI-compatible endpoint over TCP (127.0.0.1, ephemeral port) serving scripted SSE responses** — the real ruby_llm HTTP + custom-endpoint path, hermetic, the same pattern the bench already uses for SSE.
+  - Bench and every long command: explicit timeout, serial foreground, never `run_in_background`/`&`, never busy-wait or retry loops. Tests must not hit the network beyond localhost or require API keys.
+- **Boundaries:**
+  - **May touch (repo `repos/raspberry-pi`, single lane — agent work and carry-ins share gemspec/Gemfile/test/README, so they run as one):** `raspberry-pi.gemspec`, `Gemfile`, `Gemfile.lock`, `Rakefile`, `lib/**`, `test/**`, `bench/**`, `README.md` (dev/verification section only), `.gitignore`.
+  - **Must not touch:** `repos/pi/**` and every other repo (read-only oracle/style references), `architecture/**`, `build/**`, `tmp/**`, `~/.pi`, no git write command, no real LLM API calls or keys.
+  - **Out of scope:** TUI widgets/streaming-render UX (the agent surfaces content via the existing minimal renderer/status-panel seam only), session persistence/JSONL, compaction, skills/settings/slash commands, MCP, print mode, reduced extension surface (§6 — only the event callbacks this iteration's tests and a later TUI need), and **the §5 whitespace normalization — forbidden (parity-first; see Objective)**. No placeholders; search pi and the gems before implementing; full implementations only.
+- **Deliverables:**
+  1. **`lib/raspberry_pi/agent/**` — the agent loop (BRIEF §4):** pi's loop shape on the I02 kernel — queued user messages, tool-call batches through ruby_llm, tool results back into the conversation, completion termination; runs as a task subtree on `Core::Loop` so a kernel interrupt cancels the in-flight turn; streaming text deltas accumulate and flow through the minimal status surface (no new TUI); a minimal event/callback surface (turn lifecycle, message deltas, tool-call lifecycle) sufficient for tests and the later TUI; the ported system prompt (`system-prompt.ts` verbatim, dynamic segments recorded).
+  2. **`lib/raspberry_pi/tools/**` — the seven built-in tools, verbatim-parity (BRIEF §3/§5):** `read` (bytes verbatim — trailing WS, BOM, line endings per pi), `write` (verbatim), `edit` (pi's fuzzy matcher: match-space-only normalization incl. smart-quote/dash/space folding, unchanged-line byte preservation, line-ending detect/restore, context truncation), `bash` (`pgroup: true`, one fiber per output pipe, timeout kill by negative-pid `-TERM` escalating to `-KILL`, every pid reaped), `find`, `grep`, `ls` (pi semantics incl. path-utils/truncation). Where pi composes tools through wrappers (file-mutation-queue, output-accumulator), port the equivalent composition.
+  3. **Safety gating (BRIEF §4):** schema-gating — disabled/unsafe tools never appear in the tool declarations sent to the model; approval gating — destructive tools behind approval using ruby_llm's native mechanism as verified (builder's call between `requires_approval` and a hook wrapper, recorded with gem-source evidence); injectable approval callback that runs on the kernel (interruptible); the denied-call outcome matches pi's semantics (recorded from pi source).
+  4. **`test/**` — hermetic suite:** mock OpenAI-compatible endpoint (TCP, scripted SSE with tool calls) driving the real ruby_llm client; multi-turn round-trip; interrupt cancels in-flight turn; **golden parity tests for read/write/edit** — fixtures with expected outputs derived from pi's algorithm (trailing-WS cases included; §5 verbatim-parity is what's asserted), not from the port's own behavior; schema-gating asserted against the payload the mock endpoint receives; approval gate tests; bash timeout-kill tests (bounded, hermetic); carry-in tests (raising handler no longer leaks the poller; trap restored).
+  5. **Carry-ins** per the defect ledger above; `bench/seam_bench.rb` stays green with the hardening in place.
+- **Lane plan:** one lane, `agent-loop`, repo `raspberry-pi` — the carry-ins and the agent work share `Gemfile`/gemspec/`test/**`/README, so a second lane would overlap and must run as one. Touch set = the whole repo (as I02; the repo is otherwise untouched since bootstrap).
+- **Effort call:** high — LLM-client seam verification (ruby_llm streaming/tool-call wire behavior), parity porting of seven tools against a TypeScript oracle, and concurrency-safe interrupt integration are all load-bearing.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision agent-loop`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: agent-loop
+  repo: raspberry-pi
+  touch:
+    - raspberry-pi.gemspec
+    - Gemfile
+    - Gemfile.lock
+    - Rakefile
+    - lib/**
+    - test/**
+    - bench/**
+    - README.md
+    - .gitignore
 ```
 
 ## Acceptance Criteria
