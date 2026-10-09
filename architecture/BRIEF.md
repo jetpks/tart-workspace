@@ -45,6 +45,12 @@ The original plan normalized trailing whitespace at the port's write boundaries.
 
 So: the tool pipeline is ported **verbatim-parity** (trailing whitespace round-trips exactly as pi's does, including the match-space-only normalization in edit); the copy/paste investigation happens at the TUI iteration; the normalization itself lands as its own post-parity iteration with tests. The founding-defect framing is retained as motivation and end-state (§7.5), not as an in-flight requirement.
 
+### §5.1 Foundation-mechanics carve-out (owner decision 2026-10-09, I03 Verdict)
+
+**Signal delivery, process spawn/reap, and startup/shutdown/teardown ordering are a sanctioned deviation category.** The port swaps the foundation under pi's behavior — Node's single-process signal handling for Ruby + `async`'s fiber scheduler — and abstractions are not perfectly abstract: the foundation sometimes legitimately changes things further up. Where the Ruby/fiber ecosystem dictates a different mechanism, the port does what is idiomatic **for Ruby**, not what pi's Node implementation happened to do. Ruling instance: bash timeout-kill is two-phase `-TERM` → (bounded grace) → `-KILL` on the process group, vs pi's single-phase `-SIGKILL` (`shell.ts:187–207`) — kept (I03 deviation #1, resolved).
+
+Discipline within the carve-out: (a) deviations are still **itemized in the parity table** every iteration — sanctioned, not silent; (b) each must be individually defensible on Ruby-ecosystem grounds, not convenience ("TERM gives children a graceful-shutdown chance" is a foundation argument; "we preferred different output text" is not); (c) **observable tool-pipeline behavior the model/user sees stays parity-first** — the carve-out covers the *mechanism* (how a process is stopped, how teardown is ordered), never the *contract* (what results, content, and status shapes come back).
+
 ## §6 Extension surface
 
 pi's contract is ~54 events + register APIs + jiti TS loading. The port starts with a **reduced core event set** — session lifecycle, turn lifecycle, message lifecycle, tool-call lifecycle, plus `register_tool`/`register_command` — and grows on demand. Loading is Ruby-native (plain `.rb` files from project/global dirs); no jiti analog. Skills, themes, keybindings, and prompt templates remain as resource kinds with pi-compatible discovery locations where cheap.
