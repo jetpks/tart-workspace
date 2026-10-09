@@ -65,6 +65,13 @@ project:
   - name: seam-spike
     ordinal: 1
     file: architecture/I01-seam-spike.md
-    freeze_sha:
+    freeze_sha: 240b98e48bc14520066a4b09027ce9ac8f077c90
     verdict: pending
-    lanes: []
+    lanes:
+    - name: seam-probe
+      repo: raspberry-pi
+      touch_set:
+      - build/I01-seam-spike-seam-probe/scratch/**
+    rehearsal:
+      gates_digest: 6ad77c3b9459807e8a2d172d88d0e534b1a518583a53cba9c86bd45bae430a04
+      at: '2026-10-09T02:33:22-06:00'
