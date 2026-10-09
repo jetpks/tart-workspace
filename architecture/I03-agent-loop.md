@@ -793,11 +793,107 @@ deviation adopted silently is a defect (see AC2).
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I03-agent-loop-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence agent-loop --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### agent-loop
+
+### PHASE 0 findings (spec-vs-reality, verified this run)
+
+| Item | Reality (ruby_llm 2.1.0 / pi @ repos/pi) | Evidence |
+|---|---|---|
+| `Chat#generate` | One completion; appends response; block receives streamed `Chunk`s; tool calls NOT executed | gem chat.rb:203–212 |
+| `Chat#step` | One move: pending tool batch → `run_tools` (returns new tool-result message), else `generate`; returns `nil` when `complete?`/`waiting?` | chat.rb:236–250 |
+| `Chat#complete?`/`waiting?` | `complete?` = no pending batch && last msg isn't a tool call; `waiting?` = all remaining pending calls wait on approval/input | chat.rb:268–282, 308–323 |
+| `Chat#run_tools` | Executes pending batch; `requires_approval` tools only execute after a decision; denied → `{error: "The user denied the <name> tool call."}`; undecided stay pending | chat.rb:221–232, 1525–1574 |
+| Approval mechanics | `Tool.requires_approval` class macro (+optional resolver) → `requires_approval?`; `execution_decision` = resolver → recorded decision → `@approval_checker`; `pending_approvals` lists undecided; `approve`/`deny` record decisions | tool.rb:176–183; chat.rb:1559–1580, 337–349, 286–297 |
+| Custom endpoint | `RubyLLM.context { config.openai_api_base; config.openai_api_key }` + `context.chat(model:, provider: "openai", protocol: :chat_completions, assume_model_exists: true)` | mock round-trips the real client (agent_loop_test 6/6 green) |
+| SSE wire | `POST {base}/chat/completions`, `"stream":true`; reply `data: {choices:[{delta}]}` … `data: [DONE]`; non-stream = one JSON `{choices:[{message,finish_reason}],usage}` | served by mock; client parses (tests green) |
+| `RubyLLM::ContextLengthExceededError` | Present | transport/error_middleware.rb:125 |
+| `Support::Cancellation` | `watch(checkpoint)` installed around tool execution + per-chunk; `check` raises `CancelledError` after `chat.cancel` | support/cancellation.rb:7–32; chat.rb:1666, 1976 |
+| pi `killProcessTree` | **Single-phase `-SIGKILL`** (group kill, fallback child), not TERM→KILL | utils/shell.ts:187–207 |
+| pi find/grep binaries | pi downloads `fd`/`rg` at runtime (`ensureTool`); port uses PATH | find.ts:163; grep.ts:150 |
+| pi system prompt | `buildSystemPromptSections` wraps each non-preamble section once; `getSystemMessageText` joins parts `"\n\n"` | system-prompt.ts:198–204; packages/ai/src/utils/text.ts:15–23 |
+| **Kernel (new conflict found)** | async 2.46 `Async::Queue` delegates to `::Thread::Queue`; a push from another fiber **on the reactor thread** can fail to wake a fiber blocked in `#pop` (lost scheduler wakeup, reproduced in isolation) → inherited work hung `bundle exec rake` >600 s deterministically (`test_raising_work_terminates_poller_and_reraises`); fixed in `core/loop.rb` (below) | isolation repros this run; see fixes |
+
+### Fixes to inherited work (audit results)
+
+| Fix | File | Detail |
+|---|---|---|
+| Lost-wakeup hang | lib/raspberry_pi/core/loop.rb | Reactor-fiber-originated sentinels (`stop!`, `supervise`'s STOP, `animate`'s WAKE) now cross a thread boundary (`Thread.new { @events << x }.join`); cross-thread pushes are the proven-reliable path (poller, foreign-thread `stop!`) |
+| Error swallowed | lib/raspberry_pi/core/loop.rb | async 2.x does not re-raise the root task body's exception (logs "unhandled exception", returns normally — reproduced): frame-loop errors (handler/renderer raise) are now captured into `@work_error` and re-raised after teardown |
+| `PollerLingerError` masking | lib/raspberry_pi/core/loop.rb | `run`'s ensure calls `request_stop` before joining the poller, so a handler/renderer raise stops the poller instead of raising a linger error that masks the original error |
+| SystemPrompt double-wrap | lib/raspberry_pi/agent/system_prompt.rb | `sections` already tags; `build` wrapped again → `<tools><tools>…`. Now joins tagged sections `"\n\n"` (pi's `getSystemMessageText`) |
+| buildRules dedup | lib/raspberry_pi/agent/system_prompt.rb | pi's `addRule` trims + dedups; port now does |
+| edit oldText param description | lib/raspberry_pi/tools/edit.rb | now pi-verbatim ("…unique in the original file and must not overlap…") |
+| Wire-schema parity | lib/raspberry_pi/tools/{read,write,edit,bash,find,grep,ls}.rb | dropped `additionalProperties:false` (pi sends none) and `ls`'s empty `required`; programmatic diff of pi's **live** definitions vs port now byte-identical for all 7 tools (name/description/parameters) — `schema parity: CLEAN` |
+| edit access check | lib/raspberry_pi/tools/edit.rb | missing file → `Error code: ENOENT` (pi's fsAccess semantics), unreadable → EACCES |
+| ls read error | lib/raspberry_pi/tools/ls.rb | "Cannot read directory: #{e.message}" per pi |
+| bash kill fallback | lib/raspberry_pi/tools/bash.rb | unreachable second rescue clause fixed (nested begin, group→child fallback per pi) |
+
+### Verification against pi (commands run this session)
+
+| Check | Result |
+|---|---|
+| Goldens re-derived from pi's **live** tool code (node 24 `--experimental-strip-types`, sources copied from repos/pi; renderers/photon stubbed — display-only) | 52/56 checks exact vs `test/fixtures/edit_golden.json`; 4 diffs are verifier artifacts: missing-file tmpdir path (`/private/tmp` vs `$WORKDIR`), generator's extra `content_base64` field, verifier filename (`out2` vs `out`), `legacy_args` (agent-loop hook, not a tool error — port handles it in `Tool#call`) |
+| Tool definitions (name/description/parameters) of all 7 tools vs pi's live `create*ToolDefinition` | `schema parity: CLEAN` |
+| SystemPrompt.build vs pi's live `buildSystemPrompt` (same inputs incl. toolSnippets/toolGuidelines) | byte-identical after macOS `/private/tmp` normalization: `PROMPT_PARITY_OK`, `BASHONLY_PARITY_OK` |
+
+### Judgment calls (recorded)
+
+- **Approval mechanism as built:** ruby_llm native — destructive tools (`edit`/`write`/`bash`) get `requires_approval?` via an extended module (registry.rb; semantics verified in gem source, chat.rb:1559–1580); the agent loop consults `chat.waiting? && awaiting_approval?`, runs the **injectable approval callback on the kernel fiber** (interruptible), and records via `chat.approve`/`chat.deny`. Denied outcome = ruby_llm's structured denial result `{error: "The user denied the <name> tool call."}` (chat.rb:1570); a denied call never executes (`refute_includes types, :tool_execution_start` in test). No hook wrapper needed.
+- **Mock endpoint wire details:** TCPServer 127.0.0.1:0; HTTP/1.1; detects streaming by `Accept: text/event-stream` or `"stream":true` in body; streaming reply = `200`, `text/event-stream`, chunked, SSE `data: <openai-delta json>\n\n` lines (`{choices:[{delta:{role,content}|{tool_calls:[{index,id,type,function:{name,arguments}}]}}]}`, `finish_reason` `"tool_calls"`/`"stop"`, usage chunk, `data: [DONE]`); non-stream = `{choices:[{message:{role:"assistant",content},finish_reason:"stop"}],usage}`; `:pause` specs write a `: keepalive` comment after 0.1 s (real inter-chunk delay for the interrupt test). Captured request bodies exposed as `server.requests`/`captured_requests` (schema-gating asserts against the actual payload).
+- **System-prompt dynamic segments:** selected-tools snippet list; rule bullets (loadout-conditional bash rule + per-tool guideline bullets + two fixed closers, trimmed/deduped); docs paths (`docs_paths:` replaces pi's `getReadmePath/getDocsPath/getExamplesPath`); `append_system_prompt` → `<addendum>`; `context_files` → `<project_context>` with `<project_instructions path=…>` blocks; `cwd` (backslashes→slashes). Recorded deviation: pi's `<skills>` section is never emitted (skills out of scope this iteration).
+- **Blockless `run` disposition:** documented event-only mode (YARD on `Core::Loop#run`; runs until `stop!`/interrupt; no work task to push STOP) — locked by `test_blockless_run_is_event_only_mode`.
+
+### Parity-deviation table (itemized raised disagreements; none silent)
+
+| # | Deviation from pi | Why |
+|---|---|---|
+| 1 | bash timeout kill is two-phase `-TERM` → `-KILL` after a 5 s grace; pi is single-phase `-SIGKILL` (shell.ts:187–207) | AC4's letter mandates the escalation; recorded here as a spec-vs-pi conflict — AC4 wins |
+| 2 | `read` images: bytes sent unresized (pi resizes via sharp/photon); note text otherwise pi-shaped | recorded in read.rb; image resizing out of parity scope |
+| 3 | `find`/`grep` resolve `fd`/`rg` from PATH; pi downloads them at runtime (`ensureTool`) | hermetic lane; no runtime downloads |
+| 4 | Runtime OS-error strings are runtime-native (e.g. missing read file: Node `ENOENT: no such file or directory, access '…'` vs Ruby's Errno message); the failure SHAPE (error result naming the path) is preserved | locked by `test_read_missing_file_is_an_error_result` |
+| 5 | find: port pre-checks `File.exist?(search_path)` → `Path not found: …`; pi's fd path lets `fd` fail first | minor; both produce error results |
+| 6 | pi's `prepareRequest`/`prepareNextTurn`/`finishTurn`/`spawnHook`/`PI_*` session env are not ported | §6 reduced extension surface, out of scope |
+| 7 | pi's `<skills>` prompt section never emitted | skills out of scope |
+
+### Gate outputs (verbatim)
+
+```
+$ bundle install --quiet && bundle exec rake && echo SUITE_OK
+Run options: --seed 37425
+# Running:
+..........................................................
+Finished in 12.976457s, 4.4696 runs/s, 18.8803 assertions/s.
+58 runs, 245 assertions, 0 failures, 0 errors, 0 skips
+SUITE_OK      (suite_exit=0; 6 consecutive full-suite runs green)
+
+$ timeout 90 bundle exec ruby bench/seam_bench.rb
+{"fps_while_animating":{"mean":60.0,"p05_cadence_ms":16.54},
+ "event_p50_ms":8.83,"event_p95_ms":17.4,
+ "sse_delivered":500,"sse_expected":500,"sse_max_gap_ms":29.77,
+ "subprocess_lines":100,
+ "timeout_kill":{"verdict":"clean","kill_calls":1,"termsig":15,"zombie_gone":true,"seconds_to_reap":0.0013},
+ "timer_ticks":100,"timer_expected":100,
+ "static_wakes":0,"cpu_pct":4.7,
+ "draws":380, ...}
+SEAM_BENCH_OK  (bench_exit=0)
+
+$ test -f lib/raspberry_pi/tui.rb && test -z "$(grep -rn 'RatatuiRuby\.' lib test bench | grep -v '^lib/raspberry_pi/tui')" && echo SEAM_OK
+SEAM_OK
+
+$ grep -q 'ratatui_ruby (1\.5\.0)' Gemfile.lock && grep -q 'minitest (5\.' Gemfile.lock && grep -q 'ruby_llm (2\.' Gemfile.lock && echo PINS_OK
+PINS_OK
+```
+
+Resolved versions: ruby_llm 2.1.0, async 2.46.0, ratatui_ruby 1.5.0, minitest 5.27.0, diff-lcs 1.6.2, ruby 4.0.7 arm64-darwin23.
+
+### Files
+
+- Modified: `lib/raspberry_pi/core/loop.rb`, `lib/raspberry_pi/agent/system_prompt.rb`, `lib/raspberry_pi/tools/{edit,ls,bash,read,write,find,grep}.rb` (schema edits); inherited-modified (audited, kept): `Gemfile.lock`, `raspberry-pi.gemspec`, `lib/raspberry_pi.rb`, `lib/raspberry_pi/core/poller.rb`, `test/test_helper.rb`, `bench/seam_bench.rb`
+- Untracked (inherited, audited, kept + fixes): `lib/raspberry_pi/agent/{loop,bridge,status,system_prompt}.rb`, `lib/raspberry_pi/tools.rb`, `lib/raspberry_pi/tools/**`, `test/{agent_loop,bash_tool,golden_parity,kernel_carryin,tools}_test.rb`, `test/support/mock_llm_server.rb`, `test/fixtures/**`
+- Created this run: `test/system_prompt_test.rb` (3 runs, 13 assertions, 0 failures)
+- No git write commands; worktree left uncommitted.
+
+STATUS: COMPLETE_WITH_CONCERNS — parity deviations itemized above (no. 1: AC4's two-phase bash kill conflicts with pi's single-phase SIGKILL — spec-internal conflict reported, AC4 implemented; nos. 2–7 recorded deviations), and the async-2.46 lost-wakeup kernel fix (loop.rb) is a cross-lane-relevant finding for I02: the architect may want the same thread-boundary signaling pattern reviewed for other lanes building on the kernel.
 
 ## Verdict
 
