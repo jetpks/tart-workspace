@@ -56,51 +56,54 @@ no research. Write + commit: `architect section agent-loop grounds --from <file>
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse agent-loop` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze agent-loop` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+**AC1 (the agent loop, on the substrate — BRIEF §2/§4).** After the lane, the suite proves via public behavior, **hermetically against a local mock OpenAI-compatible endpoint over TCP (the real ruby_llm client + custom-endpoint registration path — no network beyond localhost, no API keys)**: a scripted multi-turn conversation with tool calls round-trips — user message → model turn → tool-call batch → tool results returned to the model → model turn → completion; the agent runs as a task subtree on `Core::Loop`, and a kernel interrupt cancels the in-flight turn cleanly (interruption observable, no leaked tasks). pi's loop shape is the oracle (outer loop over queued messages, inner loop over tool-call batches — `repos/pi/packages/agent/src/agent-loop.ts`); the mapping onto ruby_llm is architect-read against the PHASE 0 findings. The `tui-seam` gate is a tripwire (agent/tools/tests never touch `RatatuiRuby`); `gem-pins` tripwires the ruby_llm `~> 2.1` dependency.
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC2 (tools verbatim-parity — BRIEF §3, §5-deferred).** The seven built-in tools (`read`, `write`, `edit`, `bash`, `find`, `grep`, `ls`) are behavior-parity ports of pi's (`repos/pi/packages/coding-agent/src/core/tools/`): `read` returns bytes verbatim (trailing whitespace, BOM, line endings per pi's handling); `write` writes verbatim; `edit` implements pi's fuzzy matcher (match-space-only normalization incl. smart-quote/dash/space folding, unchanged-line byte preservation, line-ending detect/restore, context truncation); `bash` spawns `pgroup: true`, reads each pipe on its own fiber, kills timeouts by negative-pid `-TERM` escalating to `-KILL`, reaps every pid. **§5 verbatim-parity is the point: trailing whitespace round-trips exactly as pi's does — no normalization at any write boundary** — proven by golden tests whose fixtures and expected outputs are derived from pi's algorithm (trailing-WS cases included), never from the port's own output. The golden tests live in the suite (gate `suite-green`); the parity read against pi's source is architect-read, and the report's parity-deviation table must be empty or itemized as raised disagreements.
 
-**AC1.** ...
+**AC3 (safety gating — BRIEF §4).** Schema-gating: a disabled/unsafe tool never appears in the tool declarations the model receives — asserted against the payload captured by the mock endpoint (the instrument, not a code-read). Approval gating: destructive tools gate behind approval via the mechanism the builder verified and recorded (ruby_llm native and/or a hook wrapper — the call is the lane's, the evidence must be gem-source or pi-source); an unapproved call produces the outcome shape pi produces (semantics recorded from pi source in the findings table); the approval callback is injectable and runs on the kernel (interruptible). Suite-proven.
+
+**AC4 (bash safety, hermetic — BRIEF §4).** The suite proves the timeout-kill path end-to-end with bounded runtimes and explicit timeouts (no busy-wait): process-group child, timeout, negative-pid `-TERM` (escalating to `-KILL` when needed), reaped, no zombie, no leaked pipe readers.
+
+**AC5 (I02 carry-ins honored — I02 Verdict).** Kernel teardown is exception-safe — a test raises inside the event handler/renderer and asserts the poller thread terminates (no orphan polling a restored terminal); `Signal.trap("INT")` disposition is restored after `run`; `Poller#stop` surfaces a missed join; blockless `run` is guarded or documented as an event-only mode (recorded); bench failure-path hardening: `native_seen` initialized, nil-`extras` guarded without masking the original error, bounded drain join, kill-probe fd redirection (the probe cannot hold the pty slave). Gates `suite-green` and `bench-seam` stay green with all of this in place — the hardening must not weaken the measured properties.
+
+**AC6 (PHASE 0).** Every verify-against-reality item in the Specification's tool guidance is recorded in the findings table with evidence, plus any disagreements with reasons — silent compliance is a defect. A parity deviation adopted silently is a defect (see AC2).
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse agent-loop` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite-green
+  ac: AC1, AC2, AC3, AC4, AC5
+  cwd: repos/raspberry-pi
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: tui-seam
+  ac: AC1
+  cwd: repos/raspberry-pi
+  cmd: |-
+    test -f lib/raspberry_pi/tui.rb && test -z "$(grep -rn 'RatatuiRuby\.' lib test bench | grep -v '^lib/raspberry_pi/tui')" && echo SEAM_OK
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_OK
+
+- id: bench-seam
+  ac: AC5
+  cwd: repos/raspberry-pi
+  cmd: |-
+    timeout 90 bundle exec ruby bench/seam_bench.rb
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: gem-pins
+  ac: AC1
+  cwd: repos/raspberry-pi
+  cmd: |-
+    grep -q 'ratatui_ruby (1\.5\.0)' Gemfile.lock && grep -q 'minitest (5\.' Gemfile.lock && grep -q 'ruby_llm (2\.' Gemfile.lock && echo PINS_OK
+  expect:
+    exit_code: 0
+    stdout_match: PINS_OK
 ```
 
 ## Builder Prompt
