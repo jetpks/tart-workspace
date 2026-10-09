@@ -14,8 +14,10 @@
 - Goal: port the used parts of the pi coding harness to async-Ruby (`raspberry-pi`) — single-user daily driver on socketry `async` + `ratatui_ruby` + `ruby_llm`.
 - Last iteration: I01 seam-spike — ADOPT (CONTINUE): Design B seam picked by measurement; BRIEF §4.1 resolved.
 - Last iteration: I02 core-loop — CONTINUE (all 5 AC PASS; 6 latent failure-path defects folded into I03 as carry-ins).
-- Current: **I03 agent-loop awaiting verdict** — lane COMPLETE_WITH_CONCERNS (itemized parity deviations incl. an AC4 letter-vs-spirit conflict: pi's bash kill is single-phase SIGKILL vs the spec's two-phase TERM→KILL; plus a kernel lost-wakeup finding in loop.rb). Lane ran twice: first dispatch was killed at 65 min by an architect-side dispatch-harness timeout (foreground call — my error, not the builder's); rescue re-dispatch over the inherited worktree audited and finished it. **Judging must happen in a fresh session** (the dispatch session cannot judge — hard rule 4): run the post-flight checks, `architect evidence`, gates, and the Verdict per §6.
-- Next after I03 verdict: TUI iteration (streaming render, inline viewport chat, approval gates; copy/paste trailing-WS root-cause investigation against pi's `tui` package happens there — BRIEF §5).
+- Last iteration: I03 agent-loop — **CONTINUE (all 6 AC PASS, judged in fresh session 2026-10-09)**: agent/tool loop + seven parity tools + safety gating + I02 carry-ins, merged to `project/pi-port` (afee740). Goldens machine-derived from pi's live sources; every parity deviation raised and ruled (none silent). Two things the next sessions must know:
+  - **AC4 authoring defect to reconcile** (I03 Verdict, deviation #1): the port's bash timeout kill is two-phase `-TERM`→`-KILL`, pi's is single-phase `-SIGKILL` (shell.ts:187–207). Keep for now; the next parity iteration must either port pi's single-phase kill or amend BRIEF §5 to bless the delta — do not let it stand undecided.
+  - **Kernel lost-wakeup cure** (I03 Builder Report): async 2.46 `Async::Queue` pushes from another fiber *on the reactor thread* can lose the scheduler wakeup — reactor-originated sentinel pushes now cross a thread boundary (`Loop#signal`, loop.rb). Already merged; any future kernel code pushing to `@events` must use `signal`.
+- Next: TUI iteration (streaming render, inline viewport chat, approval gates; copy/paste trailing-WS root-cause investigation against pi's `tui` package happens there — BRIEF §5).
 
 ## Repos in scope
 
@@ -47,7 +49,7 @@ raspberry-pi:  bundle install --quiet && bundle exec rake   # default task = min
 |----|-----------|--------|-----------|--------------------|---------|------|
 | 01 | seam-spike | done (spike: ADOPT) | 240b98e4 | none (spike — nothing to integrate; scratch evidence in `build/I01-seam-spike-seam-probe/`) | ADOPT — Design B seam; all 5 AC PASS | architecture/I01-seam-spike.md |
 | 02 | core-loop | done | c03f1be0 | project/pi-port (merged 64789025) | CONTINUE — all 5 AC PASS; 6 latent defects logged as carry-ins (I02 Verdict) | architecture/I02-core-loop.md |
-| 03 | agent-loop | awaiting-verdict | ec23f37 | pending (worktree `build/I03-agent-loop-agent-loop/wt`, uncommitted) | pending — lane COMPLETE_WITH_CONCERNS; parity deviations + AC4 conflict to rule on | architecture/I03-agent-loop.md |
+| 03 | agent-loop | done | c7ad8d5c | project/pi-port (merged afee7401) | CONTINUE — all 6 AC PASS; 7 deviations ruled (AC4 two-phase-kill conflict → reconcile next parity iteration); kernel lost-wakeup cure merged | architecture/I03-agent-loop.md |
 Status values: speccing → frozen → dispatched → in-flight → awaiting-verdict → done.
 
 ## Backlog (ordered; no ordinal until `architect new`)
@@ -59,9 +61,9 @@ Status values: speccing → frozen → dispatched → in-flight → awaiting-ver
 
 - _[next planned item]_
 
-1. TUI iteration (build) — streaming render, inline viewport chat, approval gates — after core-loop.
-2. Agent/tool loop (Chat#step/run_tools, schema-gated tools, approval gates) — after core-loop; order vs TUI decided at spec time.
-3. Kernel/bench hygiene (small; fold into 1 or 2) — I02 carry-ins: exception-safe teardown + trap restore in `Core::Loop#run`, bench failure-path hardening (bounded drain join, probe fd redirection, `native_seen` init, nil-`extras` guard), `Poller#stop` join check, blockless-`run` guard.
+1. TUI iteration (build) — streaming render, inline viewport chat, approval gates; copy/paste trailing-WS root-cause investigation against pi's `tui` package (BRIEF §5).
+2. Parity reconciliation (small; fold into TUI or its own iteration) — **I03 deviation #1**: decide bash timeout-kill semantics — port pi's single-phase `-SIGKILL` (shell.ts:187–207) or amend BRIEF §5 to bless the two-phase `-TERM`→`-KILL` delta. Do not leave it standing undecided (unattributable-delta discipline).
+3. Polish carry-ins (I03 Verdict, minor; fold into the next berry-touching iteration) — (a) bash.rb re-sends `-TERM` every 50 ms poll iteration after deadline (pi sends once); (b) mock server `write_sse` should rescue `Errno::EPIPE` after client teardown for clean suite stderr; (c) optional: silence async-2.x's "unhandled exception" log for the intentional carry-in test raise (cosmetic).
 
 ## Open items for the human / architect
 
