@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: agent-loop
+  current_iteration: tui
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -132,7 +132,7 @@ project:
       - README.md
       - ".gitignore"
       base_sha: 647890256d451ff133b4968f61251c8492959408
-      worktree: build/I03-agent-loop-agent-loop/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
@@ -142,4 +142,10 @@ project:
     rehearsal:
       gates_digest: 064aab545d17f40e70b46ffd6e8091fd69b31deb8be570fe0be833e2040753fe
       at: '2026-10-09T11:07:00-06:00'
+  - name: tui
+    ordinal: 4
+    file: architecture/I04-tui.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
