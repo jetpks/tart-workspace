@@ -396,11 +396,132 @@ disagreements with reasons — silent compliance is a defect.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I02-core-loop-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence core-loop --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core-loop
+
+## Files created
+
+| File | Purpose |
+|---|---|
+| `raspberry-pi.gemspec` | gemspec; runtime deps `async ~> 2.46`, `ratatui_ruby` exact `1.5.0` |
+| `Gemfile` | gemspec + dev deps `minitest ~> 5.20`, `rake ~> 13.0`, `irb` |
+| `Gemfile.lock` | locked: async 2.46.0, ratatui_ruby 1.5.0, minitest 5.27.0 |
+| `Rakefile` | `Rake::TestTask` `:test`, default task `:test` |
+| `lib/raspberry_pi.rb`, `lib/raspberry_pi/version.rb` | root namespace `RaspberryPi`, VERSION 0.1.0 |
+| `lib/raspberry_pi/tui.rb` | `RaspberryPi::TUI` — the only ratatui_ruby-touching module: `run` (real + `headless:` test-terminal acquisition, ensure-based restore), `Session` (draw/poll_event/push_event/drain_synthetic/cell_symbol), widget + event factories, `ctrl_c?` |
+| `lib/raspberry_pi/core/loop.rb` | `Core::Loop` — Design B kernel: Async reactor, poller thread → `Async::Queue`, synthetic drain per frame, in-band Ctrl+C → `Task#stop` on work subtree, deadline-paced 60 Hz animation window (`animate(duration:)`), event-driven blocking `pop` while static, mutex-guarded stop flag, `Signal.trap("INT")` net → in-band sentinel |
+| `lib/raspberry_pi/core/poller.rb` | `Core::Poller` — dedicated thread, `poll_event(timeout: frame_interval)` (GVL released by crossterm), pushes events + synthetic-ready wake sentinel over `Async::Queue`, instant-return guard for headless polls |
+| `test/test_helper.rb` | minitest base + `ScriptedSession` double at the TUI seam (no RatatuiRuby refs) |
+| `test/tui_test.rb` | 6 tests: headless draw (buffer-verified), restore on normal exit / on raise, nested-session rejection, synthetic push+drain round-trip, ctrl_c? predicate |
+| `test/loop_test.rb` | 7 tests: native event round-trip (real poller thread + queue), cross-thread synthetic round-trip (real poller + kernel drain), Ctrl+C in-band cancels work subtree, static loop not fixed-rate (wakes < 10 over 1 s), animation deadline pacing (1 s → 50–72 frames), reactor timer ticks, `stop!` from foreign thread |
+| `bench/seam_bench.rb` | self-asserting seam bench, own 80x24 pty (re-exec), internal child deadline 45 s + parent 55 s |
+| `README.md` | modified: added Development section (build/test/bench commands) only |
+
+No commits made; no git write commands run (`git log` unchanged at `51d3443`).
+
+## PHASE 0 findings (spec-vs-reality)
+
+| # | Item | Reality / evidence | Action |
+|---|---|---|---|
+| 1 | `Async::Reactor` vs bare `Scheduler` (I01 carry-in) | Source-verified: `reactor.rb` `Reactor#initialize` calls `Fiber.set_scheduler(self)`; `scheduler.rb:496` `run_once` requires a blocking root fiber | Used `Async {}` |
+| 2 | `Async::Queue` thread-safety from non-reactor thread | `queue.rb` delegates to `Thread::Queue`, doc `@asynchronous This class is thread-safe`. Probes: blocked reactor-fiber pop woken by thread push (156 ms, concurrent timer fiber ticked 4×) and by fiber push (102 ms, timer ticked 3×) | Poller → queue is the native bridge; no extra wakeup fd needed |
+| 3 | `SyntheticEvents.push/pop/pending?/clear`; `inject_event` absent | `synthetic_events.rb`: Mutex-guarded queue, 4 methods; no `inject_event` in 1.5.0; `events.rs:17` `thread_local! EVENT_QUEUE` + `inject_test_event` (thread-local, cross-thread invisible — I01 confirmed). `poll_event` never surfaces the Ruby SyntheticEvents queue — drain must be in-loop | Used `SyntheticEvents.push` + in-loop drain only; zero `inject_test_event` calls (grep: 1 hit = a comment) |
+| 4 | `RatatuiRuby.poll_event(timeout:)` semantics | `ratatui_ruby.rb:384` + `events.rs:407`: thread-local test queue first; test-mode → immediate `None`; real mode → `poll_crossterm_without_gvl` (GVL released). Probe: real-mode poll with no tty raises `RuntimeError: Failed to initialize input reader` | Poller has an instant-return guard; tests with a poller use the scripted seam double; bench uses own pty |
+| 5 | Rust ext terminal state is thread-local | `terminal/storage.rs:15` `thread_local! TERMINAL`; `events.rs` `with_query(...).unwrap_or(false)` — poller thread sees no terminal → real-mode poll | Recorded; drives the test strategy (see disagreement 1) |
+| 6 | `RatatuiRuby.run(focus_events:, bracketed_paste:, viewport:, height:)` + ensure-restore | `terminal_lifecycle.rb:142-149`: init, yield, `ensure restore_terminal`. Probe: `init_test_terminal` + `restore_terminal` headless works, session flag cleared | `TUI.run` wraps real path; own headless path (`init_test_terminal` + ensure restore) for tests |
+| 7 | minitest pin | System gem is minitest 6.0.6; pin `~> 5.20` resolved 5.27.0 in lock. This lane does not require `ratatui_ruby/test_helper` (own headless acquisition; no stubbing needed) | Pinned in Gemfile; suite green |
+| 8 | Ctrl+C event shape | Raw-mode 0x03 → `Event::Key(code: "c", modifiers: ["ctrl"])` (`key.rb:151`, `ctrl?` in `key/modifier.rb:14`) | Kernel predicate duck-types `key?/ctrl?/code`; `TUI.ctrl_c?` in the seam module |
+| 9 | Cancellation exception renamed | async 2.46: `Async::Cancel < Exception` (`cancel.rb`) — not `Cancelled`; bare `rescue` won't catch it | Explicit `rescue Async::Cancel` in tests/work |
+| 10 | pty winsize constant | I01's `TIOCSWINSZ = 0x80087467` is darwin-only | bench selects per-OS (darwin `0x80087467`, linux `0x5413`) |
+| 11 | Reactor sleep overshoot | Measured: reactor `sleep(1/60)` returns at mean 18.28–18.74 ms (n=180 probe) — fixed-sleep pacing caps ~55 fps (matches I01's 55.6) | Kernel paces hybrid: sleep to 2 ms before deadline, cooperative spin remainder; in-pty probe: mean 16.67 ms, p95 16.77 ms |
+
+## Disagreements / judgment calls (no blockers)
+
+1. **"Native event round-trip as testable headless"**: impossible end-to-end through real crossterm headless — no-tty poll raises (finding 4) and the test-injection queue is thread-local (finding 5). Split recorded per AC2: kernel native path (poller thread → `Async::Queue` → dispatch) tested via a scripted session double with the real poller thread; the real ratatui synthetic bridge + real draw + restore-on-raise tested at `TUI` level headless; real native polling exercised by the bench in its own pty.
+2. **Animation-window API (spec left to lane)**: `Loop#animate(duration:)` — opens a window; frame loop deadline-paces at `frame_rate` (default 60) with catch-up re-anchoring; auto-closes.
+3. **Ctrl+C with no live work**: cancels the work subtree if alive; otherwise stops the loop. `Signal.trap("INT")` net routes the same in-band sentinel (cancels tasks only).
+4. **`ratatui_ruby` exact pin `1.5.0`** in the gemspec (not I01's `~> 1.5`): the GVL-release property is verified for 1.5.0 only.
+5. **Dev deps in `Gemfile`** (minitest/rake/irb), per spec, rather than in the gemspec as space-cadet does — spec instruction followed; noted as a house-style tension.
+6. **Hybrid sleep+spin pacing margin (2 ms)** is a measured necessity (finding 11); spin is cooperative (`sleep(0)`) and only while an animation window is open.
+
+## Gate: suite-green (AC1, AC2)
+
+```
+$ bundle install --quiet && bundle exec rake && echo SUITE_OK
+
+13 runs, 24 assertions, 0 failures, 0 errors, 0 skips
+SUITE_OK
+```
+
+Repeat-stability: 3 further runs, identical result line each time (seeds 45096→hung-bugs-fixed-runs 6329/…: final three runs all `13 runs, 24 assertions, 0 failures, 0 errors, 0 skips`).
+
+## Gate: tui-seam (AC1)
+
+```
+$ test -f lib/raspberry_pi/tui.rb && test -z "$(grep -rn 'RatatuiRuby\.' lib test bench | grep -v '^lib/raspberry_pi/tui')" && echo SEAM_OK
+SEAM_OK
+```
+
+## Gate: gem-pins (AC4)
+
+```
+$ grep -q 'ratatui_ruby (1\.5\.0)' Gemfile.lock && grep -q 'minitest (5\.' Gemfile.lock && echo PINS_OK
+PINS_OK
+```
+
+## Gate: bench-seam (AC3)
+
+```
+$ timeout 90 bundle exec ruby bench/seam_bench.rb
+{
+  "fps_while_animating": {
+    "mean": 60.0,
+    "p05_cadence_ms": 16.58
+  },
+  "event_p50_ms": 9.13,
+  "event_p95_ms": 17.27,
+  "sse_delivered": 500,
+  "sse_expected": 500,
+  "sse_max_gap_ms": 29.97,
+  "subprocess_lines": 100,
+  "timeout_kill": {
+    "verdict": "clean",
+    "kill_calls": 1,
+    "termsig": 15,
+    "zombie_gone": true,
+    "seconds_to_reap": 0.0015
+  },
+  "timer_ticks": 100,
+  "timer_expected": 100,
+  "static_wakes": 0,
+  "cpu_pct": 3.5,
+  "cpu_method": "Process::Tms self utime+stime (excludes children) / wall",
+  "draws": 380,
+  "workload": {
+    "sse_chunks": 500, "sse_interval_s": 0.02,
+    "subprocess_lines": 100, "subprocess_interval_s": 0.1,
+    "timer_ticks": 100, "timer_period_s": 0.1,
+    "synthetic_events": 200, "synthetic_interval_s": 0.05,
+    "animation_window_s": 3.0, "static_window_s": 3.0,
+    "child_deadline_s": 45.0
+  }
+}
+SEAM_BENCH_OK
+bench_exit=0
+```
+
+Bench repeated twice more: both `SEAM_BENCH_OK`, exit 0 (second run: mean 60.0 / p05 16.54 / p95 16.62 / cpu 3.8 / static_wakes 0).
+
+### AC cross-check
+
+| AC | Evidence |
+|---|---|
+| AC1 | suite-green output above; Design B in `core/loop.rb` (reactor-owned timers/readers, poller→queue, SyntheticEvents drain); tui-seam SEAM_OK; no `RatatuiRuby` refs outside `lib/raspberry_pi/tui.rb` (grep verbatim above) |
+| AC2 | Suite proves: both event bridges round-trip (`test_native_events_round_trip…`, `test_synthetic_events_round_trip…`), Ctrl+C in-band cancels work subtree (`test_ctrl_c_interrupt…` — asserts `interrupted?`, cancel delivered, work steps < 50), terminal restored on raise (`test_terminal_restored_on_raise`), static loop not fixed-rate (wakes < 10 over 1 s; measured 1). ≥58 fps proven by bench-seam (recorded suite/bench split; suite animation test asserts loose 50–72 frames/1 s) |
+| AC3 | bench-seam output above: unattended, self-asserting, exits 0 + `SEAM_BENCH_OK` with mean fps 60.0 ≥ 58, p95 17.27 ≤ 30, delivered == expected (sse 500/500, subprocess 100/100, timer 100/100, synthetic 200/200), timeout-kill clean; reported-ungated: static_wakes 0, cpu_pct 3.5, p05 cadence 16.58 ms |
+| AC4 | PINS_OK; lock has `ratatui_ruby (1.5.0)`, `minitest (5.27.0)`; no `inject_test_event` usage; only cross-thread state beyond sanctioned seams is the mutex-guarded stop flag |
+| AC5 | Findings table above (11 items, all with evidence) |
+
+STATUS: COMPLETE
 
 ## Verdict
 
