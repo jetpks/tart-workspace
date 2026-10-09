@@ -45,13 +45,14 @@
 
 Per design: feasibility (ran / exact error), event latency p50/p95, SSE chunks delivered/expected + max inter-chunk gap, subprocess lines delivered + timeout-kill verdict, timer ticks/expected, CPU during the combined workload (state the measurement method), frame cadence, starvation evidence (e.g. SSE gaps while polling waits), failure modes. Then: **Recommendation** — named winner with rationale grounded in the measured numbers, runner-up, risks of the winner, what evidence would change it, and what the follow-up build iteration must handle (e.g. in-band Ctrl+C byte 0x03 handling per BRIEF §4, ISIG safety net).
 
-- **Lane plan:** one lane, `seam-probe`, repo `raspberry-pi`, **touch set empty** — the lane writes nothing in any repo; experiments live in scratch by design (spike rules). Single lane ⇒ no overlap possible.
+- **Lane plan:** one lane, `seam-probe`, repo `raspberry-pi`, touch set = the scratch dir only (space-relative) — the lane writes nothing in any repo; experiments live in scratch by design (spike rules), and the worktree stays pristine. Single lane ⇒ no overlap possible.
 - **Effort:** high — concurrent-Ruby subtlety (reactors, threads, cross-fiber latency reasoning) is the load-bearing skill here, not typing; set at dispatch with `--effort high`.
 
 ```lanes
 - name: seam-probe
   repo: raspberry-pi
-  touch: []
+  touch:
+    - build/I01-seam-spike-seam-probe/scratch/**
 ```
 
 ## Acceptance Criteria
