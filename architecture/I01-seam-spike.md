@@ -337,11 +337,108 @@ the spec is sound) — silent compliance is a defect.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I01-seam-spike-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence seam-spike --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### seam-probe
+
+PHASE 0 disagreements are listed first, then raw results.
+
+### Spec-vs-reality findings (all verified against the bundled gems)
+
+| # | Spec says | Reality (evidence) | Resolution |
+|---|---|---|---|
+| 1 | `RatatuiRuby::SyntheticEvents.inject_event` | Does not exist. Real API: `SyntheticEvents.push/pop/pending?/clear` (`synthetic_events.rb`). `inject_event` exists only as a `TestHelper::EventInjection` mixin method requiring an active test terminal. | Built all injection on `SyntheticEvents.push`. |
+| 2 | "verify which composes with render-side dispatch" | Native `inject_test_event` pushes into a **thread-local** Rust queue (`ext/ratatui_ruby/src/events.rs:17 thread_local!`); live probe in a pty: cross-thread `inject_test_event` **invisible** ("visible? false"), `SyntheticEvents.push` **composes** cross-thread (verified). Also: crossterm poll runs without the GVL (`rb_thread_call_without_gvl`, events.rs:391). | Design B uses poller-thread → `poll_event` → `Async::Queue` for native events; `SyntheticEvents.push` + in-loop drain for synthetic. |
+| 3 | Design C: "`Async::Scheduler` created before the loop" | Bare `Async::Scheduler#run_once` raises `Running scheduler on non-blocking fiber!` unless `Fiber.blocking?` (async-2.46.0 scheduler.rb:502) and never installs itself as Fiber scheduler, so task fibers cannot suspend on I/O. `Async::Reactor#initialize` calls `Fiber.set_scheduler(self)` (reactor.rb:24). | Used `Async::Reactor.new` (a Scheduler) in A and C. Verified: `Async::Reactor.new` + `scheduler.async` + `run_once(0.016)` from root fiber drives sleeping tasks (`smoke_reactor.rb` output: `got=[0,1,2,3,4] finished?=true`). |
+| 4 | `script -q /dev/null` pty suggestion | Yields a **0×0 pty** — `terminal_area` = width 0, height 0 (measured) — renders vacuous. | Built own pty harness (`pty_run.rb`): `PTY.open` + `TIOCSWINSZ=0x80087467` (confirmed via cc vs sys/ttycom.h) at 80×24, hard 90 s guard. |
+| 5 | Ruby env | Ruby 4.0.7; `ratatui_ruby/test_helper` requires `minitest/mock` which **minitest 6 dropped** → pinned `minitest ~> 5.20`. `ratatui_ruby 1.5.0` + `async 2.46.0` bundle clean with BUNDLE_PATH in scratch. | Recorded; Gemfile in scratch only. |
+| 6 | `poll_event(timeout: 0.0)` non-blocking; `run(viewport:)` | Verified: returns `Event::None` immediately when queue empty (both test & crossterm modes); `run(focus_events:, bracketed_paste:, viewport:, height:)` (terminal_lifecycle.rb:147). | No change. |
+
+Also verified: `poll_event(timeout: X)` in real-terminal mode blocks up to X in crossterm (measured dt=0.1021 s for X=0.1 in pty).
+
+### Harness (identical workload per design)
+
+Mock SSE = standalone `TCPServer` process, 1500 lines "data: chunk-N\n" at 20 ms absolute-schedule; client task = `TCPSocket` + `wait_readable` fiber, timestamps each line. Subprocess = `ruby -e` child, `pgroup: true`, 300 stdout lines at 100 ms absolute schedule, stdout+stderr reader fibers; timeout-kill probe = `sleep 600` in own group, `Process.kill('-TERM', -pgid)` at ~2 s, `Process.waitpid2`, `kill(0,pid)`→ESRCH check. Timer = reactor task, 300 ticks at 100 ms. Injector = reactor task, 600 × `SyntheticEvents.push(Event::Sync)` at 20/s; loop drains and stamps dispatch latency. Draw = `Paragraph(text:…, block: Block.new(borders:[:all]))` every loop iteration. Terminal = own pty 80×24, real crossterm init (fullscreen viewport). All counts/latencies via `CLOCK_MONOTONIC`. Run duration ≈ 30 s; hard deadline 35 s.
+
+### Design A — own-loop interleave (ran)
+
+`poll_event(0.0)` → drain synthetic → `scheduler.run_once(0.016)` (bounded wait recorded: 16 ms) → draw.
+
+| metric | run 1 | run 2 (repeat, variance check) |
+|---|---|---|
+| feasibility | ran, exit 0, wall 30.06 s | ran, exit 0, wall 30.07 s |
+| SSE delivered/expected | 1500/1500 | 1500/1500 |
+| SSE mean/max inter-chunk gap | 20.0 / 32.38 ms | 20.0 / 29.95 ms |
+| event latency p50 / p95 / max | 0.69 / 0.89 / 4.56 ms | 0.10 / 0.16 / 0.71 ms |
+| subprocess lines | 300/300 | 300/300 |
+| timeout-kill verdict | SIGTERM delivered, reaped in 1.5 ms, zombie gone: true | same (reaped 0.2 ms, zombie gone: true) |
+| timer ticks | 300/300 | 300/300 |
+| CPU (Process::Tms self u+s / wall) | 7.7 % (2.325 s / 30.06 s) | 1.9 % (0.583 s / 30.07 s) |
+| frame cadence | 3096 draws, 103.0 fps | 3187 draws, 106.0 fps |
+| errors | none | none |
+
+Frame cadence varies with system load because `run_once` returns as soon as any SSE data is readable (no forced frame budget); A fps ranged 97.7–106.0 across the four A runs of identical code, while CPU ranged 1.9–16.6 %.
+
+### Design B — reactor owns, thread bridges TUI input (ran)
+
+`RatatuiRuby.run` → `Async do |task|` (reactor owns: SSE client, 2 pipe readers, timer, injector) + dedicated poller thread calling `poll_event(timeout: 0.016)` → native events delivered via `Async::Queue`; synthetic via `SyntheticEvents.push` drained by reactor each iteration; reactor loop sleeps 16 ms.
+
+| metric | run 1 | run 2 |
+|---|---|---|
+| feasibility | ran, exit 0, wall 30.14 s | ran, exit 0, wall 30.15 s |
+| SSE delivered/expected | 1500/1500 | 1500/1500 |
+| SSE mean/max gap | 20.0 / 29.85 ms | 20.0 / 32.26 ms |
+| event latency p50 / p95 / max | 8.52 / 17.65 / 18.21 ms | 8.27 / 17.57 / 18.28 ms |
+| subprocess lines | 300/300 | 300/300 |
+| timeout-kill verdict | SIGTERM, reaped 1.6 ms, zombie gone: true | same |
+| timer ticks | 300/300 | 300/300 |
+| CPU | 5.9 % (1.776 s) | 6.2 % (1.863 s) |
+| frame cadence | 1681 draws, 55.8 fps | 1676 draws, 55.6 fps |
+| errors | none | none |
+
+Latency p95 ≈ 17.6 ms is structural: events wait for the next 16 ms reactor frame before dispatch. No input-thread/render races observed across ~64 KB of rendered pty output.
+
+### Design C — TUI owns top level, reactor embedded (ran)
+
+`Async::Reactor.new` created before `RatatuiRuby.run(viewport: :fullscreen)` (recorded); `poll_event(0.016)` owns the frame wait; `scheduler.run_once(0.0)` pumps each frame (recorded choice).
+
+| metric | run 1 | run 2 |
+|---|---|---|
+| feasibility | ran, exit 0, wall 30.07 s | ran, exit 0, wall 30.08 s |
+| SSE delivered/expected | 1500/1500 | 1500/1500 |
+| SSE mean/max gap | 19.99 / 38.02 ms | 19.99 / 38.03 ms |
+| event latency p50 / p95 / max | 18.11 / 18.79 / 19.21 ms | 18.67 / 18.84 / 23.44 ms |
+| subprocess lines | 300/300 | 300/300 |
+| timeout-kill verdict | SIGTERM, reaped 1.4 ms, zombie gone: true | same |
+| timer ticks | 300/300 | 300/300 |
+| CPU | 3.1 % (0.932 s) | 5.2 % (1.552 s) |
+| frame cadence | 1650 draws, 54.9 fps | 1619 draws, 53.8 fps |
+| errors | none | none |
+
+Latency p50 ≈ 18 ms is structural: the frame budget is spent blocking in `poll_event(0.016)` for terminal input while reactor data sits ready; `run_once(0.0)` only fires what is already ripe.
+
+### Starvation evidence
+
+- SSE max inter-chunk gap stayed ≤ 38 ms in all designs (source cadence 20 ms): no design starves SSE at this load. A's worst gap (32–38 ms) matches its occasional >60 fps loop bursts; B/C bounded by their 16 ms frame waits.
+- Synthetic-event dispatch max never exceeded 23.4 ms in any design; A's max (0.7–4.6 ms) shows the interleave dispatches within one `run_once` return.
+- Negative result during development (kept as evidence): when a startup race made the SSE client die (`EADDRNOTAVAIL` port 0), design A's loop ran unthrottled once all reactor tasks finished — 70 344 draws / 2009 fps / 16.6 % CPU for the remaining 5 s. Design C in the same condition stayed at 54.7 fps / 3.6 % CPU. A must cap draws when the reactor is finished.
+
+### Recommendation
+
+**Winner: Design B (reactor owns, thread bridges TUI input).** Rationale from the numbers: (1) bounded, structural event latency — p95 17.6 ms exactly matches the intended 60 Hz frame budget, whereas A's latency is excellent when idle but its frame cadence and CPU (up to 103 fps / 7.7–16.6 % under load) are unbounded and load-dependent, a hazard for a long-running coding-agent harness; (2) A's poll-loop shape is already `run_once`-driven in B's reactor, so B inherits A's sub-millisecond *dispatch* path for reactor work while keeping render cadence capped at ~55–56 fps and CPU at ~6 %; (3) C is the cheapest (3.1–5.2 % CPU) but its p50 18 ms latency is a floor imposed by blocking `poll_event`, which would tax every keystroke→action round-trip in the port; (4) B's thread-local/inject pitfall is settled — synthetic input must flow through `SyntheticEvents.push` (+ in-loop drain); native input flows poller-thread → `Async::Queue`. Runner-up: **Design C** — if CPU on low-power hardware dominates, C is the safe fallback and simplest ownership story (TUI owns top level), at the cost of an ~18 ms latency floor. Risks of B: cross-thread coordination must remain GVL-safe only at the two sanctioned seams (`Async::Queue` push from poller, `SyntheticEvents` mutex queue) — any additional shared mutable state needs a mutex (observed requirement: counters shared with the poller thread); crossterm concurrent poll-from-thread + draw-from-main showed no corruption in ~30 s runs but was not exhaustion-tested; Ruby-thread + Fiber-scheduler interplay relies on crossterm releasing the GVL (verified in 1.5.0 — pin the gem). Evidence that would change the verdict: a workload with heavy real terminal input (B's queue could back up under input bursts), or a platform where crossterm's poll does not release the GVL.
+
+Follow-up build iteration must handle: in-band Ctrl+C byte 0x03 handling per BRIEF §4 (raw-mode crossterm delivers `Event::Key(code:"c", modifiers:["ctrl"])`, not SIGINT — the poller thread must special-case it; ISIG safety net recommended so an app crash still restores the terminal via `RatatuiRuby.run`'s ensure); the frame-budget choice (16 ms) and `SyntheticEvents` drain point should become harness constants; design A's unthrottled-loop failure mode needs a draw cap if ever used; `minitest ~> 5.20` pin for anything using `ratatui_ruby/test_helper`.
+
+### Verbatim gate outputs (this run)
+
+```
+gate report-structure/scratch-artifacts:
+ARTIFACTS_OK          (test -d scratch && find scratch -type f | wc -l >= 3)
+gate worktree-pristine (repos/raspberry-pi): CLEAN_OK
+gate report-present:  run after this file was written → REPORT_OK
+```
+
+Artifacts: `scratch/results_{A,B,C}/results_*.json` + `pty.log` (+ `results_A2/` repeat), `scratch/results_*/sse_server.log`, `scratch/sse_server.rb`, `scratch/workload.rb`, `scratch/design_{a,b,c}.rb`, `scratch/pty_run.rb`, `scratch/run_all.sh`, `scratch/smoke_*.rb`. All runs above reproducible via `scratch/run_all.sh`.
+
+STATUS: COMPLETE
 
 ## Verdict
 
