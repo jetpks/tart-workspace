@@ -60,51 +60,52 @@ no research. Write + commit: `architect section core-loop grounds --from <file>`
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse core-loop` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze core-loop` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+**AC1 (the kernel exists, behind the TUI seam — BRIEF §2/§4.1).** After the lane, `repos/raspberry-pi` is a working gem per house style: `bundle install --quiet && bundle exec rake` runs the minitest suite green; the loop kernel implements Design B — `Async::Reactor`-owned tasks, poller thread → thread-safe `Async::Queue` for native events, `SyntheticEvents.push` + in-loop drain for synthetic — and **every `ratatui_ruby` call sits inside the TUI interface module** (`lib/raspberry_pi/tui*`); the loop kernel, tests, and bench never touch `RatatuiRuby` directly. The `tui-seam` gate is a tripwire for the confinement; the substance is architect-read of the diff.
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC2 (behavior proven headless — BRIEF §4).** The suite (gate `suite-green`) proves, via public behavior only: events round-trip through both bridges; **Ctrl+C arrives in-band** (byte 0x03 as an `Event::Key` ctrl-c, never SIGINT-dependent) and cancels the in-flight task subtree; the terminal is restored on raise (ISIG safety net); the static loop is not fixed-rate (bounded wakes over a static window). Animation-window pacing ≥ 58 fps is proven by gate `bench-seam` (suite-or-bench split is the lane's recorded call; combined coverage is what this AC asserts — architect-read).
 
-**AC1.** ...
+**AC3 (the measured seam, held in-repo — BRIEF §4.1).** `bench/seam_bench.rb` runs unattended, is self-asserting with an internal hard deadline (< 60 s), prints the JSON fields named in the Specification, and exits 0 printing `SEAM_BENCH_OK` iff mean `fps_while_animating` ≥ 58 AND `event_p95_ms` ≤ 30 AND every delivered == expected AND the timeout-kill verdict is clean. Thresholds are floors/ceilings (one-sided), not equalities; the reported-but-ungated numbers (`static_wakes`, `cpu_pct`, p05 cadence) are architect-read — the spike never measured B's idle behavior, so no idle number is frozen without a control.
+
+**AC4 (spike carry-ins honored — I01 verdict).** `ratatui_ruby` pinned 1.5.0 and `minitest` ~> 5.20 in the lock; no cross-thread synthetic input via `inject_test_event` (thread-local queue); mutex on any cross-thread shared state beyond the two sanctioned seams. Tripwire gate `gem-pins` + architect-read of the diff.
+
+**AC5 (PHASE 0).** Every verify-against-reality item in the Specification's tool guidance is recorded in the findings table with evidence, plus any disagreements with reasons — silent compliance is a defect.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse core-loop` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite-green
+  ac: AC1, AC2
+  cwd: repos/raspberry-pi
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: tui-seam
+  ac: AC1
+  cwd: repos/raspberry-pi
+  cmd: |-
+    test -f lib/raspberry_pi/tui.rb && test -z "$(grep -rn 'RatatuiRuby\.' lib test bench | grep -v '^lib/raspberry_pi/tui')" && echo SEAM_OK
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_OK
+
+- id: bench-seam
+  ac: AC3
+  cwd: repos/raspberry-pi
+  cmd: |-
+    timeout 90 bundle exec ruby bench/seam_bench.rb
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: gem-pins
+  ac: AC4
+  cwd: repos/raspberry-pi
+  cmd: |-
+    grep -q 'ratatui_ruby (1\.5\.0)' Gemfile.lock && grep -q 'minitest (5\.' Gemfile.lock && echo PINS_OK
+  expect:
+    exit_code: 0
+    stdout_match: PINS_OK
 ```
 
 ## Builder Prompt
