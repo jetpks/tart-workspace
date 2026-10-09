@@ -131,6 +131,14 @@ project:
       - bench/**
       - README.md
       - ".gitignore"
+      base_sha: 647890256d451ff133b4968f61251c8492959408
+      worktree: build/I03-agent-loop-agent-loop/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-09T12:14:56-06:00'
+      integrate_sha: 3790678cb68242a70898efa99cb8e107fca57e24
     rehearsal:
       gates_digest: 064aab545d17f40e70b46ffd6e8091fd69b31deb8be570fe0be833e2040753fe
       at: '2026-10-09T11:07:00-06:00'
