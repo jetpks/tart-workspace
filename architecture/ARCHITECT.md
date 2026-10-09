@@ -13,8 +13,8 @@
 
 - Goal: port the used parts of the pi coding harness to async-Ruby (`raspberry-pi`) — single-user daily driver on socketry `async` + `ratatui_ruby` + `ruby_llm`.
 - Last iteration: I01 seam-spike — ADOPT (CONTINUE): Design B seam picked by measurement; BRIEF §4.1 resolved.
-- Next action: I02 core-loop in flight — event-loop kernel on the Design B seam (reactor-owned tasks, poller thread → `Async::Queue`, `SyntheticEvents.push` drain, deadline-paced 60 Hz while animating / event-driven while static, in-band Ctrl+C 0x03 + ISIG safety net).
-- After I02: TUI iteration (streaming render, inline viewport chat, approval gates).
+- Last iteration: I02 core-loop — CONTINUE (all 5 AC PASS; gates green cold on integration tree; fresh adversarial review confirmed the concurrency invariants, 6 latent failure-path defects logged as carry-ins in the I02 Verdict).
+- Next action: spec I03. Backlog order below — TUI iteration vs agent/tool loop decided at spec time; mandatory carry-ins from I02's Verdict (exception-safe teardown, trap restoration, bench failure-path hardening, `native_seen` init, `Poller#stop` join check, blockless-`run` guard) go into whichever is specced next — they are small and kernel/bench-local.
 
 ## Repos in scope
 
@@ -45,6 +45,7 @@ raspberry-pi:  bundle install --quiet && bundle exec rake   # default task = min
 | I# | Iteration | Status | freeze_sha | Integration branch | Verdict | File |
 |----|-----------|--------|-----------|--------------------|---------|------|
 | 01 | seam-spike | done (spike: ADOPT) | 240b98e4 | none (spike — nothing to integrate; scratch evidence in `build/I01-seam-spike-seam-probe/`) | ADOPT — Design B seam; all 5 AC PASS | architecture/I01-seam-spike.md |
+| 02 | core-loop | done | c03f1be0 | project/pi-port (merged 64789025) | CONTINUE — all 5 AC PASS; 6 latent defects logged as carry-ins (I02 Verdict) | architecture/I02-core-loop.md |
 Status values: speccing → frozen → dispatched → in-flight → awaiting-verdict → done.
 
 ## Backlog (ordered; no ordinal until `architect new`)
@@ -58,6 +59,7 @@ Status values: speccing → frozen → dispatched → in-flight → awaiting-ver
 
 1. TUI iteration (build) — streaming render, inline viewport chat, approval gates — after core-loop.
 2. Agent/tool loop (Chat#step/run_tools, schema-gated tools, approval gates) — after core-loop; order vs TUI decided at spec time.
+3. Kernel/bench hygiene (small; fold into 1 or 2) — I02 carry-ins: exception-safe teardown + trap restore in `Core::Loop#run`, bench failure-path hardening (bounded drain join, probe fd redirection, `native_seen` init, nil-`extras` guard), `Poller#stop` join check, blockless-`run` guard.
 
 ## Open items for the human / architect
 
