@@ -525,15 +525,32 @@ STATUS: COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section core-loop verdict --from <file>`. -->
+- **Disagreement rulings** (each PHASE 0 judgment call from the Builder Report):
+  1. **Native round-trip headless split** — ACCEPT. Real crossterm polls without a tty raise (finding 4) and the inject queue is thread-local (finding 5, I01 carry-in), so end-to-end native headless is impossible by construction; the spec itself sanctioned "native via synthetic + queue paths as testable headless". The kernel-side native path (real poller thread → real `Async::Queue` → real frame loop) IS exercised; the real ratatui bridge is covered at TUI level; real native polling is exercised by the bench in its own pty. BRIEF §4.
+  2. **`Loop#animate(duration:)` window API** — ACCEPT. Minimal explicit-window shape, auto-closing; exactly the "explicit API — your judgment, recorded" the spec delegated. BRIEF §4.1.
+  3. **Ctrl+C with no live work stops the loop** — ACCEPT. With nothing to cancel, exit is the only sane semantic; consistent with BRIEF §4 (interrupts cancel work, never rely on SIGINT default). Recorded, tested via the trap-net path.
+  4. **Exact pin `ratatui_ruby` 1.5.0 in the gemspec** (tighter than I01's `~> 1.5`) — ACCEPT. The GVL-release property is verified for 1.5.0 only; loosening later is a logged decision, not a default. BRIEF §2.
+  5. **Dev deps in `Gemfile`, not the gemspec** (noted house-style tension vs space-cadet) — ACCEPT. Spec instruction followed; harmless for a non-distribution gem (BRIEF §1). Revisit only if house consistency is ever worth a churn commit.
+  6. **Hybrid sleep+spin pacing (2 ms margin)** — ACCEPT with note. The frozen AC/§4.1 letter says "sleep until next frame deadline, not fixed sleep"; the lane's finding 11 (measured, n=180: reactor `sleep(1/60)` returns at ~18.7 ms — fixed sleep caps ~55 fps, matching I01's 55.6) shows the pure-sleep letter cannot reach the ≥ 58 fps floor the same AC freezes. Building the property (deadline-paced, bounded cadence) over the letter and reporting the conflict with evidence is the sanctioned path; the spin is cooperative (`sleep(0)`), animation-window-only, and CPU measured 3.5–4.3%. The pacing margin is now a named constant (`SPIN_MARGIN`) with the measurement in a comment — good.
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify core-loop`)?
+- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify core-loop` all PASS; own `git diff c03f1be0 HEAD -- architecture/I02-core-loop.md` shows only Builder Prompt appended). No builder commits (`git -C wt log <base>..HEAD` empty); worktree contained only declared files.
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | suite-green: `13 runs, 24 assertions, 0 failures, 0 errors` + SUITE_OK (cold, integration tree); tui-seam SEAM_OK; architect-read: `Async` reactor owns timers/readers/frame loop, poller thread → `Async::Queue`, `SyntheticEvents.push` + in-loop drain; every `RatatuiRuby` call confined to `lib/raspberry_pi/tui.rb` (kernel/tests/bench speak only `TUI.*` factories and `Session`) | §2, §4.1 | PASS |
+| AC2 | round-trip both bridges (loop_test.rb:6, 21); Ctrl+C in-band cancels work subtree — no signal sent anywhere in the test, asserts `interrupted?` + cancel + bounded steps (loop_test.rb:42); restore-on-raise (tui_test.rb:26); static not fixed-rate: wakes < 10 over 1 s, measured 1 (loop_test.rb:63); ≥ 58 fps via bench-seam, suite asserts loose 50–72 pacing floor — recorded split, honest | §4 | PASS |
+| AC3 | bench-seam cold on integration tree: exit 0, SEAM_BENCH_OK, mean fps 60.0, p95 18.29 ms, sse 500/500, subprocess 100/100, timer 100/100, synthetic 200/200, timeout-kill clean; all 16 JSON fields present; internal 45 s child deadline + 55 s parent deadline; thresholds one-sided | §4.1 | PASS |
+| AC4 | gem-pins PINS_OK (`ratatui_ruby (1.5.0)`, `minitest (5.27.0)` in lock); zero `inject_test_event` usage (single grep hit is a comment); cross-thread state = mutex-guarded stop flag only — reviewer traced every `Core::Loop` field: sanctioned seams or reactor-thread-only | §4.1 | PASS |
+| AC5 | 11 findings, all with gem-source/probe evidence (incl. two new ones beyond I01: cancellation exception renamed `Async::Cancel`, pty winsize constant per-OS); 6 judgment calls raised — no silent compliance | — | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+- **Adversarial review (fresh-context reviewer, claims audited against the code):** the load-bearing concurrency invariants all hold (sanctioned seams verified thread-safe in async 2.46 source; Ctrl+C cancel path correct against `Task#stop`/`wait` semantics; no deadlock in interrupt/supervise/teardown ordering; terminal-restore-on-raise at both `TUI.run` paths; pacing mechanism matches the tests). Six **latent** defects found — none exercised on the healthy path the gates measure, so none fails a frozen AC; all are mandatory carry-ins (see ledger):
+  1. bench parent: `drain.value` joins the pty-drain thread unbounded; the `sleep 600` kill-probe inherits the pty slave and sits in its own process group, so a dead workload child orphans it and the parent can block ~600 s past its own deadline on failure paths (bench/seam_bench.rb:91, 295) — the gate's external `timeout 90` still caps it, but the internal "< 60 s kills and fails the run" promise only holds on paths where the workload exits cleanly.
+  2. `Core::Loop#run` teardown (loop.rb:90–93) is not in an `ensure`: a raise from `@on_event`/`@renderer`/`draw` skips `poller.stop` with `@stop` unset → orphaned poller thread polling a restored terminal.
+  3. bench `on_event` native branch does `state[:native_seen] += 1` on a never-initialized key (bench/seam_bench.rb:155 vs state literal :119) → NoMethodError on any native event (focus events are enabled by default); compounded by `finish` crashing on nil `extras` if the work block raised, masking the original error.
+  4. `Signal.trap("INT")` installed, never removed (loop.rb:82) — process loses default SIGINT disposition after any `run`; handler+queue leak per instance.
+  5. `Poller#stop` discards `join(1)`'s result — a poller that misses the window is silently abandoned (poller.rb:32).
+  6. `run` without a work block hangs: `supervise`'s `return unless work_task` precedes the `ensure` that pushes STOP (loop.rb:200) — latent (all callers pass a block). Minor: `stats`/`interrupted?` read reactor-thread state unlocked; `Loop` is silently single-use (`@running` never reset).
+
+- **Diff vs BRIEF §1/§2/§4/§4.1** — faithful: the seam decision is now real, measured, gate-held code; house style matched (gemspec/Gemfile split per spec, frozen literals everywhere, terse public-behavior minitest with a shared base, Rake::TestTask default `:test`, README dev section only). One style note, not a defect: `TUI::Session` doc-comment references (`{TUI.run}` Yard brackets) are the only Yard-isms in an otherwise comment-plain codebase — cosmetic.
+
+- **Iteration** — **CONTINUE** — the kernel implements Design B faithfully with every frozen gate green cold on the integration tree and the load-bearing concurrency invariants independently confirmed; the six findings are failure-path hygiene (bench failure-path hang, exception-safe teardown, latent nil/NoMethodError, trap restoration), queued as mandatory carry-ins for the next iteration rather than grounds to kill the substrate every later iteration builds on.

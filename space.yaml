@@ -87,7 +87,7 @@ project:
     ordinal: 2
     file: architecture/I02-core-loop.md
     freeze_sha: c03f1be0a2a80fc8ce8deb2446a86f87c5d801f9
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core-loop
       repo: raspberry-pi
