@@ -13,7 +13,8 @@
 
 - Goal: port the used parts of the pi coding harness to async-Ruby (`raspberry-pi`) — single-user daily driver on socketry `async` + `ratatui_ruby` + `ruby_llm`.
 - Last iteration: I01 seam-spike — ADOPT (CONTINUE): Design B seam picked by measurement; BRIEF §4.1 resolved.
-- Next action: spec the **core-loop** build iteration (`architect new core-loop`) — harness core loop on the Design B seam (reactor-owned tasks, poller thread → `Async::Queue`, `SyntheticEvents.push` drain, 16 ms frame constant, in-band Ctrl+C 0x03 + ISIG safety net).
+- Next action: I02 core-loop in flight — event-loop kernel on the Design B seam (reactor-owned tasks, poller thread → `Async::Queue`, `SyntheticEvents.push` drain, deadline-paced 60 Hz while animating / event-driven while static, in-band Ctrl+C 0x03 + ISIG safety net).
+- After I02: TUI iteration (streaming render, inline viewport chat, approval gates).
 
 ## Repos in scope
 
@@ -30,7 +31,9 @@
 ## Verification gate (exact commands, per repo)
 
 ```
-[install / test / lint / typecheck / build commands for each repo in scope]
+raspberry-pi:  bundle install --quiet && bundle exec rake   # default task = minitest suite (test/**/*_test.rb)
+               bundle exec ruby bench/seam_bench.rb          # seam bench; prints SEAM_BENCH_OK + JSON on pass
+(other repos in scope are read-only design/style references for this project)
 ```
 
 ## Iteration index
@@ -53,8 +56,8 @@ Status values: speccing → frozen → dispatched → in-flight → awaiting-ver
 
 - _[next planned item]_
 
-1. **core-loop** (build) — harness core loop on the adopted Design B seam (BRIEF §4/§4.1): `Async::Reactor`-owned tasks, poller thread → `Async::Queue` native bridge, `SyntheticEvents.push` + in-loop drain, 16 ms frame budget constant, in-band Ctrl+C 0x03 + ISIG safety net. Carry-ins from I01: `minitest ~> 5.20` pin; mutex for any shared state beyond the two sanctioned seams; watch `Async::Queue` depth under real input bursts (latency was measured on synthetic events only).
-2. TUI iteration (streaming render, inline viewport chat, approval gates) — after core-loop.
+1. TUI iteration (build) — streaming render, inline viewport chat, approval gates — after core-loop.
+2. Agent/tool loop (Chat#step/run_tools, schema-gated tools, approval gates) — after core-loop; order vs TUI decided at spec time.
 
 ## Open items for the human / architect
 
@@ -66,3 +69,4 @@ stop-condition checkpoints. Detail lives in the iteration file; link it. -->
 | Date | Decision | Why |
 |------|----------|-----|
 | 2026-10-09 | BRIEF §4.1 resolved: Design B seam adopted; §4.1 text rewritten (corrects `SyntheticEvents.inject_event` → `SyntheticEvents.push`, `Async::Scheduler` → `Async::Reactor`) | I01 seam-spike measured verdict (ADOPT): B bounded structural latency (p95 ≈ 17.6 ms ≈ 16 ms frame budget) vs A unbounded cadence/CPU (97.7–106 fps, 1.9–16.6% CPU spread) vs C hard ~18 ms floor; two spec/BRIEF API-name defects found by the lane's PHASE 0 and verified against gem source — logged here rather than silently drifted |
+| 2026-10-09 | Frame pacing re-specified (human decision): **60 fps while animating, not constant** — deadline-paced 60 Hz during an animation window (gate-held floor ≥ 58 fps), event-driven while static; replaces the verdict's "16 ms harness constant" | The fps column in I01's table compared an unthrottled loop (A: 97.7–106 fps, load-dependent, no floor either direction) against a fixed-sleep loop (B: 55.6 fps at the chosen 16 ms wait — one point on a tunable curve, not a ceiling); the real prize in A was dispatch latency, which B already has on reactor-side work; constant 60 fps would burn CPU redrawing a mostly-static terminal scene |
