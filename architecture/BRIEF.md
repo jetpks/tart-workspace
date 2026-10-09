@@ -5,7 +5,7 @@
 Port/rewrite the parts of pi (the TypeScript coding-agent harness, forked at `repos/pi`) that we actually use, as a Ruby harness built on the socketry ecosystem. Motivations, in priority order:
 
 1. **Owner-fixability** — software the owner can debug and change in a language they know deeply.
-2. **Fix the trailing-whitespace copy defect** — pi round-trips trailing whitespace through the model at every boundary and upstream is a strict won't-fix (see §5).
+2. **Fix the trailing-whitespace copy defect** — see §5 (deferred to post-parity).
 3. **Investment alignment** — the owner publishes adjacent Ruby AI tooling (`space-inference-gateway` is a production Falcon/async-Ruby service; `space-cadet`, `repo-tender`, `gigatoken-rb` set house style).
 
 The deliverable is a single-user daily-driver harness, not a distribution product.
@@ -36,9 +36,14 @@ The deliverable is a single-user daily-driver harness, not a distribution produc
 - **Compaction:** port pi's pure-function design (token estimation, cut-point selection) anchored on provider-reported token counts; drive from `RubyLLM::ContextLengthExceededError` and incremental usage.
 - **Known footguns to design around:** ruby_llm fallbacks are per-request (a down vendor still eats timeout+retries each call — add circuit breaking if it bites); some providers 400 on non-default temperature; ratatui scroll offset caps at 65,535 lines (virtualize history).
 
-## §5 The whitespace deviation (the founding defect)
+## §5 The whitespace deviation (DEFERRED — parity first; owner decision 2026-10-09)
 
-Root cause (file:line evidence in the research report): pi's `read` returns bytes verbatim; the edit fuzzy matcher strips trailing whitespace only in match-space and then **deliberately re-copies original bytes on unchanged lines**; model `newText` inserts verbatim; `write` is verbatim. The port keeps this pipeline shape but **normalizes trailing whitespace at the write boundaries** — model-emitted `newText`/`write` content is trailing-trimmed before hitting disk (and unchanged-line preservation no longer carries trailing WS forward). Read output stays verbatim (matching must remain honest). The deviation is deliberate, tested, and documented in the port's README as a delta from pi.
+The original plan normalized trailing whitespace at the port's write boundaries. **Deferred until the port reaches behavioral parity with pi.** Two reasons:
+
+1. **The root cause is not established.** The pipeline itself is confirmed to round-trip trailing whitespace verbatim (read verbatim; write verbatim; edit strips trailing WS *only in match-space* — `repos/pi/packages/coding-agent/src/core/tools/edit-diff.ts:29–44` — and deliberately re-copies original bytes on unchanged lines). The owner's actual annoyance is **copy/pasting out of the pi TUI**, which may be a TUI-layer artifact (space-filling for partial redraws) rather than the tool pipeline. That hypothesis is investigated with file:line evidence against pi's `tui` package when the port's TUI iteration lands — not assumed.
+2. **Oracle discipline.** Porting with deliberate deviations intermixed makes parity mismatches unattributable — a diff against pi could be our delta or a real bug, and we can't tell. Parity first; annoyances fixed after, as isolated, tested changes.
+
+So: the tool pipeline is ported **verbatim-parity** (trailing whitespace round-trips exactly as pi's does, including the match-space-only normalization in edit); the copy/paste investigation happens at the TUI iteration; the normalization itself lands as its own post-parity iteration with tests. The founding-defect framing is retained as motivation and end-state (§7.5), not as an in-flight requirement.
 
 ## §6 Extension surface
 
@@ -52,6 +57,6 @@ The harness is the owner's daily driver:
 2. All §3 tools functional with schema-gated safety and approval gates; bash timeouts kill process groups.
 3. MCP servers connectable and usable.
 4. Print mode works for headless runs (this project's own builder lanes can eventually run on it).
-5. The §5 whitespace behavior is fixed and covered by tests.
+5. The §5 whitespace behavior is fixed and covered by tests (post-parity, per §5).
 6. Compaction triggers and recovers correctly on long sessions.
 7. A real multi-tool session run on this very space end-to-end, judged by gates.
