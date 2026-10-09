@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: seam-spike
+  current_iteration: core-loop
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -73,7 +73,7 @@ project:
       touch_set:
       - build/I01-seam-spike-seam-probe/scratch/**
       base_sha: 51d344319e9da41ac01bc0949195a1b9a5b92969
-      worktree: build/I01-seam-spike-seam-probe/wt
+      worktree:
       integration_branch:
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
@@ -83,3 +83,9 @@ project:
     rehearsal:
       gates_digest: 6ad77c3b9459807e8a2d172d88d0e534b1a518583a53cba9c86bd45bae430a04
       at: '2026-10-09T02:33:22-06:00'
+  - name: core-loop
+    ordinal: 2
+    file: architecture/I02-core-loop.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
