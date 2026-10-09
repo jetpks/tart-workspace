@@ -116,7 +116,22 @@ project:
   - name: agent-loop
     ordinal: 3
     file: architecture/I03-agent-loop.md
-    freeze_sha:
+    freeze_sha: c7ad8d5cc9b30f01a0a7c3cab26868c57ebda467
     verdict: pending
-    lanes: []
+    lanes:
+    - name: agent-loop
+      repo: raspberry-pi
+      touch_set:
+      - raspberry-pi.gemspec
+      - Gemfile
+      - Gemfile.lock
+      - Rakefile
+      - lib/**
+      - test/**
+      - bench/**
+      - README.md
+      - ".gitignore"
+    rehearsal:
+      gates_digest: 064aab545d17f40e70b46ffd6e8091fd69b31deb8be570fe0be833e2040753fe
+      at: '2026-10-09T11:07:00-06:00'
   integration_branch: project/pi-port
