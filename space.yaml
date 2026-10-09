@@ -86,6 +86,21 @@ project:
   - name: core-loop
     ordinal: 2
     file: architecture/I02-core-loop.md
-    freeze_sha:
+    freeze_sha: c03f1be0a2a80fc8ce8deb2446a86f87c5d801f9
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core-loop
+      repo: raspberry-pi
+      touch_set:
+      - raspberry-pi.gemspec
+      - Gemfile
+      - Gemfile.lock
+      - Rakefile
+      - lib/**
+      - test/**
+      - bench/**
+      - README.md
+      - ".gitignore"
+    rehearsal:
+      gates_digest: 84156585f98bf78006d44c8e42298a5129757d4b0dd8d12fe73a3d377047dcc7
+      at: '2026-10-09T09:35:16-06:00'
