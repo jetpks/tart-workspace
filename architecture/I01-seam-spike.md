@@ -9,11 +9,11 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section seam-spike grounds --from <file>`. -->
+- **Why this spike (BRIEF §4.1):** the TUI×reactor seam is the one architecture decision research could not settle on paper, and it blocks the core-loop and TUI iterations. The brief froze three candidates and requires a measured pick.
+- **What research found (full citations in `build/research/pi-port-report.md` and lanes C/D/E):** `ratatui_ruby`'s `poll_event(timeout: 0.0)` is fully non-blocking (verified against primary docs — refutes the blocking-poll assumption from lane D); the socketry `async` gem documents `Async::Scheduler#run_once` specifically for embedding a reactor in another loop, and thread-safe `Async::Queue` + `SyntheticEvents.inject_event` for a thread→UI bridge. No production prior art runs TTY input + SSE streaming + subprocesses on one Ruby reactor anywhere (NOT FOUND, high for the absence) — `airb`/`vsm` is the closest (async fibers, plain blocking `$stdin.gets` for TTY) and is dormant.
+- **Why measurement, not reasoning:** the three designs differ in cross-fiber/cross-thread latency, starvation behavior under a 16 ms poll wait, and CPU burn — quantities, not properties. A wrong pick poisons the harness core; a spike is cheap by construction.
+- **Non-goals:** ruby_llm integration (its fiber-scheduler cooperation is documented and separately verifiable — BRIEF §2/§4), the real TUI widget design, the full tool surface. All follow-up build iterations.
+- **The recommendation this spike produces feeds BRIEF §4.1's resolution** and names the follow-up build iteration it spawns.
 
 ## Specification
 
