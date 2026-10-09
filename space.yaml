@@ -66,12 +66,20 @@ project:
     ordinal: 1
     file: architecture/I01-seam-spike.md
     freeze_sha: 240b98e48bc14520066a4b09027ce9ac8f077c90
-    verdict: pending
+    verdict: continue
     lanes:
     - name: seam-probe
       repo: raspberry-pi
       touch_set:
       - build/I01-seam-spike-seam-probe/scratch/**
+      base_sha: 51d344319e9da41ac01bc0949195a1b9a5b92969
+      worktree: build/I01-seam-spike-seam-probe/wt
+      integration_branch:
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-09T02:35:49-06:00'
+      effort: high
     rehearsal:
       gates_digest: 6ad77c3b9459807e8a2d172d88d0e534b1a518583a53cba9c86bd45bae430a04
       at: '2026-10-09T02:33:22-06:00'

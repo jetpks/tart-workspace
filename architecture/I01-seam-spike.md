@@ -442,15 +442,31 @@ STATUS: COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section seam-spike verdict --from <file>`. -->
+- **Disagreement rulings (six PHASE 0 spec-vs-reality findings, all evidence-cited):**
+  1. `SyntheticEvents.inject_event` does not exist; real API is `SyntheticEvents.push/pop/pending?/clear` — **ACCEPT**. Verified against `synthetic_events.rb` in the bundled gem. The defect is authoring: the wrong API name originated in the discovery research and propagated into Grounds, the Specification, and BRIEF §4.1 itself. The lane built on the verified API; BRIEF §4.1 is corrected in the same logged decision as the design pick (see Decisions log).
+  2. Native inject queue is **thread-local** (ext/ratatui_ruby/src/events.rs:17); cross-thread inject is invisible, `SyntheticEvents.push` composes cross-thread — **ACCEPT**. This is the decisive answer to the spec's own "verify which composes with render-side dispatch" question; it settles Design B's bridge mechanism (poller thread → `Async::Queue` for native events; `SyntheticEvents.push` + in-loop drain for synthetic).
+  3. Bare `Async::Scheduler#run_once` raises on a non-blocking fiber and never installs as Fiber scheduler; `Async::Reactor.new` does — **ACCEPT**. Verified against async-2.46.0 `scheduler.rb:502` / `reactor.rb:24`, plus a smoke run. The spec's Design C wording ("Scheduler created before the loop") was infeasible as written; the lane's substitution is the correct form and is carried into the BRIEF §4.1 resolution.
+  4. `script -q /dev/null` yields a 0×0 pty — **ACCEPT**. Spec's suggested workaround measured vacuous (width 0, height 0); the lane's own pty harness (80×24, TIOCSWINSZ, 90 s guard) is an adaptation squarely inside the spec's "record the exact failure and adapt" clause.
+  5. `minitest 6` dropped `minitest/mock` → pin `minitest ~> 5.20` — **ACCEPT**. Environment reality, recorded; carried into the follow-up build iteration's tool guidance.
+  6. `poll_event(timeout: 0.0)` non-blocking semantics confirmed — no change, nothing to rule.
+  No letter-versus-spirit conflicts were raised; the gates were declared tripwires and behaved as such.
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify seam-spike`)?
+- **Acceptance Criteria integrity** — `architect verify seam-spike` all PASS; `git diff 240b98e4 HEAD -- architecture/I01-seam-spike.md` shows a single hunk in the Builder Prompt/Builder Report region (sanctioned post-freeze sections). Frozen region untouched.
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | Architect-read: recommendation names **Design B** winner with rationale grounded in measured numbers; I re-verified the load-bearing numbers against `scratch/results_{A,A2,B,C}/results_*.json` — all report tables byte-match the raw artifacts (A: p50/p95 0.69/0.89 ms, 103 fps, 7.7% CPU; B: 8.27/17.57 ms, 55.6 fps, 6.2%; C: 18.67/18.84 ms, 53.8 fps, 5.2%) | §4.1 | **PASS** |
+| AC2 | Per-design raw artifacts preserved (`results_*.json`, `pty.log`, `sse_server.log` per design, plus repeat run `results_A2/`); scripts (`design_{a,b,c}.rb`, `workload.rb`, `pty_run.rb`, `run_all.sh`) remain in scratch; JSON fields carry stated CPU method (`Process::Tms`) | §4.1 | **PASS** |
+| AC3 | All three designs built and ran, two runs each, `errors: []`, exit 0; a negative development result (SSE client race → Design A unthrottled at 2009 fps / 16.6% CPU) was kept as evidence rather than hidden | §4.1 | **PASS** |
+| AC4 | `worktree-pristine` gate CLEAN_OK; my own `git status --porcelain` in the worktree and in `repos/raspberry-pi` both empty; all writes confined to the scratch dir | §4.1 | **PASS** |
+| AC5 | Six spec-vs-reality findings raised with gem-source citations (above) — no silent compliance | §4.1 | **PASS** |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+- **Architect read of the recommendation (the actual proof, per spike rules):** the recommendation answers the question BRIEF §4.1 set — which seam the port's core loop adopts — with a measured, comparative basis: B's latency is bounded and structural (p95 17.6 ms ≈ the 16 ms frame budget) where A's is excellent-when-idle but its cadence and CPU are unbounded and load-dependent (97.7–106 fps, 1.9–16.6% CPU across identical runs — the spread itself is the argument), and C trades a hard ~18 ms latency floor for the lowest CPU. For a long-running coding-agent harness where keystroke→action round-trip and predictable resource use both matter, B is the sound pick; C is a legitimate runner-up if low-power CPU ever dominates. The winner's two sanctioned cross-thread seams (`Async::Queue`, `SyntheticEvents` mutex queue) are identified with the observed mutex requirement for any additional shared state. I adopt it.
+
+- **Residual risks carried forward (from my read, incl. the builder's own):**
+  - `native_events_seen: 0` in every run — latency was measured on **synthetic** events only (per the spec's workload item 4); real terminal-input bursts on B's `Async::Queue` are untested. First build iteration touching real input should watch queue depth under input bursts.
+  - crossterm's poll releases the GVL in ratatui_ruby **1.5.0** (events.rs:391) — B's viability depends on it; BRIEF §2 already pins 1.5.0, keep it pinned.
+  - The thread-local inject queue is a standing trap: any cross-thread synthetic input must use `SyntheticEvents.push`, never `inject_test_event`.
+  - In-band Ctrl+C (byte 0x03 → crossterm `Event::Key(code:"c", modifiers:["ctrl"])`, not SIGINT) + ISIG safety net must be first-class in the follow-up, per BRIEF §4.
+
+- **Iteration — spike disposition: ADOPT** (recorded as CONTINUE per the CLI's decision vocabulary): Design B adopted as the port's core-loop seam; BRIEF §4.1 resolved by logged decision (design pick + corrected API names: `SyntheticEvents.push`, `Async::Reactor`); spawns the follow-up build iteration **core-loop** (harness core loop on the Design B seam: reactor-owned tasks, poller thread, `Async::Queue` native bridge, `SyntheticEvents.push` + in-loop drain, 16 ms frame budget as a harness constant, Ctrl+C in-band handling, ISIG safety net). Nothing to integrate — worktree pristine by design; scratch evidence stays in `build/`.
