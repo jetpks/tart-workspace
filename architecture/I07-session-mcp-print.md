@@ -1587,6 +1587,103 @@ PINS_OK
 ### STATUS: COMPLETE_WITH_CONCERNS
 - Concern 1 (parity note, not a defect): print mode auto-approves approval-gated tools because pi has no approval mechanism and the lane note required porting pi exactly (finding 6 / parity row 1). If the architect judges the port's I0x safety gating should outrank pi's behavior in print mode, the change is one line (`approval: nil` = deny) — flagging for arbitration rather than deciding silently.
 
+### cli
+
+### PHASE 0 findings (spec-vs-reality, verified this run)
+
+| Verify item | Reality | Evidence |
+|---|---|---|
+| pi `--print`/`-p` flag shape | Boolean flag; the next non-flag argument (not starting with `-`, unless `---`) is popped into `result.messages` | repos/pi/packages/coding-agent/src/cli/args.ts:177–184 |
+| pi `--resume`/`-r` flag shape | Boolean only (`result.resume = true`); main.ts then opens `selectSession` picker UI; no value | args.ts:113–114; main.ts:415–430 |
+| pi `-p` with no message / piped stdin | pi reads piped stdin as prompt content (`readPipedStdin`) and dispatches print mode when stdin/stdout is not a tty | main.ts:112–119, 893–897 |
+| pi print mode records sessions | Yes — `createSessionManager` returns in-memory only for `--no-session`/`--help`/`--list-models` (main.ts:362); print mode drives `runtimeHost.session.prompt` (print-mode.ts:132–136). Port's `Print.run` exposes no recorder → print runs unrecorded (spec-scoped-out deviation, itemized below) | main.ts:362; print-mode.ts:36,132–136 |
+| pi print-mode approval disposition | `executePreparedToolCall` executes tools unconditionally — no approval gate in the agent loop | repos/pi/packages/agent/src/agent-loop.ts:822–840 |
+| pi print exit codes | 0 on success; 1 when the last assistant message stopReason is error/aborted (message to stderr) or an exception escapes | print-mode.ts:143–162 |
+| pi MCP config path | `<agentDir>/mcp.json` only (`path.join(getAgentDir(), "mcp.json")`); **no env override** | src/modes/interactive/interactive-mode.ts:6378 |
+| pi MCP validation strings | Exact strings match the port's `Mcp::Config` (args/env/cwd/command-or-url) | src/core/mcp-servers.ts:292–304 |
+| ruby_llm chat seeding | `Chat#add_message(message_or_attributes)` appends verbatim; `Agent::Loop#initialize` seeds after `with_instructions`, so the model sees system → prior turns on the wire | ruby_llm-2.1.0 lib/ruby_llm/chat.rb:1034–1038, 441–447 |
+| Port APIs used | `Agent::Session.dir_path/find_most_recent/context_messages/read_header`, `Recorder.new(cwd:, root:, parent_session:)`, `Agent::Loop` `recorder:`/`seed_messages:`, `Registry.build(mcp_servers:)`, `Print.run` → exit code | all read in this worktree |
+| Baseline before change | 157 runs, 599 assertions, 0 failures; `ruby bin/raspberry-pi --help` headless OK | this run |
+
+### Disagreements raised in PHASE 0 (none blocking)
+
+1. `-p/--print PROMPT` takes a required value (spec-mandated) vs pi's boolean-with-popped-next-arg; pi also reads piped stdin (not ported — out of scope). Itemized below.
+2. `--resume` + `-p` combined → abort with a clear message (port addition). `Print.run` accepts no `seed_messages:`/`recorder:`, so a resumed print run could not actually seed; silently ignoring `--resume` would be worse.
+3. `--resume` with no sessions found → abort exit 1 with stderr message (pi's picker exits 0 with "No session selected"). Headless launcher: silently starting a fresh session on a typo'd `--resume` is the worse failure.
+4. Session-id resolution scope: exact file path, or session id within the workdir's session dir only (filename `_<id>.jsonl` suffix or header id). pi's `resolveSessionPath` also searches global history — out of port scope.
+
+### Gate outputs (verbatim, final run)
+
+```
+=== suite-green ===
+Finished in 16.556135s, 9.4829 runs/s, 36.1799 assertions/s.
+
+157 runs, 599 assertions, 0 failures, 0 errors, 0 skips
+SUITE_OK
+=== stderr-quiet ===
+NO_WARN
+=== stderr-clean ===
+NO_EPIPE
+=== session-guard ===
+7 runs, 50 assertions, 0 failures, 0 errors, 0 skips
+SESSION_OK
+=== mcp-guard ===
+18 runs, 96 assertions, 0 failures, 0 errors, 0 skips
+MCP_OK
+=== print-guard ===
+4 runs, 19 assertions, 0 failures, 0 errors, 0 skips
+PRINT_OK
+=== tui-seam ===
+SEAM_OK
+=== bench-seam ===
+SEAM_BENCH_OK
+=== gem-pins ===
+PINS_OK
+=== cli-help ===
+CLI_OK
+```
+
+cli-help cmd verbatim: `out=$(timeout 30 ruby bin/raspberry-pi --help) && echo "$out" | grep -q -- '--print' && echo "$out" | grep -q -- '--resume' && echo "$out" | grep -qi 'mcp' && echo CLI_OK` → `CLI_OK`, exit 0.
+
+### Judgment calls (raw behavior, this run)
+
+| Behavior | Result |
+|---|---|
+| `ruby bin/raspberry-pi --resume` (no sessions for workdir, dummy key, fake `$HOME`) | `raspberry-pi: no session found for /private/tmp/rp-smoke-empty`, exit 1 |
+| `ruby bin/raspberry-pi -r` (same) | same abort, exit 1 |
+| `ruby bin/raspberry-pi --resume abc -p "hi"` | `raspberry-pi: --resume is interactive-only (--print runs single-shot).`, exit 1 |
+| invalid `mcp.json` (`{"mcpServers":{"x":{"args":[1]}}}`, `RASPBERRY_PI_MCP_CONFIG`) | `raspberry-pi: /tmp/rp-bad-mcp.json: server "x": args must be an array of strings`, exit 1 (pi's exact error string, aborted before any TUI/LLM traffic) |
+| `ruby bin/raspberry-pi -p` (missing value) | `raspberry-pi: missing argument: -p (see --help).`, exit 1 |
+| `ruby bin/raspberry-pi --bogus` | `raspberry-pi: invalid option: --bogus (see --help).`, exit 1 |
+| `ruby bin/raspberry-pi --help` (headless, no tty) | prints usage, exit 0, no terminal/env interaction |
+| `bin/raspberry-pi -p "say the thing"` against local MockLLMServer (hermetic) | exit 0; stdout `"printed answer\n"` (final response only); stderr `""`; 1 request captured by the mock |
+| interactive `--resume` wiring, TUI.run stubbed, fake `$HOME`, no tty | recorder header `parentSession` = the old session file's path; recorder dir `<fakehome>/.raspberry-pi/sessions/--private-tmp-rp-smoke-empty--`; seeded chat messages = `[:system, "You are a coding assistant..."], [:user, "hello earlier"]` |
+| interactive run headless WITHOUT stub (real path) | TUI init fails at `ratatui_ruby` terminal init (`Device not configured`, exit 1) — expected: pre-TUI wiring (resume resolution, recorder, seed) had already succeeded; the TUI itself requires a real terminal by design |
+
+### Parity deviations (itemized; none silent)
+
+| # | Deviation | pi evidence | Reason |
+|---|---|---|---|
+| 1 | Port `-p/--print PROMPT` requires the value; no piped-stdin prompt | args.ts:177–184 (boolean + next-non-flag pop); main.ts:893–897 (piped stdin) | Spec-mandated shape (`-p/--print PROMPT`); stdin piping out of scope |
+| 2 | Port `--resume [ID]`: optional value, default most-recent-for-workdir; no picker UI | args.ts:113–114 (boolean); main.ts:415–430 (`selectSession` UI) | Spec-mandated; the port has no session-picker UI |
+| 3 | `RASPBERRY_PI_MCP_CONFIG` env override for the mcp.json path | pi: none — `<agentDir>/mcp.json` only (interactive-mode.ts:6378) | Spec-mandated port addition, named in the existing `RASPBERRY_PI_*` vocabulary |
+| 4 | Print runs are not session-recorded | pi records print-mode sessions by default (main.ts:362 + print-mode.ts:36,132–136) | Spec-scoped out: `Print.run` exposes no recorder; did not touch print.rb |
+| 5 | `--resume` rejected when combined with `-p` | pi permits print with a resumed session (session manager is created before mode dispatch, main.ts:653+) | Port's `Print.run` has no seed/recorder surface; aborting is honest |
+| 6 | `--resume` with no matching session aborts exit 1 | pi's picker prints "No session selected" and exits 0 (main.ts:428–429) | No picker; silently launching a fresh session on a failed resume is the worse failure |
+| 7 | Resume-id resolution: exact session-file path or session id within the workdir's session dir (filename `_<id>.jsonl` suffix or header id) | pi `resolveSessionPath` also resolves global-history names (main.ts:386+) | Port scope: workdir-scoped sessions only |
+| 8 | Invalid mcp.json aborts the launcher (exit 1, pi's exact error strings) | pi surfaces validation errors at startup and exits | Headless launcher must fail before any TUI/LLM traffic |
+
+### Files
+
+| File | Change |
+|---|---|
+| bin/raspberry-pi | `-p/--print PROMPT`, `-r/--resume [ID]`, `-h/--help`; default-on interactive session recording (`Agent::Session::Recorder`, `parent_session:` on resume, `Agent::Session.context_messages` → `seed_messages:`); MCP config via `RASPBERRY_PI_MCP_CONFIG` (default `Mcp::Config::DEFAULT_PATH`) → `Tools::Registry.build(mcp_servers:)`; shared chat/tools/system-prompt builders for both paths; parse-error abort; expanded headless-safe usage |
+| README.md | Usage section: flags table rows (`RASPBERRY_PI_MCP_CONFIG`), new "Sessions", "MCP servers", "Print mode" subsections; Development adds a `-p` example line |
+
+No commits made; no git write commands run; no files outside the touch set modified (`git status` = `M README.md`, `M bin/raspberry-pi` only). `~/.raspberry-pi` never touched (all session/fixture writes used fake `$HOME` or tmp dirs). Two accidental hermetic-discipline notes: two early `-p` smoke checks with a dummy key against the real default endpoint returned 401 before I routed verification to the MockLLMServer — no valid key was ever involved, no further real traffic after that.
+
+STATUS: COMPLETE
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
