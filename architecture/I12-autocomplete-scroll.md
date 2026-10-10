@@ -885,11 +885,86 @@ Gate intent notes (calibration): `autocomplete-tripwire`, `scroll-tripwire`, `cs
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I12-autocomplete-scroll-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence autocomplete-scroll --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### agent
+
+### PHASE 0 findings (spec vs reality)
+
+| # | Verify item | Spec claim | Reality | Evidence | Verdict |
+|---|---|---|---|---|---|
+| 1 | Emission point | after `Compaction.prepare` truthy, immediately before `summarize(preparation)`, loop.rb:288-292 | `run_compaction` def at :288, `prepare` :289 + `return false unless preparation` :291, `summarize(preparation)` :292 — seam slot exists exactly as spec'd | `grep -n` on lib/tart/agent/loop.rb (this worktree) | match |
+| 2 | Reason symbols | `:manual` loop.rb:156, `:overflow` :240, `:threshold` :252 | all three `run_compaction(reason: ...)` call sites at exactly those lines | `grep -n "reason: :"` lib/tart/agent/loop.rb | match |
+| 3 | `:compaction` event unchanged | loop.rb:314 | `emit(type: :compaction, reason:, tokens_before:, summary:)` at :314 (now :320 after the 6-line insert; content untouched) | read of loop.rb | match |
+| 4 | Surface seam exists | `Chat#on_agent_event` chat.rb:192 | `def on_agent_event(event)` at lib/tart/render/chat.rb:192 | grep | match |
+| 5 | pi oracle emission point | compaction_start after prepare truthy, before summarize | `_runAutoCompaction`: `prepareCompaction` truthy check agent-session.ts:3111-3116, `started = true; this._emit({type: "compaction_start", reason})` :3118-3119, summarization after | repos/pi/packages/coding-agent/src/core/agent-session.ts:3111-3119 | match |
+| 6 | pi manual path | (not spec'd) | pi's `compact()` emits `compaction_start` reason "manual" at :2767 BEFORE `prepareCompaction` runs — pi's manual path emits start even when nothing-to-compact; the frozen contract unifies all reasons on the auto path's after-prepare placement (:3119). Contract is cross-lane frozen → complied; recorded in the deviation table | agent-session.ts:2764-2767, :3111-3119 | contract deviates from pi's manual path — recorded, not silently |
+| 7 | `def test_` vs runs count (memory lesson: private-buried tests) | — | at base: 13 `def test_` methods, 13 runs; after lane: 16 defs, 16 runs. `private` at test/agent_loop_test.rb:352 contains only helpers (`agent_on_kernel_with_seeds`, `run_agent_bounded`), zero test methods | grep + minitest output below | sound |
+| 8 | Mock server suffices for ordering test | "mock server drives the summary response" | `MockLLMServer#script` supports `:message` (non-stream summary) and `:error` specs; `respond_error` returns 400/500 JSON — an error spec on the summary request makes `summarize` return nil (`Bridge` error terminal), deterministically proving start-without-completion. No missing fixture — `test/support/` untouched | test/support/mock_llm_server.rb:45-48,110-128 | sound |
+| 9 | prepare-nil path exists for no-event case | "no event when nothing to compact" | `Compaction.prepare` returns nil when cut point is nil/0 or summarize set empty (lib/tart/compaction.rb:405-410); reachable with `keep_recent_tokens: 10_000` > tiny history while `should_compact?` still true | lib/tart/compaction.rb:405-410 | sound |
+| 10 | File boundaries sufficient | seam needs only loop.rb | emission is one line inside `run_compaction`; compaction.rb/session.rb not needed | — | sound |
+
+**Disagreements: none blocking.** Checked items 1-10 above before coding. One parity observation (item 6) recorded as a deviation, not a spec change — the contract is cross-lane frozen and the auto path's placement is what the surface lane builds against.
+
+### Files changed
+
+| File | Change |
+|---|---|
+| lib/tart/agent/loop.rb | +6 lines (1 emission + 5-line comment) in `run_compaction`: `emit(type: :compaction_start, reason:)` between the prepare guard and the summarize call |
+| test/agent_loop_test.rb | +3 tests, 2 existing tests strengthened (assertions only, no frozen assertion weakened) |
+
+### New/strengthened tests
+
+| Test | Asserts |
+|---|---|
+| `test_compaction_start_precedes_compaction_on_threshold` (new) | exactly 1 `:compaction_start` + 1 `:compaction`, start index < compaction index, reason `:threshold` on both |
+| `test_compaction_start_without_completion_when_the_summary_call_fails` (new) | summary request errors (500) → 1 `:compaction_start` (reason `:threshold`), 0 `:compaction`, run not failed — pins emission strictly before the summarize call completes |
+| `test_no_compaction_start_when_nothing_to_compact` (new) | threshold exceeded but `prepare` nil → 0 `:compaction_start`, 0 `:compaction`, 2 requests (no summarization call) |
+| `test_overflow_compacts_and_retries_the_turn_once` (strengthened) | + reason `:overflow` on the start event, start before compaction, 1 each |
+| `test_compaction_disabled_performs_no_compaction` (strengthened) | + 0 `:compaction_start` |
+
+### Gate results (verbatim)
+
+`bundle install --quiet && bundle exec rake` (suite-green):
+```
+Finished in 18.088695s, 13.8208 runs/s, 53.9011 assertions/s.
+250 runs, 975 assertions, 0 failures, 0 errors, 0 skips
+EXIT:0
+```
+Base before lane: `247 runs, 954 assertions, 0 failures, 0 errors, 0 skips` (18.005443s).
+
+agent-seam-guard: `timeout 180 bundle exec ruby -Itest test/agent_loop_test.rb && echo AGENT_OK`
+```
+16 runs, 110 assertions, 0 failures, 0 errors, 0 skips
+AGENT_OK
+```
+
+smoke-guard: `timeout 180 bundle exec ruby -Itest test/launcher_smoke_test.rb && echo SMOKE_OK`
+```
+1 runs, 3 assertions, 0 failures, 0 errors, 0 skips
+SMOKE_OK
+```
+
+bench-seam: `timeout 90 bundle exec ruby bench/seam_bench.rb` → exit 0, full JSON (fps mean 60.0, sse_delivered 500/500, timeout_kill verdict "clean"), final lines:
+```
+SEAM_BENCH_OK
+SEAM_BENCH_OK
+```
+
+tui-seam: `SEAM_OK` (exit 0). gem-pins: `PINS_OK` (exit 0). env-tripwire: `ENV_OK` (exit 0).
+
+stderr-quiet: `NO_WARN` (exit 0). stderr-clean: `NO_EPIPE` (exit 0). Both `stderr_gate*.log` removed by the gate commands themselves.
+
+cstart-tripwire: loop.rb half green — `grep -q ':compaction_start' lib/tart/agent/loop.rb` → LOOP_HALF_OK. chat.rb half (`grep -q 'compaction_start' lib/tart/render/chat.rb`) not satisfiable in this worktree — surface lane's file; expected GREEN after merge.
+
+Goldens: untouched — `git status --porcelain` shows only ` M lib/tart/agent/loop.rb` and ` M test/agent_loop_test.rb`.
+
+### Parity-deviation table
+
+| Deviation | Reason | Evidence |
+|---|---|---|
+| Manual compaction (`:manual`) emits no `:compaction_start` when nothing to compact | Frozen cross-lane contract unifies all three reasons on pi's auto-path placement (after prepare truthy); pi's manual `compact()` emits at agent-session.ts:2767 before prepare, so pi's manual path emits start even for a nothing-to-compact attempt | agent-session.ts:2764-2767 vs :3111-3119 |
+| Failed summarization still emits `:compaction_start` with no following `:compaction` | Same contract, and matches pi's auto path (start at :3119 precedes the summarization await; surface clears on error/agent_end) | agent-session.ts:3118-3119 |
+
+### STATUS: COMPLETE
 
 ## Verdict
 
