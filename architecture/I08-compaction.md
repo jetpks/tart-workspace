@@ -9,11 +9,26 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section compaction grounds --from <file>`. -->
+# Grounds
+
+Inline research done at spec time (no external dependencies — the oracle repo + the pinned gem answer everything; no research fan-out triggered).
+
+**What pi ships** (`repos/pi/packages/coding-agent/src/core/compaction/compaction.ts`, 1119 lines; `utils.ts`, 163 lines):
+
+- **Pure functions, no I/O** (file header :1-6): token estimation, cut-point selection, prompt construction, preparation. Session manager handles I/O; after compaction the session is reloaded from entries.
+- **Settings** (:120-135): `CompactionSettings {enabled, reserveTokens: 16384, keepRecentTokens: 20000}`, defaults `enabled: true`. pi loads per-model overrides from settings.jsonl; the port has no settings system — kwargs/env seam instead (BRIEF §6: grow on demand).
+- **Token accounting** (:140-231): `calculateContextTokens(usage) = totalTokens || input+output+cacheRead+cacheWrite`; last-assistant usage is authoritative, skipping aborted/error/all-zero assistant messages; trailing messages after the last usage estimated at chars/4 (`estimateTokens` :298-355 — text/thinking/toolCall name+args per block, images ≈4800 chars, ceil(chars/4)).
+- **Threshold** (:267-272): `shouldCompact(contextTokens, contextWindow, settings) = enabled && contextTokens > contextWindow - reserveTokens`; `contextWindow <= 0` disables the threshold check (agent-session.ts:768-771).
+- **Cut point** (:412-522): walk backwards over entries accumulating estimated tokens until `>= keepRecentTokens`; cut at user/assistant-role entries, **never at tool results** (a tool result must follow its tool call); never at compaction entries; adjacent metadata entries absorb backwards; split-turn detection (`isSplitTurn` + the turn-start user message).
+- **Summarization** (:535-771 + utils.ts :114-163): `SUMMARIZATION_SYSTEM_PROMPT` (utils.ts :161-163), structured `SUMMARIZATION_PROMPT`, `UPDATE_SUMMARIZATION_PROMPT` (merge into previous summary), `TURN_PREFIX_SUMMARIZATION_PROMPT` (split turns); conversation serialized to `[User]:/[Assistant thinking]:/[Assistant]:/[Assistant tool calls]:/[Tool result]:` lines with tool results truncated (`serializeConversation`, utils.ts :114-153); summary `maxTokens = min(0.8 * reserveTokens, model.maxTokens)` (turn prefix 0.5×); failure checks: error/length stopReason → throw, toolCall in the response → throw.
+- **File-op tracking** (utils.ts :30-113): extract read/modified files from tool calls + previous compaction details; appended to the summary via `formatFileOperations`.
+- **Triggers** (`agent-session.ts`): (a) **overflow** — context-length error on the assistant response → the overflowing attempt is omitted, compaction runs, the turn retries once (:3007-3047); (b) **threshold** — post-turn check from provider-reported usage (fallback chars/4 estimate for error/zero-usage responses) → compaction, no retry (:3050-3088).
+
+**Session format** (`session-manager.ts`): `CompactionEntry {type: "compaction", id, parentId, timestamp, summary, firstKeptEntryId, tokensBefore, details {readFiles, modifiedFiles}, usage?}` (:91-104, appended :1260-1285). **Replay is compaction-aware** (`buildContextEntries` :475-513): the context = the latest compaction entry (projected as a `compactionSummary` message, `messages.ts:109-121`) + entries from `firstKeptEntryId` onward + everything after the compaction entry; pre-compaction summarized entries are omitted; system messages in the kept range are skipped. `estimateProjectedContextTokens` (:227-261) distrusts usage captured before a later compaction — re-estimates from message sizes.
+
+**What the port already has:** `Agent::Loop` (chat/tools/recorder/seed_messages kwargs, `:tool_message` items, error path), `Agent::Session` (header + message entries only — I07 scope; `context_messages`, `find_most_recent`, tolerant parse skipping unknown entry types), MockLLMServer (scripts stream/tool_calls/message/error responses, captures request payloads), 157 runs / 599 assertions green at `project/pi-port` tip 593e881d.
+
+**ruby_llm 2.1.0 surfaces (gem source, verified this session):** `Message#tokens` → `Tokens` with `input/output/cache_read/cache_write/...` (message.rb :99-110) — provider-reported usage on each assistant message; `ContextLengthExceededError` raised by transport error middleware on context-length 4xx (error_middleware.rb :125-158); `Chat#model` → `RubyLLM::Model#context_window` (model.rb :33, :82) — but `assume_model_exists: true` falls back to `Model.default` with **no context_window** (models.rb :686-715, model.rb :65-74), so the port's default fireworks chat resolves `context_window` to nil unless the registry finds the model — an explicit context-window source is required for the threshold trigger. Overflow needs no window: the error is authoritative.
 
 ## Specification
 
