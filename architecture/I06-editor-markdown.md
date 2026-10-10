@@ -44,51 +44,90 @@ no research. Write + commit: `architect section editor-markdown grounds --from <
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse editor-markdown` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze editor-markdown` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+**AC1 (comment + stderr — BRIEF §2).** The `strip_thinking_replay` comment in `lib/raspberry_pi/agent/loop.rb` states pi's actual replay behavior (pi replays the reasoning field the deltas carried; the port suppresses outright — the I05-ratified deviation) — architect-read, comment-only diff, behavior unchanged. The suite runs with stderr free of async's "unhandled exception" warn (gate `stderr-quiet`) while the raising-work carry-in test still proves termination + reraise through the public path — architect-read: assertions preserved or strengthened, never weakened to silence the warn.
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC2 (cursor — BRIEF §7.1).** The input line renders a cursor at the insertion position, proven by **cell readback on the headless test terminal** at (a) end-of-input and (b) a mid-input position after cursor-left; left/right move the insertion point; backspace deletes before the cursor; printable characters insert at the cursor; send/steer/approval behavior unbroken (suite green, gate `editor-guard`). The cursor mechanism (hardware vs fake cursor) is the lane's PHASE 0 call — the readback-visible distinction is the frozen property.
 
-**AC1.** ...
+**AC3 (history + word ops — BRIEF §7.1).** Up/down recall previously sent messages in order — test-proven (send A, send B: up recalls B, up recalls A, down returns B); a recalled line is editable and sends as edited. Word-wise operations follow pi's `word-navigation.ts` boundary semantics — test-proven for at least delete-word-backward; whatever key events the port's kernel actually carries, verified in PHASE 0. Key bindings documented in `README.md`'s usage/editor section.
+
+**AC4 (markdown converter — BRIEF §7.1, §2).** `Render::Markdown` converts every subset construct (headings, paragraph, bold, italic, strikethrough, inline code, fenced code block, blockquote, hr, unordered + ordered list, link) to the gem-neutral styled-rows vocabulary; `test/markdown_test.rb` asserts each construct's observable distinction with `markdown.ts` file:line citations; the vocabulary carries no `RatatuiRuby` reference (tui-seam gate); no new runtime dependencies (gem-pins gate).
+
+**AC5 (markdown seam — fast-follow, BRIEF §7.1).** Assistant completions render markdown into scrollback — cell-readback proof of at least one styled construct on the headless terminal; user echo, tool preview, status, and approval rendering unchanged (their existing tests pass unmodified); the live region stays verbatim streaming text; the deviation (pi renders markdown while streaming; the port renders at completion) is itemized in the parity table, not silent.
+
+**AC6 (PHASE 0 + parity discipline — BRIEF §2, §5.1).** Every verify item in the Specification's tool guidance is recorded in the findings table with gem/oracle file:line evidence, plus disagreements with reasons — silent compliance is a defect; a parity deviation adopted silently is a defect (the table is empty or itemized). No new runtime dependencies. Existing measured properties are not weakened: `suite-green`, `tui-seam`, `bench-seam`, `gem-pins`, `stderr-clean` stay green with all of this in place.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse editor-markdown` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite-green
+  ac: AC1, AC2, AC3, AC4, AC5, AC6
+  cwd: repos/raspberry-pi
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: stderr-quiet
+  ac: AC1
+  cwd: repos/raspberry-pi
+  cmd: |-
+    bundle exec rake > /dev/null 2> stderr_gate2.log; ! grep -qi 'unhandled exception' stderr_gate2.log && echo NO_WARN && rm -f stderr_gate2.log
+  expect:
+    exit_code: 0
+    stdout_match: NO_WARN
+
+- id: editor-guard
+  ac: AC2, AC3
+  cwd: repos/raspberry-pi
+  cmd: |-
+    timeout 120 bundle exec ruby -Itest test/chat_test.rb test/tui_test.rb && echo EDITOR_OK
+  expect:
+    exit_code: 0
+    stdout_match: EDITOR_OK
+
+- id: markdown-guard
+  ac: AC4
+  cwd: repos/raspberry-pi
+  cmd: |-
+    timeout 120 bundle exec ruby -Itest test/markdown_test.rb && echo MD_OK
+  expect:
+    exit_code: 0
+    stdout_match: MD_OK
+
+- id: tui-seam
+  ac: AC2, AC4, AC5
+  cwd: repos/raspberry-pi
+  cmd: |-
+    test -f lib/raspberry_pi/tui.rb && test -z "$(grep -rn 'RatatuiRuby\.' lib test bench bin | grep -v '^lib/raspberry_pi/tui')" && echo SEAM_OK
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_OK
+
+- id: bench-seam
+  ac: AC6
+  cwd: repos/raspberry-pi
+  cmd: |-
+    timeout 90 bundle exec ruby bench/seam_bench.rb
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: gem-pins
+  ac: AC6
+  cwd: repos/raspberry-pi
+  cmd: |-
+    grep -q 'ratatui_ruby (1\.5\.0)' Gemfile.lock && grep -q 'minitest (5\.' Gemfile.lock && grep -q 'ruby_llm (2\.' Gemfile.lock && echo PINS_OK
+  expect:
+    exit_code: 0
+    stdout_match: PINS_OK
+
+- id: stderr-clean
+  ac: AC6
+  cwd: repos/raspberry-pi
+  cmd: |-
+    bundle exec rake > /dev/null 2> stderr_gate.log; ! grep -q 'Broken pipe' stderr_gate.log && echo NO_EPIPE && rm -f stderr_gate.log
+  expect:
+    exit_code: 0
+    stdout_match: NO_EPIPE
 ```
 
 ## Builder Prompt
