@@ -1082,6 +1082,110 @@ Both lane test files together via explicit require (both orders): `15 runs, 106 
 
 STATUS: COMPLETE_WITH_CONCERNS (concern 1: session-guard's second file arg is ignored by ruby — gate proves session_test only; concern 2: one-time Ruby 4.0 `IO::Buffer` experimental warning attributed inside my test flow, gates unaffected; concern 3: parity deviations table is non-empty by construction — items 1–4 above are reported, never silent)
 
+### mcp
+
+### PHASE 0 findings (spec-vs-reality, file:line evidence)
+
+| # | Verify item | Spec | Reality | Verdict |
+|---|---|---|---|---|
+| 1 | `RubyLLM::Tool` contract for `chat.with_tools` | wrapper must satisfy the gem | `with_tools` keys the tool hash by `tool.name.to_sym` (gem chat.rb:472-477); wire declaration = `tool.name/description/parameters_schema` (gem protocols/chat_completions/tools.rb:29-41, `tool_for`); `parameters(Hash)` accepted raw via `SchemaDefinition#resolve_direct_schema` (gem tool.rb:467-469: `deep_dup` for Hash); instance-level `#name` override is the repo's established seam (lib/raspberry_pi/tools/safe_execute.rb:22-24) | OK — `Mcp::Tool` overrides `#name`, `#description`, `#parameters_schema` (per-instance schema: the schema is the server's, not the class's) |
+| 2 | Tool result/exception surfacing into history | what the session/tool layer observes | `invoke_tool` → `Tool#call` → `#execute` (gem chat.rb:1680-1700); **concurrency mode re-raises worker exceptions** (`tool_concurrency.rb:107-108` → `collect_results` raises `errors.first`) — a raising MCP tool would kill the step, so the wrapper must return `{error:}` itself; house idiom = `SafeExecute` (CancelledError propagates, StandardError → `{error: e.message}`) | OK — `Mcp::Tool#execute` mirrors that idiom without including SafeExecute (its `#name` definition would fight the wire-name override) |
+| 3 | Client defaults | 30 s timeout, pagination | `DEFAULT_REQUEST_TIMEOUT_MS = 30_000` (pi client.ts:40), `MAX_LIST_PAGES = 1_000` (client.ts:41); initialize handshake + validation `client.ts:200-249`; unsupported-version error string `client.ts:216`; dispatch order response→request→notification (`handleMessage`, client.ts:398-409) | OK |
+| 4 | JSON-RPC validation + error codes | jsonrpc.ts | codes -32700/-32600/-32601/-32602/-32603; `isJsonRpcResponse` result-XOR-error (jsonrpc.ts:86-92); `"Invalid JSON-RPC message"` (jsonrpc.ts:120-124); response for unknown id → error `"Received response for unknown MCP request …"` (client.ts:425-427) | OK |
+| 5 | stdio framing + lifecycle | stdio.ts | newline-delimited JSON-RPC; trailing `\r` stripped, blank lines skipped (stdio.ts:237-247); `DEFAULT_MAX_MESSAGE_BYTES = 16MiB` (transport.ts:3); stderr capped 64KB (stdio.ts:211-218); close: stdin close → 500ms grace (`STDIN_CLOSE_GRACE_MS`, :9) → SIGTERM → `closeTimeoutMs` 2000 (:8) → SIGKILL; process groups (`detached`/`killProcessTree` negative-pid); incomplete-message-on-close error string (stdio.ts:105-108); exit hook kills live groups (stdio.ts:37-46) | OK — ported via `Process.spawn(pgroup: true)` + group kill + `at_exit` hook |
+| 6 | config validation error strings | mcp-servers.ts:292-304 | exact strings verified: `server "x" must be an object` (:251), `server "x": args must be an array of strings` (:297), `server "x": env must map names to strings` (:300), `server "x": cwd must be a string` (:302), `server "x" needs either "command" (stdio) or "url" (streamable HTTP)` (:304); file-level `expected an object with an "mcpServers" object` (extensions/mcp/config.ts:102-105); missing file → no servers, no error (config.ts:94-95); per-file prefix `"{path}: "` (config.ts:96, :107) | OK |
+| 7 | tool naming | `mcp__<server>__<tool>` | `createMcpToolName` (extensions/mcp/tools.ts:94-104): sanitize `[^A-Za-z0-9_]→_`, cap 64 chars (`MAX_TOOL_NAME_LENGTH`, tools.ts:31), sha256 8-hex suffix on overflow/collision; `isMcpToolName` prefix check (mcp-servers.ts:38-40) | OK — ported fully including hash-suffix tail |
+| 8 | protocol versions | types.ts | `LATEST_PROTOCOL_VERSION = "2025-11-25"` (:4); `SUPPORTED_PROTOCOL_VERSIONS` = + 2025-06-18, 2025-03-26, 2024-11-05 (:9) | OK |
+| 9 | exposure modes | `direct` only | codemode/deferred/direct/hidden (mcp-servers.ts:69-77, default `codemode`); port ships direct only | OK — itemized in parity table |
+| 10 | registry seam | optional kwarg, default none | existing `Registry.build(selected:, cwd:, strip_trailing_whitespace:)` — all 17 existing call sites (bin/raspberry-pi:69, test/*) pass no MCP args | OK — added `mcp_servers: nil` kwarg; all call sites stay green |
+
+### PHASE 0 disagreements / judgment calls
+
+| # | Item | Decision |
+|---|---|---|
+| 1 | ruby_llm 2.1 ships its own MCP client (`RubyLLM::MCP`, gem lib/ruby_llm/mcp/) — no new dep needed | Followed spec: hand-rolled client mirroring pi's transport/client split. The gem's `with_mcp` integration bypasses the port's Registry seam and carries its own naming/visibility/OAuth semantics. Flagged for the architect; no dep added. |
+| 2 | `url` entries in mcp.json: pi accepts them (streamable-http); port is stdio-only per spec | Port rejects with a port-specific string `server "x": streamable HTTP transport is not supported (stdio only)` — invented string, itemized here (pi would have accepted). |
+| 3 | pi's per-server `timeout` field (seconds, default 60, mcp-servers.ts:237) | Not in the spec's `{command, args?, env?}` shape; skipped. Client default = pi's client.ts:40 30 s (pi's runtime layer overrides to 60 s per server; port skips that layer). |
+| 4 | pi's `McpAbortError`/AbortSignal support (jsonrpc.ts, client.ts) | No signal machinery in the port's synchronous request path; cancellation is loop-level. Out of the ported surface. |
+| 5 | `Registry.build` kwarg name (spec: "optional kwarg, default = none", unnamed) | Chose `mcp_servers:` — Hash `name → raw mcp.json-shaped config` (the `Mcp::Config.load` return shape). Wave-2 CLI passes `Mcp::Config.load`. |
+| 6 | connect-failure semantics | pi degrades: server state `"failed"` (runtime.ts:57), session continues, error surfaced in UI. Port has no UI surface at build time → warn on `$stderr` (`raspberry-pi: mcp server "x" failed to connect: …`) and continue without that server's tools. Test-proven (`test_registry_skips_a_server_that_fails_to_connect`). |
+
+### Parity-deviation table (itemized)
+
+| # | pi behavior | Port behavior | Where |
+|---|---|---|---|
+| 1 | Exposure modes codemode/deferred/direct/hidden, default codemode (mcp-servers.ts:69-77) | `direct` only: MCP tools are declared to the model like any built-in; no codemode/deferred/hidden machinery | Mcp::Tool::EXPOSURE = "direct"; lib/raspberry_pi/mcp/tool.rb |
+| 2 | streamable-http transport + OAuth | Out of scope per spec; url entries rejected (see disagreement 2) | lib/raspberry_pi/mcp/config.rb |
+| 3 | Per-server `timeout` (seconds, default 60) | Not ported; 30 s client default | lib/raspberry_pi/mcp/client.rb |
+| 4 | MCP result images/audio/resource blocks mapped to model-facing attachments / resource-link notes (tools.ts blockToContent) | Text blocks only (joined `\n`); non-text blocks dropped. resources/prompts out of scope per spec | lib/raspberry_pi/mcp/tool.rb#model_facing_text |
+| 5 | 20KB middle-truncation, full text saved to a `pi-mcp` managed output dir (tools.ts limitMcpContent + writeOutputFile) | Ported: same 20KB + pi's exact warning/full-output text format, but the temp file lands in `Dir.tmpdir` (`raspberry-pi-mcp-<pid>-<n>.txt`), not pi's managed output dir (the port has no output-file manager) | lib/raspberry_pi/mcp/tool.rb |
+| 6 | `createMcpToolName` hash suffix (tools.ts:94-104) | Ported 1:1 (sanitize, 64 cap, sha256 suffix) — no deviation | Mcp::Tool.tool_name |
+| 7 | Server connect failure → state "failed", UI error, session continues | $stderr warning, session continues without the server's tools (no UI surface) | lib/raspberry_pi/mcp.rb#tools_for |
+| 8 | `notifications/progress` handling (progress resets request timeout) | Notifications consumed and ignored (progress out of scope) | lib/raspberry_pi/mcp/client.rb#handle_message |
+
+### Files (all in my touch set)
+
+| File | Status |
+|---|---|
+| lib/raspberry_pi/mcp.rb | new — Mcp facade (`tools_for`/`server_tools`) |
+| lib/raspberry_pi/mcp/jsonrpc.rb | new — error vocab + message validation (port of jsonrpc.ts) |
+| lib/raspberry_pi/mcp/stdio.rb | new — stdio transport (port of transports/stdio.ts) |
+| lib/raspberry_pi/mcp/client.rb | new — JSON-RPC client (port of client.ts) |
+| lib/raspberry_pi/mcp/config.rb | new — mcp.json config load/validate (port of config.ts + validateMcpServerConfig) |
+| lib/raspberry_pi/mcp/tool.rb | new — RubyLLM::Tool wrapper (port of extensions/mcp/tools.ts) |
+| lib/raspberry_pi/tools/registry.rb | modified — `build` gains `mcp_servers: nil` kwarg (+ `require_relative "../mcp"`, +12/-2 lines) |
+| test/mcp_test.rb | new — 18 tests |
+| test/support/mcp_echo_server.rb | new — pure-Ruby fixture stdio MCP server (no gems; initialize/ping/tools/list/tools/call; failure-injection toggles) |
+
+Untouched: `lib/raspberry_pi.rb`, `agent/loop.rb`, `bin/`, `README.md`, `test/test_helper.rb`, `test/golden_parity_test.rb`, `test/support/mock_llm_server.rb` (read-only, used for the AC4 agent round trip). No commits made (git log head unchanged at a8ec14e; working tree shows only my files).
+
+### Gate results (verbatim)
+
+```
+# suite-green
+... 169 dots
+Finished in 16.331115s, 8.9400 runs/s, 32.4534 assertions/s.
+146 runs, 530 assertions, 0 failures, 0 errors, 0 skips
+SUITE_OK   (baseline pre-lane: 128 runs, 434 assertions — +18 mcp tests)
+
+# stderr-quiet
+NO_WARN
+
+# stderr-clean
+NO_EPIPE
+
+# mcp-guard (timeout 120 bundle exec ruby -Itest test/mcp_test.rb)
+Finished in 1.544453s, 11.6546 runs/s, 62.1579 assertions/s.
+18 runs, 96 assertions, 0 failures, 0 errors, 0 skips
+MCP_OK
+
+# tui-seam
+SEAM_OK
+
+# bench-seam (timeout 90 bundle exec ruby bench/seam_bench.rb)
+SEAM_BENCH_OK
+
+# gem-pins
+PINS_OK
+```
+
+Not runnable in this worktree:
+
+| Gate | Status |
+|---|---|
+| session-guard | NOT RUNNABLE: wave-1 deliverable (test/session_test.rb does not exist; I did not create it). test/agent_loop_test.rb itself is green inside suite-green and unmodified. |
+| print-guard | NOT RUNNABLE: wave-1 deliverable (test/print_test.rb does not exist; I did not create it). |
+| cli-help | NOT RUNNABLE: wave-2 deliverable. |
+
+### AC evidence summary
+
+| AC | Evidence |
+|---|---|
+| AC3 | test_client_initialize_list_and_call_round_trip (handshake fields asserted), test_close_reaps_the_child_process (`Errno::ECHILD` after close = reaped), test_request_timeout_raises_with_the_default_message ("MCP request timed out after 250ms"), test_jsonrpc_validation_matches_pis_predicates_and_codes, test_transport_passes_child_stderr_through — all over real pipes to test/support/mcp_echo_server.rb; no network, no keys, no new deps (gem-pins PINS_OK) |
+| AC4 | test_registry_registers_mcp_tools_behind_the_schema_gate (wire names, description, server inputSchema through `parameters_schema`, execute round trip, no approval gate), test_registry_without_mcp_servers_never_connects_anything, test_config_error_strings_match_pi (7 exact strings), test_missing_config_file_means_no_servers_no_error, test_agent_round_trip_model_calls_mcp_tool_result_returns_to_the_model (MockLLMServer scripts `mcp__echo__echo`; tool message in the captured payload contains "echo: ping"), test_registry_skips_a_server_that_fails_to_connect; direct-only exposure itemized above |
+
+STATUS: COMPLETE_WITH_CONCERNS (concerns: disagreement/parity items 1-8 above — all spec-sanctioned stdio-scope simplifications plus the invented url-rejection error string and the $stderr connect-failure surface; `mcp_servers:` kwarg name was architect-unnamed and is a wave-2 CLI seam)
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
