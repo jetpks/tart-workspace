@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: live-run-fixes
+  current_iteration: third-run-parity
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -587,4 +587,10 @@ project:
     rehearsal:
       gates_digest: 3ac2543c5d2f44d731770a9690ba2421ccb3288b823f682ea54134a06f2d5455
       at: '2026-10-10T13:07:06-06:00'
+  - name: third-run-parity
+    ordinal: 14
+    file: architecture/I14-third-run-parity.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
