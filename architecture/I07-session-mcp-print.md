@@ -1007,11 +1007,80 @@ analysis or partial fixes.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I07-session-mcp-print-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence session-mcp-print --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### session
+
+### PHASE 0 findings (spec-vs-reality, file:line evidence)
+
+| Verify item | Reality | Evidence |
+|---|---|---|
+| Session header | `{type:"session", version:3, id, timestamp(ISO ms, Z), cwd, parentSession?}`; `parentSession` = previous session **file path** when persisting | pi `session-manager.ts:43-51`, `:1060-1070` (newSession), `:1698-1703` (fork) |
+| Entry base / message entry | `{type, id, parentId, timestamp}`; message entry carries `message` (AgentMessage) | pi `session-manager.ts:57-68`, `:1197-1208` (appendMessage) |
+| Entry ids | 8 hex chars, collision-checked 100×, fallback full uuid | pi `session-manager.ts:275-281` (generateId); port: `SecureRandom.hex(4)` + Set check |
+| Session id | uuidv7 (`createSessionId`) | pi `session-manager.ts:264`; port hand-rolls uuidv7 (Ruby has no v7 builtin) |
+| Dir/file layout | `<agentDir>/sessions/--<resolvedCwd with leading / stripped, [/\:]→"-"-->--/<ISO ts with [:.]→"-"--><id>.jsonl`; `getDefaultSessionDir` mkdirs | pi `session-manager.ts:596-604`, `:1080`; pi `config.ts:600-610,649` (`~/.pi/agent/sessions`) |
+| Lazy file creation | file created (`wx`, header + buffer) only when session holds a user/assistant message; else append one line | pi `session-manager.ts:1166-1188` (`_hasConversation`/`_persist`) |
+| Malformed-line skip | blank/malformed lines skipped on parse | pi `session-manager.ts:355-370` (parseSessionEntries) |
+| Header validation on load | `[]` unless first entry is `type:"session"` with String id | pi `session-manager.ts:627-650` (loadEntriesFromFile) |
+| Null-content tolerance | system role → `""`; user/assistant/toolResult → `[]` | pi `session-manager.ts:439-474` (sessionEntryToContextMessages) |
+| Most-recent-for-cwd | `*.jsonl` by mtime desc; first valid header whose resolved cwd matches; races → null | pi `session-manager.ts:749-775` (findMostRecentSession) |
+| `RubyLLM::Chat` history | `Chat#messages` plain reader; `Chat#add_message(Message\|Hash)` appends; `step` formats **all** messages into the request payload | gem `chat.rb:43,1034-1050,236-245`; gem `protocols/chat_completions/chat.rb:308-330` (format_messages) |
+| Message serialization round-trip | `Message#to_h` is JSON-safe/compact; `Message.new` coerces the symbolized hash back (roles to_sym, `coerce_tool_calls` hash-of-hashes) | gem `message.rb:258-282,307-323,88-125` |
+| Tool result surface | tool result = `Message` role `:tool`, `tool_call_id` + content; arrives atomically via `after_message` → loop's `:tool_message` item — exactly what the recorder observes | gem `chat.rb:236-245`; loop.rb `handle_item` |
+| MockLLMServer sufficiency for AC2 | `captured_requests` exposes full parsed request bodies — sufficient; **no changes made** | test/support/mock_llm_server.rb (`@requests`, `captured_requests`) |
+
+### Disagreements / parity deviations (all itemized; none silent)
+
+| # | Item | pi behavior | Port behavior | Reason |
+|---|---|---|---|---|
+| 1 | Null-content tolerance mapping | user/assistant/toolResult null content → `[]` (content-block array) | → `""` for all roles | `RubyLLM::Message.normalize_content` raises `ArgumentError` on non-String/non-nil content (gem `message.rb:120-128`); `[]` cannot be seeded into a chat. `""` is the benign non-crashing equivalent; system role matches pi exactly |
+| 2 | Message role vocabulary | pi roles `user`/`assistant`/`toolResult` | recorded `message` field carries ruby_llm roles (`"tool"` in JSON) | the recorded message is the port's actual `RubyLLM::Message` (`to_h`); renaming roles both ways would be a lossy cosmetic rewrite |
+| 3 | Sessions root | `~/.pi/agent/sessions` | `~/.raspberry-pi/sessions` under an **injectable root** | matches the spec's own `~/.raspberry-pi/mcp.json` convention; tests inject tmp dirs only, `~` never touched |
+| 4 | Session id scheme | uuidv7 via `crypto.randomUUID` variants | hand-rolled uuidv7 (~10 lines, version-7/variant bits asserted by test) | no Ruby builtin; time-ordering is load-bearing in pi's scheme |
+
+No disagreements on: mock_llm_server (sufficient read-only), test_helper/golden_parity_test (unneeded), `lib/raspberry_pi.rb` (registration via `require_relative "session"` in `agent/loop.rb` works), gem pins (no new deps), Rakefile (already globs `test/**/*_test.rb`).
+
+### Judgment calls (per output format)
+
+- **Entry subset ported:** header + message entries only (spec scope); usage/model_change/etc. project to nothing on load.
+- **Id scheme:** header id = uuidv7; entry ids = 8-hex collision-checked; `parentId` = leaf chain (first message `parentId: null`).
+- **Resume mechanism:** `Agent::Session.context_messages(path)` → chat-ready attribute hashes → `Agent::Loop` `seed_messages:` kwarg → `chat.add_message` pre-run → prior turns appear in the captured wire payload (test-proven).
+- **parentSession:** the previous session file's path (pi fork semantics).
+
+### Files (my lane only)
+
+| File | Change |
+|---|---|
+| `lib/raspberry_pi/agent/session.rb` | NEW — `Agent::Session` (uuidv7, ids, dir/file naming, parse/load, tolerant projection, most-recent) + `Agent::Session::Recorder` (lazy-flush JSONL appender, pi `_persist` semantics) |
+| `lib/raspberry_pi/agent/loop.rb` | `require_relative "session"`; optional kwargs `recorder:` (nil = off) + `seed_messages: []`; `record` at the three message-materialization points (user, assistant step, tool result). All pre-existing call sites unchanged |
+| `test/session_test.rb` | NEW — 7 tests, 50 assertions |
+| `test/agent_loop_test.rb` | UNTOUCHED (kwargs optional; passes unmodified as required) |
+
+Not touched: `lib/raspberry_pi.rb`, `test/support/mock_llm_server.rb`, `test/test_helper.rb`, `test/golden_parity_test.rb`, `Gemfile*`, gates' files. No commits, no git writes (`git status` shows the two modified/new files only).
+
+### Gate outputs (verbatim, this run)
+
+| Gate | Result | Verbatim evidence |
+|---|---|---|
+| suite-green | PASS | `135 runs, 484 assertions, 0 failures, 0 errors, 0 skips` / `SUITE_OK` |
+| session-guard | PASS | `timeout 120 bundle exec ruby -Itest test/session_test.rb test/agent_loop_test.rb` → `7 runs, 50 assertions, 0 failures, 0 errors, 0 skips` + `SESSION_OK` |
+| stderr-quiet | PASS | `NO_WARN` |
+| stderr-clean | PASS | `NO_EPIPE` |
+| tui-seam | PASS | `SEAM_OK` |
+| bench-seam | PASS | `SEAM_BENCH_OK` |
+| gem-pins | PASS | `PINS_OK` |
+| mcp-guard | NOT RUNNABLE: wave-1 deliverable (test/mcp_test.rb does not exist; not created) | `test -f test/mcp_test.rb` → missing |
+| print-guard | NOT RUNNABLE: wave-1 deliverable (test/print_test.rb does not exist; not created) | `test -f test/print_test.rb` → missing |
+| cli-help | NOT RUNNABLE: wave-2 deliverable — `--help` carries no `--print`/`--resume`/mcp yet | `ruby bin/raspberry-pi --help` output lacks the flags |
+
+Both lane test files together via explicit require (both orders): `15 runs, 106 assertions, 0 failures, 0 errors, 0 skips`.
+
+### Notes / concerns
+
+1. **Gate quirk (session-guard), not weakened:** `ruby -Itest test/session_test.rb test/agent_loop_test.rb` only *executes* the first file — the second path becomes ARGV (Ruby does not chain-load scripts). The gate passes on session_test alone; agent_loop_test passes when actually loaded (verified above, 15 runs both orders). Flagging for the architect; gates are frozen so I changed nothing.
+2. **One-time stderr warning from Ruby 4.0 IO internals:** `.../lib/raspberry_pi/agent/session.rb:232: warning: IO::Buffer is experimental...` fires once per process in my tests (interleaves kernel fibers with net/http streaming; attribution lands on my `File.open` frame, but no `IO::Buffer` is referenced by my code and the warning is not reproducible with the same IO idioms outside the kernel/streaming flow — plain `File.open("a")`/`readlines`/socket probes are silent). No gate checks it (stderr-quiet greps `unhandled exception`, stderr-clean greps `Broken pipe`); both pass.
+3. **Defect found & fixed during build:** the first recorder draft flushed once and never appended later entries (file held only the user message) — caught by test 1, restructured `persist` to flush-then-append (pi `_persist`'s two branches).
+
+STATUS: COMPLETE_WITH_CONCERNS (concern 1: session-guard's second file arg is ignored by ruby — gate proves session_test only; concern 2: one-time Ruby 4.0 `IO::Buffer` experimental warning attributed inside my test flow, gates unaffected; concern 3: parity deviations table is non-empty by construction — items 1–4 above are reported, never silent)
 
 ## Verdict
 
