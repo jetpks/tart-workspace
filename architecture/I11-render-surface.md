@@ -616,11 +616,154 @@ Gate intent notes (calibration): `fullscreen-tripwire` and `footer-tripwire` are
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I11-render-surface-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence render-surface --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+### PHASE 0 findings (spec-vs-reality, evidence)
+
+| # | Verify item | Spec claim | Reality | Evidence |
+|---|---|---|---|---|
+| 1 | pi fullscreen layout root | interactive-mode.ts:455-470, 876-881 | Confirmed: `fullscreenLayoutRoot` comes from `createChatViewport(...)` (interactive-mode.ts:966-983), installed via `tui.setLayoutRoot` (:875-878). pi's root (packages/coding-agent/src/modes/interactive/chat-viewport.ts:25-42) = VStack of [ScrollView transcript (basis 0, grow 1, minSize 1), dock VStack (basis auto, grow 0, shrink 1)] where dock = [pendingMessages, status, widgetsAbove, editor (minSize 3), widgetsBelow, footer] all shrink:1 | Ported: root vertical split — transcript `Min(rest)`, editor block + footer `Length` (gem Layout renders `children[i]` into constraint rect i — layout/layout.rb:44, verified live). |
+| 2 | DynamicBorder | — | A transcript rule line (`"─" × width`, theme border color) inserted between chat entries — NOT a box border (components/dynamic-border.ts:21-23) | Cut (see deviations). |
+| 3 | Editor top-border status | custom-editor.ts:6-13 | `renderTopBorder` embeds a `StatusIndicator.renderInBorder` in the top border; kinds = working/retry/compaction/branchSummary (components/status-indicator.ts:10); working message "Working", compaction "Compacting context... (…to cancel)" / "Context overflow detected, Auto-compacting...", retry "Retrying (n/m) in Xs... (…to cancel)", summarization "Summarizing branch..." (status-indicator.ts:52-116). Driven by indicator objects set per state | Port's event surface (lib/tart/agent/loop.rb:66-70) carries NO retry and NO summarization/branch-summary event; `:compaction` fires only after completion (loop.rb:314). Border carries the live working/tool status; retry/summarization cut (missing event seam — raised, not edited). |
+| 4 | Footer | footer.ts:33-43, 59-136 | 2 lines (footer.ts:169-171): [pwdLine, statsLine]. pwd = `formatCwdForFooter` ~-contraction (:33-43) + ` (${branch})` (:120-122). stats = `↑input ↓output RcacheRead WcacheWrite CH%` (:113-117), `$cost` when nonzero (:123-127), context `pct%/window (auto)` warning >70% / error >90% (:128-143), model id right-aligned with min-2 padding (:147-172), `formatTokens` compaction (:23-30). Context denominator `contextUsage?.contextWindow ?? state.model?.contextWindow ?? 0` (:108). Usage totals memoized per (session, leafId, entryCount, model) — scanned per render (:63-106). Branch: provider-cached, fs-watched (core/footer-data-provider.ts:104-139); detached HEAD → "detached" (:50-53) | Ported: 2 lines, all shapes above except cost (no cost data in ruby_llm tokens — cut); totals accumulated O(1) at `:message_end` (reduced cadence, see judgments); denominator = I10 `Settings.resolve_context_window` (lib/tart/settings.rb:95), bin-wired. |
+| 5 | Theme tokens | theme-tokens.ts + system-theme.ts | THEME_TOKENS = 57 tokens (theme-tokens.ts:23-88); default theme values in theme/dark.json (okhsl strings). Port rides gem ANSI named colors (fg-only seam) | Table in judgment calls — 19 tokens carried, 38 cut with reasons. |
+| 6 | Transcript model | tui.rb:92-96 retire | `insert_before` is inline-only (seam kept, unused by the surface). Surface now owns `@transcript` buffer; `flush_scrollback` concatenates into it; every frame draws the visible tail. Streaming live source = transient tail lines recomputed per frame | gem `resize_terminal` verified live on the test terminal (ext/ratatui_ruby/src/terminal/mutations.rs:126) — real resize proof possible. |
+| 7 | Gem seam surface | layout/constraint.rb, widgets/block.rb:25, tui.rb:140 | `Layout.new(direction:, constraints:, children:)` renders children into rects (layout/layout.rb:25,114); `Constraint.length/percentage/min/max/fill/ratio` (layout/constraint.rb); `Block.new(title:, titles:, title_alignment:, title_style:, borders:, border_style:, border_type:, border_set:, style:, padding:, children:)` (widgets/block.rb:25); `init_test_terminal` parses non-"inline" → `Viewport::Fullscreen` (ext/.../terminal/init.rs:94-117); real init enters alt screen for fullscreen (init.rs:63-66); `Event::Resize` (event/resize.rb); `cell_fg`/`cell_modifiers` read back under fullscreen (verified live) | All verified live with headless draw probes (block title + border styles + layout children + footer readback + `resize_terminal`). |
+| 8 | Launcher smoke | env seam | `Settings.load(cwd:, env:)` → `resolve_setting` env→settings→default (settings.rb:68,95); MockLLMServer.url gives `http://127.0.0.1:<port>/v1`; `Dir.home` drives `Agent::Session.default_root` (agent/session.rb:73-75) so HOME→tmpdir makes ~/.tart hermetic; `TART_MCP_CONFIG`→absent path avoids real MCP config. 53a08db was the unwrap crash class | Smoke test green (below). |
+| 9 | test_helper.rb read-only | ScriptedSession records insert_before | Surface no longer calls insert_before; ScriptedSession.new(width:, height:) kwargs exist (test_helper.rb:36) — no test_helper edit needed. Kernel tests read the transcript via new `Render::Chat#transcript_lines` and the drawn tree via new seam `TUI.widget_lines` | No shared fixture missing. |
+| 10 | Compaction status timing | AC2 | pi shows "Compacting context..." DURING compaction; the port's loop emits `:compaction` only after (loop.rb:314) — no compaction-start seam. Port renders a post-hoc "✻ compacted (reason, tokens)" transcript line from the event; border keeps working status during | Itemized deviation (missing seam — raised, not edited). |
+
+### Judgment calls
+
+**Layout composition + constraint split** (root vertical split; pi shapes → gem shapes):
+
+| pi (chat-viewport.ts) | Port | Note |
+|---|---|---|
+| VStack root: transcript (basis 0, grow 1, shrink 1, minSize 1) | `TUI.constraint_min(rest)` | takes the remaining rows |
+| dock VStack (basis auto, grow 0, shrink 1) | `TUI.constraint_length` per dock area | dock is fixed-height per frame |
+| editor minSize 3 (chat-viewport.ts:33) | editor block = 3 rows (2 borders + 1 input), 5 with an approval (3 prompt rows) | pi's dialog replaces the editor content in the same container |
+| footer shrink:1 minSize 0 | `constraint_length(2)` | 2 lines, pi footer.ts:169-171 |
+| ScrollView transcript (DEFERRED) | Paragraph of the buffer tail, `wrap: false` (rows pre-wrapped) | no scroll state — the tail clip is the visible window |
+| CustomEditor top border = status (custom-editor.ts:18-22) | `TUI.block(title: status, title_style: dim, border_style: border)` | gem renders the title on the top border (verified) |
+| pi re-renders components at (possibly new) width every frame | whole tree recomposed from `viewport_area` every frame | resize-proof by construction |
+
+Mapping judgments (BRIEF §5.1): (1) pi's VStack grow/shrink/basis → gem constraint `min`/`length` pairs (the gem has no flexbox — the [min(1), length, length] split is the closest ratatui idiom); (2) pi's ScrollView → plain tail-clipped Paragraph (scrolling deferred); (3) pi's per-component render(width) → whole-tree Paragraph/Block composition; (4) pi's editor status lives in the border STRING (its renderTopBorder draws the border itself) → gem Block title; (5) pi's Dock minSize/shrink interplay → explicit per-frame row budgeting with clamps (`editor_rows ≤ height-1`, `transcript ≥ 1`).
+
+**Theme token table** (pi token → port value; house ANSI analogs are the I05/I06-established mappings — rendered output identical where tests pin it). CARRIED (19):
+
+| pi token | dark.json value | port | used by |
+|---|---|---|---|
+| text | `text` (default) | nil | prose |
+| dim | okhsl(229 8% 56%) | :dark_gray | status, footer |
+| muted | okhsl(229 6% 67%) | :gray | command output |
+| border / borderMuted | okhsl(231 57% 65%) / okhsl(229 8% 53%) | :gray | editor borders (port carries one border style — borderMuted's analog) |
+| warning | yellow | :yellow | interrupts, context >70% |
+| error | red | :red | errors, context >90% |
+| accent | violet | :light_magenta | (reserved) |
+| userMessageText | text (on userMessageBg) | :light_blue | user echo — carries userMessageBg's blue as fg (I05 recorded; I06 pins the color) |
+| toolOutput | muted | :gray | tool output |
+| mdHeading | yellow | :yellow | markdown |
+| mdLink | blue | :light_blue | markdown |
+| mdLinkUrl | muted | :gray | markdown |
+| mdCode | violet | :light_magenta | markdown |
+| mdCodeBlock | green | :green | markdown |
+| mdCodeBlockBorder | muted | :gray | markdown |
+| mdQuote / mdQuoteBorder / mdHr | muted | :gray | markdown |
+| mdListBullet | violet | :light_magenta | markdown |
+
+CUT (38, with reasons): selectedBg, searchMatchBg, searchMatchText, userMessageBg, customMessageBg/Text/Label, toolPendingBg/toolSuccessBg/toolErrorBg — background-slot tokens (the seam's span vocabulary is fg-only; I05 recorded). scrollbarTrack/Thumb — scrollbar deferred. toolTitle — the port has no tool box title styling. toolDiffAdded/Removed/Context — no diff rendering. syntax* (10) — no syntax highlighting in the markdown converter. thinkingText — thinking streams as plain live text. thinkingOff…Max (7) — no thinking-level border. bashMode — no bash mode. success — nothing renders a success state.
+
+**Markdown fg routing**: the read-only converter (render/markdown.rb:44-55) emits raw symbols; the surface routes every markdown span through `Theme.md_fg` (converter symbol → token → color; value-identical today — the converter's symbols ARE the I06 transcription). The gray converter roles share one value, so they resolve through md_quote (recorded in theme.rb).
+
+**Footer data cadence**: pi re-scans the whole session per render with a memo cache (footer.ts:63-106). Port reduced: token totals/context numerator accumulate O(1) at `:message_end` events; per-frame work is span assembly only. Per-frame rendering kept (pi parity); the expensive scan eliminated (no event surface to re-scan — the surface never sees the session's entry list).
+
+**Git-branch cache strategy**: pi = provider cache + fs-watchers + unwatch/cleanup (footer-data-provider.ts:104-139). Port reduced: one `git --no-optional-locks symbolic-ref --quiet --short HEAD` per turn, cached across frames, invalidated at `submit` and `:agent_start`; nil on detached HEAD/no repo (segment omitted; pi labels it "detached" — cut, recorded). Test-proven with an injected counting reader.
+
+**Status-line contents** (editor top border, title only while busy — pi IdleStatus renders empty): `⠋ thinking` / `⠋ …` / `⠋ tool: <name>` (the I06 shapes, moved into the border; dim). No compaction/retry/summarization border statuses — see deviations.
+
+### Parity-deviation table (all itemized; none silent)
+
+| Deviation | Reason |
+|---|---|
+| Transcript scrolling (pi ScrollView), scrollbar, scrollbarTrack/Thumb tokens | Deferred per Grounds "Deferred" — itemized as required. |
+| Command/skill autocomplete (`/ar<tab>`) | Deferred per Grounds "Deferred". |
+| Theme selector + custom-theme loading + terminal-capability detection | Deferred; the port rides the gem's color mapping (reduced, sanctioned). |
+| Mouse support; alt-screen mode switching; overlay/popup components; pi's extension-status footer segments | Deferred per Grounds "Deferred". |
+| Editor border statuses for retry / summarization / in-flight compaction | Missing event seam in `lib/tart/agent/loop.rb` (read-only; events enumerated at loop.rb:66-70; `:compaction` post-hoc at :314; ruby_llm retries are internal). Raised in PHASE 0, not edited. The `:compaction` event renders a post-hoc transcript line. |
+| Footer `$cost` segment | ruby_llm tokens carry no cost data. |
+| Footer CH% uses the latest assistant usage only (pi's latestCacheHitRate — same shape); toolResult usage not accumulated | The `:tool_message` event carries no usage in practice; assistant-message usage is the port's usage carrier. |
+| Branch: no fs-watchers; detached HEAD omits the segment (pi: "detached") | Reduced strategy sanctioned by the spec ("cached, invalidated-per-turn"). |
+| DynamicBorder transcript rule lines | Cut — the port's transcript never had separators; adding them would churn I06-frozen readback geometry. |
+| Transcript rows wrap at enqueue width; a resize re-clips but does not re-wrap already-buffered lines | pi re-wraps per render from component state; the port's buffer stores final Lines. Recorded (AC1 requires clobber-free redraw, achieved). |
+| Footer truncation: stats clip with `…` + model keeps a 2-cell margin (pi: `truncateToWidth(statsLeft, width, "...")` with colored ellipsis) | Same semantics, simpler shape. |
+| Live region: streaming raw source renders as transient transcript-tail rows (pi fullscreen: streaming lands in the transcript flow) | I06's recorded deviation (markdown at completion only) unchanged. |
+| Status border title is one styled string (spinner+message same dim color); pi colors spinner accent / message muted separately | Gem Block title takes one style; the I06-pinned dim readback preserved. |
+
+### Files touched
+
+| File | Change |
+|---|---|
+| lib/tart/theme.rb | new — pi dark-theme token table + lookup + markdown fg routing |
+| lib/tart/tui.rb | seam additions only: `layout`, `constraint_length`, `constraint_min`, `block`, `widget_lines`, `Session#resize` (insert_before kept, now unused by the surface) |
+| lib/tart/render/chat.rb | fullscreen three-area rework: transcript buffer, bordered editor + status title, footer (cwd/branch/tokens/context/model), theme-routed colors, usage accumulation |
+| bin/tart | `viewport: :fullscreen` flip; footer_data wiring (cwd, model id, resolved context window, auto_compact); usage text |
+| lib/tart.rb | `require_relative "tart/theme"` |
+| test/tui_test.rb | +4 seam tests (layout split, block title/border styles, widget_lines, resize) |
+| test/chat_test.rb | reworked driving code to fullscreen geometry; all I06 assertion content preserved; new composition/resize/footer/branch-cache tests |
+| test/theme_test.rb | new — token table vs transcription, lookup, md_fg routing |
+| test/launcher_smoke_test.rb | new — real `bin/tart -p` boot via Open3 vs MockLLMServer |
+| README.md | fullscreen surface, theme, footer, editor keys |
+
+### Gate output (verbatim)
+
+```
+bundle install --quiet && bundle exec rake
+  247 runs, 954 assertions, 0 failures, 0 errors, 0 skips     (suite-green)
+
+timeout 180 bundle exec ruby -Itest test/tui_test.rb && echo TUI_OK
+  13 runs, 37 assertions, 0 failures, 0 errors, 0 skips
+TUI_OK
+
+timeout 180 bundle exec ruby -Itest test/chat_test.rb && echo CHAT_OK
+  44 runs, 172 assertions, 0 failures, 0 errors, 0 skips
+CHAT_OK
+
+timeout 120 bundle exec ruby -Itest test/theme_test.rb && echo THEME_OK
+  5 runs, 16 assertions, 0 failures, 0 errors, 0 skips
+THEME_OK
+
+timeout 180 bundle exec ruby -Itest test/launcher_smoke_test.rb && echo SMOKE_OK
+  1 runs, 3 assertions, 0 failures, 0 errors, 0 skips
+SMOKE_OK
+
+grep -q ':fullscreen' bin/tart && grep -q 'Layout' lib/tart/tui.rb && echo FULLSCREEN_OK
+  FULLSCREEN_OK
+
+grep -qi 'footer' lib/tart/render/chat.rb && grep -qi 'branch' lib/tart/render/chat.rb && grep -q 'resolve_context_window' bin/tart && echo FOOTER_OK
+  FOOTER_OK
+
+grep -q 'TART_API_KEY' README.md && grep -q 'TART_MCP_CONFIG' README.md && grep -q 'TART_CONTEXT_WINDOW' README.md && git grep -q 'TART_API_KEY' -- bin/tart && echo ENV_OK
+  ENV_OK
+
+test -f lib/tart/tui.rb && test -z "$(grep -rn 'RatatuiRuby\.' lib test bench bin | grep -v '^lib/tart/tui')" && echo SEAM_OK
+  SEAM_OK
+
+timeout 90 bundle exec ruby bench/seam_bench.rb
+  SEAM_BENCH_OK      (bench boots the REAL TUI.run fullscreen path in its pty — extra AC1 evidence)
+
+grep -q 'ratatui_ruby (1\.5\.0)' Gemfile.lock && grep -q 'minitest (5\.' Gemfile.lock && grep -q 'ruby_llm (2\.' Gemfile.lock && echo PINS_OK
+  PINS_OK
+
+bundle exec rake > /dev/null 2> stderr_gate2.log; ! grep -qi 'unhandled exception' stderr_gate2.log && echo NO_WARN
+  NO_WARN
+
+bundle exec rake > /dev/null 2> stderr_gate.log; ! grep -q 'Broken pipe' stderr_gate.log && echo NO_EPIPE
+  NO_EPIPE
+```
+
+Additional checks: test-method count 247 == 247 runs (no buried tests); `git status` shows only the lane's files; no commits made; goldens byte-identical (golden_parity_test green in suite).
+
+STATUS: COMPLETE_WITH_CONCERNS — (1) editor border statuses for retry/summarization/in-flight compaction are absent: no event seam in the read-only agent loop (loop.rb:66-70, :314) — needs an owner decision on an agent-side event; (2) resize re-clip is clobber-free but does not re-wrap buffered transcript lines (pi re-wraps per render); (3) footer `$cost` segment cut (no cost data in ruby_llm tokens).
 
 ## Verdict
 
