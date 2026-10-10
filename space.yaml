@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: skills-settings-commands
+  current_iteration: render-surface
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -474,4 +474,10 @@ project:
     rehearsal:
       gates_digest: d084aba80005e30785a21e54b9d05a1e42b8fc45f054326ff20977175cf6869d
       at: '2026-10-09T22:16:48-06:00'
+  - name: render-surface
+    ordinal: 11
+    file: architecture/I11-render-surface.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
