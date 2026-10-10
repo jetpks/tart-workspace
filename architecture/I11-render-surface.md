@@ -767,15 +767,101 @@ STATUS: COMPLETE_WITH_CONCERNS — (1) editor border statuses for retry/summariz
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section render-surface verdict --from <file>`. -->
+# I11 render-surface — Verdict (2026-10-10)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify render-surface`)?
+Fresh judging session (not the dispatcher). Post-flight mechanical checks all
+PASS (`architect verify`): frozen region untouched vs freeze de200019, no
+builder commits (integration merged fcdeae54), scratch report present, diff =
+exactly the 10-file declared touch set. Evidence transcribed verbatim
+(4061bc80). Frozen gates run cold post-integration: **13/13 PASS**.
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+## Architect read (independent cross-checks this session)
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+- Layout composition vs pi chat-viewport.ts:25-42 — confirmed: transcript
+  (grow) → ported as `constraint_min`; dock (fixed-height) → `constraint_length`
+  per area; editor minSize 3 → `MIN_EDITOR_ROWS`, +2 for approval prompt rows.
+  Closest gem idiom, as the report claims.
+- Footer vs pi components/footer.ts:33-43 (formatCwdForFooter ~-contraction —
+  confirmed shape), :108-143 (stats accumulation shape — port reduced to O(1)
+  event accumulation, itemized; latestCacheHitRate shape matched), :169-171
+  (2 lines). Context thresholds >70% warning / >90% error match. Model id
+  right-aligned min-2 padding with stats-clip fallback matches.
+- Editor top border vs status-indicator.ts:10-40 renderInBorder — confirmed;
+  the port's Block-title analog is the right gem shape (verified live by the
+  builder; title absent when idle, matching pi's empty IdleStatus).
+- Theme: every pi token enumerated — 19 carried / 38 cut-with-reason; the
+  carried values ARE the I05/I06-established house analogs, so pinned
+  readbacks stay identical; md_fg routing makes the table the single color
+  source. Pure data + lookup, no LLM/TTY.
+- I06 assertion content survival: spot-checked the test diff — all 26 removed
+  assert lines reappear with identical content (moved onto fullscreen helpers:
+  `live_region(session, chat)`, `transcript_lines`, `editor_area`), 58 new
+  asserts added (geometry, resize full-repaint, footer content, branch-cache
+  invalidation, format_tokens/format_cwd unit shapes). Net gain, no loss.
+- Seam discipline: tui.rb diff is additive helpers only (`layout`,
+  `constraint_length/min`, `block`, `widget_lines`, `Session#resize`);
+  `insert_before` kept but unused by the surface — tui-seam gate green, no
+  `RatatuiRuby.` outside tui.rb.
+- Idiomaticity: frozen_string_literal, terse class-level constants with
+  pi-cite comments, injected branch_reader for testability, no needless
+  abstraction — reads like the surrounding house code.
+
+## PHASE 0 / concerns — rulings
+
+The report raises three concerns (no formal disagreements; all other PHASE 0
+rows are verifications I confirmed by spot-check). Ruling on each:
+
+1. **Editor border statuses for retry / summarization / in-flight compaction
+   ABSENT (no event seam in the read-only agent loop, loop.rb:66-70/:314)** —
+   **ACCEPT** as an itemized deviation. AC2's frozen letter explicitly
+   sanctioned this: "driven by the port's existing status events … a missing
+   event seam is raised in PHASE 0, not edited." The builder complied exactly.
+   Disposition: NOT closed by this iteration — needs an owner decision on an
+   agent-side status-event seam (a compaction-start event is the cheap first
+   win; retry/summarization visibility requires a ruby_llm callback seam).
+   Queued in the ARCHITECT.md backlog; flagged to the owner below.
+2. **Resize re-clip does not re-wrap buffered transcript lines (pi re-wraps
+   per render)** — **ACCEPT** as a recorded reduced deviation (BRIEF §5
+   pattern). Re-wrapping per render requires storing raw span sources in the
+   buffer and re-rendering every entry per frame — a structural rework the
+   buffer-tail architecture deliberately avoids; AC1's clobber-free redraw is
+   met. Revisit only if the owner wants exact pi resize parity.
+3. **Footer `$cost` segment cut** — **ACCEPT**. ruby_llm tokens carry no cost
+   data; there is nothing to render without fabricating. Reopen only if
+   ruby_llm ever exposes cost.
+
+## Acceptance Criteria (frozen at de200019, judged verbatim)
+
+- **AC1 PASS** — `bin/tart` boots `:fullscreen`; three-area layout via new
+  seam helpers; surface-owned transcript buffer redrawn wholesale per frame
+  (resize test asserts full repaint at new geometry); goldens green in suite.
+- **AC2 PASS** — I06 editor behavior survives in the bordered area with every
+  assertion's content intact (verified above); status line on the top border
+  (working/tool shapes, dim, spinner); missing retry/summarization/compaction
+  statuses are the AC-sanctioned PHASE 0 raise (ruling 1).
+- **AC3 PASS** — Tart::Theme token table, every pi token carried or
+  cut-with-reason, all spans routed through it, FG absorbed; standalone tests
+  green.
+- **AC4 PASS** — cwd ~-contraction, cached per-turn-invalidated git branch
+  (test-proven invalidation at submit/agent_start), token counters, context
+  usage vs the I10 resolved window (warning/error thresholds), model id; all
+  test-proven headlessly. Cadence judgment (O(1) accumulate) recorded.
+- **AC5 PASS** — launcher smoke boots real `bin/tart -p` vs MockLLMServer
+  (pins the 53a08db crash class); PHASE 0 findings table complete with
+  file:line; deviation table itemized (deferred features present); all 13
+  regression gates green cold.
+
+## Call
+
+**CONTINUE.** All 5 AC PASS on the frozen letter, 13/13 gates PASS cold, the
+diff reads like the house, and every deviation is itemized with a reason — the
+one real gap (agent-side status events) is a next-iteration seam, not a defect
+in this lane.
+
+**Flagged to the owner (backlog, needs ruling):** the agent-side status-event
+seam (ruling 1) — compaction-start is a small agent-loop iteration;
+retry/summarization border statuses depend on whether a ruby_llm callback
+seam is worth its cost.
+
+Next: I12 = autocomplete + transcript scrolling (per ARCHITECT.md backlog);
+theme selector stays PARKED.

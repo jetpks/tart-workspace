@@ -478,7 +478,7 @@ project:
     ordinal: 11
     file: architecture/I11-render-surface.md
     freeze_sha: de20001958e96dab605d5ad9a335f17fd0173608
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
