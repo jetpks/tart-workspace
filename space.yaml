@@ -508,7 +508,23 @@ project:
   - name: autocomplete-scroll
     ordinal: 12
     file: architecture/I12-autocomplete-scroll.md
-    freeze_sha:
+    freeze_sha: 7acb2cebe3bfe57b94c5661df91b6d18812886ac
     verdict: pending
-    lanes: []
+    lanes:
+    - name: agent
+      repo: tart
+      touch_set:
+      - lib/tart/agent/loop.rb
+      - test/agent_loop_test.rb
+    - name: surface
+      repo: tart
+      touch_set:
+      - lib/tart/render/chat.rb
+      - lib/tart/tui.rb
+      - bin/tart
+      - test/chat_test.rb
+      - test/tui_test.rb
+    rehearsal:
+      gates_digest: c31b5c333c1d461e8f5cc905ac9d512b0b49eb1eb3c1daf13369678481271aa4
+      at: '2026-10-10T11:57:37-06:00'
   integration_branch: project/pi-port
