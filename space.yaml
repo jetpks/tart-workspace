@@ -407,7 +407,7 @@ project:
     ordinal: 9
     file: architecture/I09-rename-tart.md
     freeze_sha: 89e46cdf052f5a809741329f97a41be28d2f61b3
-    verdict: pending
+    verdict: continue
     lanes:
     - name: rename
       repo: raspberry-pi
@@ -427,7 +427,7 @@ project:
       - raspberry-pi.gemspec
       - tart.gemspec
       base_sha: 7eef23ed884f0bf0cfb42247a16dde327273a57a
-      worktree: build/I09-rename-tart-rename/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash

@@ -582,15 +582,24 @@ STATUS: COMPLETE_WITH_CONCERNS — (1) env-tripwire gate's `TART_API_KEY -- lib`
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section rename-tart verdict --from <file>`. -->
+- **Disagreement rulings** (all three PHASE 0 concerns, none silent):
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify rename-tart`)?
+  1. **env-tripwire `TART_API_KEY -- lib` clause unsatisfiable — ACCEPT.** Builder correct: `git grep RASPBERRY_PI_API_KEY 7eef23e -- lib` exits 1 — no `API_KEY` ref ever existed in lib; env vars are read in `bin/` (now `bin/tart:133,143`) and documented in README. The gate clause asserted a property the AC prose never claimed (AC4 says README docs) — an authoring error in the same class as I07's session-guard. Gate judged **INVALID-as-written** below; the corrected clause (`git grep -q 'TART_API_KEY' -- bin/tart`) carries to the next freeze. Property directly proven this session: bin/tart:133,143 reads `TART_API_KEY`; README:15,26 documents it.
+  2. **Baseline 157, not the surveyed 153 — ACCEPT.** Re-measured by the architect this session: `git grep -oi raspberry 7eef23e` = **157** (68 `RaspberryPi` + 50 `raspberry-pi` + 38 `raspberry_pi` incl. the 23 env-var + 15 lowercase + 2 thread-local-key refs, + 1 bare). The spec's 153/84/79 mixed conventions and doesn't reproduce — architect authoring error. Deliverable (zero refs) unaffected.
+  3. **`git mv` blocked by the builder guard → plain `mv` — ACCEPT.** Rename detection recovered at integration: `git diff -M50% 7eef23e 3e354553` pairs all 37 `lib/raspberry_pi/**` files as `R` renames plus the 13-line require manifest as D/A (below 50% similarity only because 9 of its lines are requires). History follows.
+
+- **Acceptance Criteria integrity** — frozen sections untouched since freeze 89e46cdf (`git diff 89e46cdf HEAD -- architecture/I09-rename-tart.md` shows only the Builder Prompt/Report appends; `architect verify rename-tart` 4/4 PASS, each confirmed by hand: zero builder commits, scratch report present, worktree status exactly the declared touch set).
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | rename-guard PASS cold post-integration (`git grep -il raspberry` now measured over the tracked tree: empty, exit 1); zero refs independently proven pre-integration by plain grep over the whole worktree (sole hit = the `.git` gitdir pointer file naming the out-of-scope `repos/raspberry-pi` checkout path); `lib/tart.rb`+`lib/tart/**`(37)+`bin/tart`+`tart.gemspec` exist, all old paths gone; `Tart` namespace, `TART_` prefix, `~/.tart` root, `tart-test-model` verified | §4 | **PASS** |
+| AC2 | suite-green PASS cold (176 runs, 671 assertions, 0 failures, 0 errors, 0 skips — identical to baseline); bench-seam PASS (`SEAM_BENCH_OK`, sse 500/500, timeout_kill clean); gem-pins PASS (ratatui_ruby 1.5.0, ruby_llm 2.1.0, minitest 5.27.0, async 2.46.0, diff-lcs 1.6.2; `tart (0.1.0)` regenerated); golden parity diff = exactly 2 identifier lines (module name, mkdtemp prefix) — expected payloads untouched | §4 | **PASS** |
+| AC3 | cli-smoke PASS cold: `Usage: tart [WORKDIR] [options]`, exit 0; exec bit preserved (`-rwxr-xr-x`); abort prefixes `tart: ` (bin/tart:91,96,159,196) | §4 | **PASS** |
+| AC4 | datadir-tripwire PASS; README coherent (`# tart`, `bin/tart`, `~/.tart/sessions`, `~/.tart/mcp.json`, `TART_*` table at README:15,26); zero stale refs in tracked prose | §4 | **PASS** |
+| AC5 | report is raw tables/counts/verbatim output only; per-file before/after counts; mapping table with hit locations; all three disagreements raised with evidence — none silent; no out-of-bounds writes, no aliases, no migration machinery | — | **PASS** |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+- **env-tripwire gate — INVALID-as-written** (not FAIL): the instrument ran exactly as frozen (exit 1) but its `-- lib` clause measured a property that never held and that AC1's "nothing else is renamed" forbids manufacturing. Corrected clause carried to the next freeze: `git grep -q 'TART_API_KEY' -- bin/tart`. I07 precedent applies.
+
+- **Idiomaticity/pure-rename read (gate-pass necessary, not sufficient):** every changed line in the integrated diff `7eef23e..3e354553` carries a mapping token except the 4 context lines of the D/A pair — verified by mechanical filter (`grep -vi 'raspberry\|tart'` over changed lines → 4, all from `lib/tart.rb`'s file-level re-pairing). No payload, prompt-string, or serialization constant changed. Nothing style-relevant to judge: the diff is the mapping and only the mapping.
+
+- **Iteration — CONTINUE.** A mechanically pure, complete rename sweep (zero refs proven both pre- and post-integration; behavior byte-preserved), merged to `project/pi-port` (3e354553). The one failing gate is the criterion's authoring error, ruled above; the artifact is correct.
