@@ -886,6 +886,84 @@ New/changed suite tests:
 
 STATUS: COMPLETE
 
+### toggle
+
+### PHASE 0 findings (toggle lane)
+
+| Verify item | Spec claim | Reality (evidence) | Verdict |
+|---|---|---|---|
+| write boundary (write tool) | verbatim bytes to disk | `lib/raspberry_pi/tools/write.rb:47` (pre-edit) `File.binwrite(absolute_path, content)`; oracle `repos/pi/packages/coding-agent/src/core/tools/write.ts` — `fs.writeFile`, no normalization anywhere | confirmed |
+| write boundary (edit tool) | bytes after BOM/line-ending restore | `lib/raspberry_pi/tools/edit.rb` ~:119–123 (pre-edit): `final_content = bom[:bom] + EditDiff.restore_line_endings(...)` → `File.binwrite`; oracle `edit.ts:193–194` normalizes only for matching | confirmed |
+| default-off = byte-exact | golden suite pins written bytes | `test/golden_parity_test.rb:82` + `:149–155` assert `written_base64` equality, incl. `verbatim_trailing_ws` case; untouched by this lane | confirmed |
+| pi has no such toggle | on-mode is a port extension | grep of oracle `write.ts`/`edit.ts`: no trailing-WS toggle; normalization exists only inside fuzzy matching (`edit-diff.ts`) | confirmed |
+| `Registry.build` surface | plumb through build | `tools/registry.rb` `build(selected:, cwd:)`; callers: `agent/loop.rb:34ff`, all tests, goldens construct `Edit/Write.new(cwd:)` directly — optional kwarg with default keeps every caller intact | confirmed |
+| deps | Ruby 4.0.7, ruby_llm 2.1 | `ruby -v` → `ruby 4.0.7 (2026-09-15) +PRISM [arm64-darwin23]`; `RubyLLM::VERSION` → `2.1.0` | confirmed |
+| ruby_llm thinking-replay items | (defects lane scope) | not verified by this lane — lane boundary | n/a (deferred to defects lane) |
+
+### Disagreements / stated interpretations
+
+| # | Item | Position | Evidence |
+|---|---|---|---|
+| 1 | CRLF interaction (interpretation, not deviation) | Spec-literal semantics implemented: lines split on `\n`, strip trailing `[ \t]`. A space *before* a `\r` (`"x \r\n"`) is NOT stripped — the split-line ends with `\r`, not space/tab. If the architect intended `\r`-aware stripping, it is a one-line amendment. | test `test_edit_on_preserves_line_count_and_final_newline_presence` pins this: `"a\r\nb  \r\n"` + edit → `"A  \r\nb  \r\n"` (space before `\r` kept) |
+| 2 | `details` diff/patch stay pre-strip | On-mode, edit's `details` diff/patch are computed from model-facing content, not stripped bytes — display diff can show trailing WS the disk lacks. AC5 pins only the committed bytes; details remain pi-shaped (parity). | AC5 text: "at the write boundary — the exact bytes edit/write commit to disk" |
+| 3 | Whitespace-only line strips to empty | `"\t  "` is one contiguous `[ \t]+` run → strips to `""`. Follows from the spec's own rule; pinned by test. | test `test_write_on_strips_trailing_spaces_and_tabs_per_line` |
+| 4 | Stale README §5 line | `README.md:24` still claims write-boundary normalization — belongs to lane `ux` (README is in their touch set, not toggle's). Not touched by this lane. | `README.md:24` |
+
+No other disagreements. No blocking objections; no new runtime dependencies.
+
+### Files changed (lane set, verified disjoint)
+
+| File | Change |
+|---|---|
+| `lib/raspberry_pi/tools/support/edit_diff.rb` | +`EditDiff.strip_trailing_whitespace` (port extension, marked NOT-pi; non-String passthrough) |
+| `lib/raspberry_pi/tools/write.rb` | `initialize(cwd:, strip_trailing_whitespace: false)`; strip applied to bytes immediately before `File.binwrite`; stale "out of scope" comment replaced |
+| `lib/raspberry_pi/tools/edit.rb` | `initialize(cwd:, strip_trailing_whitespace: false)`; strip applied to `final_content` (post BOM/line-ending-restore) before `File.binwrite` |
+| `lib/raspberry_pi/tools/registry.rb` | `build(selected:, cwd:, strip_trailing_whitespace: false)`; flag routed to Edit/Write only (`WRITE_BOUNDARY_CLASSES`) |
+| `test/tools_test.rb` | +6 tests (below) |
+
+### New tests (all in `test/tools_test.rb`)
+
+| Test | Asserts |
+|---|---|
+| `test_registry_plumbs_strip_toggle_to_edit_and_write` | `Registry.build(strip_trailing_whitespace: true)` → flag set on edit+write; default build → flag off |
+| `test_write_default_stays_byte_verbatim` | off-mode write: bytes in = bytes on disk |
+| `test_write_on_strips_trailing_spaces_and_tabs_per_line` | on-mode write: trailing `[ \t]` stripped per line; internal runs kept; WS-only line → empty; space before `\r` kept |
+| `test_write_on_preserves_line_count_and_final_newline_presence` | final `\n` present → stays present; absent → stays absent |
+| `test_edit_default_stays_byte_verbatim` | off-mode edit: replacement text with trailing WS round-trips byte-exact |
+| `test_edit_on_strips_trailing_whitespace_from_committed_bytes` | on-mode edit: committed bytes have no trailing spaces/tabs |
+| `test_edit_on_preserves_line_count_and_final_newline_presence` | CRLF file: line count, CRLF endings, space-before-`\r` unchanged |
+
+### Gate results (verbatim)
+
+| Gate | Command | Result |
+|---|---|---|
+| suite-green | `bundle install --quiet && bundle exec rake && echo SUITE_OK` | `78 runs, 305 assertions, 0 failures, 0 errors, 0 skips` + `SUITE_OK`, exit 0 |
+| tui-seam | gate cmd | `SEAM_OK`, exit 0 |
+| bench-seam | `timeout 90 bundle exec ruby bench/seam_bench.rb` | `SEAM_BENCH_OK`, exit 0 |
+| gem-pins | gate cmd | `PINS_OK`, exit 0 |
+| stderr-clean | gate cmd | `NO_EPIPE`, exit 0 |
+| launcher-help | `bundle exec ruby bin/raspberry-pi --help` | NOT RUNNABLE in this lane's worktree: `bin/` does not exist yet (lane `ux` deliverable) — `ls: bin/: No such file or directory` |
+| agent-loop-guard | `timeout 120 bundle exec ruby -Itest test/agent_loop_test.rb && echo AGENT_OK` | `6 runs, 41 assertions, 0 failures, 0 errors, 0 skips` + `AGENT_OK`, exit 0 (pre-fix bridge: no raising-worker regression test exists yet — defects lane's AC1 test will change this count) |
+
+### Golden parity (default-off proof)
+
+- `test/golden_parity_test.rb` and `test/fixtures/edit_golden.json`: untouched (not in lane touch set).
+- `bundle exec ruby -Itest test/golden_parity_test.rb` → `10 runs, 89 assertions, 0 failures, 0 errors, 0 skips`.
+
+### Parity-deviation table
+
+| Deviation | Reference |
+|---|---|
+| On-mode trailing-WS strip at the write boundary is a port extension — pi has no such toggle (oracle `write.ts`/`edit.ts` verified; pi normalizes trailing WS only inside fuzzy matching) | Deliverable 5 / AC5; ships OFF by default |
+
+### Notes for the architect
+
+- Config surface chosen: `strip_trailing_whitespace:` boolean kwarg at `Tools::Registry.build` and at `Edit/Write#initialize` (default `false`). Direct constructions (golden tests, other lanes' tests) are unaffected — byte-exact by construction.
+- Known on-mode display wrinkle (judgment call #2): edit's `details` diff/patch reflect model-facing content, not stripped bytes.
+- Suite noise (pre-existing, not from this lane): the `kernel_carryin_test` `work boom` Async warning appears on stderr during rake; `stderr-clean` gate passes.
+
+STATUS: COMPLETE
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
