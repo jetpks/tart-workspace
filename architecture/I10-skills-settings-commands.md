@@ -119,52 +119,138 @@ One lane — the three subsystems interlock at the seams (`bin/tart` wiring, `Ag
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse skills-settings-commands` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze skills-settings-commands` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC1 (skills loading + listing — BRIEF §3, §6).** Skills load hermetically (fake `$HOME`/tmp dirs; `~/.tart` never touched) from `~/.tart/skills` (user) and `<cwd>/.tart/skills` (project), each skill a `SKILL.md` with YAML frontmatter; frontmatter limits, diagnostics (missing/oversize name/description, malformed YAML → diagnostic, not crash), collision handling (first-loaded wins + collision diagnostic), symlink dedup, and `disable-model-invocation` (excluded from the prompt listing, still user-invocable) are test-proven with filesystem fixtures only — no LLM. `format_skills_for_prompt`'s `<available_skills>` block is **byte-identical to pi's** (`skills.ts:358-376` — architect-read from the report's citations; a grep tripwire checks presence). `Agent::SystemPrompt.sections` gains an additive `skills:` param and emits the `<skills>` section **only when skills exist and a read tool (`read`/`bash` declared, `indirect` if only selected) is available** (pi `system-prompt.ts:175-182`); with no skills loaded the composed prompt is byte-identical to today's (goldens untouched, pi parity).
 
-**AC1.** ...
+**AC2 (settings — BRIEF §3, §6; I08 carry-in).** Settings load from `~/.tart/settings.json` (user) and `<cwd>/.tart/settings.json` (project), JSON, project deep-merged over user, missing keys → built-in defaults, unknown keys → non-fatal warning diagnostics, JSON parse failure → defaults + diagnostic (pi's behavior as verified in PHASE 0) — test-proven hermetically. The port carries pi's keys for the features it has — at minimum `defaultModel`, `defaultProvider`, `apiBase`, `apiKey`, `contextWindow`, `compaction {enabled, reserveTokens, keepRecentTokens}` (pi's defaults: true/16384/20000), and `defaultTools` with pi's plain/`+name`/`-name` semantics (replace/add/remove, test-proven); any additional pi key carried is an itemized judgment call in the report. The context-window resolution order is **explicit kwarg → `TART_CONTEXT_WINDOW` → `settings.contextWindow` → `chat.model.context_window` → registry-default table → nil**, where the registry-default table carries `accounts/fireworks/models/glm-5p3-flash` → **1_048_573** (pi's catalog value). **The I08 carry-in is closed, test-proven: the default chat (no env override, no settings files) resolves 1_048_573 and the compaction threshold fires out of the box** — a MockLLMServer loop test with usage over the threshold compacts with zero configuration. Model/provider/apiBase/apiKey resolve **env → settings → built-in default** (test-proven per key).
+
+**AC3 (slash commands — BRIEF §3).** Text submitted with a leading `/` routes through the commands module at the `Render::Chat#submit` seam before any agent call. The builtin set is exactly **`/quit`, `/new`, `/compact`, `/skills`, `/settings`, `/help`** — reduced from pi's 25 (each cut bound to a feature the port lacks; itemized in the deviation table; any PHASE 0 disagreement with a cut is raised, not silently resolved). `/skill:<name> [args]` expands to pi's exact block (`<skill name="..." location="...">` + content + `</skill>` + blank line + args — architect-read; tripwire gate); **unknown `/skill:x` passes through to the agent as plain text** (pi `:2155`, test-proven); an unknown `/foo` matching no builtin gets **pi's unknown-command behavior as found in PHASE 0, ported exactly** (test-proven). `/compact` runs a manual compaction through an additive `Agent::Loop` seam — MockLLMServer test-proven: history replaced by `[summary, kept tail]`, compaction entry recorded. `/new` starts a fresh session — test-proven: new session file, empty history, same settings/system-prompt/skills. `/quit` exits when idle. Command output renders through the existing status/chat-line surfaces (no TUI restructuring). Slash text submitted while a turn is running follows the port's existing steer path (pi queues commands during streaming — itemized reduced deviation, test-proven passthrough).
+
+**AC4 (wiring + docs — BRIEF §3, §7.6).** `bin/tart` loads settings + skills at startup, resolves model/provider/apiBase/apiKey via the AC2 orders, applies `defaultTools` to `Tools::Registry.build`, passes skills to the system prompt and compaction settings + context window into `Agent::Loop`, and wires the commands module at the surface. `README.md` documents the settings key set + file locations + env precedence, skill discovery locations + frontmatter + `/skill:` invocation, and the builtin commands.
+
+**AC5 (PHASE 0 + parity discipline + no regressions — BRIEF §2, §5, §5.1).** Every verify item in the Specification's tool guidance is recorded in the findings table with gem/oracle file:line evidence, plus disagreements with reasons — silent compliance is a defect; a parity deviation adopted silently is a defect (the table is empty or itemized). No new runtime dependencies (stdlib `yaml`/`json` only). All measured regression gates stay green; the goldens stay byte-identical.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse skills-settings-commands` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite-green
+  ac: AC1, AC2, AC3, AC4, AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: skills-guard
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    timeout 120 bundle exec ruby -Itest test/skills_test.rb && echo SKILLS_OK
+  expect:
+    exit_code: 0
+    stdout_match: SKILLS_OK
+
+- id: settings-guard
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    timeout 120 bundle exec ruby -Itest test/settings_test.rb && echo SETTINGS_OK
+  expect:
+    exit_code: 0
+    stdout_match: SETTINGS_OK
+
+- id: commands-guard
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    timeout 120 bundle exec ruby -Itest test/commands_test.rb && echo COMMANDS_OK
+  expect:
+    exit_code: 0
+    stdout_match: COMMANDS_OK
+
+- id: sysprompt-guard
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    timeout 120 bundle exec ruby -Itest test/system_prompt_test.rb && echo SYSPROMPT_OK
+  expect:
+    exit_code: 0
+    stdout_match: SYSPROMPT_OK
+
+- id: skills-block-tripwire
+  ac: AC1, AC3
+  cwd: repos/tart
+  cmd: |-
+    grep -q '<available_skills>' lib/tart/skills.rb && grep -q 'skill:' lib/tart/commands.rb && echo TRIPWIRES_OK
+  expect:
+    exit_code: 0
+    stdout_match: TRIPWIRES_OK
+
+- id: registry-window-tripwire
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    grep -q '1_048_573\|1048573' lib/tart/settings.rb && echo REGISTRY_OK
+  expect:
+    exit_code: 0
+    stdout_match: REGISTRY_OK
+
+- id: env-tripwire
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'TART_API_KEY' README.md && grep -q 'TART_MCP_CONFIG' README.md && grep -q 'TART_CONTEXT_WINDOW' README.md && git grep -q 'TART_API_KEY' -- bin/tart && echo ENV_OK
+  expect:
+    exit_code: 0
+    stdout_match: ENV_OK
+
+- id: tui-seam
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    test -f lib/tart/tui.rb && test -z "$(grep -rn 'RatatuiRuby\.' lib test bench bin | grep -v '^lib/tart/tui')" && echo SEAM_OK
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_OK
+
+- id: bench-seam
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    timeout 90 bundle exec ruby bench/seam_bench.rb
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: gem-pins
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'ratatui_ruby (1\.5\.0)' Gemfile.lock && grep -q 'minitest (5\.' Gemfile.lock && grep -q 'ruby_llm (2\.' Gemfile.lock && echo PINS_OK
+  expect:
+    exit_code: 0
+    stdout_match: PINS_OK
+
+- id: stderr-quiet
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle exec rake > /dev/null 2> stderr_gate2.log; ! grep -qi 'unhandled exception' stderr_gate2.log && echo NO_WARN && rm -f stderr_gate2.log
+  expect:
+    exit_code: 0
+    stdout_match: NO_WARN
+
+- id: stderr-clean
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle exec rake > /dev/null 2> stderr_gate.log; ! grep -q 'Broken pipe' stderr_gate.log && echo NO_EPIPE && rm -f stderr_gate.log
+  expect:
+    exit_code: 0
+    stdout_match: NO_EPIPE
 ```
+
+Gate intent notes (calibration, per the freeze discipline): `skills-block-tripwire` and `registry-window-tripwire` are **tripwires** — presence only; byte-identity of the `<available_skills>` block and the skill expansion block, and the functional out-of-the-box threshold proof, are architect-read from the report's citations/tests, never gate-proven. `env-tripwire` uses the **I09-corrected clause** (`git grep -q 'TART_API_KEY' -- bin/tart` — env vars live in `bin/`, never in `lib/`; I09 Verdict ruling 1, I07 session-guard precedent) and is a **regression guard**: green at base, it proves the I09 rename surface survives this iteration. `tui-seam`, `bench-seam`, `gem-pins`, `stderr-quiet`, `stderr-clean` are the standing regression guards. `suite-green` is the regression floor (no counts are frozen); the four `*-guard` gates prove the touched/new test files run standalone.
 
 ## Builder Prompt
 
