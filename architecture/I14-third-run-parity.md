@@ -833,11 +833,118 @@ the other half). Record your half's evidence (e.g. `grep -c pending_approval` on
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I14-third-run-parity-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence third-run-parity --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### agent
+
+### PHASE 0 findings (spec vs reality)
+
+| # | Verify item | Spec claim | Reality | Verdict |
+|---|---|---|---|---|
+| 1 | pi unconditional tool execution | `agent-loop.ts:832` | `repos/pi/packages/agent/src/agent-loop.ts:832` — `const result = await prepared.tool.execute(`, no gate (path is `packages/agent/src/`, spec omitted the package) | confirmed |
+| 2 | pi settings-schema `thinkingLevel` key | settings-schema.ts defines it | **No such key.** `repos/pi/packages/coding-agent/src/core/settings-schema.ts:212` defines `defaultThinkingLevel` (`ModelThinkingLevelSchema`). Port key = `thinkingLevel` per spec's frozen contract; divergence recorded in settings.rb comment | disagreement A |
+| 3 | thinkingLevel vocabulary | pi vocabulary | `"off" + ["minimal","low","medium","high","xhigh","max"]` — `repos/pi/packages/ai/src/providers/model-schema.ts:2-3,10`; `packages/agent/src/types.ts:349` | confirmed |
+| 4 | thinkingLevel default | pi default | No settings default. Runtime default `DEFAULT_THINKING_LEVEL = "medium"` (`packages/coding-agent/src/core/defaults.ts:3`, applied `model-resolver.ts:646,660,682-684`); agent-state fallback `"off"` (`packages/agent/src/agent.ts:93`); footer renders unset as `model • thinking off` (`footer.ts:236-239`). Port adopts `"medium"` as built-in default | disagreement B |
+| 5 | footer contract source | footer.ts:226-244 | `footer.ts:236-238`: `state.thinkingLevel \|\| "off"` → `model • thinking off` / `model • <level>` | confirmed |
+| 6 | ruby_llm 2.1.0 dormant approval mechanics | verify | gem `chat.rb:1560-1562` (`execution_decision`): without `tool&.requires_approval?`, decision = `@tool_call_decisions[id] != false` ⇒ executes. No tool registers `requires_approval?` after deletion | confirmed |
+| 7 | no golden encodes approval state | verify | `grep -ri approval test/golden_parity_test.rb test/fixtures/` → 0 matches; `git diff --stat -- test/fixtures` → empty; `md5sum test/fixtures/edit_golden.json` = `11fdb5d03d7fd05883ff7143cde97a8c` (untouched) | confirmed |
+| 8 | solo worktree self-consistent after my bin/tart fix | lane note | **False.** `test/chat_test.rb:1268` (`chat_with_server`) also passes `approval:` into `Agent::Loop.new`; ~10 chat approval tests call `chat.approval` (chat_test.rb:183, 297-386, 751-757). chat_test.rb is read-only for me, owned by the surface lane | disagreement C |
+
+### Disagreements / judgment calls
+
+| Call | Evidence | Decision |
+|---|---|---|
+| A: setting key | Spec/AC6 + frozen contract say `thinkingLevel` (×2); pi schema key is `defaultThinkingLevel` (settings-schema.ts:212) | Followed the spec: `thinkingLevel`. Frozen gate + AC letter demand it; port key set already diverges (`contextWindow` is not a pi setting). Divergence commented at `THINKING_LEVELS` in settings.rb |
+| B: default value | Ambiguous: pi resolver default `"medium"` vs footer/state fallback `"off"` | `"medium"` (the only named default constant, defaults.ts:3; effective whenever a default model resolves — always, in the port). Consequence: frozen contract's `nil → model alone` branch is defensive-only; out-of-box footer data is `thinking_level: "medium"` |
+| C: AC1 vs AC14 in solo worktree | Deleting Loop's `approval:` kwarg (AC1 mandate: "no approval kwarg/callback") breaks chat_test.rb in my worktree: 13 × `ArgumentError: unknown keyword: :approval` at chat_test.rb:1268. File is outside my boundaries; the surface lane must rewrite it when it deletes `Render::Chat#approval` | Built the AC1-faithful deletion; chat_test failures recorded verbatim below; not worked around |
+| `Tools::DESTRUCTIVE` deletion | Only consumers were the approval gate (registry.rb) + tools_test — no other lib/test/bin references (grep → 0 after deletion) | Deleted as approval marking machinery (AC1); noted here, not silent |
+
+### Test suite — before / after
+
+```
+before (94f79cf, clean):   286 runs, 1105 assertions, 0 failures, 0 errors, 0 skips
+after  (this lane):        287 runs, 1071 assertions, 0 failures, 13 errors, 0 skips
+```
+
+All 13 errors are chat_test.rb (cross-lane, Disagreement C), every one `ArgumentError: unknown keyword: :approval` via `chat_with_server` (chat_test.rb:1268). Verbatim sample:
+
+```
+1) Error:
+Tart::ChatTest#test_approval_yes_executes_the_tool:
+ArgumentError: unknown keyword: :approval
+    test/chat_test.rb:1268:in 'Tart::ChatTest#chat_with_server'
+    test/chat_test.rb:303:in 'Tart::ChatTest#test_approval_yes_executes_the_tool'
+```
+Affected: test_escape_while_running_cancels_only_the_list_kernel_driven, test_skills_command_renders_the_listing_through_the_bin_wiring, test_tab_completes_a_skill_through_the_kernel_dispatch, test_kernel_interrupt_during_approval_cancels_and_tears_down_the_prompt, test_kernel_interrupt_during_streaming_cancels_and_leaves_render_coherent, test_reasoning_streams_dim_through_the_real_gem_chunks, test_assistant_markdown_renders_through_the_kernel_loop, test_approval_yes_executes_the_tool, + 5 more (all same signature). Zero failures/errors outside chat_test.rb.
+
+### Gate commands (verbatim, cwd = worktree root)
+
+```
+$ bundle install --quiet && bundle exec rake && echo SUITE_OK
+287 runs, 1071 assertions, 0 failures, 13 errors, 0 skips
+(13 errors — chat_test.rb only, see above; exit 1)
+
+$ timeout 180 bundle exec ruby -Itest test/agent_loop_test.rb && echo AGENT_OK
+15 runs, 105 assertions, 0 failures, 0 errors, 0 skips
+AGENT_OK
+
+$ timeout 180 bundle exec ruby -Itest test/tools_test.rb && echo TOOLS_OK
+20 runs, 52 assertions, 0 failures, 0 errors, 0 skips
+TOOLS_OK
+
+$ timeout 180 bundle exec ruby -Itest test/print_test.rb && echo PRINT_OK
+4 runs, 17 assertions, 0 failures, 0 errors, 0 skips
+PRINT_OK
+
+$ timeout 180 bundle exec ruby -Itest test/mcp_test.rb && echo MCP_OK
+18 runs, 95 assertions, 0 failures, 0 errors, 0 skips
+MCP_OK
+
+$ timeout 180 bundle exec ruby -Itest test/settings_test.rb && echo SETTINGS_OK
+14 runs, 58 assertions, 0 failures, 0 errors, 0 skips
+SETTINGS_OK
+
+$ timeout 180 bundle exec ruby -Itest test/launcher_smoke_test.rb && echo LAUNCHER_OK
+3 runs, 8 assertions, 0 failures, 0 errors, 0 skips
+LAUNCHER_OK
+```
+
+Cross-lane gates:
+
+```
+$ ! grep -rq 'requires_approval\|handle_approvals\|approval_module\|pending_approval' lib bin test && echo NO_APPROVAL
+RED by design — offenders: lib/tart/render/chat.rb, test/chat_test.rb (surface lane's half).
+MY half (12 boundary files): grep → 0 matches (exit 1, zero matches).
+
+$ grep -q 'thinkingLevel' lib/tart/settings.rb && grep -q 'thinking_level' bin/tart && echo THINKING_OK
+THINKING_OK          (both halves of this gate are my files — fully green)
+```
+
+Standing guards: gem pin intact (Gemfile.lock:148, ruby_llm 2.1.0, sha256 unchanged, no Gemfile* touched); env tripwire green (settings_test setup/teardown in green run); stderr/launcher smoke gates green (LAUNCHER_OK incl. IO::Buffer filter test); goldens byte-identical (md5 above, `git diff -- test/fixtures` empty); `git status --porcelain` shows exactly the 12 boundary files modified; HEAD still 94f79cf, zero commits.
+
+### Parity deviations
+
+| Item | Deviation | Source |
+|---|---|---|
+| 1 | **Approval machinery deleted entirely** — reverses I03's deliberate gating (owner ruling 2026-10-10): Loop `approval:` kwarg/callback + `handle_pause` (was loop.rb:48-71, 397-404), Registry `APPROVAL_MODULE`/`approval_module`/`approval_required?` + the destructive `extend`, `Tools::DESTRUCTIVE`, print.rb auto-approve shim, bin/tart `approval:` wiring + two "y/n at approval prompts" help strings, approval-specific tests. Tools now execute unconditionally, matching pi's no-permissions shape (agent-loop.ts:832). Reintroduction = future extension-support work | owner ruling; pi packages/agent/src/agent-loop.ts:832 |
+| 8 | Port setting key `thinkingLevel` diverges from pi's schema key `defaultThinkingLevel` (settings-schema.ts:212); built-in default `"medium"` from pi's runtime default (defaults.ts:3); no env override (pi has none) | settings-schema.ts:212, defaults.ts:3, model-resolver.ts:646 |
+
+### Files touched (12, all within boundaries)
+
+| File | Change |
+|---|---|
+| lib/tart/agent/loop.rb | approval kwarg/callback/`handle_pause` removed; doc comments updated |
+| lib/tart/tools.rb | `DESTRUCTIVE` removed |
+| lib/tart/tools/registry.rb | approval module/predicates/extend removed; docs updated |
+| lib/tart/print.rb | auto-approve shim removed; doc updated |
+| lib/tart/settings.rb | `THINKING_LEVELS`, `DEFAULTS["thinkingLevel"]="medium"`, `resolve_thinking_level` |
+| bin/tart | approval wiring + y/n help text removed; `footer_data` helper extracted with `thinking_level:`; settings help lists thinkingLevel |
+| test/agent_loop_test.rb | denied/approval tests → `test_bash_runs_through_the_loop_with_no_decision_point`; helper kwarg dropped |
+| test/tools_test.rb | registry test: approval assertions → full-loadout bare-instantiation assertion |
+| test/print_test.rb | gated-tools test → `test_print_executes_bash_headlessly_with_no_gate` |
+| test/mcp_test.rb | one `requires_approval?` refute removed |
+| test/settings_test.rb | `test_thinking_level_resolves_settings_over_pi_s_default` |
+| test/launcher_smoke_test.rb | `test_footer_data_carries_the_settings_resolved_thinking_level` (eval seam) |
+
+STATUS: COMPLETE_WITH_CONCERNS — (1) Disagreement C: solo-worktree suite red in test/chat_test.rb only (13 × `unknown keyword: :approval` at chat_test.rb:1268); chat_test.rb is outside my boundaries and must be rewritten by the surface lane when it deletes `Render::Chat#approval`; AC1's kwarg deletion is unsatisfiable without that file changing. (2) Disagreement A/B: port key `thinkingLevel` (not pi's `defaultThinkingLevel`) with built-in default `"medium"` — the frozen contract's `nil → model alone` branch is never produced by my side; flagging in case the architect wanted unset→nil.
 
 ## Verdict
 
