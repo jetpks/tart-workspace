@@ -561,11 +561,79 @@ for stdin dispatch. Record + commit:
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I08-compaction-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence compaction --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+### Files
+
+| File | Change |
+|---|---|
+| lib/raspberry_pi/compaction.rb | new — pure functions + Settings + 4 verbatim prompts + serialization |
+| lib/raspberry_pi/agent/loop.rb | threshold trigger, overflow rescue→compact→retry-once w/ latch, `context_window:`/`compaction:` kwargs, :compaction event |
+| lib/raspberry_pi/agent/session.rb | compaction entry factory + Recorder#append_compaction + compaction-aware context_messages |
+| test/compaction_test.rb | new — 16 tests, no LLM |
+| test/agent_loop_test.rb | +5 tests (threshold, disabled, overflow retry, latch, latch reset) |
+| test/session_test.rb | +3 tests (entry shape, replay, resume end-to-end) |
+| README.md | Sessions/Compaction section |
+
+`lib/raspberry_pi.rb` untouched (loop.rb requires compaction.rb). No commits made (HEAD stays 593e881 "Merge lane/I07-session-mcp-print-cli"). git status: 5 modified + 2 untracked, all in the lane's exhaustive set.
+
+### PHASE 0 findings (spec-vs-reality, file:line evidence)
+
+| # | Verify item | Finding |
+|---|---|---|
+| 1 | Prompt strings | All four transcribed byte-identical. Verification script (this run): `SUMMARIZATION_SYSTEM_PROMPT: IDENTICAL` (utils.ts:161-163), `SUMMARIZATION_PROMPT: IDENTICAL` (compaction.ts:537-560), `UPDATE_SUMMARIZATION_PROMPT: IDENTICAL (after TS interpolation)` (:543-564; pi interpolates UPDATE_SUMMARIZATION_INSTRUCTIONS — one extra blank line in the first transcription was removed after byte-compare, 1257B both), `TURN_PREFIX_SUMMARIZATION_PROMPT: IDENTICAL` (:985-993). Ruby heredocs use `<<~PROMPT.chomp` (pi template literals have no trailing newline). |
+| 2 | File-op format | `extract_file_ops` = utils.ts:36-65 restricted to port shapes: assistant `tool_calls` (ToolCall#name/#arguments, `path` arg), read/write/edit only; tool-result `nestedCalls` unrepresentable (port has no codemode). `compute_file_lists` = utils.ts:67-75 (read-only = read − modified, sorted). `format_file_operations` = utils.ts:77-95 (`<read-files>`/`<modified-files>` sections, `"\n\n"` join, `""` when empty). |
+| 3 | serializeConversation | utils.ts:110-153. `TOOL_RESULT_MAX_CHARS = 2000` (utils.ts:103); truncation marker `"\n\n[... N more characters truncated]"` (utils.ts:111-113); prefixes `[User]: `/`[Assistant thinking]: `/`[Assistant]: `/`[Assistant tool calls]: `/`[Tool result]: `, parts joined `"\n\n"`, tool-call args `k=JSON.generate(v)` joined `", "` (utils.ts:135-139). Mapping: user/assistant/tool content strings; thinking via `Message#thinking.text`; tool calls via `ToolCall#name`/`#arguments` (tool_call.rb:17-24). System messages skipped (prompt state, pi convertToLlm). Port test compares the full joined string. |
+| 4 | Usage surface | `Message#tokens` → `RubyLLM::Tokens` (message.rb:199-204); accessors `input/output/cache_read/cache_write` (tokens.rb:47-73, READERS tokens.rb:35-37). `Chat#step` returns the Message carrying them. Formula shipped: `calculate_context_tokens = [input, output, cache_read, cache_write].compact.sum`. **Deviation:** gem Tokens has NO total accessor (no `total`/`total_tokens` method in tokens.rb), so pi's `totalTokens ||` branch (compaction.ts:138-140) is unrepresentable; the component sum is the whole formula. |
+| 5 | Context-window surface | `Chat#model.context_window` (chat.rb:37; model.rb:33,82). **Verified live resolution:** `assume_model_exists: true` → `Models.find` rescue → `Model.default(model_id, slug)` (models.rb:210) and `Model.default` sets no `context_window` (model.rb:65-75) → **the port's default chat resolves nil** → threshold disabled unless env set. Shipped resolution: explicit `context_window:` kwarg → `ENV["RASPBERRY_PI_CONTEXT_WINDOW"]` (digits only) → `chat.model.context_window` → nil; nil/<=0 disables threshold only (loop.rb `resolved_context_window`; matches pi's `model.contextWindow <= 0` guard agent-session.ts:768-771). |
+| 6 | One-shot summarization | Fresh `@chat.context.chat(model:, provider: @chat.provider&.slug, assume_model_exists: true)` (Chat#context chat.rb:93, #provider :40, Context#chat context.rb:38), `with_instructions(SUMMARIZATION_SYSTEM_PROMPT)` + `with_max_output_tokens` (chat.rb:648), non-streaming `generate(prompt)`. `max_tokens = min(floor(0.8 * reserve_tokens), model.max_output_tokens>0 ? it : ∞)` (compaction.ts:683-686; gem's model max is `max_output_tokens`, model.rb:36). Hermetic routing: **the same MockLLMServer instance** — its script is a request queue; the summary call is simply the next captured request (no mock changes needed). Retry: pi's dedicated `retryAssistantCall` (:619-644) not ported — the gem's per-context `max_retries` config covers the summary chat (TestChat sets it); **deviation itemized**. |
+| 7 | Overflow error | `ContextLengthExceededError` raised on 400 when the error message matches `CONTEXT_LENGTH_PATTERNS` (error_middleware.rb:69-77, :125-131, :163-165); mock trigger = `{type: :error, status: 400, message: "This model's maximum context length is 8 tokens"}` (matches `/context length/i`). Surfacing: `provider_completion` raises → `add_message` never runs (chat.rb:1213-1224: `record_generated_message` is only reached on return) → **the overflowing attempt is never in `chat.messages`**; the error crosses the Bridge as a `:error` terminal → `@last_error` (bridge.rb:54-55). |
+| 8 | Overflow retry-once boundary | pi: `_overflowRecoveryAttempted` latch :3040, set before `_runAutoCompaction("overflow", willRetry)` :3042-3044; second overflow emits failure, returns false (:3019-3038). Port: same latch in `Loop#recover_overflow?` (set before compaction; compaction failure also surfaces the error); latch resets on a clean assistant response (pi :1168-1171) — test-proven. |
+| 9 | Per-role estimation | `estimate_tokens` maps pi's :298-355 onto ruby_llm shapes: user/system/tool content strings; assistant text + `thinking.text` + tool calls (`name.length + JSON.generate(arguments).length`). Unrepresentable roles: pi's bashExecution/custom/branchSummary/compactionSummary are pi-internal — **the port's live context holds none** (live context = ruby_llm system/user/assistant/tool only). |
+| 10 | Cut-point safety | `find_cut_point` over the flat list: cut points are user/assistant messages only (`:tool` and `:system` never); backwards walk accumulates `estimate_tokens`, budget-exceeded → closest valid cut point at/after that message, falling back to the last cut point (pi :449-452's "trailing tool results exceed the budget by themselves" case). Test-proven mid-turn: budget crossed at the tool result cuts at the next assistant (:356-470 semantics). |
+| 11 | Session tolerance | `parse_entries`/`load_entries` unchanged (skip malformed lines, header-gated) — a `compaction` entry line is just another parsed Hash; existing files without compaction entries replay unchanged (all I07 session tests pass unmodified). `context_messages` = pi `buildContextEntries` (:475-513): latest compaction (rindex) → `[compaction]` + entries from `firstKeptEntryId` up to the compaction (system-role message entries skipped) + everything after. Summary role mapping: **user message** wrapped in `COMPACTION_SUMMARY_PREFIX/SUFFIX` (pi messages.ts:11-19, compactionSummary→user branch messages.ts:176-184) — evidence-cited, not assumed. |
+
+### Parity-deviation table
+
+| Deviation | Reason | Evidence |
+|---|---|---|
+| `calculate_context_tokens` drops pi's `totalTokens \|\|` branch | gem Tokens has no total accessor | tokens.rb:35-37, 81-89 |
+| Overflow compaction ignores `settings.enabled` (threshold respects it) | pi parity: pi's overflow path never checks enabled | agent-session.ts:3007-3047, :3097+ vs compaction.ts:292-296 |
+| Split-turn / turn-prefix summarization (two-summary path, compaction.ts:816-828, :1072-1119) not wired live; TURN_PREFIX_SUMMARIZATION_PROMPT transcribed but unwired | flat-list cut contract per spec item 10 requires only never-orphaning cut points; turn-prefix splitting is entry-projection machinery | spec item 10; compaction.ts |
+| `previous_summary`/UPDATE_SUMMARIZATION_PROMPT transcribed but unwired live; re-compaction re-serializes the prior summary message as ordinary conversation text | the port's fork-subset resume does not re-record parent entries, so there is no in-file previous-summary chain | session_test.rb:140 ("prior turns are not re-recorded") |
+| `firstKeptEntryId` falls back to the compaction entry's own id when the first kept message was not recorded in the current file (resumed seed messages) | same resume-shape reason; identical to pi's `firstKeptEntryId ?? id` fallback | session-manager.ts:1264 |
+| No dedicated `retryAssistantCall` port | gem per-context `max_retries` covers the summary chat | compaction.ts:619-644; TestChat config |
+| Compaction entry omits `usage`/`fromHook`/`systemMessage` fields | AC4's stated port subset | session-manager.ts:91-104 |
+| Custom-instructions focus (`Additional focus:`, compaction.ts:690-692) not ported | spec out-of-scope: custom instructions/hook interception | spec "Out of scope" |
+| Entry keys are pi's camelCase (`firstKeptEntryId`, `tokensBefore`, `details{readFiles, modifiedFiles}`), not "snake_case" | the port's existing format preserves pi's camelCase (`parentId`); AC4's letter names these keys | session.rb message_entry; session_test `header["parentSession"]` |
+
+### Judgment calls (spec-requested)
+
+- Context-window resolution: verified in PHASE 0 item 5 — the default chat resolves **nil**; env is the only live source unless a registry model is used.
+- Summary-message role mapping: `:user` with pi's exact prefix/suffix strings (item 11).
+- Overflow retry boundary: retry re-enters `step_via_bridge` in the same inner loop; the original error is cleared only after successful compaction, and the failed attempt is absent from the summarized/kept history (gem never appends it — item 7).
+- Summarization one-shot routing: fresh chat from the run chat's own `RubyLLM::Context`, run through the existing `Bridge` (kernel-interrupt cancellable via `on_cancel { summary_chat.cancel }`); hermetic via the same MockLLMServer request queue.
+
+### Gate results (verbatim, this run)
+
+| Gate | Result |
+|---|---|
+| suite-green | `176 runs, 671 assertions, 0 failures, 0 errors, 0 skips` / `SUITE_OK` |
+| compaction-guard | `16 runs, 48 assertions, 0 failures, 0 errors, 0 skips` / `COMPACTION_OK` |
+| session-agent-guard | `18 runs, 130 assertions, 0 failures, 0 errors, 0 skips` / `SESSION_OK` |
+| mcp-guard | `18 runs, 96 assertions, 0 failures, 0 errors, 0 skips` / `MCP_OK` |
+| print-guard | `4 runs, 19 assertions, 0 failures, 0 errors, 0 skips` / `PRINT_OK` |
+| prompts-verbatim | `PROMPTS_OK` |
+| tui-seam | `SEAM_OK` |
+| bench-seam | `SEAM_BENCH_OK` |
+| gem-pins | `PINS_OK` |
+| stderr-quiet | `NO_WARN` |
+| stderr-clean | `NO_EPIPE` |
+| prompt byte-identity (extra, architect-read aid) | `SYSTEM IDENTICAL / SUMMARIZATION IDENTICAL / UPDATE_SUMMARIZATION_PROMPT IDENTICAL (after TS interpolation) / TURN_PREFIX IDENTICAL` |
+
+Note: one pre-existing `IO::Buffer is experimental` warning from session.rb's `File.write(..., mode: "a")` (present before this lane; stderr gates grep only for 'unhandled exception'/'Broken pipe').
+
+STATUS: COMPLETE_WITH_CONCERNS (concerns: the four unwired transcriptions — split-turn turn-prefix summarization, UPDATE/previous-summary live path — are itemized deviations above, not gaps in the gates; and the default model resolves `context_window: nil`, so threshold compaction is inert in production unless `RASPBERRY_PI_CONTEXT_WINDOW` is set — this is the spec's own resolution order, verified live)
 
 ## Verdict
 
