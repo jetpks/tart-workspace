@@ -406,7 +406,27 @@ project:
   - name: rename-tart
     ordinal: 9
     file: architecture/I09-rename-tart.md
-    freeze_sha:
+    freeze_sha: 89e46cdf052f5a809741329f97a41be28d2f61b3
     verdict: pending
-    lanes: []
+    lanes:
+    - name: rename
+      repo: raspberry-pi
+      touch_set:
+      - lib/*
+      - lib/**
+      - test/*
+      - test/**
+      - bench/*
+      - bench/**
+      - bin/*
+      - README.md
+      - Rakefile
+      - Gemfile
+      - Gemfile.lock
+      - ".gitignore"
+      - raspberry-pi.gemspec
+      - tart.gemspec
+    rehearsal:
+      gates_digest: 50a9907c4dbaa879487a29bcc59e9d29ef72b5a51796f3b4609ef53559364950
+      at: '2026-10-09T21:41:24-06:00'
   integration_branch: project/pi-port
