@@ -525,6 +525,363 @@ agent-seam-guard, skills-crash-tripwire, claude-skills-tripwire, ctrld-tripwire,
 tokens-tripwire, reasoning-tripwire — their halves cannot pass in your worktree
 (absent files); the full suite in your worktree is your regression proof.
 
+### surface
+
+### LANE surface — your boundaries
+
+- Working directory: /Users/eric/architect/spaces/20261009-pi-port/build/I13-live-run-fixes-surface/wt
+  (a git worktree of the tart repo, branch lane/I13-live-run-fixes-surface, based on
+  project/pi-port at 5b98831f — everything through I12: kernel + agent/tool loop with seven parity
+  tools, safety/approval gating, thinking-replay strip, fullscreen TUI surface with the bordered
+  input editor + theme tokens + footer + autocomplete + transcript scrolling + scrollbar +
+  compaction-start border status, JSONL session recording + resume, stdio MCP client, print
+  mode, CLI launcher, compaction, I10 skills/settings/slash commands. Suite green (272 runs).
+  All must stay green.)
+- Your scratch report (write RAW results here when done):
+  /Users/eric/architect/spaces/20261009-pi-port/build/I13-live-run-fixes-surface/report.md
+- You may touch ONLY: lib/tart/render/chat.rb, lib/tart/theme.rb, lib/tart/skills.rb,
+  test/chat_test.rb, test/theme_test.rb, test/skills_test.rb, test/tui_test.rb,
+  test/support/mock_llm_server.rb. Nothing else.
+- Space-root paths are READ-ONLY references. The pi oracle is repos/pi (read-only, at
+  /Users/eric/architect/spaces/20261009-pi-port/repos/pi — cite file:line from it).
+- Lane-specific notes:
+  - Your lane owns items 3-7 of the spec below (the /skills crash, live autocomplete +
+    ~/.claude skills discovery, ctrl+d, theme tokens, dim streaming reasoning). Items 1-2
+    (boot draw, IO::Buffer warning) belong to the PARALLEL kernel lane (loop.rb/bin/tart) —
+    do not touch their files. bin/tart is NOT yours this iteration.
+  - Item 3 root cause (architect-verified): `Render::Chat#command_line` sits under `private`
+    (lib/tart/render/chat.rb:550, 739) while bin/tart:187 wires the Commands handler with
+    `output: ->(text) { surface.command_line(text) }` → NoMethodError on `/skills`.
+  - Item 4 (architect-verified facts): `~/.tart/` has no `skills/` dir, no builtin
+    fuzzy-matches "ar", and the owner's pi surfaces their skills from `~/.claude/skills`
+    (the architect skill lives there) — a source tart does not scan (owner ruling 2026-10-10:
+    scan it; decision logged in ARCHITECT.md). OPEN (yours to verify live): whether the live
+    tab-key path applies at all — headless tab-apply tests pass, so the live gem event shape
+    may also be broken. Verify FIRST with raw evidence (gem tab/ctrl+d event shapes; a PTY
+    or synthetic-events harness driving the real wiring with fixture skills seeded), report
+    the raw events/readbacks, THEN fix what the evidence shows broken.
+  - Item 7 note: test/support/mock_llm_server.rb ALREADY streams reasoning deltas
+    (`{type: :stream, reasoning_content: "..."}` — :24, :154-155, architect-verified) — expect
+    NO changes to it; it is in your touch set only if PHASE 0 finds a real gap, and then only
+    the delta shape.
+  - `~/.tart` and real `~/.claude` are NEVER touched — all discovery tests use explicit
+    fixture roots.
+  - Gates chat-guard, skills-guard, theme-guard, tui-guard, agent-seam-guard, and your
+    tripwires are your deliverable proof; the standing guards are runnable at your base —
+    run them and record verbatim. Do not weaken any gate's files.
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo or in the read-only
+oracle repo. Silent compliance is a failure. Silent scope additions are a
+failure. If you have no disagreements, state what you checked before concluding
+the spec is sound. Verify the named APIs/formats/versions against the live
+dependencies before planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed in BOUNDARIES. You
+are one of several parallel lane agents working in isolated worktrees; files
+outside your lane belong to other agents — touching them fails your lane.
+No placeholder implementations — search the codebase before implementing;
+full implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive collection/enumerable
+forms); well-factored and DRY-ish; terse but clear; pragmatic, not clever — the
+smallest change that does the job, no abstraction it doesn't need. Consistency
+with the surrounding code is part of correctness here: a change that works but
+fights the house style (or introduces an inconsistency a careful reader of this
+repo would never write) is not done. Tests stay simple and terse, exercising
+public behavior, no mock/stub of the class under test. Verify your work by
+running the acceptance criteria's gate commands and record the verbatim output. Do NOT commit and do NOT run any
+git write command (commit/add/branch/reset/checkout) — the architect commits
+and merges after verification, and verifies you made no commits. Do NOT delete
+lock files or escalate privileges if a command fails; record the exact error
+and continue. Do NOT use `run_in_background` (or shell `&`) for your own work —
+this process terminates when you end your turn and reaps its own children, so
+backgrounded work is SIGTERMed and its output lost while the run still exits
+0; run long commands serially in the foreground instead. Give every
+potentially long command an explicit timeout; if a
+runtime will not start unattended (interactive prompt, server with no timeout),
+record the exact failure in your report and route around it — never busy-wait
+or retry in a loop. When done, write your report to the scratch file given to
+you, build/I13-live-run-fixes-surface/report.md (an absolute path outside your
+worktree), with RAW results only — tables, numbers, command output — no
+interpretation, no "promising". Every status claim must be backed by a command
+result from this run. Keep the report compact — tables and numbers, not prose.
+Do not title the report — the architect's tooling supplies the heading when it
+transcribes; keep any headings inside the report at `###` or deeper. End it with
+exactly one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them)
+| BLOCKED (exact blocker + what you tried). Verdicts belong to the architect
+and the human. Persist until your lane is fully handled end-to-end; do not stop
+at analysis or partial fixes.
+
+=== OBJECTIVE (and why) ===
+
+The owner's second daily-driver run (2026-10-10 local) surfaced seven live
+defects/wants (BRIEF §3 daily-driver parity; owner rulings logged in
+ARCHITECT.md decisions 2026-10-10, commit c6158e5). Your lane owns items 3-7:
+
+3. **`/skills` crashes** — `Render::Chat#command_line` sits under `private`
+   (lib/tart/render/chat.rb:550, 739) while bin/tart:187 wires the Commands
+   handler with `output: ->(text) { surface.command_line(text) }` →
+   NoMethodError on first `/skills`.
+4. **`/ar<tab>` completes nothing** — verified: `~/.tart/` has no `skills/`
+   dir (only `sessions/`), no builtin fuzzy-matches "ar", and the owner's pi
+   surfaces their skills from `~/.claude/skills` (the architect skill lives
+   there) — a source tart does not scan (owner ruling: scan it). Open
+   (verify live): whether the live tab-key path applies at all.
+5. **ctrl+d doesn't exit when the input is empty** — pi `app.exit` (default
+   key ctrl+d): exits only when the editor is empty, falls through to
+   delete-char-forward otherwise (repos/pi custom-editor.ts:118-125,
+   core/keybindings.ts:28). The port never handles ctrl+d.
+6. **Theme tokens** — I12 ruling 2 carry-in, owner-confirmed:
+   `Theme::TOKENS` carries no `scrollbarTrack`/`scrollbarThumb`; pi's actual
+   values are blue-tinted (dark.json:28-29: track okhsl(237 7% 33%), thumb
+   okhsl(232 7% 65%)) — NOT the interim `dim`/`muted`. Also promote
+   `thinkingText` (dark.json:26, okhsl(226 7% 65%)) for item 7.
+7. **No dim streaming reasoning** — ruby_llm parses reasoning deltas into
+   `chunk.thinking` (gem chat_completions/streaming.rb:28-29: delta
+   `reasoning_content` || `reasoning`), and the surface's `:message_update`
+   handler appends only `chunk.content` (chat.rb:249-252). pi renders thinking
+   live in the streaming message (assistant-message.ts:99-175: thinking runs
+   render as markdown in `thinkingText` color, italic; collapsed by the
+   `hideThinkingBlock` setting with a "Thinking..." label, click-to-expand)
+   via message_update → updateContent (interactive-mode.ts:3524-3535).
+
+(Items 1-2 — boot draw + IO::Buffer warning — belong to the parallel kernel
+lane. Do not touch loop.rb/bin/tart.)
+
+=== OUTPUT FORMAT ===
+
+Raw tables/verbatim output only, in your scratch report: PHASE 0 findings
+table (every verify item below, spec-vs-reality with file:line evidence),
+test-suite output verbatim (pass/fail counts, before/after), gate-command
+outputs verbatim, judgment calls (each vs its pi source with file:line), the
+parity-deviation table (empty or itemized), the live-verification evidence for
+item 4 (raw PTY/synthetic-run output, not prose claims), and the files list.
+Every status claim backed by a command result from this run.
+
+=== TOOL GUIDANCE (verification commands; verify-against-reality list) ===
+
+- Verification: `bundle install --quiet && bundle exec rake` (full suite; no
+  count frozen). Single files: `bundle exec ruby -Itest test/<file>.rb`.
+  Goldens: untouched — any golden change is a defect, raise it in PHASE 0.
+- Oracle (read-only, repos/pi/packages/coding-agent): item 5 —
+  `modes/interactive/components/custom-editor.ts:118-125` (app.exit:
+  empty-editor exit, fall-through to delete-char-forward),
+  `core/keybindings.ts:28` (`app.exit` default ctrl+d). Item 7 —
+  `modes/interactive/components/assistant-message.ts:99-175` (thinking runs:
+  joined markdown, `thinkingText` color, italic; hidden state = italic label,
+  click-toggle; spacing rules), `modes/interactive/interactive-mode.ts:3524-
+  3535` (live updateContent during message_update),
+  `modes/interactive/theme/theme-tokens.ts:35` + `theme/dark.json:26`
+  (thinkingText okhsl(226 7% 65%)). Item 6 — `theme/dark.json:26-29`.
+- Gem (read-only, verify against installed source before use): ruby_llm
+  2.1.0 — `chunk.thinking` carries per-delta reasoning text
+  (`protocols/chat_completions/streaming.rb:28-29`); the completed
+  `Message#thinking` (`message.rb:52`) — VERIFY in PHASE 0 that the final
+  message at `:message_end` carries the joined thinking (drive the mock
+  server with reasoning deltas and print the message's thinking; if the gem
+  drops it at completion, raise it — do not work around silently).
+  ratatui_ruby 1.5.0 — verify the live event shape for ctrl+d (code "d" +
+  ctrl modifier?) and tab (code "tab"?) with a PTY or the synthetic-events
+  seam BEFORE implementing items 4/5 key handling; report the raw events.
+- Mock server: `test/support/mock_llm_server.rb` ALREADY streams reasoning
+  deltas (`{type: :stream, reasoning_content: "..."}` — :24, :154-155,
+  architect-verified) — expect NO changes to it; it is in your touch set only
+  if PHASE 0 finds a real gap, and then only the delta shape. Any other
+  missing fixture is raised in PHASE 0, not edited.
+- Theme analog mapping: TOKENS values are the house ANSI analogs of pi's
+  okhsl values with provenance comments (the house pattern, theme.rb:9-40).
+  Pick the closest ANSI symbol per pi value (blue-tinted family for all three
+  new tokens); record the exact analog choice + why in the token table
+  comments.
+- Live-run verification (item 4): the port's own synthetic-events seam (I01
+  Design B) or a PTY harness (`IO::PTY`/`script`) driving the real wiring —
+  with skills fixture dirs seeded so `/ar` has matches. Raw event dumps and
+  screen readbacks in the report. `~/.tart` and real `~/.claude` are NEVER
+  touched by tests or fixtures — all discovery tests use explicit fixture
+  roots.
+
+=== BOUNDARIES (may touch / must not touch / out of scope) ===
+
+**may touch:** lib/tart/render/chat.rb, lib/tart/theme.rb, lib/tart/skills.rb,
+test/chat_test.rb, test/theme_test.rb, test/skills_test.rb, test/tui_test.rb,
+test/support/mock_llm_server.rb (reasoning-delta shape ONLY, per Tool
+guidance).
+
+**must not touch:** everything else — in particular lib/tart/core/loop.rb,
+test/loop_test.rb, bin/tart, test/launcher_smoke_test.rb (the kernel lane
+owns those); lib/tart/agent/loop.rb, lib/tart/agent/session.rb,
+lib/tart/agent/bridge.rb, lib/tart/commands.rb, lib/tart/settings.rb,
+lib/tart/compaction.rb, lib/tart/render/markdown.rb, lib/tart/core/**,
+lib/tart/tui.rb, lib/tart.rb; all other test files (read-only —
+test/golden_parity_test.rb, test/agent_loop_test.rb, test/support/** beyond
+the mock server; raise gaps in PHASE 0, do not edit); Gemfile, Gemfile.lock,
+bench/, Rakefile, README.md; `~/.tart`; real `~/.claude`.
+
+**out of scope:** items 1-2 (kernel lane); retry/summarization border
+statuses (owner-ruled cut); thinking collapse/toggle + `hideThinkingBlock`
+setting; markdown rendering OF the reasoning (plain dim text is the
+reduction; itemized); mouse/wheel; theme selector; `@`-file completion; any
+provider/async changes; no new runtime dependencies; no refactors beyond the
+task.
+
+**Per-item boundaries (from the spec):**
+
+- **Item 3 (/skills crash):** make `command_line` reachable from the bin/tart
+  wiring shape (it is a render API the handler wiring calls — public
+  placement is the house shape; check chat.rb's other externally-wired
+  methods for the convention and match it). Regression: a kernel-driven test
+  submits `/skills` through a real `Commands::Handler` wired exactly like
+  bin/tart:185-191 (output/spawn/agent/reset/quit lambdas) with skills
+  loaded — asserts no raise and the listing rendered. No other visibility
+  changes.
+- **Item 4 (autocomplete live):** FIRST verify live and report raw
+  events/readbacks; fix whatever the verification shows broken (tab-key
+  handling, trigger, or apply) to match the I12 semantics. THEN discovery:
+  `Skills.load` scans user skills from `<root>/skills` (unchanged, pi
+  parity, first-loaded wins) AND `~/.claude/skills` (owner ruling 2026-10-10)
+  — order: `<root>/skills`, then `~/.claude/skills`, then
+  `<cwd>/.tart/skills`; same loading rules (SKILL.md roots, recursion,
+  frontmatter validation, realpath dedup, collision diagnostics). Tests:
+  fixture dirs (never real `~` paths), including a fixture with
+  `~/.claude/skills` shape, first-loaded-wins across the two user sources.
+  The completion target for `/ar<tab>` is `/skill:architect ` (the port's
+  routing shape, commands.rb:56).
+- **Item 5 (ctrl+d):** ctrl+d on empty input exits the run (the same path
+  the `/quit` handler uses — the surface holds `kernel:`); non-empty falls
+  through to delete-char-forward (pi custom-editor.ts:118-125). Headless
+  tests for both paths. If the gem's live event shape differs (verified in
+  PHASE 0), map it and record.
+- **Item 6 (tokens):** add `thinkingText`, `scrollbarTrack`, `scrollbarThumb`
+  to `Theme::TOKENS` as house ANSI analogs of pi's dark.json:26-29 values
+  (blue-tinted family) with provenance comments; re-point
+  `Chat#scrollbar_glyphs` from `dim`/`muted` to the new tokens; update the
+  affected rendering assertions (chat_test/tui_test as needed); theme_test
+  asserts the three tokens + comments.
+- **Item 7 (dim reasoning):** `:message_start` resets a live reasoning buffer
+  alongside `@live`; `:message_update` appends `chunk.thinking&.text` deltas
+  (nil-safe, gem streaming.rb:28-29) to the reasoning buffer AND
+  `chunk.content` to `@live` (unchanged); the live region renders the
+  reasoning dim (thinkingText token, italic-style analog if the seam
+  supports it — otherwise dim color, recorded) while it grows, above/before
+  the live content, in the transcript live area. At `:message_end`, the
+  assistant message's joined thinking (verify per Tool guidance:
+  `message.thinking.text`) renders as a dim block before the content in the
+  transcript (pi assistant-message.ts:99-175 order); collapsed/toggle state
+  is CUT (no setting, no click-toggle — itemized deviation).
+  `strip_thinking_replay` (loop.rb) is untouched — the replay strip stays;
+  the recorder/session stay untouched. If PHASE 0 finds the completed message
+  lacks thinking, raise it and implement only the live-stream half,
+  reporting the gap.
+
+=== DISAGREEMENT RULINGS (from last session) ===
+
+I12 rulings that bind this lane: the scrollbar geometry reimplementation was
+ruled ACCEPT (pi's formula is the oracle — do not switch to the gem widget);
+the token promotion carries pi's ACTUAL dark.json values (blue-tinted), not
+dim/muted; the interim dim/muted routing in Chat#scrollbar_glyphs is exactly
+what you are replacing.
+
+=== ACCEPTANCE CRITERIA (frozen — the architect re-runs these to judge; verify
+against them, do not edit or work around) ===
+
+Your lane carries AC3-AC8 (and shares AC9):
+
+- **AC3 (/skills crash fixed — regression).** Submitting `/skills` through
+  the exact bin/tart handler wiring (output/spawn/agent/reset/quit lambdas
+  over a real Handler with skills) renders the listing without raising —
+  kernel-driven, test-proven. No other visibility changes beyond the one
+  method.
+- **AC4 (live autocomplete + skill discovery — BRIEF §3, owner ruling
+  2026-10-10).** With the owner's skill sources seeded in fixtures, `/ar<tab>`
+  applies `/skill:architect ` — the live key path verified (raw event
+  dumps/readbacks in the report: gem tab/ctrl event shapes confirmed, any
+  live-path defect fixed). Discovery: `Skills.load` scans `<root>/skills`
+  (pi parity) AND `~/.claude/skills` (owner-directed deviation,
+  first-loaded-wins between the two user sources), then `<cwd>/.tart/skills`.
+  Test-proven headlessly with fixture roots; live evidence raw in the report.
+- **AC5 (ctrl+d — BRIEF §3).** ctrl+d with an empty editor exits the run;
+  with content it deletes forward (pi custom-editor.ts:118-125 app.exit
+  semantics). Both paths test-proven headlessly.
+- **AC6 (theme tokens — I12 ruling 2 carry-in, owner-confirmed).**
+  `Theme::TOKENS` carries `thinkingText`, `scrollbarTrack`, `scrollbarThumb`
+  as house ANSI analogs of pi's actual dark.json:26-29 values (blue-tinted
+  family, NOT dim/muted), provenance comments updated;
+  `Chat#scrollbar_glyphs` re-pointed to the scrollbar tokens; token
+  assertions updated. Test-proven.
+- **AC7 (dim streaming reasoning — BRIEF §3, owner ruling).** Reasoning
+  deltas render dim (thinkingText) as they stream, in the live region before
+  the live content; at completion the assistant's joined thinking renders as
+  a dim block before the content in the transcript (pi assistant-message.ts:
+  99-175 order; no toggle/collapse — itemized). `strip_thinking_replay` and
+  the agent loop untouched. Test-proven with mock-server reasoning deltas
+  (both the live-stream and completed-message paths, per the PHASE 0
+  verification of the completed message's thinking).
+- **AC8 (parity/deviation discipline — BRIEF §5).** Every PHASE 0 verify
+  item is in the findings table with file:line evidence; the parity-deviation
+  table is empty or itemized — the known cuts (~/.claude/skills scan as
+  owner-directed deviation, reasoning no-toggle, plain-dim reasoning
+  rendering, gem event-shape mappings, anything the live verification
+  uncovers) appear there, never silently.
+- **AC9 (regressions — BRIEF §2).** All standing guards stay green: tui-seam
+  (every `RatatuiRuby.` call confined to `lib/tart/tui.rb`), gem-pins,
+  env-tripwire, bench-seam, stderr gates, the launcher smoke, and the full
+  suite; goldens byte-identical.
+
+Gate commands (frozen; run them, record verbatim):
+
+```gates
+- id: suite-green
+  cmd: bundle install --quiet && bundle exec rake && echo SUITE_OK   (expect SUITE_OK, exit 0)
+- id: chat-guard
+  cmd: timeout 180 bundle exec ruby -Itest test/chat_test.rb && echo CHAT_OK
+- id: skills-guard
+  cmd: timeout 180 bundle exec ruby -Itest test/skills_test.rb && echo SKILLS_OK
+- id: theme-guard
+  cmd: timeout 180 bundle exec ruby -Itest test/theme_test.rb && echo THEME_OK
+- id: tui-guard
+  cmd: timeout 180 bundle exec ruby -Itest test/tui_test.rb && echo TUI_OK
+- id: agent-seam-guard
+  cmd: timeout 180 bundle exec ruby -Itest test/agent_loop_test.rb && echo AGENT_OK
+- id: skills-crash-tripwire
+  cmd: grep -q 'command_line' test/chat_test.rb && echo CRASH_OK
+- id: claude-skills-tripwire
+  cmd: grep -q '.claude' lib/tart/skills.rb test/skills_test.rb && echo CLAUDE_OK
+- id: ctrld-tripwire
+  cmd: grep -qi 'ctrl.*d\|app.exit\|exit' lib/tart/render/chat.rb | head -1 | grep -q . && echo CTRLD_OK
+- id: tokens-tripwire
+  cmd: grep -q 'thinkingText' lib/tart/theme.rb && grep -q 'scrollbarTrack' lib/tart/theme.rb && grep -q 'scrollbarThumb' lib/tart/theme.rb && echo TOKENS_OK
+- id: reasoning-tripwire
+  cmd: grep -q 'reasoning' lib/tart/render/chat.rb && echo REASON_OK
+- id: env-tripwire
+  cmd: grep -q 'TART_API_KEY' README.md && grep -q 'TART_MCP_CONFIG' README.md && grep -q 'TART_CONTEXT_WINDOW' README.md && git grep -q 'TART_API_KEY' -- bin/tart && echo ENV_OK
+- id: tui-seam
+  cmd: test -f lib/tart/tui.rb && test -z "$(grep -rn 'RatatuiRuby\.' lib test bench bin | grep -v '^lib/tart/tui')" && echo SEAM_OK
+- id: gem-pins
+  cmd: grep -q 'ratatui_ruby (1\.5\.0)' Gemfile.lock && grep -q 'minitest (5\.' Gemfile.lock && grep -q 'ruby_llm (2\.' Gemfile.lock && echo PINS_OK
+- id: stderr-quiet
+  cmd: bundle exec rake > /dev/null 2> stderr_gate2.log; ! grep -qi 'unhandled exception' stderr_gate2.log && echo NO_WARN && rm -f stderr_gate2.log
+- id: stderr-clean
+  cmd: bundle exec rake > /dev/null 2> stderr_gate.log; ! grep -q 'Broken pipe' stderr_gate.log && echo NO_EPIPE && rm -f stderr_gate.log
+```
+
+The kernel lane owns kernel-guard, bootdraw-tripwire, warning-tripwire,
+smoke-guard, bench-seam (their files are absent from your worktree —
+bench-seam is runnable at your base; run it and record). The full suite in
+your worktree is your regression proof.
+
 ## Builder Report
 
 <!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
