@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: session-mcp-print
+  current_iteration: compaction
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -374,4 +374,10 @@ project:
     rehearsal:
       gates_digest: 821d6e26af5253dbcd8f933f4603bf282ce2088bae72236aadf47d15dcff8c82
       at: '2026-10-09T19:59:25-06:00'
+  - name: compaction
+    ordinal: 8
+    file: architecture/I08-compaction.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
