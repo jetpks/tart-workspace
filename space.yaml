@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: editor-markdown
+  current_iteration: session-mcp-print
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -303,4 +303,10 @@ project:
     rehearsal:
       gates_digest: 6b3bc5a1e063c217bfaa5c3a355fe8f8e8196b7b27d59b9f228a69a33bd104b2
       at: '2026-10-09T19:14:41-06:00'
+  - name: session-mcp-print
+    ordinal: 7
+    file: architecture/I07-session-mcp-print.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
