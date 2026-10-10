@@ -108,51 +108,81 @@ Dispatch at **medium** effort — a routine, tightly-specified mechanical sweep 
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse rename-tart` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze rename-tart` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC1 (complete, exact rename sweep — the deliverable).** Every row of the Specification's mapping table is applied everywhere the old identifier appears, and nothing else is renamed. After the sweep, `git grep -i raspberry` over the tracked tree finds **nothing** (exit 1, no output) — the zero is itself the deliverable, exact by design. New canonical paths exist (`lib/tart.rb`, `lib/tart/`, `bin/tart`, `tart.gemspec`) and every old path is gone (`lib/raspberry_pi/`, `bin/raspberry-pi`, `raspberry-pi.gemspec`). The env prefix is `TART_` with identical suffixes, the agent root is `~/.tart` (sessions `~/.tart/sessions`, MCP config `~/.tart/mcp.json`), the namespace is `Tart`, the test model string is `tart-test-model`. The env/datadir gates below are **tripwires** (presence checks); the completeness proof is the zero-refs gate plus the architect's read of the mapping table against the report.
 
-**AC1.** ...
+**AC2 (pure rename — behavior preserved).** No behavior changes: the full minitest suite is green; the seam bench prints `SEAM_BENCH_OK`; Gemfile.lock pins are unchanged (ratatui_ruby 1.5.0, ruby_llm 2.x, minitest 5.x); no new runtime dependencies; golden-parity assertions pass **without their expected values being edited** (identifier references inside the test file may change, payload values may not).
+
+**AC3 (CLI surface).** `bundle exec ruby bin/tart --help` exits 0 printing `Usage: tart [WORKDIR] [options]` (baseline analog verified against `bin/raspberry-pi --help` pre-freeze); the executable bit is preserved on `bin/tart`; abort prefixes read `tart: `.
+
+**AC4 (README/docs coherence).** The README's title, usage examples, path examples, and env-var docs are renamed coherently — `Tart`, `bin/tart` usage, `~/.tart/sessions`, `~/.tart/mcp.json`, and every documented `TART_*` env var present; no stale raspberry references anywhere in prose (covered by the zero-refs gate over tracked files).
+
+**AC5 (PHASE 0 + discipline).** The report records per-file before/after ref counts (baseline 153 with the per-form breakdown) and the mapping table with per-row hit locations; every disagreement is raised with reasons — silent compliance is a defect. No out-of-scope changes: no backward-compat aliases, no data-dir migration machinery, no behavior/format edits beyond the mapping rows. Report is raw results only.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse rename-tart` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: rename-guard
+  ac: AC1
+  cwd: repos/raspberry-pi
+  cmd: |-
+    test -f lib/tart.rb && test -f tart.gemspec && test -x bin/tart && test ! -e lib/raspberry_pi && test ! -e bin/raspberry-pi && test ! -e raspberry-pi.gemspec && test -z "$(git grep -il raspberry)" && echo RENAME_OK
+  expect:
+    exit_code: 0
+    stdout_match: RENAME_OK
+
+- id: suite-green
+  ac: AC2
+  cwd: repos/raspberry-pi
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench-seam
+  ac: AC2
+  cwd: repos/raspberry-pi
+  cmd: |-
+    timeout 90 bundle exec ruby bench/seam_bench.rb
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: cli-smoke
+  ac: AC3
+  cwd: repos/raspberry-pi
+  cmd: |-
+    bundle exec ruby bin/tart --help
+  expect:
+    exit_code: 0
+    stdout_match: "Usage: tart"
+
+- id: env-tripwire
+  ac: AC1, AC4
+  cwd: repos/raspberry-pi
+  cmd: |-
+    grep -q 'TART_API_KEY' README.md && grep -q 'TART_MCP_CONFIG' README.md && grep -q 'TART_CONTEXT_WINDOW' README.md && git grep -q 'TART_API_KEY' -- lib && echo ENV_OK
+  expect:
+    exit_code: 0
+    stdout_match: ENV_OK
+
+- id: datadir-tripwire
+  ac: AC4
+  cwd: repos/raspberry-pi
+  cmd: |-
+    grep -q '"\.tart"' lib/tart/agent/session.rb && grep -q '~/.tart' README.md && echo DATADIR_OK
+  expect:
+    exit_code: 0
+    stdout_match: DATADIR_OK
+
+- id: gem-pins
+  ac: AC2
+  cwd: repos/raspberry-pi
+  cmd: |-
+    grep -q 'ratatui_ruby (1\.5\.0)' Gemfile.lock && grep -q 'minitest (5\.' Gemfile.lock && grep -q 'ruby_llm (2\.' Gemfile.lock && echo PINS_OK
+  expect:
+    exit_code: 0
+    stdout_match: PINS_OK
 ```
 
 ## Builder Prompt
