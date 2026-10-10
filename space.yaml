@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: third-run-parity
+  current_iteration: fourth-run-parity
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -646,7 +646,7 @@ project:
       - test/loop_test.rb
       - test/chat_test.rb
       base_sha: 8dde8419be8ceb9daecdc9dcfaacbada7c8ee4a8
-      worktree: build/I14-third-run-parity-mouse/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
@@ -657,4 +657,10 @@ project:
     rehearsal:
       gates_digest: 3cfdc9ff9b6bf027bb97a1e3fe24e1da007c65354a94946103cb9f3055895f3b
       at: '2026-10-10T14:32:42-06:00'
+  - name: fourth-run-parity
+    ordinal: 15
+    file: architecture/I15-fourth-run-parity.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
