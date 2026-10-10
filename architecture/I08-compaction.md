@@ -109,52 +109,120 @@ One lane — the work is serial (pure functions → loop wiring → session reco
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse compaction` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze compaction` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC1 (pure functions ported — BRIEF §4, §7.6).** The compaction module's pure functions are test-proven with no LLM: token estimation (chars/4 per role incl. assistant tool-calls name+JSON-args and thinking), provider-usage accounting (`calculate_context_tokens` over the gem's actual Tokens accessors), `should_compact?` (enabled && tokens > context_window - reserve_tokens; nil/<=0 window disables), cut-point selection that keeps approximately `keep_recent_tokens` and **never orphans a `role: :tool` message from its preceding assistant tool-call message** (test-proven with a budget boundary falling mid-turn), and file-op extraction/format. Prompt strings (`SUMMARIZATION_SYSTEM_PROMPT`, `SUMMARIZATION_PROMPT`, `UPDATE_SUMMARIZATION_PROMPT`, `TURN_PREFIX_SUMMARIZATION_PROMPT`) and `serialize_conversation`'s exact prefixes/truncation are **byte-identical to pi's** — architect-read from the report's citations (a grep tripwire gate checks presence; identity is architect-read).
 
-**AC1.** ...
+**AC2 (threshold trigger — BRIEF §7.6).** After a completed turn whose context tokens (last assistant message's provider-reported usage, per AC1) exceed `context_window - reserve_tokens`, the loop compacts: the chat history is replaced by `[summary message, kept recent tail]`. **MockLLMServer proof**: the captured next request payload contains the summary text and the kept messages, and none of the summarized-away messages. Settings are injectable kwargs with pi's defaults (enabled, reserve 16384, keep-recent 20000); `enabled: false` performs no compaction (test-proven). The context-window source is `RASPBERRY_PI_CONTEXT_WINDOW` → `chat.model.context_window` → nil, as reported in PHASE 0 (the report names what the default model actually resolves to in this repo).
+
+**AC3 (overflow trigger — BRIEF §7.6, §4).** A step that raises `RubyLLM::ContextLengthExceededError` compacts and **retries the turn once** — MockLLMServer scripts the 400-overflow then a successful response, test-proven end-to-end; the overflowing attempt does not remain in the history that gets summarized or kept. A second consecutive overflow after compaction **does not retry again** (the latch) — the error surfaces to the caller (test-proven: script overflow, compact, overflow again → the run ends with the error surfaced, no third LLM call for the same turn).
+
+**AC4 (compaction entry + resume-after-compaction — BRIEF §7.1, §7.6).** A compaction is recorded as a session entry with pi's `CompactionEntry` shape (type `"compaction"`, id, parentId, timestamp, summary, `firstKeptEntryId`, `tokensBefore`, details `{readFiles, modifiedFiles}` — the port's subset, deviations itemized). **Resume after compaction is test-proven**: `context_messages` on a compacted session file yields the latest compaction's summary (as the reported context-message mapping) + the entries from `firstKeptEntryId` onward + everything after the compaction entry, and **none** of the pre-compaction summarized messages — the seeded next-request payload (MockLLMServer) demonstrates exactly that. Pre-existing session files without compaction entries still load unmodified (existing session tests pass).
+
+**AC5 (PHASE 0 + parity discipline + no regressions — BRIEF §2, §5.1).** Every verify item in the Specification's tool guidance is recorded in the findings table with gem/oracle file:line evidence, plus disagreements with reasons — silent compliance is a defect; a parity deviation adopted silently is a defect (the table is empty or itemized). No new runtime dependencies. All measured regression gates stay green with compaction wired in.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse compaction` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite-green
+  ac: AC1, AC2, AC3, AC4, AC5
+  cwd: repos/raspberry-pi
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: compaction-guard
+  ac: AC1
+  cwd: repos/raspberry-pi
+  cmd: |-
+    timeout 120 bundle exec ruby -Itest test/compaction_test.rb && echo COMPACTION_OK
+  expect:
+    exit_code: 0
+    stdout_match: COMPACTION_OK
+
+- id: session-agent-guard
+  ac: AC4
+  cwd: repos/raspberry-pi
+  cmd: |-
+    timeout 120 bundle exec ruby -Itest -e 'require "./test/session_test.rb"; require "./test/agent_loop_test.rb"' && echo SESSION_OK
+  expect:
+    exit_code: 0
+    stdout_match: SESSION_OK
+
+- id: mcp-guard
+  ac: AC5
+  cwd: repos/raspberry-pi
+  cmd: |-
+    timeout 120 bundle exec ruby -Itest test/mcp_test.rb && echo MCP_OK
+  expect:
+    exit_code: 0
+    stdout_match: MCP_OK
+
+- id: print-guard
+  ac: AC5
+  cwd: repos/raspberry-pi
+  cmd: |-
+    timeout 120 bundle exec ruby -Itest test/print_test.rb && echo PRINT_OK
+  expect:
+    exit_code: 0
+    stdout_match: PRINT_OK
+
+- id: prompts-verbatim
+  ac: AC1
+  cwd: repos/raspberry-pi
+  cmd: |-
+    grep -q 'You are a context summarization assistant' lib/raspberry_pi/compaction.rb && grep -q '## Goal' lib/raspberry_pi/compaction.rb && grep -q 'conversation to summarize' lib/raspberry_pi/compaction.rb && echo PROMPTS_OK
+  expect:
+    exit_code: 0
+    stdout_match: PROMPTS_OK
+
+- id: tui-seam
+  ac: AC5
+  cwd: repos/raspberry-pi
+  cmd: |-
+    test -f lib/raspberry_pi/tui.rb && test -z "$(grep -rn 'RatatuiRuby\.' lib test bench bin | grep -v '^lib/raspberry_pi/tui')" && echo SEAM_OK
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_OK
+
+- id: bench-seam
+  ac: AC5
+  cwd: repos/raspberry-pi
+  cmd: |-
+    timeout 90 bundle exec ruby bench/seam_bench.rb
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: gem-pins
+  ac: AC5
+  cwd: repos/raspberry-pi
+  cmd: |-
+    grep -q 'ratatui_ruby (1\.5\.0)' Gemfile.lock && grep -q 'minitest (5\.' Gemfile.lock && grep -q 'ruby_llm (2\.' Gemfile.lock && echo PINS_OK
+  expect:
+    exit_code: 0
+    stdout_match: PINS_OK
+
+- id: stderr-quiet
+  ac: AC5
+  cwd: repos/raspberry-pi
+  cmd: |-
+    bundle exec rake > /dev/null 2> stderr_gate2.log; ! grep -qi 'unhandled exception' stderr_gate2.log && echo NO_WARN && rm -f stderr_gate2.log
+  expect:
+    exit_code: 0
+    stdout_match: NO_WARN
+
+- id: stderr-clean
+  ac: AC5
+  cwd: repos/raspberry-pi
+  cmd: |-
+    bundle exec rake > /dev/null 2> stderr_gate.log; ! grep -q 'Broken pipe' stderr_gate.log && echo NO_EPIPE && rm -f stderr_gate.log
+  expect:
+    exit_code: 0
+    stdout_match: NO_EPIPE
 ```
+
+Gate intent notes (calibration, per the freeze discipline): `prompts-verbatim` is a **tripwire** — keyword presence only; byte-identity of all four prompt templates and the serialize prefixes is architect-read from the report's pi citations, never gate-proven. `suite-green` proves the merged whole (AC5's regression floor); the per-file guards prove the touched areas run standalone. `session-agent-guard` uses the corrected multi-file require shape (the I07 INVALID lesson: `ruby -Itest a.rb b.rb` runs only the first file — ARGV quirk). Thresholds are floors by construction (run/assert counts grow with additions; no counts are frozen).
 
 ## Builder Prompt
 
