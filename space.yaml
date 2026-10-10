@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: autocomplete-scroll
+  current_iteration: live-run-fixes
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -545,4 +545,10 @@ project:
     rehearsal:
       gates_digest: c31b5c333c1d461e8f5cc905ac9d512b0b49eb1eb3c1daf13369678481271aa4
       at: '2026-10-10T11:57:37-06:00'
+  - name: live-run-fixes
+    ordinal: 13
+    file: architecture/I13-live-run-fixes.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
