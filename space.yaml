@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: live-run
+  current_iteration: editor-markdown
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -235,4 +235,10 @@ project:
     rehearsal:
       gates_digest: 26a05bd7fd9f27b4e3fdb03684e7b5586cd49146c67b94965c6ba38760fd4683
       at: '2026-10-09T18:44:17-06:00'
+  - name: editor-markdown
+    ordinal: 6
+    file: architecture/I06-editor-markdown.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
