@@ -791,11 +791,100 @@ analysis or partial fixes.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I05-live-run-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence live-run --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### ux
+
+### ux
+
+Worktree: build/I05-live-run-ux/wt @ d14c39c (lane/I05-live-run-ux), clean, no commits made. Files touched: bin/raspberry-pi (new, mode 755), raspberry-pi.gemspec, lib/raspberry_pi/tui.rb, lib/raspberry_pi/render/chat.rb, test/chat_test.rb, test/tui_test.rb, README.md. `git status --porcelain` shows exactly these 6 M + `?? bin/`.
+
+#### PHASE 0 findings (spec-vs-reality, verified against live deps before coding)
+
+| # | Verify item | Reality (evidence) | Disposition |
+|---|---|---|---|
+| 1 | ratatui_ruby 1.5.0 style vocabulary | `RatatuiRuby::Style::Style.new(fg:, bg:, underline_color:, modifiers:, remove_modifiers:)` — `style/style.rb:46`; named ANSI symbols incl. `:light_blue`, `:gray`, `:dark_gray` (`style/style.rb:22–30`); Integer 0–255; hex `"#RRGGBB"` | As expected; used named symbols only |
+| 2 | Per-line fg on `Paragraph` | `Paragraph.new(text:, style:, wrap:, ...)` — text is "String or Text::Line array" (`widgets/paragraph.rb:70–72,82`); per-line color = `Text::Line.new(spans: [Text::Span.new(content:, style:)])` (`text/line.rb:57`, `text/span.rb:18,38`) | Used; hermetically executed (raw experiment + suite) |
+| 3 | `get_cell_at` fg readback | `Cell#fg` documented `:red` / `"#ff0000"` (`cell.rb:20–26`); live headless readback this run: `:light_blue`, `:white`, `:gray`, `:dark_gray` come back as symbols; unstyled span reads back `nil`; empty Line-array Paragraph is legal | Matches I04 findings (`:red`, `:indexed_n`, `"#rrggbb"` family) |
+| 4 | gemspec executables house pattern | `spec.bindir = "exe"; spec.executables = [...]` (src/space-architect/space-architect.gemspec:23–24); Dir-derived variant (src/gigatoken-rb/gigatoken.gemspec:35–36) | Deviation forced by the frozen gate (`bin/raspberry-pi`): `spec.bindir = "bin"; spec.executables = ["raspberry-pi"]`, `spec.files` gains `"bin/*"` |
+| 5 | pi launcher wiring (oracle) | pi resolves model via CLI flags `--provider/--model` + saved settings + credential store (`packages/coding-agent/src/main.ts:467–469, 483–501`), not bare env | Port uses env vars (see judgment calls); flags/config-files are out of this iteration's scope |
+| 6 | pi color usage (oracle) | `modes/interactive/theme/dark.json`: `userMessageBg: blueBg` + `userMessageText: text` (user distinguished by **background**), assistant = default `text`, `toolOutput: muted`, `error: red`, `warning: yellow`; `components/text.ts:52–96` pads/wraps per line | Ported as fg-only distinctions (see judgment call 2) |
+
+Disagreements with the spec: none on substance. Two boundary/friction notes raised, not blocking:
+1. AC4 orders the stale §5 README line corrected, but that line sits in "## Project contract", outside the lane's "dev/verification + usage sections only" carve-out. Resolved in favor of AC4 (explicit deliverable beats the section scoping); the contract text now states the actual current behavior (verbatim writes).
+2. `README.md` now claims "file contents are written verbatim — no normalization" — true of this tree and of the toggle lane's default-off seam; if the post-parity flip lands, that line is the toggle lane's/architect's to update (flagged, not silently resolved).
+
+#### Test suite (verbatim)
+
+```
+$ bundle install --quiet && bundle exec rake && echo SUITE_OK
+Finished in 14.738358s, 5.0888 runs/s, 20.8979 assertions/s.
+
+75 runs, 308 assertions, 0 failures, 0 errors, 0 skips
+SUITE_OK
+```
+
+(Pre-existing, pre-change: the intentional `work boom` carry-in test's async "unhandled exception" warn still prints on suite stderr — I04 verdict backlog nit 6, not in any lane's touch set.)
+
+Gates (verbatim):
+
+```
+$ test -f lib/raspberry_pi/tui.rb && test -z "$(grep -rn 'RatatuiRuby\.' lib test bench bin | grep -v '^lib/raspberry_pi/tui')" && echo SEAM_OK
+SEAM_OK
+
+$ timeout 90 bundle exec ruby bench/seam_bench.rb
+SEAM_BENCH_OK          (exit 0; full JSON ended "static_window_s": 3.0, "child_deadline_s": 45.0)
+
+$ grep -q 'ratatui_ruby (1\.5\.0)' Gemfile.lock && grep -q 'minitest (5\.' Gemfile.lock && grep -q 'ruby_llm (2\.' Gemfile.lock && echo PINS_OK
+PINS_OK
+
+$ bundle exec rake > /dev/null 2> stderr_gate.log; ! grep -q 'Broken pipe' stderr_gate.log && echo NO_EPIPE && rm -f stderr_gate.log
+NO_EPIPE
+
+$ bundle exec ruby bin/raspberry-pi --help ; echo "EXIT: $?"
+Usage: raspberry-pi [WORKDIR]
+... (full usage text: env table + keys) ...
+EXIT: 0
+
+$ timeout 120 bundle exec ruby -Itest test/agent_loop_test.rb && echo AGENT_OK
+6 runs, 41 assertions, 0 failures, 0 errors, 0 skips
+AGENT_OK
+```
+
+Missing-key path (no tty, no key): `bundle exec ruby bin/raspberry-pi` → stderr `RASPBERRY_PI_API_KEY is not set (see --help).`, exit 1, terminal never touched. No real API call is made by any test (all LLM traffic targets the 127.0.0.1 MockLLMServer).
+
+New/changed suite tests:
+- `tui_test`: `test_style_and_line_vocabulary_render_styled_cells` — `TUI.line`/`TUI.style` fg readback via `Session#cell_fg` (`:light_blue` styled, `nil` default).
+- `chat_test`: `test_tool_result_preview_is_bounded_multiline` (5-line result → 3 content rows + `…`); `test_user_assistant_tool_and_status_lines_read_back_distinct_fg_colors` (cell-readback fg per line kind, incl. assistant `nil` default); `test_pending_approval_stays_fully_visible_over_a_full_live_region` (full 3-row prompt visible + answerable over a full live tail); tool-lifecycle assertion updated to the multi-line excerpt (`["⎿ bash: done", "more"]`).
+
+#### Judgment calls
+
+| # | Call | Chosen + why |
+|---|---|---|
+| 1 | Style vocabulary / seam surface | `TUI.style(fg:, modifiers:)`, `TUI.line(text, fg:)`, `TUI.paragraph(text:)` now accepts a Line array, `TUI::Session#cell_fg(x, y)` for fg readback. All `RatatuiRuby.*` calls stay in `lib/raspberry_pi/tui.rb` (gate `tui-seam` SEAM_OK). Named ANSI symbols over hex/integers: human-meaningful, safe on any palette, read back as comparable symbols. |
+| 2 | fg palette (port of pi's observable distinctions) | user echo `:light_blue`, assistant terminal-default (`nil`), tool `:gray` (muted), status `:dark_gray` (dim), approval prompt `:yellow`, error `:red`. pi distinguishes the user message by a **background** (`userMessageBg: blueBg`) and the assistant by default text; fg-only spans are the port's closest analog, and AC4 requires fg distinctness — user/blue, assistant/default, tool/muted, status/dim are four distinct readback values (asserted by cell readback). Errors/interrupts: pi `error`/`warning`. |
+| 3 | `live_lines` budget nit (I04 verdict 1) | Fixed the arithmetic: `fixed = (busy ? 1 : 0) + (pending ? APPROVAL_ROWS : 1)` (the old `- (@pending ? 0 : 1)` charged 1 where the approval block costs 3). Behavior is unchanged — the final `lines.last(viewport_height)` clip was already authoritative — so the deliverable's "clarified or fixed" is satisfied by the fix + a new visibility regression test; no behavioral delta exists to observe (noted, not hidden). |
+| 4 | Launcher config surface | Env-only, `RASPBERRY_PI_*` names (spec: "model/provider/key from environment variables with documented defaults"): `RASPBERRY_PI_MODEL` (default `accounts/fireworks/models/glm-5p3-flash`), `RASPBERRY_PI_PROVIDER` (default `openai`, chat-completions protocol), `RASPBERRY_PI_API_KEY` (required, aborts with exit 1 when unset), `RASPBERRY_PI_API_BASE` (default fireworks endpoint). Positional `[WORKDIR]` (default cwd) scopes the tools. `--help` exits 0 before any env check or terminal init (non-tty-safe, gate-proven). Provider/api-base hardcoded-in-demo values became documented env defaults; provider stays one value (`openai`) because the custom-endpoint + `:chat_completions` registration is the live-proven wiring. |
+
+#### Parity deviations
+
+| # | Deviation | Reference |
+|---|---|---|
+| D1 | User-message distinction rendered as fg (`:light_blue` echo) instead of pi's full-width background box (`userMessageBg`) | pi `user-message.ts:49–50` colors via `theme.bg("userMessageBg", ...)`; per-span bg is available but the box model (padding of every line to full width) is the I04 §5-refused mechanism; fg-only is the recorded approximation |
+| D2 | Assistant text = terminal default (`nil` fg), not a literal color | pi `dark.json` `userMessageText: text` / assistant default — ported faithfully; nil is the default fg, distinct in readback from the three colored kinds |
+| D3 | Tool preview = first 3 non-empty lines + `…` row | pi truncates tool output with per-tool renderers (read.ts/ls.ts/...); port has no per-tool renderers yet — one bounded excerpt for all tools |
+| D4 | Launcher model config via env vars, not pi's flags + settings + credential store | pi `main.ts:467–501`; spec mandates env-vars-with-defaults |
+
+(Defects 1–2, the toggle seam, and their parity rows belong to the defects/toggle lanes.)
+
+#### Files
+
+- `bin/raspberry-pi` (new, executable, registered in gemspec)
+- `raspberry-pi.gemspec` (files += `bin/*`; bindir/executables)
+- `lib/raspberry_pi/tui.rb` (style/line vocabulary, `Session#cell_fg`)
+- `lib/raspberry_pi/render/chat.rb` (FG palette, styled lines, bounded multi-line tool preview, live_lines budget fix)
+- `test/chat_test.rb`, `test/tui_test.rb` (new tests above; helpers normalize Line-array widget text)
+- `README.md` (Usage section with env table; Development += launcher-help line; Project-contract stale normalization claim corrected)
+
+STATUS: COMPLETE
 
 ## Verdict
 
