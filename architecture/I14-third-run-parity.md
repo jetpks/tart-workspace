@@ -129,51 +129,243 @@ Agent lane: **medium** — mechanical deletion of architect-mapped machinery plu
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse third-run-parity` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze third-run-parity` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+Calibration: AC1-AC12 assert user-visible properties of the daily-driver surface (BRIEF §3) — substance is architect-read from the Builder Report's pi/gem citations, the tests, and raw live evidence; tripwires pin presence/absence only and say so. AC13 is the deviation-discipline floor (BRIEF §5); AC14 the standing regression floor (BRIEF §2). Wave scoping: AC11/AC12 (mouse) and their gates are **wave-2** — RED after wave 1's integration by design, judged at final integration; everything else is wave-1.
 
-**AC1.** ...
+- **AC1 (approvals deleted — owner ruling 2026-10-10, BRIEF §3).** No approval machinery remains anywhere: tools execute unconditionally (pi agent-loop.ts:832), no approval kwarg/callback/marking/UI/prompt/wiring/help text. A gated-tool shape (bash) runs through the loop with no decision point. Approval-specific tests deleted; suite green. The deletion is itemized in the deviation table (reverses I03; reintroduction = future extension support).
+- **AC2 (spacing — items 2+7, BRIEF §3).** A blank line sits between the reasoning block and the content when content follows (pi assistant-message.ts:172-174), and after a completed assistant message per pi's between-item rule (PHASE 0-pinned). Test-proven by readback: reasoning+content case has the separator, reasoning-only has none, message-end spacing per the pinned rule.
+- **AC3 (live markdown — item 3, owner ruling, BRIEF §3).** The live region's CONTENT renders markdown as it streams (pi re-renders the streaming message per delta, interactive-mode.ts:3519-3535); the reasoning block stays plain dim italic (I13 standing ruling — itemized again). Test-proven mid-stream with mock reasoning+content deltas (styled readback before :message_end).
+- **AC4 (stable completion order — item 4, BRIEF §3).** The fuzzy sort is stable: ties keep pre-sort order matching pi's (PHASE 0-verified provider order). Test-proven with a tie case asserting deterministic order (the /ar architect-family case).
+- **AC5 (edit box parity — item 5, BRIEF §3).** The editor area is full-width from column 0 with horizontal borders only (status stays in the top border), no east/west borders, no prompt char, pi's padding geometry. Every I06/I12/I13 editor behavior survives (their tests green unmodified in assertion content). Test-proven.
+- **AC6 (thinking level — item 8, BRIEF §3).** The footer's right side renders `model • <level>` from the frozen `footer_data[:thinking_level]` contract (nil → model alone, pi's non-reasoning shape, footer.ts:226-244). Both sides of the contract landed (settings source + bin/tart wiring + footer render). Test-proven on both sides.
+- **AC7 (footer dim analog — item 9, BRIEF §3).** `Theme[:dim]` re-pointed to the closest ANSI analog of pi's dim okhsl(229 8% 56%) with a provenance comment; the footer (and status lines — same token, as in pi) render in it. theme_test updated. Test-proven.
+- **AC8 (/new clears — item 11, BRIEF §3).** /new clears the transcript buffer, re-renders the MOTD block, then the accent "✓ New session started" line (pi interactive-mode.ts:6926-6936). Kernel-driven test through the Commands handler wiring. Test-proven.
+- **AC9 (MOTD — item 12, owner ruling, BRIEF §3).** Startup renders: logo placeholder constant (owner's art later — identity deviation, itemized), `Tart::VERSION` line, a hints line reflecting the port's REAL keys, `[Context]` (the sources the port actually loads), `[Skills]` (sorted, dim, wrapped). `[Prompts]`/`[Extensions]`/updates/ctrl+o/onboarding CUT — every cut itemized. Test-proven + architect-read against the pi header shape.
+- **AC10 (context percent — item 13, BRIEF §3).** The context segment shows `0.0%/window (auto)` at boot, the real percent after usage, `?` post-compaction (pi standing), with warning >70% / error >90% coloring (footer.ts:143-162, 194-213). Test-proven.
+- **AC11 (wheel scroll — item 6, owner ruling, wave 2).** Wheel up/down scrolls the transcript (pi's lines-per-event default; alt+wheel 5×), composing with the I12 follow-end semantics. Gem mouse event shape verified live/synthetically (raw dumps in the report). The settings knob + 'auto' acceleration CUT, itemized. Test-proven headlessly.
+- **AC12 (text selection — item 10, owner ruling, wave 2).** Mouse-drag selection over the transcript: anchor/extend, char/word/line granularity (double-click word, path/kebab boundaries; triple-click line), inverse highlight, copy-on-select via the PHASE 0-verified mechanism (itemize any reduction). Right-click paste CUT, itemized. Test-proven headlessly through the synthetic seam.
+- **AC13 (deviation discipline — BRIEF §5).** Every PHASE 0 verify item is in the findings table with file:line evidence; the parity-deviation table is empty or itemized — the spec-mandated cuts (approval deletion, MOTD cuts + logo placeholder, reasoning plain-dim, wheel knob, right-click paste, clipboard reduction if any) appear there, never silently.
+- **AC14 (regressions — BRIEF §2).** All standing guards stay green: tui-seam, gem-pins, env-tripwire, bench-seam, stderr gates, launcher smoke, the full suite; goldens byte-identical.
+
+Gate intent notes (calibration): `no-approval`, `thinking-level`, `dim-analog`, `version`, `motd`, `wheel`, `selection` are **tripwires** — presence/absence of identifiers only; substance is architect-read from the report's citations, tests, and raw live evidence. `*-guard` gates prove the touched test files run standalone. The rest are the standing regression guards (GREEN on base by design). Wave-2 gates (`wheel`, `selection`, `loop-guard`, and the mouse halves of `tui-guard`/`chat-guard`) are RED after wave 1 by design.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse third-run-parity` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite-green
+  ac: AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8, AC9, AC10, AC11, AC12, AC13, AC14
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: agent-guard
+  ac: AC1, AC6, AC14
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/agent_loop_test.rb && echo AGENT_OK
+  expect:
+    exit_code: 0
+    stdout_match: AGENT_OK
+
+- id: tools-guard
+  ac: AC1, AC14
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/tools_test.rb && echo TOOLS_OK
+  expect:
+    exit_code: 0
+    stdout_match: TOOLS_OK
+
+- id: print-guard
+  ac: AC1, AC14
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/print_test.rb && echo PRINT_OK
+  expect:
+    exit_code: 0
+    stdout_match: PRINT_OK
+
+- id: mcp-guard
+  ac: AC1, AC14
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/mcp_test.rb && echo MCP_OK
+  expect:
+    exit_code: 0
+    stdout_match: MCP_OK
+
+- id: settings-guard
+  ac: AC6, AC14
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/settings_test.rb && echo SETTINGS_OK
+  expect:
+    exit_code: 0
+    stdout_match: SETTINGS_OK
+
+- id: smoke-guard
+  ac: AC1, AC14
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/launcher_smoke_test.rb && echo SMOKE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SMOKE_OK
+
+- id: chat-guard
+  ac: AC2, AC3, AC4, AC5, AC7, AC8, AC9, AC10, AC12, AC14
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/chat_test.rb && echo CHAT_OK
+  expect:
+    exit_code: 0
+    stdout_match: CHAT_OK
+
+- id: theme-guard
+  ac: AC7, AC14
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/theme_test.rb && echo THEME_OK
+  expect:
+    exit_code: 0
+    stdout_match: THEME_OK
+
+- id: tui-guard
+  ac: AC5, AC12, AC14
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/tui_test.rb && echo TUI_OK
+  expect:
+    exit_code: 0
+    stdout_match: TUI_OK
+
+- id: loop-guard
+  ac: AC11, AC14
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/loop_test.rb && echo LOOP_OK
+  expect:
+    exit_code: 0
+    stdout_match: LOOP_OK
+
+- id: no-approval
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    ! grep -rq 'requires_approval\|handle_approvals\|approval_module\|pending_approval' lib bin test && echo NO_APPROVAL
+  expect:
+    exit_code: 0
+    stdout_match: NO_APPROVAL
+
+- id: thinking-level
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'thinkingLevel' lib/tart/settings.rb && grep -q 'thinking_level' bin/tart && grep -q 'thinking_level' lib/tart/render/chat.rb && echo THINKING_OK
+  expect:
+    exit_code: 0
+    stdout_match: THINKING_OK
+
+- id: dim-analog
+  ac: AC7
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'okhsl(229 8% 56%)' lib/tart/theme.rb && echo DIM_OK
+  expect:
+    exit_code: 0
+    stdout_match: DIM_OK
+
+- id: version-constant
+  ac: AC9
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'VERSION' lib/tart.rb && echo VERSION_OK
+  expect:
+    exit_code: 0
+    stdout_match: VERSION_OK
+
+- id: motd-tripwire
+  ac: AC9
+  cwd: repos/tart
+  cmd: |-
+    grep -qi 'LOGO\|MOTD' lib/tart/render/chat.rb && echo MOTD_OK
+  expect:
+    exit_code: 0
+    stdout_match: MOTD_OK
+
+- id: wheel-tripwire
+  ac: AC11
+  cwd: repos/tart
+  cmd: |-
+    grep -rqi 'wheel' lib/tart/core/loop.rb lib/tart/render/chat.rb lib/tart/tui.rb && echo WHEEL_OK
+  expect:
+    exit_code: 0
+    stdout_match: WHEEL_OK
+
+- id: selection-tripwire
+  ac: AC12
+  cwd: repos/tart
+  cmd: |-
+    grep -rq 'selection\|Selection' lib/tart/render/chat.rb lib/tart/tui.rb && echo SELECT_OK
+  expect:
+    exit_code: 0
+    stdout_match: SELECT_OK
+
+- id: env-tripwire
+  ac: AC14
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'TART_API_KEY' README.md && grep -q 'TART_MCP_CONFIG' README.md && grep -q 'TART_CONTEXT_WINDOW' README.md && git grep -q 'TART_API_KEY' -- bin/tart && echo ENV_OK
+  expect:
+    exit_code: 0
+    stdout_match: ENV_OK
+
+- id: tui-seam
+  ac: AC14
+  cwd: repos/tart
+  cmd: |-
+    test -f lib/tart/tui.rb && test -z "$(grep -rn 'RatatuiRuby\.' lib test bench bin | grep -v '^lib/tart/tui')" && echo SEAM_OK
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_OK
+
+- id: bench-seam
+  ac: AC14
+  cwd: repos/tart
+  cmd: |-
+    timeout 90 bundle exec ruby bench/seam_bench.rb
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: gem-pins
+  ac: AC14
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'ratatui_ruby (1\.5\.0)' Gemfile.lock && grep -q 'minitest (5\.' Gemfile.lock && grep -q 'ruby_llm (2\.' Gemfile.lock && echo PINS_OK
+  expect:
+    exit_code: 0
+    stdout_match: PINS_OK
+
+- id: stderr-quiet
+  ac: AC14
+  cwd: repos/tart
+  cmd: |-
+    bundle exec rake > /dev/null 2> stderr_gate2.log; ! grep -qi 'unhandled exception' stderr_gate2.log && echo NO_WARN && rm -f stderr_gate2.log
+  expect:
+    exit_code: 0
+    stdout_match: NO_WARN
+
+- id: stderr-clean
+  ac: AC14
+  cwd: repos/tart
+  cmd: |-
+    bundle exec rake > /dev/null 2> stderr_gate.log; ! grep -q 'Broken pipe' stderr_gate.log && echo NO_EPIPE && rm -f stderr_gate.log
+  expect:
+    exit_code: 0
+    stdout_match: NO_EPIPE
 ```
 
 ## Builder Prompt
