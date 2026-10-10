@@ -548,7 +548,28 @@ project:
   - name: live-run-fixes
     ordinal: 13
     file: architecture/I13-live-run-fixes.md
-    freeze_sha:
+    freeze_sha: 7d56bcb78afcf6dcaeb20c6918e53d227613182f
     verdict: pending
-    lanes: []
+    lanes:
+    - name: kernel
+      repo: tart
+      touch_set:
+      - lib/tart/core/loop.rb
+      - test/loop_test.rb
+      - bin/tart
+      - test/launcher_smoke_test.rb
+    - name: surface
+      repo: tart
+      touch_set:
+      - lib/tart/render/chat.rb
+      - lib/tart/theme.rb
+      - lib/tart/skills.rb
+      - test/chat_test.rb
+      - test/theme_test.rb
+      - test/skills_test.rb
+      - test/tui_test.rb
+      - test/support/mock_llm_server.rb
+    rehearsal:
+      gates_digest: 3ac2543c5d2f44d731770a9690ba2421ccb3288b823f682ea54134a06f2d5455
+      at: '2026-10-10T13:07:06-06:00'
   integration_branch: project/pi-port
