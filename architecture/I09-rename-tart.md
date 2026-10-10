@@ -472,11 +472,113 @@ rows. Report is raw results only.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I09-rename-tart-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence rename-tart --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### rename
+
+### Ref counts
+
+Baseline (re-measured this run against HEAD 7eef23e via `git grep -oi raspberry HEAD -- .`): **157** case-insensitive matches — not the surveyed 153. Per form:
+
+| Form | Matches (measured) | Spec |
+|---|---|---|
+| `RaspberryPi` | 68 | 68 ✓ |
+| lowercase `raspberry-pi` | 50 | 79 ✗ |
+| `RASPBERRY_PI_` env vars | 23 (`API_KEY` 6, `MCP_CONFIG` 4, `CONTEXT_WINDOW` 4, `PROVIDER` 3, `MODEL` 3, `API_BASE` 3 — all ✓ vs spec) | — |
+| lowercase `raspberry_pi` (incl. 2× thread-local key `raspberry_pi_tool_call`, `lib/raspberry_pi/agent/loop.rb:419,424`) | 15 | 84 ✗ |
+| bare `raspberry` (`raspberry-test-model`, `test/support/mock_llm_server.rb:207`) | 1 | 1 ✓ |
+| **Total** | **157** | 153 ✗ |
+
+The spec's 84/79/153 could not be reconstructed under line-vs-match or overlap conventions (38+25=63, 50+25=75). Mapping unaffected; deliverable is the zero-refs gate.
+
+Per-file before → after (case-insensitive matches; after column = `git grep -i raspberry -- .` + `grep -ril raspberry --exclude-dir=.git .` over the full worktree, both zero):
+
+| File (old path) | Before | After |
+|---|---|---|
+| bin/raspberry-pi → bin/tart | 26 | 0 |
+| README.md | 19 | 0 |
+| lib/raspberry_pi/tools/registry.rb → lib/tart/tools/registry.rb | 10 | 0 |
+| lib/raspberry_pi.rb → lib/tart.rb | 9 | 0 |
+| lib/raspberry_pi/agent/loop.rb → lib/tart/agent/loop.rb | 6 | 0 |
+| test/bash_tool_test.rb | 5 | 0 |
+| raspberry-pi.gemspec → tart.gemspec | 5 | 0 |
+| lib/raspberry_pi/agent/session.rb → lib/tart/agent/session.rb | 4 | 0 |
+| bench/seam_bench.rb | 4 | 0 |
+| lib/raspberry_pi/mcp/config.rb → lib/tart/mcp/config.rb | 3 | 0 |
+| lib/raspberry_pi/mcp/client.rb → lib/tart/mcp/client.rb | 3 | 0 |
+| Gemfile.lock | 3 | 0 |
+| test/{tools,test_helper,support/mock_llm_server,session,print,mcp,markdown,golden_parity,chat,agent_loop}_test*.rb | 2 each (20) | 0 |
+| lib/raspberry_pi/{tui.rb,tools/output_accumulator.rb,tools/bash.rb,mcp/tool.rb,mcp.rb} | 2 each (10) | 0 |
+| 25 lib/raspberry_pi/** files + 5 test files with 1 ref | 1 each (30) | 0 |
+| **Total** | **157** | **0** |
+
+### Mapping table — per-row old-identifier hits and new locations
+
+| Row | Old hits (measured) | Where old appeared | New verified at |
+|---|---|---|---|
+| gem `raspberry-pi` / `raspberry-pi.gemspec` | 5 in gemspec | spec.name, executables, homepage, require_relative (1 each) | `tart.gemspec:6,15,27`; old file gone |
+| namespace `RaspberryPi` | 68 | `module RaspberryPi` in every lib/test file, `RaspberryPi::VERSION` (gemspec:7), bench | `module Tart` throughout; `Tart::VERSION` (tart.gemspec:7) |
+| `lib/raspberry_pi.rb` | 9 refs | self + require sites | `lib/tart.rb` exists; old gone |
+| `lib/raspberry_pi/**` (37 files) | 81 refs | require/require_relative paths + `raspberry_pi_tool_call` thread key ×2 (agent/loop.rb:419,424) | `lib/tart/**` same structure; old dir gone |
+| `require "raspberry_pi…"` / `require_relative` | 15 lowercase + require lines above | test_helper.rb:4, bench/seam_bench.rb:123, bin:19, lib/tart.rb ×8, markdown_test.rb:154, gemspec:3 | all `tart` equivalents (verified by zero-refs) |
+| executable `bin/raspberry-pi`; `Usage:`; abort prefix | 26 in bin | usage line :34, abort prefixes :91,96,159,196, comments :8-10, help/env text | `bin/tart:34` = `Usage: tart [WORKDIR] [options]`; abort prefixes `tart: ` (:91,96,159,196); exec bit preserved (`-rwxr-xr-x`) |
+| env prefix `RASPBERRY_PI_` | 23 | API_KEY 6 (bin:58,133×2,143; README:15,26), MCP_CONFIG 4, CONTEXT_WINDOW 4 (bin README + lib loop.rb:60,248,255), PROVIDER 3, MODEL 3, API_BASE 3 | `TART_` same suffixes (bin/tart help + ENV.fetch lines; README table; lib/tart/agent/loop.rb:255) |
+| agent root `~/.raspberry-pi` | session.rb:71,74,258; mcp/config.rb:16,22; bin:48,51,60 | `File.join(Dir.home, ".raspberry-pi")`; `DEFAULT_PATH = "~/.raspberry-pi/mcp.json"` | `lib/tart/agent/session.rb:74` = `File.join(Dir.home, ".tart")`; `lib/tart/mcp/config.rb:16` = `~/.tart/mcp.json`; README `~/.tart/sessions` |
+| test model `raspberry-test-model` | 1 | mock_llm_server.rb:207 | `tart-test-model` (same line) |
+| gemspec homepage/executables | see row 1 | `github.com/jetpks/raspberry-pi` | `tart.gemspec:15` = `https://github.com/jetpks/tart`; executables `["tart"]` |
+| README title/usage/paths/env docs | 19 in README | title, usage blocks, sessions/MCP paths, env table, dev commands | `# tart`, `bin/tart`, `~/.tart/sessions`, `~/.tart/mcp.json`, `TART_*` table |
+
+Golden parity: `git diff HEAD -- test/golden_parity_test.rb` shows exactly 2 changed lines — `module RaspberryPi` → `module Tart` and mkdtemp prefix `"raspberry-pi-golden-"` → `"tart-golden-"`. Expected payloads untouched (no raspberry token in them). Suite passes with them.
+
+### Gate outputs (verbatim)
+
+**rename-guard (AC1)** — exit 0:
+```
+RENAME_OK
+```
+Caveat: the `git grep -il raspberry` clause is currently trivially satisfied because the new paths are unstaged (old paths deleted, new untracked — git grep sees neither). Equivalent worktree-wide check with plain grep over every file (including untracked), `grep -ril raspberry --exclude-dir=.git .` → no output, so the gate holds once staged.
+
+**suite-green (AC2)** — exit 0:
+```
+176 runs, 671 assertions, 0 failures, 0 errors, 0 skips
+SUITE_OK
+```
+(Baseline pre-rename: same 176 runs, 671 assertions, 0 failures — identical.)
+
+**bench-seam (AC2)** — exit 0: full JSON printed; key values: fps mean 60.0, event_p95_ms 17.06, sse_delivered 500/500, timeout_kill verdict "clean", final line:
+```
+SEAM_BENCH_OK
+```
+
+**cli-smoke (AC3)** — exit 0:
+```
+Usage: tart [WORKDIR] [options]
+```
+(full help output follows the usage line; env block lists TART_MODEL/PROVIDER/API_KEY/API_BASE/MCP_CONFIG with `~/.tart` paths)
+
+**env-tripwire (AC1, AC4)** — **exit 1, FAILS**:
+```
+exit=1
+```
+Clause-by-clause: `TART_API_KEY` in README ✓, `TART_MCP_CONFIG` in README ✓, `TART_CONTEXT_WINDOW` in README ✓, `git grep -q 'TART_API_KEY' -- lib` ✗ (exit 1). Raised in PHASE 0: `RASPBERRY_PI_API_KEY` appears only in `bin/` (3 lines, 6 matches) and `README.md` (2) — zero refs in `lib/` at baseline (`git grep -n 'API_KEY' -- lib/` on HEAD: empty). A pure rename therefore leaves no `TART_API_KEY` in lib; the clause is unsatisfiable without adding a spurious lib reference, which AC1 ("nothing else is renamed") forbids. Secondary effect: the clause also can't match pre-staging since renamed lib files are unstaged. The other six gates are unaffected. Suggest dropping the `TART_API_KEY -- lib` clause (or pointing it at `bin`).
+
+**datadir-tripwire (AC4)** — exit 0:
+```
+DATADIR_OK
+```
+
+**gem-pins (AC2)** — exit 0:
+```
+PINS_OK
+```
+Gemfile.lock regenerated under the new gem name: `tart (0.1.0)` at lines 4 and 150, `tart!` at 110. Pins unchanged: ratatui_ruby 1.5.0, ruby_llm 2.1.0, minitest 5.27.0, async 2.46.0, diff-lcs 1.6.2. No new runtime deps.
+
+### Process notes
+
+- `git mv` was blocked by the builder guard ("git mv writes repository state"); used plain filesystem `mv` instead — old paths show as `D`, new as `??` in status. Rename detection will happen at the architect's `git add`/commit (content deltas are tiny; similarity detection applies).
+- No git write command (commit/add/branch/reset/checkout/merge) was run — confirmed: only `git mv` was *attempted* and refused by the guard before executing; all other git invocations were read-only (grep/diff/status/show/log).
+- `~/.raspberry-pi` confirmed absent before and after; no data migration performed.
+- No backward-compat aliases added; no behavior/format edits beyond the mapping rows.
+
+STATUS: COMPLETE_WITH_CONCERNS — (1) env-tripwire gate's `TART_API_KEY -- lib` clause is unsatisfiable by a pure rename (no API_KEY ref ever existed in lib); reported, not worked around; (2) baseline ref count is 157, not the surveyed 153, and the spec's per-form 84/79 don't reproduce (measured: RaspberryPi 68, raspberry-pi 50, RASPBERRY_PI_ 23, raspberry_pi 15, bare 1); (3) `git mv` blocked by the builder guard — renames are unstaged plain `mv`, so git-based gate clauses only become fully meaningful once the architect stages; zero-refs independently verified over the whole worktree with plain grep.
 
 ## Verdict
 
