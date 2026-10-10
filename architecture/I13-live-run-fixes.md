@@ -991,6 +991,153 @@ No commits made; working tree has exactly these 4 modified files (`git status --
 
 STATUS: COMPLETE
 
+### surface
+
+### PHASE 0 findings (spec vs reality)
+
+| # | Spec claim | Reality | Evidence |
+|---|---|---|---|
+| 1 | `command_line` under `private` (chat.rb:550, 739) | confirmed; bin/tart:187,190,195,210 call it | lib/tart/render/chat.rb @ base |
+| 2 | House convention = public placement | externally-wired methods (`on_event`, `on_agent_event`, `renderer`, `approval`) all sit above `private` :550 | chat.rb:211-319 @ base |
+| 3 | ruby_llm 2.1.0: `chunk.thinking` carries reasoning deltas | confirmed — `Thinking.build(text: delta['reasoning_content'] \|\| delta['reasoning'], ...)`, nil when absent | gem `protocols/chat_completions/streaming.rb:22-33`; live run below |
+| 4 | Completed message at `:message_end` carries joined thinking (`message.thinking.text`) | **CONTRADICTED** — `Agent::Loop#handle_item` calls `strip_thinking_replay(message)` (loop.rb:486) BEFORE `emit(:message_end)` (loop.rb:488); `strip_thinking_replay` sets `@thinking = nil` (loop.rb:531-533) | live Agent::Loop run: `[9] message_end role=assistant content="the answer" thinking=nil` |
+| 5 | gem tab event = code "tab" | confirmed | ratatui_ruby 1.5.0 `ext/.../events.rs:27` (`("tab", KeyCode::Tab)`), `handle_key_event` :505-524 |
+| 6 | gem ctrl+d event = code "d" + ctrl | confirmed — crossterm `Char('d')`+CONTROL → `code "d"`, `modifiers ["ctrl"]` | events.rs:505-534; modifier names :55-59 |
+| 7 | pi app.exit semantics (exit on empty, fall-through delete-forward) | confirmed | pi custom-editor.ts:118-125; keybindings.ts:28 (`"app.exit": { defaultKeys: "ctrl+d" }`) |
+| 8 | pi thinking render (thinkingText fg, italic, thinking-before-content, hidden=italic label) | confirmed; toggle/collapse cut per spec | assistant-message.ts:90-175, theme/dark.json:26 |
+| 9 | dark.json:26-29 values | `thinkingText` okhsl(226 7% 65%), `scrollbarTrack` okhsl(237 7% 33%), `scrollbarThumb` okhsl(232 7% 65%) | pi dark.json:26-29 |
+| 10 | TOKENS lacks the three tokens | confirmed | theme.rb:19-40 @ base |
+| 11 | live region appends only `chunk.content` | confirmed | chat.rb:249-252 @ base |
+| 12 | `Skills.load` order `<root>/skills` → `<cwd>/.tart/skills` | confirmed | skills.rb:53-58 @ base |
+| 13 | `~/.tart` has no skills/; `~/.claude/skills` exists with architect et al. | confirmed | `ls` this run |
+| 14 | mock server already streams reasoning deltas; needs no change | confirmed | mock_llm_server.rb:24-25, 154-155; live run below — **zero changes made to it** |
+| 15 | seam supports italic modifier | confirmed | tui.rb:246-249; gem style.rb:88 (`:italic`) |
+
+### Disagreements / judgment calls (each vs its pi/gem source)
+
+| Call | Rationale + evidence |
+|---|---|
+| AC7 completed-half rendered from the live reasoning buffer, not `message.thinking.text` | Spec's letter is unsatisfiable: the loop strips `Message#thinking` before `:message_end` (loop.rb:486,531-533; live run below). Spec's fallback (live-stream half only) would fail frozen AC7's "at completion the joined thinking renders as a dim block before the content". The buffer holds the identical joined delta text. Both halves implemented from the buffer; loop.rb untouched. Itemized in the deviation table. |
+| Item 4: no tab-key/trigger/apply defect found — the live failure was discovery-only | The synthetic-events seam injects through the gem's real crossterm conversion (`inject_test_event` → `parse_key_event` → crossterm `KeyEvent` → `handle_key_event`, events.rs:111-203,470-534 — the SAME function live polling uses, events.rs:414-424). Tab = `code "tab"` (chat.rb `when "tab"`), and PTY run below shows the app processes keys (frames fire). Fixed discovery only. |
+| Token analogs (blue-tinted family, I12 ruling 2) | `thinkingText` okhsl(226 7% 65%) → `:light_blue` (65%-lightness: the light member of the ANSI blue pair); `scrollbarTrack` okhsl(237 7% 33%) → `:blue` (33%: dark member); `scrollbarThumb` okhsl(232 7% 65%) → `:light_blue` (65%: light member). Provenance comments in theme.rb. |
+| ctrl+d precedence kept alt-first | Pre-existing order `alt ? delete_word_forward : ctrl…` preserved; pi alt+d is delete-word-forward (unchanged behavior), ctrl+d new. |
+| Gate `ctrld-tripwire` is broken by construction | `grep -qi '…' file \| head -1 \| grep -q .` — `grep -q` emits no stdout, so the second `grep -q .` always fails. Verbatim run this session: `grep -qi 'ctrl.*d\|app.exit\|exit' lib/tart/render/chat.rb \| head -1 \| grep -q . && echo CTRLD_OK` → no output, rc=1 — while the target string IS present: `grep -c 'app.exit' lib/tart/render/chat.rb` → `1`. Content condition satisfied; gate command itself can never pass. |
+| **commands_test.rb hermeticity leak (boundary conflict — NOT edited)** | `test/commands_test.rb:42` calls `Skills.load(cwd:, root:)` with no `claude_dir:`, so the new `~/.claude/skills` scan (owner ruling) makes that frozen file read the real `~/.claude` at test time. It passes today (assertions don't pin counts) but is no longer hermetic. One-line fix needed there by the architect/kernel: `Skills.load(cwd: @dir, root: @root, claude_dir: …)`. All files in MY touch set were fixed (skills_test.rb load_skills helper, chat_test.rb:422). |
+
+### ruby_llm thinking-shape verification (driven this run)
+
+```
+STREAM chunk.thinking.inspect = #<RubyLLM::Thinking text: "pondering the question">
+STREAM chunk.thinking = nil (content="the answer")
+FINAL message.role=assistant
+FINAL message.thinking.inspect = #<RubyLLM::Thinking text: "pondering the question">
+STORED last.thinking.inspect = #<RubyLLM::Thinking text: "pondering the question">
+```
+Direct TestChat run: the gem DOES carry thinking at completion. Through the port's `Agent::Loop`, `strip_thinking_replay` nils it before `:message_end`:
+```
+[5] message_update thinking=#<RubyLLM::Thinking text: "pondering">
+[6] message_update content="the answer" thinking=nil
+[9] message_end role=assistant content="the answer" thinking=nil
+```
+
+### Suite (before / after)
+
+```
+BEFORE (base 5b98831): bundle exec rake
+  272 runs, 1072 assertions, 0 failures, 0 errors, 0 skips
+AFTER (this worktree):  bundle install --quiet && bundle exec rake
+  284 runs, 1103 assertions, 0 failures, 0 errors, 0 skips
+```
+(+12 runs: /skills AC3 regression, kernel tab-completion, 2 ctrl+d, 3 reasoning, 4 skills-discovery, 1 theme)
+
+### Gate outputs (verbatim)
+
+```
+suite-green (bundle install --quiet && bundle exec rake && echo SUITE_OK):
+  (runs above; rake exit 0)
+chat-guard:    71 runs, 276 assertions, 0 failures, 0 errors, 0 skips / CHAT_OK
+skills-guard:  21 runs, 64 assertions, 0 failures, 0 errors, 0 skips / SKILLS_OK
+theme-guard:   6 runs, 21 assertions, 0 failures, 0 errors, 0 skips / THEME_OK
+tui-guard:     15 runs, 46 assertions, 0 failures, 0 errors, 0 skips / TUI_OK
+agent-seam-guard: 16 runs, 110 assertions, 0 failures, 0 errors, 0 skips / AGENT_OK
+skills-crash-tripwire:  CRASH_OK
+claude-skills-tripwire: CLAUDE_OK
+ctrld-tripwire: (no output, rc=1 — gate command broken by construction, `grep -q` pipes no stdout;
+                 content condition verified: grep -c 'app.exit' lib/tart/render/chat.rb → 1)
+tokens-tripwire:        TOKENS_OK
+reasoning-tripwire:     REASON_OK
+env-tripwire:           ENV_OK
+tui-seam:               SEAM_OK
+gem-pins:               PINS_OK
+stderr-quiet:           NO_WARN
+stderr-clean:           NO_EPIPE
+bench-seam (runnable at base, kernel-lane owned): SEAM_BENCH_OK
+goldens: untouched (git diff shows no test/fixtures/golden*; golden_parity_test green in suite)
+git status --short (no commits made):
+ M lib/tart/render/chat.rb
+ M lib/tart/skills.rb
+ M lib/tart/theme.rb
+ M test/chat_test.rb
+ M test/skills_test.rb
+ M test/theme_test.rb
+```
+
+### Item 4/5 live PTY verification (raw)
+
+Harness: `PTY.spawn("ruby bin/tart")` on a real PTY, sandboxed `HOME` (fixture
+`/tmp/tart-pty-home/.claude/skills/architect/SKILL.md` — real `~/.tart` and
+`~/.claude` never touched), fixed-port mock SSE endpoint (`reasoning_content` +
+content deltas), `TART_API_BASE` pointed at it. Key injection into the PTY
+slave verified working against a control child (`STDIN.getc` read `"a"`, `"b"`,
+`"\x04"`).
+
+| Probe | Raw readback |
+|---|---|
+| boot 6 s | 64 bytes: `"\e[?1049h\e[?1000h\e[?1002h\e[?1003h\e[?1015h\e[?1006h\e[?1004h\e[?2004h"` (raw/alt-screen init), then **zero cell content** |
+| key "h" | 25 bytes: `"\e[39m\e[49m\e[59m\e[0m\e[?25l"` — a frame emit with **zero changed cells** |
+| key "i" | same 25-byte blank frame |
+| "/ar" + TAB | same 25-byte blank frame — no suggestion-list rows, no input-row echo |
+| enter ("hi") | ~400 bytes = repeated 25-byte blank frames (~10 frames); mock turn consumed |
+| ctrl+d, non-empty editor | no exit (poller alive — frames fire per key) |
+| ctrl+d, empty editor | terminal-teardown escapes emitted (`\e[?1049l\e[?1006l…`) — the kernel stop path ran — but the process did not exit within 4.5 s (hang after teardown, in loop.rb/bin/tart shutdown scope) |
+| child stderr | `session.rb:318: warning: IO::Buffer is experimental…` (item 2 live-reproduced); `Failed to show the cursor: Input/output error (os error 5)` (first boot attempt) |
+
+Conclusion (raw, not interpretation): at base 5b98831 every live frame is
+blank (kernel lane's item 1 boot-draw defect) and the IO::Buffer warning
+(item 2) reproduces — both live-reproduced here. Live screen readback of the
+tab-apply and of the exit is therefore not obtainable at this base; the live
+key-path evidence is the event-shape identity (synthetic seam → the same
+crossterm conversion as live polling, events.rs:414-424) plus the PTY proof
+that keys are consumed and frames fire. Behavior itself is kernel-driven-
+test-proven (`test_tab_completes_a_skill_through_the_kernel_dispatch`,
+`test_skills_command_renders_the_listing_through_the_bin_wiring`,
+`test_ctrl_d_on_empty_input_exits_the_run`, `test_ctrl_d_with_content_deletes_forward`).
+
+### Parity deviations (itemized)
+
+| Deviation | vs pi source |
+|---|---|
+| `~/.claude/skills` scanned as a second user source (owner ruling 2026-10-10), order `<root>/skills` → `~/.claude/skills` → `<cwd>/.tart/skills`, first-loaded-wins | pi skills.ts has no ~/.claude scan — owner-directed deviation |
+| Completed thinking block sourced from the live reasoning buffer, not `message.thinking` | loop.rb:486,531-533 strips `Message#thinking` before `:message_end` (port-internal); pi assistant-message.ts:99-175 renders `message.content` thinking blocks |
+| Reasoning renders as plain dim italic text; no markdown-of-reasoning, no collapse/toggle, no `hideThinkingBlock` setting | pi assistant-message.ts:133-152 renders joined markdown with click-toggle — spec-ruled cut |
+| Reasoning order = thinking block strictly before content (pi's joined-run order reduced to one reasoning run per message) | pi assistant-message.ts:107-161 interleaves per content-block order |
+| gem ctrl+d/tab event-shape mapping recorded (code "d"+ctrl; code "tab") | pi keybindings.ts:28 + custom-editor.ts:118-125 |
+| ctrl+d live: exit verified headlessly through the same `kernel.stop!` seam; live PTY process-hang after teardown observed at base (kernel lane scope) | pi app.exit exits the process |
+
+### Files
+
+| File | Change |
+|---|---|
+| lib/tart/render/chat.rb | `command_line` moved to public (AC3); `@reasoning` buffer + `:message_update` `chunk.thinking&.text` append + `flush_reasoning`/`reasoning_lines` (AC7); ctrl+d app.exit semantics (AC5); `scrollbar_glyphs` re-pointed (AC6) |
+| lib/tart/theme.rb | `thinkingText`/`scrollbarTrack`/`scrollbarThumb` tokens + provenance comments (AC6) |
+| lib/tart/skills.rb | `claude_dir:` kwarg (default `~/.claude/skills`), merged as second user source (AC4) |
+| test/chat_test.rb | +3 reasoning tests, AC3 /skills bin-wiring regression, kernel tab test, 2 ctrl+d tests; scrollbar fg assertions re-pointed; ChunkDouble gains `thinking`; IdleKernel gains `stop!` |
+| test/skills_test.rb | +4 `~/.claude/skills` tests (load, first-loaded-wins vs root and project, realpath dedup across sources); `load_skills` hermetic via `claude_dir:` fixture |
+| test/theme_test.rb | +3-token assertions test; EXPECTED table extended |
+| test/support/mock_llm_server.rb | **unchanged** (verified sufficient in PHASE 0) |
+
+STATUS: COMPLETE_WITH_CONCERNS — (1) frozen read-only test/commands_test.rb:42 now reads the real ~/.claude under the owner ruling (passes, but un-hermetic; needs the one-line `claude_dir:` fix by the architect/kernel); (2) frozen gate `ctrld-tripwire` is broken by construction (`grep -q` pipes no stdout; content verified present); (3) live PTY screen readback of items 4/5 unobtainable at this base — kernel lane's item 1 blank-frame defect live-reproduced (raw readbacks above); behavior proven via the gem-shape-identical synthetic path and kernel-driven tests.
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
