@@ -9,11 +9,39 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section render-surface grounds --from <file>`. -->
+# Grounds
+
+Inline research this session (no external dependencies; the oracle repo + the pinned gem, both read directly — no research fan-out triggered).
+
+**Owner gap list (verbatim, first real interactive run 2026-10-11, ARCHITECT.md backlog item 1):** "we're not even close to parity as far as user experience goes — we need to redraw the screen, setup the editing area, we need color support, we need the footer with the current working directory / branch, the token counters, and the model/effort … i also typed /ar<tab> … and got no auto completion." This iteration = gaps (a)–(d); autocomplete (e) is the next iteration (BACKLOG).
+
+**What pi ships (oracle, `repos/pi/packages/coding-agent/src/modes/interactive`):**
+
+- **Fullscreen layout** (interactive-mode.ts:455-470, 876-881): the viewport-TUI mounts a `fullscreenLayoutRoot` via `tui.setLayoutRoot`; the component tree is `chatContainer` (+ `DynamicBorder` child), `transcriptScrollView` (a `TuiLayouts.ScrollView`), `statusContainer`, `editorContainer`, `pendingMessagesContainer` (:455-463). Alt-screen mode switches via `switchTuiMode` (:881-885). Fullscreen exit paths print the transcript (:881-885 `stopInteractiveTui`).
+- **Editor area** (components/custom-editor.ts:6-13): `CustomEditor extends Editor` — "Render working, compaction, summarization, and retry status in the editor's top border." App-level keybindings layered over editor handling (:117-145); history bindings explicit (:127-131).
+- **Footer** (components/footer.ts): shows pwd, token stats, and context usage (:59-60, "Computes token/context stats from session, gets git branch and extension statuses from provider"); `formatCwdForFooter` contracts `$HOME` to `~` (:33-43); git branch is cached/invalidated by the provider (:82-86, no-op methods — caching handled by provider); usage totals and context usage scan the whole session and the footer renders on every frame (:61-63 doc block); the context-window model is `routedModel?.model ?? model` (:65). Compaction/branch-summary entries carry their own usage (:136).
+- **Theme** (theme/ dir: theme-tokens.ts, theme-controller.ts, system-theme.ts, theme-schema.ts, theme.ts): the full token vocabulary + custom-theme loading + a selector UI (components/theme-selector.ts) + themed-text.ts. The port needs the **token vocabulary** the chat surface actually renders; the selector/custom-theme machinery is a reduced-surface cut (BRIEF §6 — no backing feature).
+
+**What the gem gives us (ratatui_ruby 1.5.0, verified against the installed gem this session):**
+
+- `RatatuiRuby::Layout.split(area, direction:, constraints:)` (layout/layout.rb:156) and `split_with_spacers` (:231) — Constraint objects in layout/constraint.rb.
+- `RatatuiRuby::Widgets::Block` (widgets/block.rb:25) — `Data.define(:title, :titles, :title_alignment, :title_style, :borders, :border_style, :border_type, :border_set, :style, :padding, :children)`; the full widget dir (paragraph, list, table, tabs, scrollbar, gauge, clear, overlay, canvas, sparkline…).
+- Colors/styles: style/color.rb + style.rb (the gem's color mapping — the port rides the gem's mapping, no capability detection of its own).
+- **`viewport: :fullscreen` is already a first-class seam param** (lib/tart/tui.rb:125-147 — `TUI.run(viewport:, height:, …)`, default `:fullscreen`); the headless test terminal honors the viewport type too (`RatatuiRuby.init_test_terminal(width, screen_height, viewport.to_s, height)`, tui.rb:140) — so the fullscreen surface is testable headlessly, no tty.
+
+**What the port ships today (read this session):**
+
+- `bin/tart` interactive boots `TUI.run(viewport: :inline, height: 8, bracketed_paste: true)` — the 8-row inline viewport the owner is complaining about.
+- **The critical rework constraint:** `Session#insert_before` — the chat surface's completed-content path (scrollback) — *requires an inline viewport* (tui.rb:92-96, gem doc: insertion above the viewport may clobber/scroll it). In fullscreen there is no insert_before: the transcript must be **drawn into a layout area** every frame from a scrollback model the surface owns.
+- The seam (lib/tart/tui.rb, 226 lines): `Session` (draw/poll/push/drain/cell_symbol/cell_fg/cell_modifiers/insert_before/buffer_content/viewport_area) + module helpers (`run`, `status_panel`, `paragraph`, `style`, `span`, `line`, `markdown_line`, `text_width`, event ctors, `ctrl_c?`). The standing **tui-seam gate** (`test -z "$(grep -rn 'RatatuiRuby\.' lib test bench bin | grep -v '^lib/tart/tui')"`) confines every `RatatuiRuby.` call to `lib/tart/tui.rb` — all new layout/block/footer/color code enters through **new seam helpers**, or the gate fails.
+- **I06 input editor** (render/chat.rb): fake cursor with cell readback, full editing/history/word-ops — a one-line editor. The rework gives it a bordered **area** with the status line in the top border (pi custom-editor.ts:6-13); the I06 behaviors must survive (their tests are the proof).
+- **I05 style vocabulary**: `FG` map in render/chat.rb (7 uses) + `TUI.markdown_line` (I06) for styled completions — the seed of the theme token table; both get absorbed into the theme module.
+- **I10 carry-in available for the footer's context usage**: `Settings.resolve_context_window` (explicit → env → settings → model → registry table) — the footer's denominator; `MODEL_CONTEXT_WINDOWS` carries the default model's 1_048_573.
+- Agent statuses (working/compacting/summarizing/retrying) already flow as events — the editor-border status consumes them (PHASE 0 verifies the exact seam: how the surface sees them today).
+
+**The launcher-smoke defect class (first live boot, 2026-10-11):** `bin/tart` crashed on first real run (Settings::Result unwrap, fixed 53a08db) while all 13 I10 gates were green — the launcher wiring has zero test coverage. This iteration adds the missing pin: an **Open3 smoke test** that boots the real `bin/tart -p` against MockLLMServer (seed script already proven: `tmp/smoke_print.rb` in the space, exit 0 + response on stdout).
+
+**Deferred (itemized, next iteration):** transcript scrolling (pi's ScrollView machinery — keyboard/wheel scroll of the history), command/skill autocomplete (owner's `/ar<tab>`), theme selector + custom-theme loading, mouse support. The transcript renders its visible tail (as the inline viewport did); scrolling unblocks the full history view next iteration.
 
 ## Specification
 
