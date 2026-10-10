@@ -1686,15 +1686,35 @@ STATUS: COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section session-mcp-print verdict --from <file>`. -->
+Judged in a fresh session (this session did not dispatch; wave-1 judged 2026-10-10 ~20:35, wave-2 dispatched by that session). Post-flight clean: all four lanes — frozen region untouched vs freeze 66fb0291 (diff begins at Builder Prompt append only), no builder commits off the lane bases, scratch reports present and raw-evidence-only, worktrees in-bounds (cli: `M README.md`, `M bin/raspberry-pi` exactly). Evidence transcribed (71126b6f session / db3e5286 mcp / cbd3c288 print / 7cb9ef17 cli). Integrated: session → mcp → print → cli, merged `--no-ff` to `project/pi-port` at **593e881d** (wave-1: a8ec14e8 → 114354d), teardown done.
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify session-mcp-print`)?
+**Gates cold at 593e881d: 10/10 PASS** — suite-green (157 runs, 599 assertions, 0 failures), stderr-quiet, stderr-clean, session-guard, mcp-guard (18/96), print-guard (4/19), tui-seam, bench-seam (SEAM_BENCH_OK), gem-pins, **cli-help GREEN** (the wave-2 seam, RED by construction at wave 1).
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+### Per-AC rulings
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+| AC | Ruling | Evidence |
+|----|--------|----------|
+| AC1 session recording | **PASS** | session_test.rb parses recorded JSONL back, asserts the recorded sequence matches the conversation; header/entry format matches pi session-manager.ts :43-68, :1197-1208 (architect-read from the findings table); recorder optional (`nil` = off), agent_loop_test.rb untouched and green in suite |
+| AC2 resume | **PASS** | MockLLMServer captured request payload contains prior turns (test-proven); most-recent-for-cwd selection test-proven; new file links old via `parentSession`; null-content tolerance ported with the `""`-vs-`[]` deviation itemized (ruled below) |
+| AC3 MCP client | **PASS** | initialize/tools-list/tools/call round trip over real stdio pipes vs the pure-Ruby fixture echo server; 30 s default timeout test-proven; pi's JSON-RPC codes/strings; child reaped (`Errno::ECHILD` asserted); hermetic; gem-pins green (no new deps) |
+| AC4 MCP integration | **PASS** | `mcp__<server>__<tool>` naming incl. the sha256 hash-suffix tail (ported 1:1); schema-gate registration; agent-level round trip — MockLLMServer scripts the mcp tool call, fixture server answers over stdio, result returns to the model; pi's exact validation strings (7) test-proven; unconfigured server never connects (test-proven); direct-only exposure itemized |
+| AC5 print | **PASS** | final-response-only to raw stdout unbuffered (`$stdout.sync = true`); pi's exit codes (0/1, error→stderr); approval disposition ruled below; no TUI anywhere (Print::NullSession; tests run with no terminal) |
+| AC6 CLI wiring (wave-2 seam) | **PASS** | `bin/raspberry-pi` wires `-p/--print PROMPT`, `-r/--resume [ID]` (default most-recent-for-workdir), default-on interactive recording (`Recorder` + `parent_session:` + `context_messages` → `seed_messages:`), `RASPBERRY_PI_MCP_CONFIG` → `Registry.build(mcp_servers:)`; cli-help GREEN cold; README usage expanded (sessions/MCP/print sections — architect-read); diff well-factored (`parse`/`run` split, shared `build_chat`/`build_tools`/`system_prompt`, house `abort` idiom) |
+| AC7 PHASE 0 + parity discipline | **PASS** | all four lanes: findings tables with gem/oracle file:line evidence, deviations itemized (session 4 / mcp 8 / print 6 / cli 8) — none silent; all regression gates stay green with everything in place |
+
+### Disagreement & deviation rulings (all queued items, no deferrals)
+
+1. **Print approval disposition (print lane concern — arbitration requested).** Builder verified pi has **no tool-approval mechanism at all** (`grep -rn approval` across pi packages → only an unrelated llama access-terms hit; `executePreparedToolCall` runs unconditionally, agent-loop.ts:826-860). Port `Print.run` passes `approval: ->(_) { true }` — pi's exact behavior. **ACCEPT (pi parity).** BRIEF §5's oracle discipline applies: the port stays pi-faithful; pi's own tradeoff kept deliberately, not silently. Flag for the human: headless `-p` runs execute `bash`/`edit`/`write` ungated — if you want deny-by-default headless, it's a one-line flip (`approval: nil` = deny) and belongs in a post-parity iteration, not smuggled in here.
+2. **session-guard gate INVALID-as-written.** Verified this session: `bundle exec ruby -Itest test/session_test.rb test/agent_loop_test.rb` → 7 runs/50 assertions = session_test.rb only; the second path becomes ARGV (Ruby does not chain-load scripts; agent_loop_test.rb's 8 tests never load). The instrument measured session_test, not "both files." Coverage **intent** is proven by suite-green (157 runs include both). **INVALID (mechanism), substance sound.** Corrected gate shape carries into the next iteration's freeze: `bundle exec ruby -Itest -e 'require "./test/session_test.rb"; require "./test/agent_loop_test.rb"' && echo SESSION_OK`.
+3. **mcp invented url-rejection error string.** Spec named command/args/env/cwd only; pi accepts `url` (streamable-http), port is stdio-only and rejects with a port-invented string. **ACCEPT** — the string names the actual port constraint, is itemized (mcp deviation 2), and the 7 pi-exact strings that AC4 requires are test-proven. Stdio-only is the spec's own scope.
+4. **mcp $stderr connect-failure surface.** pi degrades: state `"failed"`, session continues, error surfaced in UI. Port has no UI at build time → warns on `$stderr`, continues without that server's tools, test-proven. **ACCEPT** — correct headless analog of pi's degradation.
+5. **`mcp_servers:` Registry.build kwarg name.** Architect-unnamed at spec time; mcp lane chose `mcp_servers:` (the `Mcp::Config.load` return shape's own vocabulary); cli lane consumes it as specced (verified in the integrated diff). **ACCEPT.**
+6. **Session null-content `""` vs `[]`.** pi maps user/assistant/toolResult null content → `[]` (content-block array); port maps → `""` because ruby_llm `Message#normalize_content` raises `ArgumentError` on non-String/non-nil (gem message.rb:120-128) — `[]` cannot be seeded. System role matches pi exactly. **ACCEPT (MODIFY-class deviation, defensible on ecosystem grounds per BRIEF §5.1).**
+7. **Print SIGTERM→143 / SIGHUP→129.** Not wired as `Signal.trap`s (print lane itemized it as a process concern; cli lane relies on Ruby's default disposition — an untrapped fatal signal kills the process and the parent observes 128+sig, i.e. 143/129, the same observable pi produces by setting `process.exitCode` explicitly for Node's plumbing). Foundation-mechanics carve-out (BRIEF §5.1). **ACCEPT** — observable exit-status parity holds without the trap; the print-lane itemization stands for the library, the cli-lane table not re-listing it is noted, not penalized.
+8. **Print runs unrecorded** (cli deviation 4). pi records print-mode sessions by default; the port's `Print.run` exposes no recorder and the spec scoped recording to interactive runs. **ACCEPT** — itemized, spec-scoped. Backlog candidate for post-§7.1 polish: record print sessions the way pi does.
+9. **`--resume`+`-p` abort, `--resume` no-match abort exit 1, workdir-scoped resume-id resolution, `-p` requires a value** (cli deviations 1-2, 5-7). **ACCEPT all** — spec-mandated shapes; the aborts are the honest headless behavior (silently starting fresh on a typo'd resume, or silently ignoring `--resume`, are the worse failures).
+10. **Hermetic-discipline note (cli):** two early `-p` smoke checks hit the real fireworks endpoint with a dummy key (401) before the builder routed verification to MockLLMServer — no valid key involved, no further real traffic. Noted; not a defect of the deliverable.
+
+### Verdict
+
+**CONTINUE.** All 7 AC PASS; 10/10 gates PASS cold on the integrated tree 593e881d; every deviation raised and ruled, none silent; the single instrument defect (session-guard's ARGV quirk) is a gate-authoring lesson carried to the next freeze, not a code defect. I07 delivers BRIEF §7.1 (resumable JSONL sessions — the last interactive-TUI gap), §7.3 (MCP), and §7.4 (print mode). Remaining toward §7 DoD: §7.2 approval polish nuance (print-mode auto-approve is pi-parity, ruled #1), §7.6 compaction, §7.7 end-to-end session on this space (now runnable via `-p`/`--resume`).
