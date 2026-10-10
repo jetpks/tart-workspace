@@ -283,10 +283,286 @@ Gate intent notes: `resume-hint`, `resume-command`, `replay`, `truecolor`, `user
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I15-fourth-run-parity-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section fourth-run-parity prompt --append --lane <lane> --from build/I15-fourth-run-parity-<lane>/prompt.md`. -->
+### core
+
+### LANE core — your boundaries
+
+- Working directory: /Users/eric/architect/spaces/20261009-pi-port/build/I15-fourth-run-parity-core/wt
+  (a git worktree of the tart repo, branch lane/I15-fourth-run-parity-core, based on
+  project/pi-port at 89417777 — everything through I14: kernel + agent/tool loop with seven parity
+  tools (approval machinery deleted — tools execute unconditionally), thinkingLevel setting +
+  `model • <level>` footer, fullscreen TUI surface with full-width horizontal-border editor +
+  theme tokens + footer (dim analog, context percent) + stable-order autocomplete + transcript
+  scrolling with follow-end semantics + scrollbar + compaction-start border status + dim streaming
+  reasoning + LIVE markdown content + MOTD (random ascii-art logo, version, hints,
+  [Context]/[Skills]) + /new clearing via Chat#new_session + WHEEL SCROLL (1×, alt 5×) + MOUSE
+  SELECTION (anchor/extend, char/word/line granularity, double/triple click, inverse highlight,
+  copy-on-select OSC 52), JSONL session recording + resume (context seeding only), stdio MCP
+  client, print mode, CLI launcher, compaction, skills/settings/slash commands. Suite green
+  (303 runs). All must stay green.)
+- Your scratch report (write RAW results here when done):
+  /Users/eric/architect/spaces/20261009-pi-port/build/I15-fourth-run-parity-core/report.md
+- You may touch ONLY: bin/tart, lib/tart/commands.rb, lib/tart/agent/session.rb,
+  lib/tart/render/chat.rb, lib/tart/theme.rb, lib/tart/tui.rb, lib/tart/core/loop.rb,
+  test/chat_test.rb, test/commands_test.rb, test/session_test.rb, test/theme_test.rb,
+  test/tui_test.rb, test/loop_test.rb, test/launcher_smoke_test.rb. Nothing else.
+- Space-root paths are READ-ONLY references. The pi oracle is repos/pi (read-only, at
+  /Users/eric/architect/spaces/20261009-pi-port/repos/pi — cite file:line from it).
+- Lane-specific notes:
+  - You are the ONLY lane of I15 — the owner's fourth daily-driver run surfaced five items; all
+    root causes are architect-verified and cited in the spec below. Mouse highlighting and wheel
+    scroll (I14) are confirmed working — do not rework them.
+  - The tui-seam gate confines every `RatatuiRuby.` call to lib/tart/tui.rb — new rendering and
+    color primitives (hex fg/bg) enter as seam helpers there.
+  - The kernel owns interruption (core/loop.rb, the ctrl+c 0x03 precedent); escape-as-interrupt
+    must ride that path, not fork a second one (PHASE 0 pins the mechanism).
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo or in the read-only
+oracle repo. Silent compliance is a failure. Silent scope additions are a
+failure. If you have no disagreements, state what you checked before concluding
+the spec is sound. Verify the named APIs/formats/versions against the live
+dependencies before planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed in BOUNDARIES. You
+are the only lane in flight; files outside your lane fail your lane.
+No placeholder implementations — search the codebase before implementing;
+full implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive collection/enumerable
+forms); well-factored and DRY-ish; terse but clear; pragmatic, not clever — the
+smallest change that does the job, no abstraction it doesn't need. Consistency
+with the surrounding code is part of correctness here: a change that works but
+fights the house style (or introduces an inconsistency a careful reader of this
+repo would never write) is not done. Tests stay simple and terse, exercising
+public behavior, no mock/stub of the class under test. Verify your work by
+running the acceptance criteria's gate commands and record the verbatim output. Do NOT commit and do NOT run any
+git write command (commit/add/branch/reset/checkout) — the architect commits
+and merges after verification, and verifies you made no commits. Do NOT delete
+lock files or escalate privileges if a command fails; record the exact error
+and continue. Do NOT use `run_in_background` (or shell `&`) for your own work —
+this process terminates when you end your turn and reaps its own children, so
+backgrounded work is SIGTERMed and its output lost while the run still exits
+0; run long commands serially in the foreground instead. Give every
+potentially long command an explicit timeout; if a
+runtime will not start unattended (interactive prompt, server with no timeout),
+record the exact failure in your report and route around it — never busy-wait
+or retry in a loop. When done, write your report to the scratch file given to
+you, build/I15-fourth-run-parity-core/report.md (an absolute path outside your
+worktree), with RAW results only — tables, numbers, command output — no
+interpretation, no "promising". Every status claim must be backed by a command
+result from this run. Keep the report compact — tables and numbers, not prose.
+Do not title the report — the architect's tooling supplies the heading when it
+transcribes; keep any headings inside the report at `###` or deeper. End it with
+exactly one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them)
+| BLOCKED (exact blocker + what you tried). Verdicts belong to the architect
+and the human. Persist until your lane is fully handled end-to-end; do not stop
+at analysis or partial fixes.
+
+=== OBJECTIVE (and why) ===
+
+The owner's fourth daily-driver run (post-I14) surfaced five items; all root causes are
+architect-verified against the pi oracle (citations in the spec's Grounds, reproduced inline).
+Your lane owns ALL FIVE (item numbers are the owner's):
+
+1. **Exit resume hint.** pi's interactive quit path prints a copy-paste resume command after
+   terminal restore (interactive-mode.ts:4324-4327; formatResumeCommand :339-355 — only when
+   stdout is a TTY and the session file exists). The port prints nothing. Build: every
+   interactive exit path prints `To resume this session: tart --resume <id>` — dim label, plain
+   command — only when the session was persisted. The port's `--resume [ID]` flag IS the
+   specific-id flag (pi's letter says `--session <id>`; the flag-shape divergence is an
+   itemized deviation). `--print` mode prints nothing (PHASE 0: confirm pi's non-persisted /
+   non-interactive branch prints nothing). PHASE 0 pins the port's exit paths (ctrl+d
+   empty-editor, the ctrl+c quit path).
+
+2. **`/resume` command + session picker.** pi: `/resume` (slash-commands.ts:41) opens
+   showSessionSelector (interactive-mode.ts:3335-3338 → :5708-5735): a SessionSelectorComponent
+   overlay listing the cwd's sessions plus an all-sessions view, with rename support and a
+   cwd-mismatch prompt; selecting → handleResumeSession (:5741-5780) → switchSession +
+   showStatus("Resumed session"). The port's `/resume` currently falls through to the model
+   (commands.rb has no entry). Build: register `/resume`; `Session.list(cwd:)` (generalize the
+   `find_most_recent` pattern — `*.jsonl` mtime-descending, valid headers, cwd filter,
+   fixture-rooted); a surface-rendered picker (arrow keys navigate, enter resumes, escape
+   cancels) driven through the existing kernel-event seams; resuming lands the same state as
+   CLI `--resume` (item 3's replay) + the "Resumed session" status line. PHASE 0 reads
+   components/session-selector.ts and ports the closest expressible form through the existing
+   seams — every reduction (all-sessions view, rename, cwd-mismatch prompt — whatever doesn't
+   fit this scope) is itemized, never silent.
+
+3. **Resume transcript replay.** pi on resume renders the session's entries through the same
+   components as live turns (renderCurrentSessionState :2210-2218 → renderInitialMessages
+   :4208-4234 → the renderSessionEntries switch :3900-3975), plus "Session compacted N times"
+   (:4226-4232) and "Resumed session" from the resume path. The port's `--resume` seeds the
+   model context ONLY (bin/tart:181-183) — the surface shows a fresh MOTD. Build: replay the
+   recorded entries into the transcript through the live-turn shapes — user echoes, assistant
+   markdown, tool calls/results, compaction summary — as the entries carry them. PHASE 0 drives
+   a mock-server multi-tool session with the recorder ON and dumps the JSONL entries verbatim:
+   that dump is the replay contract (what `message` entries' to_h carries for tool_calls / tool
+   results / thinking — recorded gaps are itemized, never invented). On resume the surface
+   renders the replay, NOT a fresh MOTD (pi's chat container gets session entries only —
+   itemized cut), + "Resumed session" + the compaction-count status when compaction entries
+   exist. Footer usage state reseeds from the replayed entries to the extent the entries carry
+   it (PHASE 0 pins; gaps itemized). The agent-side context seeding (Session.context_messages)
+   is UNTOUCHED — it is correct.
+
+4. **Body colors + region padding.**
+   - *Colors:* pi renders prose with REAL truecolor tokens — `text` = okhsl(234 3% 89%)
+     (dark.json:6); the user echo is `userMessageText` = `text` ON `userMessageBg` = `blueBg`
+     = okhsl(233 41% 24%) (dark.json:32-33, :13); tool output = `muted` = okhsl(229 6% 67%);
+     thinking = `thinkingText` = okhsl(226 7% 65%). The port maps `text:` → nil (terminal
+     default) and renders the user echo as `❯ text` in `:light_blue` (I05 analogs). The gem
+     ACCEPTS hex color strings and `bg:` in Style (ratatui_ruby 1.5.0 style/color.rb,
+     style/style.rb:101-105). Build: the content-path tokens render their true values as hex —
+     body prose (`text`), the user echo as `text` on the blue `userMessageBg` background span
+     (NO `❯ ` prompt char — pi's echo has none; it goes), tool output, thinking text. The
+     okhsl→hex conversions are PRECOMPUTED constants with provenance comments (dark.json line +
+     hex); PHASE 0 verifies each constant against pi's own conversion (culori via the oracle
+     repo, or an okhsl→sRGB port checked against pi's rendered output) and drives a hex fg+bg
+     span through the tui.rb seam headlessly BEFORE implementing (raw cell-style dump in the
+     report). Theme TOKENS values become symbol-or-hex (the seam passes whatever Style
+     accepts); NON-content tokens (footer, borders, autocomplete, scrollbar) keep their
+     16-color analogs this iteration — itemized reduction. Terminal-truecolor assumption
+     verified in PHASE 0; fallback behavior itemized.
+   - *Padding:* pi separates every scrollback region with a leading blank line — user message
+     entries (interactive-mode.ts:3930-3931, when the container is non-empty), tool blocks
+     (tool-execution.ts:85), compaction summaries (:3903-3904); assistant messages already do
+     (the port has this from I14). The port adds no blank before the user echo or tool lines.
+     Build the leading blanks; PHASE 0 pins the full rule set as its first findings row. pi's
+     one-column `outputPad` horizontal indent: CUT, itemized (not flagged by the owner).
+5. **Escape interrupts.** pi: escape = `app.interrupt` (keybindings.ts:26); the editor consumes
+   it first for autocomplete cancellation (custom-editor.ts:103-110), else onEscape
+   (interactive-mode.ts:3070-3090): streaming → abort the generation, bash running → abort bash,
+   bash mode → clear, empty-editor double-escape → /tree or /fork (session branching — the port
+   has none, CUT). The port's escape only cancels autocomplete (chat.rb:830). Build: escape
+   during a streaming/busy run interrupts it THROUGH THE PORT'S EXISTING INTERRUPT PATH (the
+   kernel owns interruption — ctrl+c 0x03 precedent in core/loop.rb; PHASE 0 pins the
+   mechanism; do not fork a second path); autocomplete-open escape cancels the autocomplete
+   only; idle escape is a no-op (double-escape CUT, itemized). Interrupt composes with the
+   existing cancel semantics — their tests are the proof.
+
+=== OUTPUT FORMAT ===
+
+Raw tables/verbatim output only, in your scratch report: PHASE 0 findings table (every verify
+item, spec-vs-reality with file:line evidence, INCLUDING the recorded-entry JSONL dump and the
+hex/truecolor seam verification), test-suite output verbatim (before/after counts),
+gate-command outputs verbatim, judgment calls (each vs its pi source with file:line), the
+parity-deviation table (empty or itemized — the flag-shape hint, MOTD-on-resume cut,
+horizontal-indent cut, non-content 16-color tokens, picker reductions, recorded-entry gaps,
+double-escape cut MUST appear there), and the files list. Every status claim backed by a
+command result from this run.
+
+=== TOOL GUIDANCE ===
+
+- Verification: `bundle install --quiet && bundle exec rake` (no count frozen). Single files:
+  `bundle exec ruby -Itest test/<file>.rb`. Goldens: untouched — any golden change is a defect,
+  raise it in PHASE 0.
+- Oracle (read-only): item 1 — interactive-mode.ts:4324-4327, :339-355. Item 2 —
+  slash-commands.ts:41, interactive-mode.ts:3335-3338, :5708-5735,
+  components/session-selector.ts (READ IT before building the picker), session-manager.ts
+  (list/listAll shapes). Item 3 — interactive-mode.ts:2210-2218, :4208-4234, the :3900-3975
+  renderSessionEntries switch. Item 4 — theme/dark.json:6-13, :25-33; theme.ts:1022-1052,
+  :858-866; assistant-message.ts:103, tool-execution.ts:85, interactive-mode.ts:3930-3931;
+  user-message.ts (the bg render shape). Item 5 — keybindings.ts:26, custom-editor.ts:103-110,
+  interactive-mode.ts:3070-3090.
+- Gem (read-only, verify against installed source before use): ratatui_ruby 1.5.0 —
+  style/color.rb (hex string colors), style/style.rb (fg:/bg:) — drive a hex fg + bg span
+  through the port's TUI seam headlessly BEFORE implementing and dump the rendered cell
+  styles; verify behavior without terminal truecolor (the port's PTY/test harness). Mock
+  server: expect NO changes; raise gaps in PHASE 0.
+- Recorded-session fixture: drive a mock-server multi-tool session (the chat_test harness
+  pattern) with the recorder on, dump the JSONL entries verbatim in the report — that dump is
+  the replay contract. `~/.tart` and real `~/.claude` NEVER touched — fixture roots only (the
+  picker and listing tests inject `root:`/`cwd:` fixture dirs).
+
+=== BOUNDARIES ===
+
+May touch: bin/tart, lib/tart/commands.rb, lib/tart/agent/session.rb, lib/tart/render/chat.rb,
+lib/tart/theme.rb, lib/tart/tui.rb, lib/tart/core/loop.rb, test/chat_test.rb,
+test/commands_test.rb, test/session_test.rb, test/theme_test.rb, test/tui_test.rb,
+test/loop_test.rb, test/launcher_smoke_test.rb.
+
+Must NOT touch: lib/tart/agent/loop.rb, lib/tart/agent/bridge.rb, lib/tart/tools/**,
+lib/tart/print.rb, lib/tart/settings.rb, lib/tart/skills.rb, lib/tart/compaction.rb,
+lib/tart/mcp.rb, lib/tart/mcp/**, lib/tart.rb, lib/tart/version.rb,
+lib/tart/render/markdown.rb, lib/tart/render/logos/**, lib/tart/core/** except loop.rb, all
+other test files (read-only; raise gaps in PHASE 0), Gemfile*, tart.gemspec, bench/, README.md
+(help-text changes live in bin/tart's own help strings only).
+
+Out of scope: pi's `--session`/`--continue` flag split (the port keeps `--resume [ID]`;
+itemized), the all-sessions/rename/cwd-prompt picker surfaces unless PHASE 0 finds them cheap
+through existing seams (otherwise itemized cuts), session branching (/tree, /fork,
+double-escape), the horizontal outputPad indent, non-content theme tokens flipping to hex,
+retry/summarization border statuses (standing cut), reasoning markdown (I13 standing ruling),
+`@`-file completion, any provider/async changes. No new runtime dependencies (the okhsl→hex
+constants are precomputed data, not a gem). No refactors beyond the task.
+
+=== ACCEPTANCE CRITERIA (frozen) ===
+
+- **AC1 (exit resume hint).** Every interactive exit path prints `To resume this session:
+  tart --resume <id>` after terminal restore when the session was persisted (dim label + plain
+  command; nothing when not persisted; nothing in `--print`). Test-proven (helper-level exact
+  shape + not-persisted branch; launcher smoke covers the wiring).
+- **AC2 (/resume picker).** `/resume` dispatches (never falls through to the model), opens a
+  picker listing the workdir's sessions newest-first, arrow-key navigable, enter resumes,
+  escape cancels. `Session.list` returns mtime-descending valid-header sessions for a cwd
+  (fixture-rooted test). Picker-resume lands the same state as CLI `--resume` (replayed
+  transcript + "Resumed session" line). Every picker reduction vs pi's SessionSelectorComponent
+  is itemized. Test-proven headlessly through the kernel/command wiring.
+- **AC3 (resume replay).** `tart --resume <id>` (and picker-resume) renders the resumed
+  session's entries in the transcript through the live-turn shapes — user echoes, assistant
+  markdown, tool calls/results, compaction summary as the recorded entries carry them (the
+  report's fixture dump is the contract; recorded gaps itemized, never invented) — followed
+  by "Resumed session", and "Session compacted N times" when compaction entries exist. No
+  fresh MOTD on resume (itemized cut). Test-proven: a recorded fixture session resumed
+  headlessly shows the replayed transcript; the model context seeding unchanged (its existing
+  tests stay green unmodified).
+- **AC4 (body colors).** Body prose renders the `text` token's true color (verified hex
+  constant, provenance comment), the user echo renders `text` on the blue `userMessageBg`
+  background span with NO `❯ ` prompt char, tool output and thinking text render their true
+  values. Hex constants verified against pi's own conversion in PHASE 0 (evidence in the
+  report); gem hex fg+bg verified live through the tui.rb seam (raw cell-style dump in the
+  report). Non-content tokens keep 16-color analogs (itemized reduction). theme_test updated.
+  Test-proven (readbacks assert the hex fg/bg on content-path cells).
+- **AC5 (region padding).** A leading blank line separates every scrollback region: before
+  each user echo (non-empty transcript), each tool block, each compaction summary, each
+  assistant message with visible content (already present — stays). Test-proven by readback
+  across a mixed session (user → reasoning+content → tool → user → assistant).
+- **AC6 (escape interrupts).** Escape during a streaming run interrupts it through the port's
+  interrupt path (composing with the existing cancel semantics — their tests green);
+  autocomplete-open escape cancels the autocomplete only; idle escape is a no-op
+  (double-escape CUT, itemized). Test-proven kernel-driven (mock server streaming + synthetic
+  escape key).
+- **AC7 (deviation discipline).** Every PHASE 0 verify item is in the findings table with
+  file:line evidence (including the recorded-entry dump and the hex/truecolor verification);
+  the parity-deviation table is empty or itemized — the spec-mandated cuts appear there, never
+  silently.
+- **AC8 (regressions).** All standing guards stay green: tui-seam, gem-pins, env-tripwire,
+  bench-seam, stderr gates, launcher smoke, the full suite; goldens byte-identical.
+
+Gate commands you must run and record verbatim (cwd = your worktree root):
+`bundle install --quiet && bundle exec rake && echo SUITE_OK`;
+`timeout 180 bundle exec ruby -Itest test/chat_test.rb && echo CHAT_OK` (same shape for
+commands_test/session_test/theme_test/tui_test/loop_test/launcher_smoke_test);
+`grep -q 'To resume this session' bin/tart && echo HINT_OK`;
+`grep -q '"resume"' lib/tart/commands.rb && grep -rq 'def list' lib/tart/agent/session.rb && echo RESUME_OK`;
+`grep -q 'Resumed session' lib/tart/render/chat.rb bin/tart && echo REPLAY_OK`;
+`grep -qE '#[0-9a-fA-F]{6}' lib/tart/theme.rb && ! grep -q 'user_message_text: :light_blue' lib/tart/theme.rb && echo COLOR_OK`;
+`! grep -q '❯ ' lib/tart/render/chat.rb && echo ECHO_OK`;
+the standing tui-seam/bench/gem-pins/env/stderr gates from the frozen gates block.
+The resume-hint/resume-command/replay/truecolor/user-echo tripwires are RED on your base BY
+DESIGN — they must be GREEN in YOUR worktree when you are done.
 
 ## Builder Report
 
