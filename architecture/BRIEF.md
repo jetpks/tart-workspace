@@ -45,6 +45,10 @@ The original plan normalized trailing whitespace at the port's write boundaries.
 
 So: the tool pipeline is ported **verbatim-parity** (trailing whitespace round-trips exactly as pi's does, including the match-space-only normalization in edit); the copy/paste investigation happens at the TUI iteration; the normalization itself lands as its own post-parity iteration with tests. The founding-defect framing is retained as motivation and end-state (§7.5), not as an in-flight requirement.
 
+**Toggle seam (owner decision 2026-10-10, post-I04):** the write-boundary normalization is plumbed as a **default-off config seam now** (edit/write/bash write paths), so the post-parity flip is a config change, not a refactor. Default remains byte-exact pi parity; both modes test-proven. pi itself stays untouched (no upstream patch while porting — oracle discipline).
+
+I04 outcome (2026-10-09): root cause established as pi's TUI-layer per-line width padding (see I04 Builder Report / Verdict) — not the tool pipeline, vindicating the defer decision. The port's renderer does not reproduce it (wraps, never pads); port-side exposure is a bounded transient residual only.
+
 ### §5.1 Foundation-mechanics carve-out (owner decision 2026-10-09, I03 Verdict)
 
 **Signal delivery, process spawn/reap, and startup/shutdown/teardown ordering are a sanctioned deviation category.** The port swaps the foundation under pi's behavior — Node's single-process signal handling for Ruby + `async`'s fiber scheduler — and abstractions are not perfectly abstract: the foundation sometimes legitimately changes things further up. Where the Ruby/fiber ecosystem dictates a different mechanism, the port does what is idiomatic **for Ruby**, not what pi's Node implementation happened to do. Ruling instance: bash timeout-kill is two-phase `-TERM` → (bounded grace) → `-KILL` on the process group, vs pi's single-phase `-SIGKILL` (`shell.ts:187–207`) — kept (I03 deviation #1, resolved).
