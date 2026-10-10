@@ -1186,6 +1186,116 @@ Not runnable in this worktree:
 
 STATUS: COMPLETE_WITH_CONCERNS (concerns: disagreement/parity items 1-8 above — all spec-sanctioned stdio-scope simplifications plus the invented url-rejection error string and the $stderr connect-failure surface; `mcp_servers:` kwarg name was architect-unnamed and is a wave-2 CLI seam)
 
+### print
+
+### PHASE 0 findings (spec-vs-reality, file:line evidence)
+
+| # | Verify item | Spec claim | Reality (evidence) | Verdict |
+|---|---|---|---|---|
+| 1 | pi print-mode options | PrintModeOptions :30-39 (mode text/json, messages, initialMessage) | Confirmed: `repos/pi/packages/coding-agent/src/modes/print-mode.ts:30-39`; interface comment :10-11 ("text = final response only") | matches |
+| 2 | pi text-mode tail | final response only; error/aborted → stderr + exit 1 | Confirmed: print-mode.ts:143-158 — last of `state.messages`; `stopReason === "error" \|\| "aborted"` → `console.error(errorMessage \|\| ...)` + `exitCode = 1` (:145-147); else each `content.type === "text"` → `writeRawStdout(`${content.text}\n`)` (:149-152); non-assistant last message → nothing, exit 0 | matches |
+| 3 | pi print exit codes | 0 success, non-zero on error | Confirmed: `exitCode = 1` on error/aborted (:147); catch-all → stderr + `return 1` (:160-162); main.ts:986-993 sets `process.exitCode` from the return value | matches |
+| 4 | pi print signal handlers | SIGTERM/SIGHUP | Confirmed: print-mode.ts:51-66 — SIGTERM → exit 143, SIGHUP → 129 (non-win32). NOT ported into the library: a Ruby library must not install global `Signal.trap`s (process concern of the future cli wiring); itemized in parity table | itemized simplification |
+| 5 | raw stdout | writeRawStdout/flushRawStdout, no buffering, no TUI | Confirmed: `core/output-guard.ts:85` writeRawStdout (unbuffered raw write, serial tail-promise), flushRawStdout :103. Port: `$stdout.sync = true` + direct `IO#write` | matches |
+| 6 | **pi -p approval disposition** | verify and port exactly | **pi has NO tool-approval mechanism at all.** `grep -rn approval packages/*/src` matches only `extensions/llama/index.ts` (HuggingFace access terms, unrelated). `agent-loop.ts:826-860 executePreparedToolCall` → `prepared.tool.execute(...)` unconditionally; no gate, no prompt. So `pi -p` executes gated tools without asking. Port: `Print.run` passes `approval: ->(_) { true }` (auto-approve) — pi's exact behavior. See parity table | ported exactly, itemized |
+| 7 | ruby_llm history accumulation/replay | chat.messages after turns; seeding a new chat | Confirmed: ruby_llm-2.1.0 `chat.rb:43 attr_reader :messages` (accumulates every turn incl. tool results); `chat.rb:1015 messages=` replaces history coercing each element into Message; `chat.rb:1034 add_message` appends. (Session lane's resume path builds on `messages=`; print lane only consumes the final message) | matches |
+| 8 | ruby_llm Tool contract | name/description/schema/execute | Confirmed: `tool.rb:259 name` (class-name demodulized/underscored), `:264 description`, `:313 call` → `:340 execute`, params from keyword signature (:349). Port's `Tools::*` already satisfy it; print registers the existing loadout unchanged | matches |
+| 9 | tool result/exception surfacing into history | what the recorder/model sees | Confirmed in-port: `Agent::Loop` `:tool_message` item → tool result message reaches `chat.messages` and the next request payload (agent_loop_test.rb:45-50 pattern; print test asserts the tool result message in the captured 2nd request) | matches |
+| 10 | port Agent::Loop kernel constraint | Loop.run must run on Core::Loop work block | Confirmed: `lib/raspberry_pi/agent/loop.rb` doc ("Must be called on the kernel reactor fiber") + Bridge requires the async reactor. Print runs `Core::Loop.new(session: Print::NullSession)` — a null terminal session (poll blocks one frame, never yields events, never draws); no TUI required, no terminal opened | sound |
+| 11 | mock server capabilities | can script what print tests need | Confirmed: `test/support/mock_llm_server.rb` scripts `{type: :stream, tool_calls:}`, `{type: :message}`, `{type: :error, status:, message:}` (:84-91, respond_error :122-127) — exactly the print test's needs. Read-only; untouched | sound |
+| 12 | TUI-seam gate scope | print.rb must carry no RatatuiRuby | print.rb requires only `agent/loop` + `core/loop`; `core/loop.rb` references `TUI.ctrl_c?` but never `RatatuiRuby.`; gate grep stays clean (verified below) | sound |
+
+Disagreements with the spec: **none.** Checked before concluding sound: pi's print-mode.ts (full file), output-guard.ts, agent-loop.ts tool-execution path, the approval grep across all pi packages, ruby_llm-2.1.0 chat.rb/tool.rb/message.rb gem source, the port's Agent::Loop/Core::Loop/Poller/TestChat/mock-server sources. The one genuinely surprising finding (item 6 — pi has no approval gate to disposition) is ported exactly and itemized below rather than silently "improved".
+
+### PHASE 1 note (frozen contracts)
+
+No shared contract touched. `lib/raspberry_pi.rb` changed by exactly one added line (`require_relative "raspberry_pi/print"`), per the lane grant. All existing call sites/tests unmodified (132 runs / 453 assertions green).
+
+### Files (this lane's complete touch set)
+
+| File | Status |
+|---|---|
+| `lib/raspberry_pi/print.rb` | new (Print module: run/error_exit/final_response/text_parts + NullSession) |
+| `lib/raspberry_pi.rb` | +1 line registration only |
+| `test/print_test.rb` | new (4 tests, public behavior, hermetic) |
+
+### Gate results (verbatim output)
+
+**print-guard** — PASS
+```
+Run options: --seed 14108
+
+# Running:
+
+....
+
+Finished in 0.186475s, 21.4506 runs/s, 101.8906 assertions/s.
+
+4 runs, 19 assertions, 0 failures, 0 errors, 0 skips
+PRINT_OK
+```
+
+**suite-green** — PASS
+```
+Run options: --seed 44497
+
+# Running:
+
+....................................................................................................................................
+
+Finished in 15.134746s, 8.7217 runs/s, 29.9311 assertions/s.
+
+132 runs, 453 assertions, 0 failures, 0 errors, 0 skips
+SUITE_OK
+```
+
+**stderr-quiet** — PASS
+```
+NO_WARN
+```
+
+**stderr-clean** — PASS
+```
+NO_EPIPE
+```
+
+**tui-seam** — PASS
+```
+SEAM_OK
+```
+
+**bench-seam** — PASS (exit 0, full JSON recorded; verdict lines)
+```
+"timeout_kill": { "verdict": "clean", "kill_calls": 1, "termsig": 15, "zombie_gone": true, "seconds_to_reap": 0.0014 },
+"sse_delivered": 500, "sse_expected": 500, "timer_ticks": 100, "timer_expected": 100,
+"fps_while_animating": { "mean": 60.0 }, "cpu_pct": 4.2
+SEAM_BENCH_OK
+```
+
+**gem-pins** — PASS
+```
+PINS_OK
+```
+
+**session-guard** — NOT RUNNABLE: wave-1 deliverable (`test/session_test.rb` does not exist yet; session lane's file)
+**mcp-guard** — NOT RUNNABLE: wave-1 deliverable (`test/mcp_test.rb` does not exist yet; mcp lane's file)
+**cli-help** — NOT RUNNABLE: wave-2 deliverable (`-p/--print` flag is wired by the cli lane)
+
+### Parity-deviation table
+
+| pi behavior | Port | Classification |
+|---|---|---|
+| No tool-approval mechanism exists; `pi -p` executes every tool unconditionally (agent-loop.ts:826-860) | `Print.run` passes `approval: ->(_) { true }` — gated tools (bash/edit/write) execute without any approval prompt | exact port of pi's behavior, itemized per lane note. Note for the architect: this mirrors pi, but it means a print run with `bash` selected executes destructive tools with no gate — pi's own tradeoff, kept deliberately, not silently |
+| `--mode json` event stream (print-mode.ts:30-39) | out of scope per spec | itemized exclusion |
+| `messages` array (additional prompts after initialMessage), initialImages/@file mentions | out of scope per spec (single-shot, one prompt) | itemized exclusion |
+| SIGTERM→143 / SIGHUP→129 handlers (print-mode.ts:51-66) | not ported: global `Signal.trap`s are a process concern; the run is synchronous and the future cli wiring owns process lifecycle | itemized simplification |
+| writeRawStdout's raw-fd takeover + ENOBUFS/EAGAIN retry loop + tail-promise queue (output-guard.ts:38-103) | `$stdout.sync = true` + direct `IO#write` on an injectable stream | itemized simplification (no stdout takeover exists in the Ruby port; no TUI to guard against) |
+| pi's text-mode "non-assistant last message prints nothing" | ported verbatim (`final&.role == :assistant`) | match |
+| error/aborted → stderr message, exit 1 | `last_error` → `error.message`; `interrupted?` → `"Request aborted"`; exit 1 | match (aborted path unexercisable in tests without signal wiring; branch mirrors pi's `Request ${stopReason}` fallback) |
+
+### STATUS: COMPLETE_WITH_CONCERNS
+- Concern 1 (parity note, not a defect): print mode auto-approves approval-gated tools because pi has no approval mechanism and the lane note required porting pi exactly (finding 6 / parity row 1). If the architect judges the port's I0x safety gating should outrank pi's behavior in print mode, the change is one line (`approval: nil` = deny) — flagging for arbitration rather than deciding silently.
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
