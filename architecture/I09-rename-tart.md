@@ -17,35 +17,94 @@ no research. Write + commit: `architect section rename-tart grounds --from <file
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section rename-tart specification --from <file>`. -->
+# Specification — I09 rename-tart
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+## Objective (and why)
+
+Rename the port project **raspberry-pi → tart** (owner decision 2026-10-11, ARCHITECT.md Decisions log): the name collides with the Raspberry Pi computer — "raspberry" was meant to evoke ruby, not the SBC; "tart" keeps the pie-adjacent name without the collision. This is a **pure, in-repo rename sweep**: the gem, the module namespace, the lib tree, the executable, the env-var prefix, the agent-root data dir, and every comment/doc reference change name — and **nothing else changes**. No behavior change, no refactor, no reformat: logic, test assertions, prompt strings, session entry formats, and golden parity values stay byte-identical apart from the renamed identifiers themselves.
+
+Why now: it lands before skills/settings/slash (the next iteration, required for done — owner ruling: daily-driver parity first, deviations later) so no new code is written on the old name.
+
+Baseline measured by the architect this session (2026-10-11, repos/raspberry-pi @ project/pi-port 7eef23e): **153** case-insensitive `raspberry` refs across the tracked files — 84 `raspberry_pi` (require/namespace paths), 79 `raspberry-pi` (gem name/bin/usage strings/comments), 68 `RaspberryPi` (module namespace), plus env vars `RASPBERRY_PI_API_KEY` (6), `RASPBERRY_PI_MCP_CONFIG` (4), `RASPBERRY_PI_CONTEXT_WINDOW` (4), `RASPBERRY_PI_PROVIDER` (3), `RASPBERRY_PI_MODEL` (3), `RASPBERRY_PI_API_BASE` (3), and one bare `raspberry` — the test model string `raspberry-test-model` (test/support/mock_llm_server.rb:207). No `tart` word collisions exist anywhere in the tree. `~/.raspberry-pi` does not exist on this machine, so no data migration is needed. `ruby bin/raspberry-pi --help` exits 0 printing `Usage: raspberry-pi [WORKDIR] [options]` — the renamed variant is the same OptionParser surface. `Gemfile` has no literal gem-name reference (bare `gemspec` directive), so `tart.gemspec` resolves automatically.
+
+## Exact mapping (the deliverable — every row applied everywhere it appears)
+
+| Old | New |
+|---|---|
+| gem name `raspberry-pi`; file `raspberry-pi.gemspec` | gem `tart`; file `tart.gemspec` |
+| namespace `RaspberryPi` (incl. `RaspberryPi::VERSION`) | `Tart` |
+| `lib/raspberry_pi.rb` | `lib/tart.rb` |
+| `lib/raspberry_pi/**` (37 files, same structure) | `lib/tart/**` |
+| every `require "raspberry_pi/…"` / `require_relative "raspberry_pi…"` | the `tart` equivalents |
+| executable `bin/raspberry-pi`; `Usage: raspberry-pi …`; abort prefix `raspberry-pi: ` | `bin/tart`; `Usage: tart …`; `tart: ` |
+| env prefix `RASPBERRY_PI_` (`API_KEY`, `MCP_CONFIG`, `CONTEXT_WINDOW`, `PROVIDER`, `MODEL`, `API_BASE`) | `TART_` (identical suffixes) |
+| agent root `~/.raspberry-pi` (sessions at `~/.raspberry-pi/sessions`; MCP config `~/.raspberry-pi/mcp.json`) | `~/.tart` (`~/.tart/sessions`; `~/.tart/mcp.json`) |
+| test model string `raspberry-test-model` (test/support/mock_llm_server.rb:207) | `tart-test-model` |
+| gemspec `spec.homepage` / `spec.executables`: `github.com/jetpks/raspberry-pi` / `raspberry-pi` | `github.com/jetpks/tart` / `tart` (the remote rename is an owner-coordinated follow-up; the new name is the target) |
+| README title, usage examples, paths, env-var docs | `Tart`, `bin/tart`, `~/.tart`, `TART_*` |
+
+Deliverable precision: this mapping is **exact and exhaustive** — after the sweep, `git grep -i raspberry` over the tracked tree finds nothing (exit 1, no output).
+
+## Output format
+
+Raw results only, written to `build/I09-rename-tart-rename/report.md` (absolute path outside your worktree):
+
+- Per-file before/after ref counts (table; the baseline total is 153 with the per-form breakdown above).
+- The mapping table above with per-row old-identifier hit counts (where each one appeared).
+- Verbatim gate-command outputs for every gate in the Acceptance Criteria — including `git grep -il raspberry` (expected: empty, exit 1) and `bundle exec ruby bin/tart --help`.
+- `git status --porcelain` of your worktree at the end (shows the rename moves), and a line confirming no git write command (commit/add/branch/reset/checkout/merge) was run.
+- End with exactly one STATUS line.
+
+## Tool guidance
+
+Verification commands (exact, per ARCHITECT.md):
+
+```
+bundle install --quiet && bundle exec rake      # suite green; Gemfile.lock regenerates under the new gem name
+bundle exec ruby bench/seam_bench.rb            # expect SEAM_BENCH_OK + JSON
+bundle exec ruby bin/tart --help                # expect exit 0, "Usage: tart [WORKDIR] [options]"
+git grep -il raspberry                          # expect no output, exit 1
+```
+
+Gemfile.lock pins must stay: ratatui_ruby 1.5.0, ruby_llm 2.x, minitest 5.x, async 2.x, diff-lcs 1.6. No new runtime dependencies.
+
+Verify against reality before planning: run the baseline greps yourself (`git grep -il raspberry`, then counts per form); confirm every test injects its own session root (session.rb's root kwarg — tests never touch `~/.raspberry-pi`); confirm no other tracked file outside the surveyed set contains a `raspberry` ref (survey covered lib/test/bench/bin/README/Gemfile*/gemspec/Rakefile/.gitignore — re-run the grep, don't trust the survey). Use `git mv` for files/directories so history follows the renames. Watch for indirect couplings a bare search pattern can hide: e.g. anything constructing paths from the gem name, `Dir["lib/**/*.rb"]`-style globs inside the gemspec (unchanged — they're name-agnostic), and the test helper's require lines.
+
+## Boundaries
+
+May touch (repo-wide single-lane sweep): `lib/**`, `test/**`, `bench/**`, `bin/*`, `README.md`, `Rakefile`, `Gemfile`, `Gemfile.lock`, `.gitignore`, `raspberry-pi.gemspec` (renamed to `tart.gemspec`), `bin/raspberry-pi` (renamed to `bin/tart`).
+
+Must not change: golden parity assertion values (test/golden_parity_test.rb's expected payloads stay byte-identical — only Ruby-side identifier references inside the file change); every prompt-string/serialization constant in lib (compaction prompts, session entry JSON shapes, tool result shapes — only the namespace references around them change); any other assertion or behavior.
+
+Out of scope (explicit): the space checkout dir `repos/raspberry-pi`, `space.yaml` repo mapping, and the GitHub remote rename (owner-coordinated follow-up); data-dir migration machinery (`~/.raspberry-pi` verified absent); backward-compat aliases of any kind — no old env vars, no old bin name, no old require paths (pre-release single-user); any behavior, formatting, or structural change beyond the mapping rows; README restructuring beyond the renamed references; any file outside the repo (the space, `architecture/`, `repos/pi`, `build/` outside your report).
+
+## Lane plan
+
+Single lane — a repo-wide mechanical sweep, nothing parallel:
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision rename-tart`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: rename
+  repo: raspberry-pi
+  touch:
+    - lib/*
+    - lib/**
+    - test/*
+    - test/**
+    - bench/*
+    - bench/**
+    - bin/*
+    - README.md
+    - Rakefile
+    - Gemfile
+    - Gemfile.lock
+    - .gitignore
+    - raspberry-pi.gemspec
+    - tart.gemspec
 ```
+
+## Effort call
+
+Dispatch at **medium** effort — a routine, tightly-specified mechanical sweep whose completeness is enforced by the exact zero-refs gate; there is no design space. (Recorded per the effort-call rule; downgraded from the unattended default of high.)
 
 ## Acceptance Criteria
 
