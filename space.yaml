@@ -316,9 +316,9 @@ project:
       - lib/raspberry_pi/agent/loop.rb
       - test/agent_loop_test.rb
       - test/session_test.rb
-      base_sha: a8ec14e81d0a4ad0d4ceb64139bfd0220e54dcc7
-      worktree:
-      integration_branch: project/pi-port
+      base_sha: 114354d6237bf26c9f7c112e0c555bda5c26735c
+      worktree: build/I07-session-mcp-print-session/wt
+      integration_branch:
       harness: pi
       model: fireworks/accounts/fireworks/models/glm-5p3-flash
       variant: false
@@ -333,9 +333,9 @@ project:
       - lib/raspberry_pi/tools/registry.rb
       - test/mcp_test.rb
       - test/support/mcp_echo_server.rb
-      base_sha: a8ec14e81d0a4ad0d4ceb64139bfd0220e54dcc7
-      worktree:
-      integration_branch: project/pi-port
+      base_sha: 114354d6237bf26c9f7c112e0c555bda5c26735c
+      worktree: build/I07-session-mcp-print-mcp/wt
+      integration_branch:
       harness: pi
       model: fireworks/accounts/fireworks/models/glm-5p3-flash
       variant: false
@@ -348,9 +348,9 @@ project:
       - lib/raspberry_pi/print.rb
       - lib/raspberry_pi.rb
       - test/print_test.rb
-      base_sha: a8ec14e81d0a4ad0d4ceb64139bfd0220e54dcc7
-      worktree:
-      integration_branch: project/pi-port
+      base_sha: 114354d6237bf26c9f7c112e0c555bda5c26735c
+      worktree: build/I07-session-mcp-print-print/wt
+      integration_branch:
       harness: pi
       model: fireworks/accounts/fireworks/models/glm-5p3-flash
       variant: false
@@ -362,12 +362,15 @@ project:
       touch_set:
       - bin/raspberry-pi
       - README.md
-      base_sha: a8ec14e81d0a4ad0d4ceb64139bfd0220e54dcc7
-      worktree: build/I07-session-mcp-print-cli/wt
-      integration_branch:
+      base_sha: 114354d6237bf26c9f7c112e0c555bda5c26735c
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
       variant: false
+      dispatched_at: '2026-10-09T20:29:55-06:00'
+      effort: medium
+      integrate_sha: 0a918a9b044d9050bd9cd902b29a074ef5291fcb
     rehearsal:
       gates_digest: 821d6e26af5253dbcd8f933f4603bf282ce2088bae72236aadf47d15dcff8c82
       at: '2026-10-09T19:59:25-06:00'
