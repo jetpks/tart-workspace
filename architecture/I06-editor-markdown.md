@@ -42,6 +42,36 @@ no research. Write + commit: `architect section editor-markdown grounds --from <
 - **Lane plan:** four lanes, one repo. **Wave 1** (parallel, mutually disjoint — verified against the full file inventory: no overlap between any pair, every named file in exactly one wave-1 set): `polish` (agent comment + carry-in test hygiene), `editor` (input editing + cursor + history), `markdown` (converter library + registration). **Wave 2:** `markdown-seam` (fast-follow off `project/pi-port`; touch set identical to editor's by design — the sanctioned seam home).
 - **Effort call:** polish medium (the warn fix needs async-semantics care without weakening the test; the comment itself is trivial), editor high (interaction semantics + key-event verification + headless provability), markdown high (parser subset + vocabulary design against the pi theme), markdown-seam medium (conversion + integration + readback tests; roots at the tip where the vocabulary already exists).
 
+```lanes
+- name: polish
+  repo: raspberry-pi
+  touch:
+    - lib/raspberry_pi/agent/loop.rb
+    - test/kernel_carryin_test.rb
+    - test/test_helper.rb
+- name: editor
+  repo: raspberry-pi
+  touch:
+    - lib/raspberry_pi/render/chat.rb
+    - lib/raspberry_pi/tui.rb
+    - test/chat_test.rb
+    - test/tui_test.rb
+    - README.md
+- name: markdown
+  repo: raspberry-pi
+  touch:
+    - lib/raspberry_pi/render/markdown.rb
+    - lib/raspberry_pi.rb
+    - test/markdown_test.rb
+- name: markdown-seam
+  repo: raspberry-pi
+  touch:
+    - lib/raspberry_pi/render/chat.rb
+    - lib/raspberry_pi/tui.rb
+    - test/chat_test.rb
+    - test/tui_test.rb
+```
+
 ## Acceptance Criteria
 
 **AC1 (comment + stderr — BRIEF §2).** The `strip_thinking_replay` comment in `lib/raspberry_pi/agent/loop.rb` states pi's actual replay behavior (pi replays the reasoning field the deltas carried; the port suppresses outright — the I05-ratified deviation) — architect-read, comment-only diff, behavior unchanged. The suite runs with stderr free of async's "unhandled exception" warn (gate `stderr-quiet`) while the raising-work carry-in test still proves termination + reraise through the public path — architect-read: assertions preserved or strengthened, never weakened to silence the warn.
