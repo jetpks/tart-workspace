@@ -90,51 +90,135 @@ Surface lane: **high** (the meatiest surface iteration since I11 — autocomplet
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse autocomplete-scroll` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze autocomplete-scroll` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+Calibration: AC1-AC3 assert user-visible properties of the interactive surface (BRIEF §3 daily-driver parity) — the substance is architect-read from the Builder Report's pi citations and the tests, with tripwires only pinning keyword presence. AC4 is the deviation-discipline floor (BRIEF §5). AC5 is the standing regression floor (BRIEF §2) — regression guards, expected GREEN on base and after.
 
-**AC1.** ...
+- **AC1 (autocomplete — BRIEF §3).** Typing `/` in the input editor offers suggestions over the builtin slash commands + skills, fuzzy-filtered on the prefix (pi interactive-mode.ts:375-383), with descriptions, as a list below the editor line inside the editor area (height grows, maxVisible 5 fixed — itemized deviation). While the list is active: up/down navigate the list (history bindings yield), tab/enter apply the selection (pi editor.ts:757-816 semantics as PHASE 0 transcribes them), escape cancels the list without interrupting the run (pi custom-editor.ts:103-111), further typing re-filters or dismisses. The provider is injected with a no-op default; `bin/tart` wires the real command/skill sources. Test-proven headlessly (synthetic provider), every key path asserted.
+- **AC2 (transcript scrolling — BRIEF §3).** pageUp/pageDown (+ctrl variants, pi keybindings.ts:114-115) scroll the transcript area by one page while the editor is focused and no autocomplete list is active. Follow-end semantics per pi scroll-view.ts:127-135: the view follows new output while at bottom; a scrolled-up view stays put as output arrives; returning to the bottom re-follows. A right-gutter scrollbar renders on the transcript area when content overflows and is hidden when the view fits (pi "auto"), via seam helpers with the scrollbar theme tokens. Test-proven headlessly at the frame level.
+- **AC3 (compaction-start status — BRIEF §3, owner ruling 2026-10-11).** The loop emits `{type: :compaction_start, reason:}` exactly per the frozen contract (after `prepare` succeeds, before the summarization call; no event when nothing to compact) — test-proven with the reason carried and the ordering around the summarization call. The surface consumes it into the editor top border with pi's per-reason label (status-indicator.ts:85-95) minus the cancel hint (deviation: ctrl+c aborts the run, not the compaction — BRIEF §5.1, itemized), cleared on `:compaction`/`:agent_end`; the post-hoc compaction line renders unchanged. Test-proven headlessly in both lanes (synthetic event on the surface side).
+- **AC4 (parity/deviation discipline — BRIEF §5).** Every PHASE 0 verify item is in the findings table with file:line evidence; the parity-deviation table is empty or itemized — the known cuts (retry/summarization statuses, branchSummary, `@`-mentions, async/debounce, settings-backed maxVisible/scrollbar mode, cancel hint) appear there, never silently.
+- **AC5 (regressions — BRIEF §2).** All standing guards stay green: tui-seam (every `RatatuiRuby.` call confined to `lib/tart/tui.rb` — new helpers are the only door), gem-pins, env-tripwire, bench-seam, stderr gates, the launcher smoke, and the full suite; goldens byte-identical.
+
+Gate intent notes (calibration): `autocomplete-tripwire`, `scroll-tripwire`, `cstart-tripwire` are **tripwires** — presence only; the autocomplete behavior, scroll/follow semantics, and compaction-status substance are architect-read from the report's pi citations and the tests, never gate-proven. `agent-seam-guard` and `chat-surface-guard` prove the two lanes' test files run standalone. `smoke-guard` pins the boot path (`bin/tart` wiring changes must not break first boot). The rest are the standing regression guards (GREEN on base by design).
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse autocomplete-scroll` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite-green
+  ac: AC1, AC2, AC3, AC4, AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: chat-surface-guard
+  ac: AC1, AC2, AC3
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/chat_test.rb && echo CHAT_OK
+  expect:
+    exit_code: 0
+    stdout_match: CHAT_OK
+
+- id: agent-seam-guard
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/agent_loop_test.rb && echo AGENT_OK
+  expect:
+    exit_code: 0
+    stdout_match: AGENT_OK
+
+- id: autocomplete-tripwire
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    grep -qi 'autocomplete' lib/tart/render/chat.rb && grep -qi 'autocomplete' bin/tart && echo AC_OK
+  expect:
+    exit_code: 0
+    stdout_match: AC_OK
+
+- id: scroll-tripwire
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    grep -qi 'pageup' lib/tart/render/chat.rb && grep -qi 'scrollbar' lib/tart/render/chat.rb && echo SCROLL_OK
+  expect:
+    exit_code: 0
+    stdout_match: SCROLL_OK
+
+- id: cstart-tripwire
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    grep -q ':compaction_start' lib/tart/agent/loop.rb && grep -q 'compaction_start' lib/tart/render/chat.rb && echo CSTART_OK
+  expect:
+    exit_code: 0
+    stdout_match: CSTART_OK
+
+- id: smoke-guard
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/launcher_smoke_test.rb && echo SMOKE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SMOKE_OK
+
+- id: env-tripwire
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'TART_API_KEY' README.md && grep -q 'TART_MCP_CONFIG' README.md && grep -q 'TART_CONTEXT_WINDOW' README.md && git grep -q 'TART_API_KEY' -- bin/tart && echo ENV_OK
+  expect:
+    exit_code: 0
+    stdout_match: ENV_OK
+
+- id: tui-seam
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    test -f lib/tart/tui.rb && test -z "$(grep -rn 'RatatuiRuby\.' lib test bench bin | grep -v '^lib/tart/tui')" && echo SEAM_OK
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_OK
+
+- id: bench-seam
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    timeout 90 bundle exec ruby bench/seam_bench.rb
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: gem-pins
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'ratatui_ruby (1\.5\.0)' Gemfile.lock && grep -q 'minitest (5\.' Gemfile.lock && grep -q 'ruby_llm (2\.' Gemfile.lock && echo PINS_OK
+  expect:
+    exit_code: 0
+    stdout_match: PINS_OK
+
+- id: stderr-quiet
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle exec rake > /dev/null 2> stderr_gate2.log; ! grep -qi 'unhandled exception' stderr_gate2.log && echo NO_WARN && rm -f stderr_gate2.log
+  expect:
+    exit_code: 0
+    stdout_match: NO_WARN
+
+- id: stderr-clean
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle exec rake > /dev/null 2> stderr_gate.log; ! grep -q 'Broken pipe' stderr_gate.log && echo NO_EPIPE && rm -f stderr_gate.log
+  expect:
+    exit_code: 0
+    stdout_match: NO_EPIPE
 ```
 
 ## Builder Prompt
