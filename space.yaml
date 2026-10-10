@@ -184,6 +184,15 @@ project:
       - lib/raspberry_pi/agent/loop.rb
       - test/agent_loop_test.rb
       - test/support/mock_llm_server.rb
+      base_sha: d14c39ca7edb5fe8754dec41b3a1b06375760940
+      worktree:
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-09T18:46:10-06:00'
+      effort: high
+      integrate_sha: 30c026ae61be4c1804798ee2f30dc6084426ac25
     - name: ux
       repo: raspberry-pi
       touch_set:
@@ -196,6 +205,15 @@ project:
       - test/tui_test.rb
       - test/test_helper.rb
       - README.md
+      base_sha: d14c39ca7edb5fe8754dec41b3a1b06375760940
+      worktree:
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-09T18:46:10-06:00'
+      effort: high
+      integrate_sha: 45decb53a881ce095b2d05b5af9adff353234afd
     - name: toggle
       repo: raspberry-pi
       touch_set:
@@ -205,6 +223,15 @@ project:
       - lib/raspberry_pi/tools/write.rb
       - lib/raspberry_pi/tools/support/edit_diff.rb
       - test/tools_test.rb
+      base_sha: d14c39ca7edb5fe8754dec41b3a1b06375760940
+      worktree:
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-09T18:46:11-06:00'
+      effort: medium
+      integrate_sha: 707b3f9b8b58d727c4ba23428aa8449d86bcc811
     rehearsal:
       gates_digest: 26a05bd7fd9f27b4e3fdb03684e7b5586cd49146c67b94965c6ba38760fd4683
       at: '2026-10-09T18:44:17-06:00'
