@@ -946,6 +946,149 @@ Standing guards: gem pin intact (Gemfile.lock:148, ruby_llm 2.1.0, sha256 unchan
 
 STATUS: COMPLETE_WITH_CONCERNS — (1) Disagreement C: solo-worktree suite red in test/chat_test.rb only (13 × `unknown keyword: :approval` at chat_test.rb:1268); chat_test.rb is outside my boundaries and must be rewritten by the surface lane when it deletes `Render::Chat#approval`; AC1's kwarg deletion is unsatisfiable without that file changing. (2) Disagreement A/B: port key `thinkingLevel` (not pi's `defaultThinkingLevel`) with built-in default `"medium"` — the frozen contract's `nil → model alone` branch is never produced by my side; flagging in case the architect wanted unset→nil.
 
+### surface
+
+### PHASE 0 — spec-vs-reality verification (oracle = repos/pi, read-only)
+
+| item | spec claim | reality | evidence |
+|---|---|---|---|
+| 2 | thinking→content `Spacer(1)` when content follows; none when reasoning-only | confirmed | packages/coding-agent/src/modes/interactive/components/assistant-message.ts:160-174 (`hasVisibleContentAfter` → `new Spacer(1)`) |
+| 7 | between-item rule at interactive-mode.ts:854-868 | **spec's cited lines are `showStartupNoticesIfNeeded` in the live oracle**; the real rule: every assistant message with visible content opens with a leading `Spacer(1)`; tool blocks carry their own leading `Spacer(1)` | assistant-message.ts:103-105; components/tool-execution.ts:85 |
+| 3 | live content re-renders as markdown per delta | confirmed — every `message_update` calls `streamingComponent.updateContent(msg, true)`, full re-render with the isStreaming markdown transform | interactive-mode.ts:3509-3537; assistant-message.ts:107-109 |
+| 4 | JS sort stable, Ruby `sort_by` not | confirmed; pre-sort catalog order = `[...slashCommands, ...templateCommands, ...extensionCommands, ...skillCommandList]` (port `SlashSource` commands-then-skills is the reduced shape) | packages/tui/src/fuzzy.ts:138 (`results.sort(...)`); coding-agent interactive-mode.ts:818-821 |
+| 5 | editor full-width, horizontal borders only, no prompt, paddingX | confirmed; `paddingX = options.paddingX ?? 0`; default `editorPaddingX: 0` (clamped 0..3); at paddingX 0 `layoutWidth = contentWidth - 1` (one reserved cursor column); "no side borders, just horizontal lines above and below" | packages/tui/src/components/editor.ts:511-521, :309, :518-521, :608; coding-agent src/core/settings-defaults.ts:46; custom-editor.ts:36-77 |
+| 8 | footer `model • <level>`; nil → model alone (frozen contract) | confirmed at footer.ts:229-244 — note pi also renders `model • thinking off` for reasoning models at level off; the contract key cannot express that state (itemized below) | footer.ts:226-244 |
+| 9 | pi dim = okhsl(229 8% 56%); whole footer dim | confirmed; footer dims pwd + statsLeft + remainder independently so the colored context segment survives | coding-agent src/modes/interactive/theme/dark.json:24; footer.ts:280-288 |
+| 11 | /new → clear + accent line | confirmed chain: handleClearCommand:6926 → newSession:6929 → `setRebindSession(→ rebindCurrentSession({renderBeforeBind: true}))`:615-618 → renderCurrentSessionState:2210-2218 (clears chatContainer + renderInitialMessages) → Spacer + accent "✓ New session started":6933-6934. **pi does NOT re-render the header/MOTD on /new** (separate headerContainer) — AC8's letter is a port analog, itemized | interactive-mode.ts:6926-6936, :615-618, :2210-2218; dark.json:16 (accent = violet) |
+| 12 | MOTD: logo+version+hints, [Context], [Skills] | confirmed; hints are keybinding-driven (pi's list includes `!` bash, escape-clear, ctrl+c-twice — none exist in the port); formatCompactList = trimmed, `localeCompare`-sorted, two-space indent, dim, one joined list; [Context] uses `sort: false` (registration order); sections gated on entries | interactive-mode.ts:1040-1080, :1778-1860 (formatCompactList :1791-1797) |
+| 13 | context percent: 0.0% boot / real after usage / ? post-compaction / warn>70 err>90 | confirmed; `getContextUsage()` returns estimate 0 → percent 0.0 pre-usage, `percent: null` post-compaction until the next assistant response | coding-agent src/core/agent-session.ts:4237-4271; footer.ts:143-162, :194-213 |
+| gem | ratatui_ruby 1.5.0 renderer vocabulary | verified live: `Block.new(borders: [:top, :bottom], title:)` renders the title on the top border from column 0; no new `RatatuiRuby.` calls needed anywhere | lib/ratatui_ruby/widgets/block.rb (borders doc + `inner`); headless draw check in run log |
+| port | Render::Markdown converter read-only; colors at span level | not blocked — existing `Theme.md_fg` span-level routing reused for the live region | lib/tart/render/markdown.rb (untouched); lib/tart/theme.rb `md_fg` |
+
+### PHASE 0 — disagreements / judgment calls (all raised before code, per the PHASE 0 reply)
+
+| # | call | reason |
+|---|---|---|
+| 1 | No new VERSION constant in lib/tart.rb | `Tart::VERSION` already exists (lib/tart/version.rb:4, required by lib/tart.rb:4); a second definition warns "already initialized constant" on every boot. MOTD reads the existing constant; lib/tart.rb carries only a provenance comment (satisfies the VERSION_OK gate's intent). |
+| 2 | AC8's "re-renders the MOTD block" is a pi deviation | pi's /new never re-renders the header (separate container, interactive-mode.ts:2210-2218). Port's flat transcript makes the re-render the faithful analog. Complied with AC8's frozen letter; itemized. |
+| 3 | Item 8: nil → model alone (not pi's `model • thinking off`) | frozen cross-lane contract; the port's `footer_data[:thinking_level]` cannot distinguish "unset" from "off". Deviation itemized. |
+| 4 | Item 7 pinned to the assistant-message side only | pi's tool-execution blocks also open with a leading `Spacer(1)` (tool-execution.ts:85) — outside item 7's title and AC2's letter; itemized as an adjacent gap, not silently added. |
+| 5 | `Render::Chat.new` gains optional `motd: true` / `settings_root:` kwargs | MOTD lands in every transcript readback; standing tests opt out (`motd: false`) and MOTD//new get dedicated tests. `settings_root` (default `Agent::Session.default_root`) keeps `~/.tart` out of tests; bin/tart's unchanged constructor call gets correct production behavior. |
+| 6 | New public surface method `Render::Chat#new_session` | bin/tart's current reset lambda (`surface.command_line("✓ New session started")`) cannot clear anything. CROSS-LANE NOTE for integration: bin/tart's reset lambda must become `start_session.call(nil); surface.new_session` (agent lane owns bin/tart). AC8 test wires `Commands::Handler` with `reset: -> { chat.new_session }` and drives /new kernel-driven. |
+| 7 | Boot context segment corrected to `0.0%`, not worked around | the standing test asserting `?/1.0k` at boot pinned the defect; updated (item 13). |
+| 8 | `test_live_region_streams_markdown_source_verbatim` rewritten | it pinned the I06 "raw source while streaming" deviation that item 3 overturns; replaced with mid-stream styled readback. |
+| 9 | Dim analog = `:gray` | okhsl(229 8% 56%) sits between borderMuted 53% and muted 67%, both already `:gray`; the blue tint is unrepresentable in the gem's 16-color vocabulary (`:blue` = 33% member, `:light_blue` = 65% = thinkingText — farther in lightness, and would collapse the footer into the reasoning color). Provenance comment in theme.rb; one token, no fork (consumers: compaction line, status title, footer pwd/stats, context default). |
+
+### Files changed (git status --porcelain, verbatim)
+
+```
+ M lib/tart.rb
+ M lib/tart/render/chat.rb
+ M lib/tart/theme.rb
+ M test/chat_test.rb
+ M test/theme_test.rb
+```
+
+lib/tart/tui.rb: NOT touched (no new seam primitives needed). No commits made; HEAD stayed 94f79cf.
+
+### Gate commands (verbatim outputs, cwd = worktree root)
+
+```
+$ bundle install --quiet && bundle exec rake && echo SUITE_OK
+...
+Finished in 18.601048s, 15.5905 runs/s, 61.5019 assertions/s.
+290 runs, 1144 assertions, 0 failures, 0 errors, 0 skips
+SUITE_OK
+
+$ timeout 180 bundle exec ruby -Itest test/chat_test.rb && echo CHAT_OK
+75 runs, 315 assertions, 0 failures, 0 errors, 0 skips
+CHAT_OK
+
+$ timeout 60 bundle exec ruby -Itest test/theme_test.rb && echo THEME_OK
+6 runs, 21 assertions, 0 failures, 0 errors, 0 skips
+THEME_OK
+
+$ timeout 60 bundle exec ruby -Itest test/tui_test.rb && echo TUI_OK
+15 runs, 46 assertions, 0 failures, 0 errors, 0 skips
+TUI_OK
+
+$ ! grep -rq 'requires_approval\|handle_approvals\|approval_module\|pending_approval' lib bin test && echo NO_APPROVAL
+RED (solo) by design — matches are all agent-lane files:
+  lib/tart/tools/registry.rb
+  lib/tart/agent/loop.rb
+  test/tools_test.rb
+  test/mcp_test.rb
+My half (both files I own):
+  ! grep -rq '...' lib/tart/render/chat.rb test/chat_test.rb  → clean (0 matches; bin/tart:196
+  still wires surface.approval — agent lane deletes; no test in this worktree drives it,
+  suite green proves it)
+
+$ grep -q 'thinking_level' lib/tart/render/chat.rb && echo THINKING_OK
+THINKING_OK
+
+$ ! grep -q 'dim: :dark_gray' lib/tart/theme.rb && echo DIM_OK
+DIM_OK
+
+$ grep -q 'VERSION' lib/tart.rb && echo VERSION_OK
+VERSION_OK
+
+$ grep -qi 'LOGO\|MOTD' lib/tart/render/chat.rb && echo MOTD_OK
+MOTD_OK
+
+$ bundle exec ruby -Itest test/golden_parity_test.rb   (goldens untouched)
+10 runs, 89 assertions, 0 failures, 0 errors, 0 skips
+
+$ timeout 120 bundle exec ruby bench/seam_bench.rb
+SEAM_BENCH_OK
+
+$ grep -rl "RatatuiRuby" lib --include="*.rb" | grep -v "lib/tart/tui.rb" || echo TUI_SEAM_OK
+TUI_SEAM_OK
+```
+
+Baseline (pre-work) suite: 286 runs, 1105 assertions, 0 failures. After: 290 runs, 1144 assertions, 0 failures (6 new tests net: +10 added, -6 deleted approval/verbatim tests, plus rewritten ones).
+
+### Per-item implementation summary (with test proof)
+
+| item | change | proof |
+|---|---|---|
+| 1 (surface) | deleted: `Chat#approval`, `pending_approval`, `decide`/`resolve`, `approval_lines`, `APPROVAL_ROWS`, `@pending`/`@decisions`, y/n consumption in `on_event`, the editor-area prompt branch, doc paragraphs; chat_test approval coverage deleted (5 tests + cursor-hides test) | `grep -c pending_approval lib/tart/render/chat.rb` → 0; suite green; `grep -c approval lib/tart/render/chat.rb` → 0 matches except none (see NO_APPROVAL above) |
+| 2 | `enqueue_message`: leading blank (assistant-message.ts:103-105), reasoning block, blank between reasoning and content (:172-174), content; reasoning-only → no trailing blank | `test_blank_line_between_the_reasoning_block_and_the_content` (raw readback `["", "pondering", "", "hi"]`); `test_reasoning_only_message_gets_no_trailing_blank` (`["", "pondering"]`) |
+| 3 | `live_lines` renders `@live` through `markdown_lines` (Render::Markdown.rows → Theme.md_fg at span level → wrap_row → TUI.markdown_line), full re-render per delta; reasoning stays plain dim italic | `test_live_region_renders_markdown_mid_stream` (bold-cell modifier readback + thinking fg/italic before :message_end) |
+| 4 | `fuzzy_filter` tie-breaks by pre-sort index (`sort_by { |_, score, i| [score, i] }`) | `test_fuzzy_filter_ties_keep_the_pre_sort_catalog_order` (architect-family case) |
+| 5 | editor: `borders: [:top, :bottom]` (gem Block verified live), full-width from column 0, inner = width−1 (pi's reserved cursor column, editor.ts:518-521), "❯ " prompt span removed; status stays in the top border | `test_edit_box_is_full_width_with_horizontal_borders_only`; all I06/I12/I13 editor tests green (65 chat runs) |
+| 7 | between-item blank = each assistant message with visible content opens with one (pinned rule, PHASE 0) | `test_completed_assistant_messages_are_separated_by_a_blank_line` (`["", "one", "", "two"]`) |
+| 8 | `footer_stats`: right side = `data[:thinking_level] ? "model • <level>" : model`; existing pad/truncation rules | `test_footer_renders_the_thinking_level_right_aligned` (key injected; nil → model alone, no bullet) |
+| 9 | `Theme[:dim]` :dark_gray → :gray + provenance comment; footer stats/model spans now dim (pi footer.ts:280-288); status/compaction consumers unchanged on the one token | theme_test EXPECTED updated; `test_footer_stats_render_dim_except_the_threshold_segment` |
+| 11 | `Render::Chat#new_session`: clears transcript/scrollback/scroll/stream/usage state, re-renders MOTD, accent "✓ New session started" | `test_new_command_clears_the_transcript_and_renders_the_motd` (kernel-driven, synthetic keys, Commands::Handler wired as bin/tart wires reset) |
+| 12 | MOTD block: `LOGO_LINES` placeholder + `tart v#{Tart::VERSION}` + `HINTS_LINE` (port's real keys: ctrl+c interrupt/quit, ctrl+d exit, / commands, pgup/pgdn scroll) + `[Context]` (existing config files: user+project settings.json, MCP config; `settings_root`-injectable) + `[Skills]` (sorted, dim, wrapped compact list); sections omitted when empty | `test_motd_renders_logo_version_hints_context_and_skills` (+ omitted-sections test); fg readbacks (dim skills list, md_heading headers) |
+| 13 | `context_used`: 0 at boot, nil post-compaction → `0.0%/window (auto)` boot, real percent after usage, `?/window (auto)` post-compaction; warning/error coloring pre-existing | updated `test_footer_counters_accumulate_from_assistant_completions` (0.0% boot, real %, ? post-compaction) + `test_footer_context_thresholds_color_the_segment` |
+
+### Parity-deviation table (itemized, per AC13)
+
+| deviation | pi source | port behavior |
+|---|---|---|
+| MOTD cuts: `[Prompts]`, `[Extensions]`, `[Themes]`, package-update notices, ctrl+o expand machinery, onboarding line | interactive-mode.ts:1778-1860, :1040-1080 | port loads none of these resources; sections/lines absent |
+| MOTD hints reduced to the port's real keys (no `!`/`!!` bash, no escape-clear, no ctrl+c-twice, no thinking/model cycles) | interactive-mode.ts:1027-1053 | HINTS_LINE: ctrl+c interrupt/quit · ctrl+d exit (empty) · / commands · pgup/pgdn scroll |
+| Logo placeholder (identity deviation) | components/pi-logo.ts (shape reference only — 2-line fixed-color mark) | `LOGO_LINES` box-placeholder constant, trivially swappable; not pi's art |
+| Reasoning block stays plain dim italic incl. the live continuation (markdown-of-reasoning + collapse/toggle cut — I13 standing ruling) | assistant-message.ts:140-157 | `reasoning_lines` plain wrap, thinkingText fg + italic, live and completed |
+| Live reasoning text source = the surface's live buffer, not Message#thinking (the loop strips the replay pre-event) | assistant-message.ts:140-150 | `@reasoning` buffer (I13 recorded) |
+| /new re-renders the MOTD block (AC8 letter) | interactive-mode.ts:2210-2218 never re-renders the header | port's flat transcript analog |
+| Footer thinking level: nil → model alone; pi's `model • thinking off` state unreachable | footer.ts:229-233 | frozen cross-lane contract |
+| Gem-shape mapping: editor border/title via gem `Block(borders: [:top, :bottom], title:)` — title starts at column 0, no leading border run (pi draws "── " + status + " ──") | editor.ts:511-521; custom-editor.ts:36-77 | gem Block renders ` status ─────`; same content, different leader/trailer split |
+| Gem-shape mapping: scrollbar as a carved 1-cell gutter column (pre-existing I12) vs pi painting onto the last column | layout.ts:307-330 | carried, unchanged |
+| Adjacent gap observed, NOT added (item 7 scope): tool-execution blocks open with a leading blank in pi | tool-execution.ts:85 | port tool lines unchanged |
+| User-echo vertical padding (pi user message carries outputPad padding) | user-message.ts | port echo unchanged (outside the pinned rule) |
+| MOTD `[Context]` self-derived in the surface (settings/mcp paths) vs pi's resource-loader sources | interactive-mode.ts:1834-1851 | port loads no AGENTS.md/system-prompt files; lists the settings/mcp files it actually loads, existing-only |
+
+### Residual risks / notes for the architect
+
+- bin/tart:196 still wires `approval: ->(tool_call) { surface.approval(tool_call) }` — dead in this worktree (no test drives it; would NoMethodError if a real approval-required call flowed). The agent lane deletes it with the plumbing.
+- Integration requirement: bin/tart's reset lambda must call `surface.new_session` (see PHASE 0 disagreement 6).
+- Env-tripwire gate: not runnable locally (architect-side); all MOTD tests use fixture roots (`settings_root: @dir` tmpdir, `Skills.load` with fixture `root:`/`claude_dir:`), real `~/.tart`/`~/.claude` untouched.
+- No lock files touched; no privileges escalated; no background jobs; no git write commands.
+
+STATUS: COMPLETE_WITH_CONCERNS — (1) cross-lane NO_APPROVAL gate RED solo by design (agent-lane files hold the plumbing; bin/tart:196 still wires surface.approval); (2) integration must re-point bin/tart's reset lambda to `surface.new_session`; (3) AC8's MOTD re-render and the footer nil-level shape are itemized deviations from pi's letter, per the frozen AC/contract.
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
