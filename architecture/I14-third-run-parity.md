@@ -559,6 +559,278 @@ RED in your solo worktree by design (the surface lane owns the other half). Reco
 half's evidence (e.g. `grep -c pending_approval` on YOUR files → 0) and never touch the
 surface lane's files to make a cross-lane gate pass.
 
+### surface
+
+### LANE surface — your boundaries
+
+- Working directory: /Users/eric/architect/spaces/20261009-pi-port/build/I14-third-run-parity-surface/wt
+  (a git worktree of the tart repo, branch lane/I14-third-run-parity-surface, based on
+  project/pi-port at 94f79cf — everything through I13 + the hermeticity follow-up: kernel +
+  agent/tool loop with seven parity tools, safety/approval gating (the surface UI side is
+  yours to delete), thinking-replay strip, fullscreen TUI surface with bordered input
+  editor + theme tokens + footer + autocomplete + transcript scrolling + scrollbar +
+  compaction-start border status + dim streaming reasoning, JSONL session recording +
+  resume, stdio MCP client, print mode, CLI launcher, compaction, skills/settings/slash
+  commands incl. ~/.claude/skills discovery. Suite green (286 runs). All must stay green.)
+- Your scratch report (write RAW results here when done):
+  /Users/eric/architect/spaces/20261009-pi-port/build/I14-third-run-parity-surface/report.md
+- You may touch ONLY: lib/tart/render/chat.rb, lib/tart/theme.rb, lib/tart/tui.rb,
+  lib/tart.rb (a VERSION constant line ONLY — nothing else in that file),
+  test/chat_test.rb, test/theme_test.rb, test/tui_test.rb. Nothing else.
+- Space-root paths are READ-ONLY references. The pi oracle is repos/pi (read-only, at
+  /Users/eric/architect/spaces/20261009-pi-port/repos/pi — cite file:line from it).
+- Lane-specific notes:
+  - Your lane owns TEN render-side items of the owner's 13-item third-run batch (items
+    2, 3, 4, 5, 7, 9, 11, 12, 13 below, plus item 1's SURFACE side: deleting the approval
+    UI inside render/chat.rb — prompt rows, pending_approval, y/n key consumption,
+    Chat#approval — and its tests in chat_test.rb). The approval PLUMBING (loop/tools/
+    print/bin) is the PARALLEL agent lane's; the wheel-scroll and text-selection items
+    (mouse) are a LATER wave-2 lane that will touch chat.rb/tui.rb after this wave merges
+    — leave their seams alone.
+  - FROZEN CROSS-LANE CONTRACT: the agent lane wires `thinking_level:` into bin/tart's
+    footer_data hash (from a new thinkingLevel setting). You render
+    `footer_data[:thinking_level]` as `model • <level>` right-aligned (nil → model alone,
+    pi's non-reasoning shape, footer.ts:226-244). Build your side against exactly that
+    key shape; do not change the agent side. In YOUR worktree the key is not yet wired —
+    your footer tests inject it directly (footer_data is already an injectable seam).
+  - Your worktree must stay fully green WITHOUT the agent lane's changes: bin/tart still
+    wires `approval:` in your worktree, but the deleted Render::Chat methods are only
+    invoked through that wiring when a real approval-required tool call flows — no test
+    in your worktree does that (chat_test drives Chat with doubles; the smoke test is
+    print-mode). PHASE 0 re-verifies this and records the evidence.
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo or in the read-only
+oracle repo. Silent compliance is a failure. Silent scope additions are a
+failure. If you have no disagreements, state what you checked before concluding
+the spec is sound. Verify the named APIs/formats/versions against the live
+dependencies before planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed in BOUNDARIES. You
+are one of several parallel lane agents working in isolated worktrees; files
+outside your lane belong to other agents — touching them fails your lane.
+No placeholder implementations — search the codebase before implementing;
+full implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive collection/enumerable
+forms); well-factored and DRY-ish; terse but clear; pragmatic, not clever — the
+smallest change that does the job, no abstraction it doesn't need. Consistency
+with the surrounding code is part of correctness here: a change that works but
+fights the house style (or introduces an inconsistency a careful reader of this
+repo would never write) is not done. Tests stay simple and terse, exercising
+public behavior, no mock/stub of the class under test. Verify your work by
+running the acceptance criteria's gate commands and record the verbatim output. Do NOT commit and do NOT run any
+git write command (commit/add/branch/reset/checkout) — the architect commits
+and merges after verification, and verifies you made no commits. Do NOT delete
+lock files or escalate privileges if a command fails; record the exact error
+and continue. Do NOT use `run_in_background` (or shell `&`) for your own work —
+this process terminates when you end your turn and reaps its own children, so
+backgrounded work is SIGTERMed and its output lost while the run still exits
+0; run long commands serially in the foreground instead. Give every
+potentially long command an explicit timeout; if a
+runtime will not start unattended (interactive prompt, server with no timeout),
+record the exact failure in your report and route around it — never busy-wait
+or retry in a loop. When done, write your report to the scratch file given to
+you, build/I14-third-run-parity-surface/report.md (an absolute path outside your
+worktree), with RAW results only — tables, numbers, command output — no
+interpretation, no "promising". Every status claim must be backed by a command
+result from this run. Keep the report compact — tables and numbers, not prose.
+Do not title the report — the architect's tooling supplies the heading when it
+transcribes; keep any headings inside the report at `###` or deeper. End it with
+exactly one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them)
+| BLOCKED (exact blocker + what you tried). Verdicts belong to the architect
+and the human. Persist until your lane is fully handled end-to-end; do not stop
+at analysis or partial fixes.
+
+=== OBJECTIVE (and why) ===
+
+The owner's third daily-driver run surfaced 13 items; all root causes are architect-verified
+against the pi oracle (citations inline). Your lane owns these TEN (item numbers are the
+owner's):
+
+1 (surface side). **Delete the approval UI in render/chat.rb** — the prompt rows, the
+   pending-approval block rows, `pending_approval`, the y/n key consumption in the key
+   handler, `Chat#approval`, and the approval tests in chat_test.rb. Owner ruling: pi has
+   no permissions system; the agent lane deletes the plumbing in parallel.
+
+2. **Blank line between thinking text and assistant message** — pi assistant-message.ts:
+   172-174: `Spacer(1)` after a thinking run when visible content follows. The port's
+   I13 reasoning block and content render back-to-back. Reasoning-only case: NO trailing
+   blank.
+
+3. **Live markdown rendering** — the live region's CONTENT renders markdown per delta
+   (pi re-renders the whole streaming message every update: interactive-mode.ts:3519-3535,
+   assistant-message.ts:107-109 isStreaming transform). The reasoning block stays plain
+   dim italic (I13 standing ruling — itemize the continuation). Full re-render per delta
+   is pi's own shape — no incremental cleverness. The existing Render::Markdown converter
+   (I06) is the renderer; it is READ-ONLY (theme colors apply at the span level — raise in
+   PHASE 0 if genuinely blocked).
+
+4. **Stable autocomplete order** — all `skill:architect*` items tie identically on "ar";
+   pi's JS sort is stable (ties keep pre-sort list order), Ruby's sort_by is NOT (the
+   observed arbitrary order). Fix: stable tie-break by pre-sort index. PHASE 0: verify
+   pi's pre-sort completion list order (commands + skills provider order) so ties land
+   where pi's do.
+
+5. **Edit box parity** — pi's editor (oracle packages/tui/src/components/editor.ts):
+   full-width from column 0, horizontal borders ONLY (`renderTopBorder` :511 — status
+   stays there, custom-editor.ts:36-77 — `renderBottomBorder` :516), NO east/west
+   borders, NO `> ` prompt char, paddingX geometry (:309, :378-379 — PHASE 0 the value
+   interactive mode uses). The port's bordered area + prompt are I11 inventions. Every
+   I06/I12/I13 editor behavior survives (their tests are the proof).
+
+7. **Blank line after completed assistant messages** — PHASE 0 pins pi's exact
+   between-item rule (interactive-mode.ts:854-868 / assistant-message.ts:103) and the
+   port matches it.
+
+8 (render side). **Thinking level in the footer** — right side renders
+   `model • <level>` from `footer_data[:thinking_level]` (nil → model alone),
+   footer.ts:226-244 shape with the existing truncation rules. The DATA side (setting +
+   bin/tart wiring) is the agent lane's — do not touch it.
+
+9. **Footer dim analog** — pi's whole footer is dim (footer.ts:280-288) and pi's dim =
+   okhsl(229 8% 56%), a blue-tinted mid gray (dark.json:24). The port's `dim: :dark_gray`
+   (~50% neutral) is the defect. Re-point the `dim` token to the closest ANSI analog with
+   a provenance comment (the I13 token discipline). Grep every Theme[:dim] consumer
+   first: status lines share it, as in pi — ONE token stays, do not fork it.
+
+11. **/new clears the display** — pi handleClearCommand → newSession →
+   renderCurrentSessionState CLEARS the chat container + re-renders initial state, then
+   the accent "✓ New session started" line (interactive-mode.ts:6926-6936, 2209-2216;
+   the accent token, dark.json:16). The port's /new resets the session but never clears
+   the transcript. Kernel-driven test through the Commands handler wiring (the reset
+   lambda is bin/tart's — drive the surface method it calls; PHASE 0 verifies the path).
+
+12. **MOTD at startup** — the transcript renders a MOTD block: a logo placeholder
+   (LOGO_LINES-style constant, trivially swappable for the owner's own art later — an
+   identity deviation, itemized; do NOT copy pi's ascii art, components/pi-logo.ts is a
+   shape reference only), a version line (`Tart::VERSION`, a new constant in lib/tart.rb —
+   the ONLY change allowed in that file), a hints line reflecting the PORT's REAL keys
+   (PHASE 0: the port's actual escape/ctrl+c/ctrl+d/`/` semantics; cut hint segments for
+   features the port lacks — e.g. if `!` bash mode doesn't exist, don't hint it), then
+   `[Context]` (the sources the port actually loads — PHASE 0 lists them) and `[Skills]`
+   (sorted names, dim, wrapped — pi's formatCompactList shape, interactive-mode.ts:1791-
+   1797). CUT + itemize: `[Prompts]`, `[Extensions]`, `[Themes]`, package-updates,
+   ctrl+o expand machinery, the onboarding line.
+
+13. **Context percent** — the `(auto)` suffix is pi's autoCompact indicator (already
+   correct). The missing piece: the context-usage PERCENT from session stats — `0.0%` at
+   boot, the real percent after usage, `?` post-compaction (pi standing), colored warning
+   >70% / error >90% (footer.ts:143-162, 194-213). PHASE 0 verifies pi's percent
+   semantics (getContextUsage) and matches.
+
+(The approval plumbing, thinking-level data side, and settings are the parallel agent
+lane's; wheel scroll + text selection are wave-2 — do not touch their seams.)
+
+=== OUTPUT FORMAT ===
+
+Raw tables/verbatim output only, in your scratch report: PHASE 0 findings table (every
+verify item, spec-vs-reality with file:line evidence), test-suite output verbatim
+(before/after counts), gate-command outputs verbatim, judgment calls (each vs its pi
+source with file:line), the parity-deviation table (empty or itemized — the MOTD cuts,
+logo placeholder, reasoning plain-dim continuation, and any gem-shape mappings MUST appear
+there), and the files list. Every status claim backed by a command result from this run.
+
+=== TOOL GUIDANCE ===
+
+- Verification: `bundle install --quiet && bundle exec rake` (no count frozen). Single
+  files: `bundle exec ruby -Itest test/<file>.rb`. Goldens: untouched — any golden change
+  is a defect, raise it in PHASE 0.
+- Oracle (read-only, repos/pi/packages/coding-agent): items 2/7 —
+  components/assistant-message.ts:99-199, interactive-mode.ts:854-868. Item 3 —
+  interactive-mode.ts:3519-3535, assistant-message.ts:107-109. Item 4 — src/utils/
+  fuzzy.ts + the pre-sort completion list order (PHASE 0: find it). Item 5 — packages/tui/
+  src/components/editor.ts:511-621, :309, :378-379 + components/custom-editor.ts:36-77.
+  Item 8 — components/footer.ts:226-244. Item 9 — theme/dark.json:24 + footer.ts:280-288.
+  Item 11 — interactive-mode.ts:6926-6936, 2209-2216 + dark.json:16 (accent). Item 12 —
+  interactive-mode.ts:1040-1080 (header), :1778-1860 (sections), components/pi-logo.ts
+  (shape reference ONLY — do not copy the art). Item 13 — footer.ts:143-162, 194-213.
+- Gem (read-only): ratatui_ruby 1.5.0 — the renderer vocabulary for anything new (the
+  tui-seam gate confines every RatatuiRuby. call to lib/tart/tui.rb; new rendering
+  primitives enter as new seam helpers). Mock server: expect NO changes; raise gaps in
+  PHASE 0.
+- Theme analog mapping: house ANSI analogs with provenance comments (theme.rb:9-40
+  pattern).
+- `~/.tart` and real `~/.claude` NEVER touched — fixture roots only.
+
+=== BOUNDARIES ===
+
+May touch: lib/tart/render/chat.rb, lib/tart/theme.rb, lib/tart/tui.rb, lib/tart.rb (a
+VERSION constant line ONLY), test/chat_test.rb, test/theme_test.rb, test/tui_test.rb.
+
+Must NOT touch: lib/tart/agent/**, lib/tart/tools/**, lib/tart/print.rb,
+lib/tart/settings.rb, bin/tart, lib/tart/commands.rb, lib/tart/skills.rb,
+lib/tart/compaction.rb, lib/tart/render/markdown.rb, lib/tart/core/**, all other test
+files (read-only; raise gaps in PHASE 0), Gemfile*, bench/, README.md.
+
+Out of scope: retry/summarization border statuses (owner-ruled cut), reasoning markdown +
+collapse/toggle (I13 standing ruling), `@`-file completion, theme selector, mouse
+anything (wave 2), pi's easter eggs. No new runtime dependencies. No refactors beyond the
+task.
+
+=== ACCEPTANCE CRITERIA (frozen) ===
+
+- **AC1 (surface side).** The approval UI is gone from render/chat.rb (prompt rows,
+  pending_approval, y/n consumption, Chat#approval) and its chat_test coverage deleted.
+- **AC2 (spacing).** A blank line sits between the reasoning block and the content when
+  content follows (pi assistant-message.ts:172-174), and after a completed assistant
+  message per the PHASE 0-pinned rule. Test-proven by readback: reasoning+content has the
+  separator, reasoning-only has none.
+- **AC3 (live markdown).** The live region's CONTENT renders markdown as it streams;
+  the reasoning block stays plain dim italic (itemized). Test-proven mid-stream with mock
+  reasoning+content deltas (styled readback before :message_end).
+- **AC4 (stable order).** The fuzzy sort is stable: ties keep pre-sort order matching
+  pi's. Test-proven with a tie case asserting deterministic order (the /ar
+  architect-family case).
+- **AC5 (edit box).** Full-width editor area from column 0, horizontal borders only
+  (status in the top border), no east/west borders, no prompt char, pi's padding
+  geometry. Every I06/I12/I13 editor behavior survives. Test-proven.
+- **AC6 (render side).** `footer_data[:thinking_level]` → `model • <level>` right-aligned
+  (nil → model alone). Test-proven with the key injected.
+- **AC7 (dim analog).** `Theme[:dim]` re-pointed to the closest ANSI analog of
+  okhsl(229 8% 56%) with a provenance comment; theme_test updated. Test-proven.
+- **AC8 (/new).** /new clears the transcript buffer, re-renders the MOTD block, then the
+  accent "✓ New session started" line. Kernel-driven test through the Commands handler
+  wiring.
+- **AC9 (MOTD).** Startup renders logo placeholder + version + hints + [Context] +
+  [Skills]; every cut itemized. Test-proven + architect-read.
+- **AC10 (context percent).** 0.0%/window (auto) at boot, real percent after usage, ?
+  post-compaction, warning/error coloring. Test-proven.
+- **AC13 (deviation discipline).** PHASE 0 findings table complete with file:line
+  evidence; deviation table itemized — the MOTD cuts, logo placeholder, reasoning
+  plain-dim, and gem-shape mappings appear there, never silently.
+- **AC14 (regressions).** All standing guards stay green: tui-seam, gem-pins,
+  env-tripwire, bench-seam, stderr gates, the full suite; goldens byte-identical.
+
+Gate commands you must run and record verbatim (cwd = your worktree root):
+`bundle install --quiet && bundle exec rake && echo SUITE_OK`;
+`timeout 180 bundle exec ruby -Itest test/chat_test.rb && echo CHAT_OK` (same shape for
+theme_test/tui_test);
+`! grep -rq 'requires_approval\|handle_approvals\|approval_module\|pending_approval' lib bin test && echo NO_APPROVAL`;
+`grep -q 'thinking_level' lib/tart/render/chat.rb && echo THINKING_OK`;
+`! grep -q 'dim: :dark_gray' lib/tart/theme.rb && echo DIM_OK`;
+`grep -q 'VERSION' lib/tart.rb && echo VERSION_OK`;
+`grep -qi 'LOGO\|MOTD' lib/tart/render/chat.rb && echo MOTD_OK`;
+the standing tui-seam/bench/gem-pins/env/stderr gates from the frozen gates block.
+
+NOTE on the two cross-lane gates: `NO_APPROVAL` and `THINKING_OK` span BOTH wave-1
+lanes' files (loop.rb/tools.rb/settings.rb/bin/tart are the agent lane's). They are
+INTEGRATION-time gates — each is RED in your solo worktree by design (the agent lane owns
+the other half). Record your half's evidence (e.g. `grep -c pending_approval` on chat.rb
+→ 0) and never touch the agent lane's files to make a cross-lane gate pass.
+
 ## Builder Report
 
 <!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
