@@ -32,35 +32,80 @@ Inline research done at spec time (no external dependencies — the oracle repo 
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section compaction specification --from <file>`. -->
+# Specification
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+## Objective
+
+Port pi's context compaction (BRIEF §7.6 — "compaction triggers and recovers correctly on long sessions"; design sketch BRIEF §4 "Compaction"). A long session's context grows until it threatens the context window; pi compacts by summarizing the old turns with an LLM call, cutting the history at a safe boundary, and continuing with `[summary, kept recent tail]`. The port wires this into `Agent::Loop` so interactive, print, and resumed sessions all survive long runs: a **threshold** trigger after each completed turn (provider-reported usage vs the model's context window) and an **overflow** trigger (`RubyLLM::ContextLengthExceededError` → omit the overflowing attempt, compact, retry the turn once). Compaction is recorded as a session entry and **resume after compaction** rebuilds the compacted context (BRIEF §7.1 session format grows by the compaction entry type — pi `session-manager.ts:91-104`).
+
+pi's design is pure functions + thin wiring (`compaction.ts` header :1-6: "Pure functions for compaction logic"); keep that split — the port's compaction module must be testable with no LLM at all except the one-call summarization seam.
+
+## Output format
+
+Raw tables/JSON only in the report (absolute path `build/I08-compaction-core/report.md`): PHASE 0 findings table (every verify item below, spec-vs-reality with gem/oracle file:line evidence), test-suite output verbatim (pass/fail counts), gate-command outputs verbatim, judgment calls (the context-window resolution; the summary-message role mapping; the overflow retry boundary; how the summarization one-shot call is routed hermetically), the parity-deviation table (empty or itemized — silent deviation is a defect), and the files list. Every status claim backed by a command result from this run.
+
+## Tool guidance
+
+**Verification (exact, from ARCHITECT.md):**
+
+```
+cd ~/architect/spaces/20261009-pi-port/repos/raspberry-pi
+bundle install --quiet && bundle exec rake        # suite (test/**/*_test.rb)
+```
+
+**Verify against the live oracle + gem before writing code (PHASE 0 — every item needs file:line evidence):**
+
+1. **pi's exact prompt strings** — transcribe verbatim into the port, byte-identical: `SUMMARIZATION_SYSTEM_PROMPT` (`utils.ts:161-163`), `SUMMARIZATION_PROMPT` and `UPDATE_SUMMARIZATION_PROMPT` (`compaction.ts:537-583`), `TURN_PREFIX_SUMMARIZATION_PROMPT` (`compaction.ts:985-993`). `SUMMARIZATION_PROMPT`'s full body runs :537-560 — copy the whole template.
+2. **pi's file-op format** — `formatFileOperations` (`utils.ts:77-112`) exact output shape (headers/section text) and `computeFileLists` (:67-75); `extractFileOpsFromMessage` (:30-65) — which tool names produce reads vs edits (read/write/edit/bash shapes; verify against the port's actual tool result messages, which are ruby_llm `role: :tool` messages — the mapping from the port's tool calls is a judgment call to report, not assume).
+3. **pi's `serializeConversation` + `truncateForSummary`** — `utils.ts:100-153`; note `TOOL_RESULT_MAX_CHARS` (find its value) and the exact `[User]:`/`[Assistant thinking]:`/`[Assistant]:`/`[Assistant tool calls]:`/`[Tool result]:` prefixes; map each to the port's ruby_llm message shapes (content strings, `tool_calls` with arguments, thinking replay) and itemize any that cannot apply.
+4. **ruby_llm usage surface** — `Message#tokens` → `Tokens` (gem `message.rb:99-110`): confirm `input/output/cache_read/cache_write` accessors (gem `tokens.rb`) and that `Chat#step` results carry them; write `calculate_context_tokens` as pi's `totalTokens || input+output+cache_read+cache_write` against the gem's actual accessor set (report the exact formula used).
+5. **ruby_llm context-window surface** — `Chat#model.context_window` (gem `model.rb:33,82`); confirm what the port's default chat (`assume_model_exists: true`, fireworks) resolves it to in this repo (nil unless the registry carries the model — `models.rb:686-715`). Decide + report the resolution order: `RASPBERRY_PI_CONTEXT_WINDOW` env override → `chat.model.context_window` → nil (nil/<= 0 disables the threshold trigger only; overflow still fires).
+6. **ruby_llm one-shot summarization call** — how to make a standalone completion (fresh `RubyLLM.context`+`chat` or `context.chat` reuse) with a system prompt + single user message, `max_tokens` support, and **route it hermetically in tests through MockLLMServer** (a second scripted response on the same mock, or a separate mock instance — report which). Confirm the gem's retry surface (context `max_retries`) applies; itemize the deviation if pi's dedicated `retryAssistantCall` (:619-644) has no gem equivalent worth adding.
+7. **ruby_llm overflow error** — `ContextLengthExceededError` (gem `transport/error_middleware.rb:125-158`): confirm what the mock must return to trigger it (status/body shape — read `context_length_exceeded?` in the same file) and how it surfaces through `Chat#step`/`Chat#run_tools` in the port's loop. Confirm the overflowing assistant message is NOT added to `chat.messages` when the step raises (or is removed) — pi omits the attempt (agent-session.ts :3007-3047); report the actual port mechanics.
+8. **pi's overflow retry-once boundary** — agent-session.ts `_runAutoCompaction("overflow", willRetry)` (:3044-3047) + the `_overflowRecoveryAttempted` latch (:3040): verify a second consecutive overflow after compaction does NOT retry again (surfaces as the error). Port the latch.
+9. **Port message shapes for estimation** — the port's messages are ruby_llm `Message`/attribute hashes (roles `:system/:user/:assistant/:tool`): map pi's per-role `estimateTokens` (`compaction.ts:298-355`) onto them (assistant: text + thinking + tool_calls name/JSON(args); tool: content; system/user: content). Itemize unrepresentable roles (pi's bashExecution/custom/branchSummary/compactionSummary are pi-internal; the port's live context holds none — say so).
+10. **Cut-point safety in a flat message list** — pi cuts over session *entries* with "never at tool results" (:356-470); the port's live context is a flat `chat.messages` array. Verify the flat-list equivalent: a cut index may land on a user message or an assistant message, but must never orphan `role: :tool` messages from their preceding assistant tool-call message (they follow it in the array). Verify with a test where the budget boundary falls mid-turn.
+11. **Session parse tolerance** — the port's `Agent::Session` parse skips unknown/malformed entry lines (I07); confirm adding the `compaction` entry type does not break existing session files, and that `context_messages` becomes compaction-aware per pi's `buildContextEntries` (`session-manager.ts:475-513`): latest compaction entry (summary → a seeded context message) + entries from `first_kept_entry_id` onward + everything after the compaction entry; system messages in the kept range skipped. The summary-as-context-message role mapping (pi projects a `compactionSummary` role; ruby_llm supports system/user/assistant/tool) is a judgment call to report with evidence, not assume.
+
+## Boundaries
+
+**May touch (this lane's exhaustive set):**
+
+- `lib/raspberry_pi/compaction.rb` (new — pure functions + settings struct + summarization call)
+- `lib/raspberry_pi/agent/loop.rb` (threshold check after completed turns; overflow rescue→compact→retry-once with the latch; compaction event emission; `context_window:`/`compaction:` kwargs with safe defaults)
+- `lib/raspberry_pi/agent/session.rb` (compaction entry append via the recorder; compaction-aware `context_messages`)
+- `lib/raspberry_pi.rb` (registration only, if needed)
+- `test/compaction_test.rb` (new)
+- `test/session_test.rb`, `test/agent_loop_test.rb` (additions; existing tests must pass unmodified where feasible — API is additive)
+- `README.md` (Sessions/compaction section: what triggers, `RASPBERRY_PI_CONTEXT_WINDOW`, settings kwargs)
+
+**Must not touch:** `bin/raspberry-pi`, `lib/raspberry_pi/tools/**`, `lib/raspberry_pi/mcp.rb`, `lib/raspberry_pi/mcp/**`, `lib/raspberry_pi/print.rb`, `lib/raspberry_pi/tui.rb`, `lib/raspberry_pi/render/**`, `lib/raspberry_pi/core/**`, `test/print_test.rb`, `test/mcp_test.rb`, `test/golden_parity_test.rb`, `test/tui_test.rb`, `test/chat_test.rb`, `test/support/mock_llm_server.rb` (read-only; if it cannot express a needed script — a context-length 400, or a second summary response — raise it in PHASE 0 with evidence; do not edit), `Gemfile`, `Gemfile.lock`, `bench/`. `~/.raspberry-pi` must never be touched (fake `$HOME`/tmp dirs in tests, as I07).
+
+**Out of scope:** pi's branch summaries, context_edit/omission projection, settings.jsonl persistence (kwargs/env seam only), compaction progress UI beyond a loop event (the reduced event set grows by a compaction event; TUI rendering of it is optional polish — don't restructure the TUI), json event-stream mode, `--mode json` anything, custom instructions/hook interception, models.dev registry refreshes. No new runtime dependencies (gem-pins gate). No refactors beyond the task.
+
+**No placeholders; search before implementing** (the repo's `grep`/`find` tools + gem source are in the worktree; pi oracle at `~/architect/spaces/20261009-pi-port/repos/pi`).
+
+## Lane plan
+
+One lane — the work is serial (pure functions → loop wiring → session recording → resume all share one mental model), and a seam between them would be artificial. High effort: subtle cut-point logic, overflow latch, and compaction-aware replay.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision compaction`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: raspberry-pi
+  touch:
+    - lib/raspberry_pi/compaction.rb
+    - lib/raspberry_pi/agent/loop.rb
+    - lib/raspberry_pi/agent/session.rb
+    - lib/raspberry_pi.rb
+    - test/compaction_test.rb
+    - test/session_test.rb
+    - test/agent_loop_test.rb
+    - README.md
 ```
+
+## Effort
+
+`architect dispatch compaction --effort high` — subtle boundary logic (cut points that never orphan tool results, overflow retry-once latch, compaction-aware replay) + exact-string prompt transcription; a routine implementation error here silently corrupts long-session recovery.
 
 ## Acceptance Criteria
 
