@@ -831,6 +831,212 @@ INTEGRATION-time gates — each is RED in your solo worktree by design (the agen
 the other half). Record your half's evidence (e.g. `grep -c pending_approval` on chat.rb
 → 0) and never touch the agent lane's files to make a cross-lane gate pass.
 
+### mouse
+
+### LANE mouse — your boundaries
+
+- Working directory: /Users/eric/architect/spaces/20261009-pi-port/build/I14-third-run-parity-mouse/wt
+  (a git worktree of the tart repo, branch lane/I14-third-run-parity-mouse, based on
+  project/pi-port at 8dde841 — everything through I13 + I14 wave 1: kernel + agent/tool
+  loop with seven parity tools (approval machinery DELETED — tools execute unconditionally),
+  thinkingLevel setting + `model • <level>` footer, fullscreen TUI surface with full-width
+  horizontal-border editor + theme tokens + footer (dim analog, context percent 0.0% at
+  boot) + stable-order autocomplete + transcript scrolling with follow-end semantics +
+  scrollbar + compaction-start border status + dim streaming reasoning + LIVE markdown
+  content + MOTD (random ascii-art logo, version, hints, [Context]/[Skills]) + /new
+  clearing via Chat#new_session, JSONL session recording + resume, stdio MCP client,
+  print mode, CLI launcher, compaction, skills/settings/slash commands. Suite green
+  (291 runs). All must stay green.)
+- Your scratch report (write RAW results here when done):
+  /Users/eric/architect/spaces/20261009-pi-port/build/I14-third-run-parity-mouse/report.md
+- You may touch ONLY: lib/tart/tui.rb, lib/tart/core/loop.rb, lib/tart/render/chat.rb,
+  test/tui_test.rb, test/loop_test.rb, test/chat_test.rb. Nothing else.
+- Space-root paths are READ-ONLY references. The pi oracle is repos/pi (read-only, at
+  /Users/eric/architect/spaces/20261009-pi-port/repos/pi — cite file:line from it).
+- Lane-specific notes:
+  - You are the FINAL lane of I14 (wave 2, fast-follow off the wave-1 integrated tip).
+    Your two items were RECORDED deferrals promoted by owner ruling (I11 "mouse support"
+    deferred, reaffirmed I12/I13 — now overridden by owner demand): pi's fullscreen OWNS
+    selection and wheel scroll; this is real machinery, not a cut.
+  - The kernel's event pump (lib/tart/core/loop.rb) and the TUI seam (lib/tart/tui.rb —
+    the ONLY file allowed to call RatatuiRuby.*) are yours; chat.rb's transcript/scroll
+    state (I12's follow-end semantics, @scrollback/@scroll_offset/@follow) is what the
+    wheel drives — compose with it, do not replace it.
+  - PHASE 0 MUST drive the gem's mouse events through the synthetic-events seam BEFORE
+    implementing: raw event dumps (kind/button/modifiers/position) in your report. The
+    gem is ratatui_ruby 1.5.0 (`event/mouse.rb`, `ext/.../events.rs` crossterm parse).
+  - Selection highlight colors reuse existing theme tokens or named ANSI — raise in
+    PHASE 0 if a token is genuinely missing; do NOT add theme tokens (theme.rb is not
+    yours to touch).
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo or in the read-only
+oracle repo. Silent compliance is a failure. Silent scope additions are a
+failure. If you have no disagreements, state what you checked before concluding
+the spec is sound. Verify the named APIs/formats/versions against the live
+dependencies before planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed in BOUNDARIES. You
+are the only lane in flight; files outside your lane fail your lane.
+No placeholder implementations — search the codebase before implementing;
+full implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive collection/enumerable
+forms); well-factored and DRY-ish; terse but clear; pragmatic, not clever — the
+smallest change that gets the job done, no abstraction it doesn't need. Consistency
+with the surrounding code is part of correctness here: a change that works but
+fights the house style (or introduces an inconsistency a careful reader of this
+repo would never write) is not done. Tests stay simple and terse, exercising
+public behavior, no mock/stub of the class under test. Verify your work by
+running the acceptance criteria's gate commands and record the verbatim output. Do NOT commit and do NOT run any
+git write command (commit/add/branch/reset/checkout) — the architect commits
+and merges after verification, and verifies you made no commits. Do NOT delete
+lock files or escalate privileges if a command fails; record the exact error
+and continue. Do NOT use `run_in_background` (or shell `&`) for your own work —
+this process terminates when you end your turn and reaps its own children, so
+backgrounded work is SIGTERMed and its output lost while the run still exits
+0; run long commands serially in the foreground instead. Give every
+potentially long command an explicit timeout; if a
+runtime will not start unattended (interactive prompt, server with no timeout),
+record the exact failure in your report and route around it — never busy-wait
+or retry in a loop. When done, write your report to the scratch file given to
+you, build/I14-third-run-parity-mouse/report.md (an absolute path outside your
+worktree), with RAW results only — tables, numbers, command output — no
+interpretation, no "promising". Every status claim must be backed by a command
+result from this run. Keep the report compact — tables and numbers, not prose.
+Do not title the report — the architect's tooling supplies the heading when it
+transcribes; keep any headings inside the report at `###` or deeper. End it with
+exactly one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them)
+| BLOCKED (exact blocker + what you tried). Verdicts belong to the architect
+and the human. Persist until your lane is fully handled end-to-end; do not stop
+at analysis or partial fixes.
+
+=== OBJECTIVE (and why) ===
+
+The owner's third daily-driver run surfaced 13 items; wave 1 (approval deletion, thinking
+level, ten render-side items) is merged on your base. Your lane owns the two promoted mouse
+deferrals (item numbers are the owner's):
+
+6. **Wheel scroll** — pi: `WheelScrollAccelerator` (oracle packages/tui/src/wheel-scroll.ts),
+   alt+wheel moves 5× (tui-alt-screen.ts:170-173), a lines-per-event setting. The gem HAS
+   mouse events (`event/mouse.rb`, `events.rs:210+` crossterm parse) — the port's kernel
+   never routes them. Build:
+   - The kernel routes gem mouse events to the surface (PHASE 0: the pump's event shape,
+     synthetic-seam drive, raw event dumps in the report — drive the gem BEFORE
+     implementing).
+   - Wheel up/down scrolls the transcript by pi's lines-per-event default, with alt+wheel
+     5× (wheel-scroll.ts; tui-alt-screen.ts:170-173).
+   - Follow-end semantics compose with the existing I12 scroll state (@follow/@scroll_offset)
+     — wheeling up leaves follow, wheeling back down to the end re-arms it; PHASE 0 pins
+     pi's exact re-arm rule and the port matches it.
+   - The `fullscreen-wheel-scroll-lines` settings knob + 'auto' acceleration: CUT,
+     itemized (the port has no settings seam for it; pi's default value is the constant).
+
+10. **Text selection** — pi's fullscreen OWNS selection (SGR capture disables the native
+    terminal selection): anchor/focus, character/word/line granularity, double-click word
+    with path/kebab-aware boundaries (tui-alt-screen.ts:83-107), triple-click line,
+    copy-on-select (:191-198). Build:
+    - Mouse-drag text selection over the transcript: anchor on press, extend on drag,
+      char/word/line granularity (double-click word with pi's path/kebab-aware boundaries
+      :83-84; triple-click line).
+    - Inverse-highlight rendering of the selected range (PHASE 0 verifies what the
+      renderer's cell-writing vocabulary can express through the tui.rb seam —
+      inverse/fg-swap — and the port uses the closest expressible form).
+    - Copy-on-select via the PHASE 0-verified mechanism (pi's OSC52 vs system call —
+      verify which pi uses; port the closest mechanism; itemize any reduction).
+    - Right-click paste: CUT, itemized.
+    - Does the selection survive scroll-follow (pi's behavior)? PHASE 0 verifies pi's
+      behavior and matches or itemizes.
+
+=== OUTPUT FORMAT ===
+
+Raw tables/verbatim output only, in your scratch report: PHASE 0 findings table (every
+verify item, spec-vs-reality with file:line evidence, INCLUDING the raw gem mouse-event
+dumps), test-suite output verbatim (before/after counts), gate-command outputs verbatim,
+judgment calls (each vs its pi source with file:line), the parity-deviation table (empty
+or itemized — the settings-knob cut, right-click-paste cut, and any clipboard reduction
+MUST appear there), and the files list. Every status claim backed by a command result
+from this run.
+
+=== TOOL GUIDANCE ===
+
+- Verification: `bundle install --quiet && bundle exec rake` (no count frozen). Single
+  files: `bundle exec ruby -Itest test/<file>.rb`. Goldens: untouched — any golden change
+  is a defect, raise it in PHASE 0.
+- Oracle (read-only, repos/pi/packages/tui/src): tui-alt-screen.ts (selection state
+  machine :83-107 and :218+, parseWheelEvent :705+, alt+wheel 5× :170-173, copy-on-select
+  :191-198), wheel-scroll.ts, components/scroll-view.ts (scrollBy :148, mouse dispatch
+  :81+). Clipboard mechanism: verify in the oracle whether copy-on-select is OSC52 or a
+  system call before choosing the port's mechanism.
+- Gem (read-only, verify against installed source before use): ratatui_ruby 1.5.0 —
+  `event/mouse.rb` + `ext/.../events.rs` (mouse event shape: kind/button/modifiers/
+  position — drive it with the synthetic-events seam BEFORE implementing; report the raw
+  events); the renderer's cell-writing vocabulary for selection highlight (inverse/
+  fg-swap — PHASE 0 verifies what tui.rb can express through the seam).
+- Live verification: the port's synthetic-events seam (TUI.run headless sessions inject
+  events) for mouse event shapes — raw dumps in the report. `~/.tart` and real
+  `~/.claude` NEVER touched — fixture roots only.
+- The tui-seam gate confines every `RatatuiRuby.` call to lib/tart/tui.rb — new
+  rendering/event primitives enter as new seam helpers there.
+
+=== BOUNDARIES ===
+
+May touch: lib/tart/tui.rb, lib/tart/core/loop.rb, lib/tart/render/chat.rb,
+test/tui_test.rb, test/loop_test.rb, test/chat_test.rb.
+
+Must NOT touch: everything else — the agent layer (lib/tart/agent/**), tools, print,
+settings, bin/tart, commands, skills, compaction, theme (selection highlight colors
+reuse existing tokens or named ANSI; raise in PHASE 0 if a token is genuinely missing),
+lib/tart.rb, markdown.rb, all other test files (read-only; raise gaps in PHASE 0),
+Gemfile*, tart.gemspec, bench/, README.md, lib/tart/render/logos/** (the owner's art).
+
+Out of scope: retry/summarization border statuses (owner-ruled cut), reasoning markdown +
+collapse/toggle (I13 standing ruling), `@`-file completion, theme selector, pi's easter
+eggs, session branching, any footer/MOTD/editor rework. No new runtime dependencies.
+No refactors beyond the task.
+
+=== ACCEPTANCE CRITERIA (frozen) ===
+
+- **AC11 (wheel scroll — item 6).** Wheel up/down scrolls the transcript (pi's
+  lines-per-event default; alt+wheel 5×), composing with the I12 follow-end semantics.
+  Gem mouse event shape verified live/synthetically (raw dumps in the report). The
+  settings knob + 'auto' acceleration CUT, itemized. Test-proven headlessly.
+- **AC12 (text selection — item 10).** Mouse-drag selection over the transcript:
+  anchor/extend, char/word/line granularity (double-click word, path/kebab boundaries;
+  triple-click line), inverse highlight, copy-on-select via the PHASE 0-verified
+  mechanism (itemize any reduction). Right-click paste CUT, itemized. Test-proven
+  headlessly through the synthetic seam.
+- **AC13 (deviation discipline).** Every PHASE 0 verify item is in the findings table
+  with file:line evidence; the parity-deviation table is empty or itemized — the
+  spec-mandated cuts (wheel knob, right-click paste, clipboard reduction if any) appear
+  there, never silently.
+- **AC14 (regressions).** All standing guards stay green: tui-seam, gem-pins,
+  env-tripwire, bench-seam, stderr gates, launcher smoke, the full suite; goldens
+  byte-identical.
+
+Gate commands you must run and record verbatim (cwd = your worktree root):
+`bundle install --quiet && bundle exec rake && echo SUITE_OK`;
+`timeout 180 bundle exec ruby -Itest test/tui_test.rb && echo TUI_OK`;
+`timeout 180 bundle exec ruby -Itest test/loop_test.rb && echo LOOP_OK`;
+`timeout 180 bundle exec ruby -Itest test/chat_test.rb && echo CHAT_OK`;
+`grep -rqi 'wheel' lib/tart/core/loop.rb lib/tart/render/chat.rb lib/tart/tui.rb && echo WHEEL_OK`;
+`grep -rqi 'drag\|clipboard\|copy.on.select' lib/tart/render/chat.rb lib/tart/tui.rb && echo SELECT_OK`;
+the standing env/gem-pins/stderr/bench gates from the frozen gates block.
+The wheel/selection tripwires are RED on your base BY DESIGN (wave-2 gates) — they must
+be GREEN in YOUR worktree when you are done.
+
 ## Builder Report
 
 ### agent
