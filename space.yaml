@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: tui
+  current_iteration: live-run
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -171,4 +171,10 @@ project:
     rehearsal:
       gates_digest: 45de497b5292850526ab649933e5dbd5551781be8d5acc35f5f440564d2a25fc
       at: '2026-10-09T13:36:42-06:00'
+  - name: live-run
+    ordinal: 5
+    file: architecture/I05-live-run.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
