@@ -174,7 +174,38 @@ project:
   - name: live-run
     ordinal: 5
     file: architecture/I05-live-run.md
-    freeze_sha:
+    freeze_sha: 7f44001ade0470798c63e52295cb581bda16ee70
     verdict: pending
-    lanes: []
+    lanes:
+    - name: defects
+      repo: raspberry-pi
+      touch_set:
+      - lib/raspberry_pi/agent/bridge.rb
+      - lib/raspberry_pi/agent/loop.rb
+      - test/agent_loop_test.rb
+      - test/support/mock_llm_server.rb
+    - name: ux
+      repo: raspberry-pi
+      touch_set:
+      - bin/**
+      - raspberry-pi.gemspec
+      - lib/raspberry_pi.rb
+      - lib/raspberry_pi/render/**
+      - lib/raspberry_pi/tui.rb
+      - test/chat_test.rb
+      - test/tui_test.rb
+      - test/test_helper.rb
+      - README.md
+    - name: toggle
+      repo: raspberry-pi
+      touch_set:
+      - lib/raspberry_pi/tools.rb
+      - lib/raspberry_pi/tools/registry.rb
+      - lib/raspberry_pi/tools/edit.rb
+      - lib/raspberry_pi/tools/write.rb
+      - lib/raspberry_pi/tools/support/edit_diff.rb
+      - test/tools_test.rb
+    rehearsal:
+      gates_digest: 26a05bd7fd9f27b4e3fdb03684e7b5586cd49146c67b94965c6ba38760fd4683
+      at: '2026-10-09T18:44:17-06:00'
   integration_branch: project/pi-port
