@@ -175,7 +175,7 @@ project:
     ordinal: 5
     file: architecture/I05-live-run.md
     freeze_sha: 7f44001ade0470798c63e52295cb581bda16ee70
-    verdict: pending
+    verdict: continue
     lanes:
     - name: defects
       repo: raspberry-pi

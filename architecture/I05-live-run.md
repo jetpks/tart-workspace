@@ -966,15 +966,108 @@ STATUS: COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section live-run verdict --from <file>`. -->
+### Verdict (judged in fresh session 2026-10-10; gates run cold post-merge 516d85a)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify live-run`)?
+**Mechanical post-flight (architect-audited):** all three lanes in-bounds, no builder
+commits (all worktrees at base d14c39c), frozen sections untouched
+(`git diff 7f44001a HEAD -- architecture/I05-live-run.md` shows only Builder
+Prompt/Report appends), golden parity + Gemfile/lock untouched post-merge (diff empty).
+Gates run cold on `project/pi-port` after integrating defects, ux, toggle:
+**all 7 PASS** (suite-green 84 runs/338 assertions; tui-seam; bench-seam; gem-pins;
+stderr-clean; launcher-help; agent-loop-guard 8 runs).
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+### Per-AC rulings (frozen text at 7f44001a)
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+- **AC1 PASS** — `:error` is terminal in `Bridge#run` (joins DONE/CANCELLED), consumed
+  by the existing `record_terminal_error` → `stopped_on_error?` → `agent_end(error:)`
+  path; hermetic regression test (`test_worker_error_terminates_the_run_bounded`,
+  mock 4xx) proves a bounded end with the error on `agent_end`; the lane reported the
+  pre-fix failure mode (timeout via 5 s `wait_until`, D7) with a verbatim pre-fix run
+  record. Gates green cold.
+- **AC2 PASS** — hermetic proof asserts the captured follow-up payload carries no
+  `reasoning`/`reasoning_content` key on any assistant message AND the continuation
+  streams to completion (`turn_end`, no `agent_end` with error). The deviation is
+  itemized (D1) with pi's actual behavior cited. Gates green cold.
+- **AC3 PASS** — `bin/raspberry-pi` registered in the gemspec (bindir/executables);
+  `--help` non-tty-safe (gate PASS cold); wiring architect-read against the proven
+  `tmp/demo_chat.rb`: faithful (same context/chat/protocol config, same 7-tool
+  selection, same TUI/kernel/surface/approval wiring, same system prompt); env
+  surface documented; no real API call in any test.
+- **AC4 PASS** — every `RatatuiRuby` call stays in `tui.rb` (tui-seam gate); fg
+  distinctness proven by cell-readback (`lead_cells` on the headless terminal —
+  user `:light_blue`, assistant `nil`, tool `:gray`, status `:dark_gray`); bounded
+  multi-line tool preview tested; `live_lines` budget fixed (APPROVAL_ROWS);
+  README stale §5 claim corrected. Not presence-greps.
+- **AC5 PASS** — golden parity files untouched and green (10 runs/89 assertions,
+  diff vs base empty); on-mode exact semantics test-proven for edit and write
+  (line count, final-newline, every other byte — CRLF case pinned); toggle ships
+  off; config surface (`strip_trailing_whitespace:` kwarg on Registry.build +
+  Edit/Write) is idiomatic and caller-compatible.
+- **AC6 PASS** — findings tables in all three reports with gem/oracle file:line
+  evidence; parity tables itemized (nothing silent); no new deps (gem-pins PASS);
+  all measured properties green with everything in place.
+
+### Disagreement rulings (defects)
+
+- **D1 ACCEPT** — port suppresses thinking replay outright where pi replays the
+  reasoning field the deltas carried (oracle confirmed this session:
+  `openai-completions.ts:617–637, 1340–1356` — pi replays `assistantMsg[signature]`
+  when the signature ∈ {reasoning, reasoning_content, reasoning_text} and no
+  encrypted reasoning_details are preserved). Exact parity is unreachable through
+  ruby_llm (no source-field provenance on Thinking; its replay of BOTH fields is the
+  live 400). Suppression is the safe subset — strict endpoints reject the fields,
+  none require them. **Ratified as a deliberate port deviation**; to be revisited if
+  the parity reconciliation iteration ever wants per-field replay.
+- **D2 ACCEPT** — error item terminal, returned not yielded; matches DONE/CANCELLED
+  shape; the reactor never waits on a dead worker.
+- **D3 ACCEPT** — the third hole (`break if message.nil?` preceding the error check —
+  a first-request 400 stopped the run with NO `agent_end` even post-bridge-fix) is
+  within defect 1's blast radius and required by AC1's letter; evidenced by the
+  pre-reorder failure record. Not scope creep.
+- **D4 ACCEPT** — the boundary header governs; `mock_llm_server.rb` is this lane's
+  file (the "not yours to edit" clause targets other lanes).
+- **D5 ACCEPT** — strip at the `:step` branch is the correct choke point (the
+  tool-call assistant message only reaches the port via the first `generate`
+  return's `:step` item).
+- **D6 ACCEPT** — not using `Message#without_native_content` is right: it also strips
+  tool-call thought signatures, a wire change beyond AC2's frozen property.
+- **D7 ACCEPT** — pre-fix failure mode reported as required.
+
+### Disagreement rulings (ux, toggle)
+
+- **ux N1 ACCEPT** (README contract line outside the dev/usage carve-out — explicit
+  AC4 deliverable beats section scoping). **ux N2 ACCEPT** (the "verbatim" README
+  claim is true of this tree; flagged for the future toggle flip). Judgment calls
+  1–4 (style vocabulary, fg palette, live_lines fix, env-only launcher) all ACCEPT —
+  idiomatic, evidence-backed, AC-faithful.
+- **toggle 1 ACCEPT** (CRLF spec-literal: a space before `\r` is not trailing on the
+  `\n`-split line — the frozen AC5 text says exactly this; a `\r`-aware amendment is
+  an owner decision to make when/if the toggle flips on, recorded, not silently
+  made). **2 ACCEPT** (details diff stays pre-strip — AC5 pins committed bytes only).
+  **3 ACCEPT** (WS-only line → empty follows from the rule). **4 ACCEPT** (README
+  correctly left to the ux lane).
+
+### Defects found in judging (not gate-visible)
+
+1. **`lib/raspberry_pi/agent/loop.rb:298–300` (strip_thinking_replay comment) is
+   factually wrong about the oracle**: it claims "pi does not build replay from
+   reasoning deltas either way (…convertMessages)" — but pi DOES replay the
+   reasoning field (this session's oracle read above), and the lane's own report
+   (finding 8, D1) states it correctly. The code comment contradicts the report and
+   the source. Behavior is unaffected; the comment misleads future parity work.
+   **One-line comment correction as a carry-in** — next iteration, defects-adjacent
+   lane or a polish micro-lane.
+2. On-mode display wrinkle (toggle judgment call 2): edit's `details` diff/patch
+   reflect pre-strip bytes — recorded, acceptable until the toggle ever flips on.
+3. Pre-existing suite noise carried again: the deliberate `work boom` carry-in test's
+   async "unhandled exception" warn on suite stderr (I04 backlog nit 6 — still
+   nobody's touch set; fold into a future polish iteration).
+
+### KILL/CONTINUE
+
+**CONTINUE** — all 6 AC PASS, all 7 gates PASS cold, every deviation ruled (none
+silent), and the harness is now actually usable live: the two live-run killers are
+fixed and hermetically proven, there is a committed launcher, and the §5 toggle seam
+ships off with byte-exact default. Carry-ins: the loop.rb comment correction (defect
+1 above) and the backlog (markdown rendering, editor niceties, suite-stderr warn
+silencing). Diff vs BRIEF §1/§4/§5/§7.1 — CONTINUE.
