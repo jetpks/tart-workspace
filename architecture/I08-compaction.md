@@ -637,18 +637,87 @@ STATUS: COMPLETE_WITH_CONCERNS (concerns: the four unwired transcriptions — sp
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section compaction verdict --from <file>`. -->
+# Verdict — I08 compaction (judging session, fresh; dispatcher session did not judge)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify compaction`)?
+Post-flight (architect verify + hand checks): frozen region untouched vs freeze 55d49c0 (only
+Builder Prompt/Report appended); no builder commits off 593e881d; worktree diff exactly the
+declared 7-file touch set; report raw-results only. Evidence transcribed verbatim (bb700283).
+Gates run cold post-integration (7eef23ed): **11/11 PASS**, both RED deliverable gates
+(compaction-guard, prompts-verbatim tripwire) and all nine regression guards.
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+## Disagreement / deviation rulings (PHASE 0 — every item ruled)
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+1. **camelCase entry keys (`firstKeptEntryId`, `tokensBefore`) vs the lane prompt's
+   "snake_case keys" prose — ACCEPT.** The prompt prose was architect error (mine): the port's
+   existing session format has been camelCase since I07 (`parentId`, session.rb:111), per pi
+   parity, and AC4's letter names these keys in camelCase. The builder followed the AC and
+   the existing house format and itemized the conflict — exactly the behavior wanted.
+2. **Split-turn turn-prefix summarization + UPDATE/previous-summary merge path transcribed but
+   not wired live — ACCEPT (scope).** Spec item 10's cut contract requires only never-orphaning
+   cut points over the flat list; pi's two-summary split-turn machinery (compaction.ts:816-828,
+   :1072-1119) is entry-projection machinery the port's flat-list cut doesn't exercise, and the
+   UPDATE path needs an in-file previous-summary chain the port's fork-subset resume (no
+   parent re-record, session_test.rb:140) doesn't have. Itemized with evidence, not silent.
+   Re-compaction re-serializes the prior summary as ordinary conversation text — content
+   preserved, path simpler. Follow-up candidate only if §7.7 end-to-end shows a real gap; not
+   specced now.
+3. **`calculate_context_tokens` drops pi's `totalTokens ||` branch — ACCEPT.** gem Tokens has
+   no total accessor (tokens.rb:35-37, 81-89); the component sum is the whole formula. Not a
+   degradation — the unrepresentable branch is the dead one.
+4. **Overflow compaction ignores `settings.enabled` — ACCEPT.** pi parity: pi's overflow path
+   never checks enabled (agent-session.ts:3007-3047 vs compaction.ts:292-296). Faithful port.
+5. **`firstKeptEntryId ?? id` fallback — ACCEPT.** pi has the identical fallback
+   (session-manager.ts:1264).
+6. **No dedicated `retryAssistantCall` port — ACCEPT.** gem per-context `max_retries` covers
+   the summary chat; adding a bespoke retry loop would be new machinery for no parity gain.
+7. **Entry omits `usage`/`fromHook`/`systemMessage` — ACCEPT.** AC4's stated port subset.
+8. **Custom-instructions focus not ported — ACCEPT.** Explicit spec out-of-scope.
+9. **`nestedCalls` in file-op extraction unrepresentable — ACCEPT.** The port has no codemode;
+   nothing to extract.
+
+## Concern rulings (the two the builder flagged)
+
+- **Threshold inert in production unless `RASPBERRY_PI_CONTEXT_WINDOW` is set** — the spec's
+  own resolution order, verified live by the builder (assume_model_exists → Model.default →
+  no context_window, models.rb:210 / model.rb:65-75). README now documents the seam and that
+  nil/0 disables threshold only (overflow always fires). ACCEPT as specced; wiring a default
+  window for the fireworks model (registry refresh) stays out of scope per spec — candidate
+  follow-up if §7.7 wants threshold live out of the box.
+- **Unwired transcriptions** — ruled under deviation 2 above.
+
+## Per-AC verdicts
+
+- **AC1 PASS** — pure functions test-proven with no LLM (16 runs / 48 assertions); cut-point
+  safety mid-turn test-proven. Byte-identity architect-verified *independently this session*
+  (tmp/verify_i08_prompts.rb, not the builder's claim): SYSTEM 310B, SUMMARIZATION 879B,
+  UPDATE_INSTRUCTIONS 1129B, TURN_PREFIX 664B identical; UPDATE_SUMMARIZATION_PROMPT identical
+  at 1257B once its Ruby interpolation is resolved (mirrors pi's TS interpolation).
+  serialize_conversation prefixes + 2000-char truncation marker match utils.ts:100-153.
+- **AC2 PASS** — threshold trigger via captured MockLLMServer next-request payload; settings
+  kwargs with pi's defaults; `enabled: false` no-compaction test; resolution order env →
+  registry → nil as reported in PHASE 0 item 5.
+- **AC3 PASS** — overflow: 400 script → compact → retry-once end-to-end; overflowing attempt
+  absent from history (gem never appends the failed response); latch blocks a second retry
+  and resets on a clean assistant response.
+- **AC4 PASS** — CompactionEntry subset recorded (camelCase, ruled above); compaction-aware
+  `context_messages` = summary (user-wrapped, pi messages.ts:176-184) + kept range + post
+  entries, pre-compaction messages gone; pre-existing session files replay unchanged
+  (existing session tests unmodified).
+- **AC5 PASS** — all 11 verify items in the findings table with gem/oracle file:line evidence;
+  deviation table itemized (9 entries, none silent); no new runtime deps (gem-pins PASS);
+  all regression guards green cold.
+
+## Idiomaticity / house-style read
+
+Diffs read against the surrounding code: kwargs-with-safe-defaults additive surface, pi
+file:line citations in comments, Recorder projection idioms, Bridge-routed one-shot
+summarization consistent with every other blocking LLM call. No defects to flag.
+
+## Call
+
+**CONTINUE** — merged `7eef23ed` on `project/pi-port`; all five AC PASS, 11/11 gates PASS
+cold, deviations all ruled and evidence-backed. Remaining §7 DoD: §7.5 toggle-flip day,
+§7.7 end-to-end.
 
 ## Builder Report
 

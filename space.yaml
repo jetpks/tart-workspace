@@ -378,7 +378,7 @@ project:
     ordinal: 8
     file: architecture/I08-compaction.md
     freeze_sha: 1cf124ddd2d640f9e9d5d5162a420a0d6550305f
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: raspberry-pi
