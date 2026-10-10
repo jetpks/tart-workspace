@@ -247,6 +247,13 @@ project:
       - lib/raspberry_pi/agent/loop.rb
       - test/kernel_carryin_test.rb
       - test/test_helper.rb
+      base_sha: 516d85aa02a0543fc95a72328698fbaf96f922f5
+      worktree: build/I06-editor-markdown-polish/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      integrate_sha: 8e46d75666248d26087b0183cdb0ffc0c90d1722
     - name: editor
       repo: raspberry-pi
       touch_set:
@@ -255,12 +262,28 @@ project:
       - test/chat_test.rb
       - test/tui_test.rb
       - README.md
+      base_sha: 516d85aa02a0543fc95a72328698fbaf96f922f5
+      worktree: build/I06-editor-markdown-editor/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-09T19:17:23-06:00'
+      effort: high
+      integrate_sha: df5e2b54ceab0a2799aa401a876417e53637ee3e
     - name: markdown
       repo: raspberry-pi
       touch_set:
       - lib/raspberry_pi/render/markdown.rb
       - lib/raspberry_pi.rb
       - test/markdown_test.rb
+      base_sha: 516d85aa02a0543fc95a72328698fbaf96f922f5
+      worktree: build/I06-editor-markdown-markdown/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      integrate_sha: e34627393e23691bf00b04ff4ff3a78e167798f3
     - name: markdown-seam
       repo: raspberry-pi
       touch_set:
@@ -268,6 +291,12 @@ project:
       - lib/raspberry_pi/tui.rb
       - test/chat_test.rb
       - test/tui_test.rb
+      base_sha: 516d85aa02a0543fc95a72328698fbaf96f922f5
+      worktree: build/I06-editor-markdown-markdown-seam/wt
+      integration_branch:
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
     rehearsal:
       gates_digest: 6b3bc5a1e063c217bfaa5c3a355fe8f8e8196b7b27d59b9f228a69a33bd104b2
       at: '2026-10-09T19:14:41-06:00'
