@@ -45,35 +45,81 @@ Inline research this session (no external dependencies; the oracle repo + the pi
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section render-surface specification --from <file>`. -->
+# Specification
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+## Objective
+
+Close interactive-UX gaps (a)–(d) from the owner's first real daily-driver run (BRIEF §3 daily-driver parity — the interactive surface; Grounds, ARCHITECT.md backlog item 1): flip the launcher to pi's **fullscreen** viewport and compose the three-area surface — transcript area, bordered editor area, footer line — with **theme colors** throughout, plus the **launcher-boot smoke test** that pins the first-live-boot defect class. Autocomplete (e) and transcript scrolling are explicitly deferred to the next iteration (Grounds "Deferred").
+
+This is the first iteration reaching pi's component/layout layer rather than its core — the port's equivalent machinery is ratatui_ruby's Layout/Block/widgets behind the existing TUI seam (Grounds), and every new rendering primitive enters through a new seam helper (the standing tui-seam gate enforces it).
+
+## Output format
+
+Raw tables/verbatim command output only, in `build/I11-render-surface-core/report.md`: PHASE 0 findings table (every verify item below, spec-vs-reality with gem/oracle file:line evidence), test-suite output verbatim (pass/fail counts), gate-command outputs verbatim, judgment calls (the layout composition + constraint split; the theme token table — every token carried and every pi token cut, with reasons; the footer's data cadence — per-frame vs turn-boundary; the git-branch cache strategy; the status-line contents), the parity-deviation table (empty or itemized — silent deviation is a defect), and the files list. Every status claim backed by a command result from this run.
+
+## Tool guidance
+
+**Verification (exact, per ARCHITECT.md):**
+
+```
+cd ~/architect/spaces/20261009-pi-port/repos/tart
+bundle install --quiet && bundle exec rake        # suite (test/**/*_test.rb)
+```
+
+**Verify against the live oracle + gem before writing code (PHASE 0 — every item needs file:line evidence):**
+
+1. **pi's fullscreen layout composition** (interactive-mode.ts:455-470, 876-881 + the component files): how the layout root stacks transcript / editor / footer areas (find the actual Constraint/split shape — TuiLayouts files in pi's tui package); what DynamicBorder is and where it sits; what happens on terminal resize (redraw cadence) and on alt-screen switching. Map onto `RatatuiRuby::Layout.split` + `Widgets::Block` (gem layout/layout.rb:156, widgets/block.rb:25) via new seam helpers; cite what you port and what you reduce.
+2. **pi's editor area** (custom-editor.ts:6-13, :117-145): the editor's top-border status — the exact status strings/shapes ("working", compaction, summarization, retry — find them) and how they're driven (which events). Map the port's existing status events onto the border; keep every I06 editing behavior (cursor readback, history, word-ops — their tests are the frozen proof, they must survive unchanged in assertion content).
+3. **pi's footer** (footer.ts:33-43, :59-136): the exact content and shape — cwd contraction, git branch source + cache invalidation strategy, token counters (which totals — last-turn, session, both), context-usage denominator (`routedModel?.model ?? model` — the port's equivalent is the I10 resolved window, Grounds), render cadence (every frame). Decide and record the port's reduced cadence if per-frame scanning is not idiomatic for the port's loop (BRIEF §5.1 foundation carve-out applies — itemize).
+4. **pi's theme tokens** (theme/theme-tokens.ts + system-theme.ts): transcribe the default theme's token table (names → the colors the port's terminal actually renders — ride the gem's color mapping, no capability detection). Enumerate every token pi defines; carry the ones the port's surface renders (chat roles, markdown styles, borders, footer); cut the rest with reasons. The port's `FG` map (I05) and `TUI.markdown_line` styles (I06) are absorbed into the new theme module — their rendered output stays identical where tests pin it.
+5. **The transcript model**: the inline `insert_before` path retires from the interactive surface (tui.rb:92-96 — inline-only, Grounds). The surface now owns a scrollback buffer and draws the visible tail into the transcript area every frame. Verify how the port's `enqueue_scrollback`/`render_markdown` paths work today (render/chat.rb) and route them into the buffer. `insert_before`/inline support stays in the seam for any other caller — not deleted, just no longer the surface's path.
+6. **Gem seam surface** (ratatui_ruby 1.5.0): confirm `Layout.split` constraint objects (layout/constraint.rb — Percentage/Min/Max/Length forms), `Block` borders/title shapes, `Viewport::fullscreen` redraw behavior on resize (gem terminal/event layer — find the resize event shape), and that the headless test terminal honors fullscreen (tui.rb:140 `init_test_terminal` viewport arg). Confirm `cell_fg`/`cell_modifiers` readback works under fullscreen for cursor/theme tests.
+7. **Launcher smoke** (Grounds): the Open3 boot pattern — `Tart::Test::MockLLMServer` + `Open3.capture3(RbConfig.ruby, "bin/tart", "-p", …, TART_API_KEY/TART_API_BASE → mock)`. Verify the env seam (`Settings.resolve_setting` env→settings→default) drives a mock-booted print run end-to-end; assert exit 0 + the final response on stdout. This is the gate that would have caught the first-live-boot unwrap crash (53a08db).
+
+**Hermeticity**: no test touches a real tty, the real `~/.tart`, or the network (MockLLMServer + the gem's headless test terminal, I07/I08/I06 patterns). The smoke test runs the real launcher but against the mock only.
+
+## Boundaries
+
+**May touch (this lane's exhaustive set):**
+
+- `lib/tart/tui.rb` (seam extensions only — new layout/block/footer/color helpers; existing seam surface additive)
+- `lib/tart/theme.rb` (new — the token table)
+- `lib/tart/render/chat.rb` (the surface rework: fullscreen layout composition, transcript buffer, editor area, footer, theme usage)
+- `bin/tart` (viewport flip + footer/status data wiring: cwd, git branch, model id, resolved context window)
+- `lib/tart.rb` (registration only)
+- `test/tui_test.rb`, `test/chat_test.rb` (surface tests — I06 assertions' *content* must survive; their driving code may move)
+- `test/theme_test.rb` (new), `test/launcher_smoke_test.rb` (new)
+- `README.md` (fullscreen surface, theme, footer, keys)
+
+**Must not touch:** `lib/tart/agent/**` (loop, session, status, bridge, system_prompt — the surface consumes their events; if a status/event seam is genuinely missing, raise it in PHASE 0 with evidence instead of editing), `lib/tart/compaction.rb`, `lib/tart/skills.rb`, `lib/tart/settings.rb`, `lib/tart/commands.rb`, `lib/tart/tools/**`, `lib/tart/mcp.rb`, `lib/tart/mcp/**`, `lib/tart/print.rb`, `lib/tart/render/markdown.rb` (theme colors apply at the span level in the surface/seam, not in the AST converter; raise in PHASE 0 if genuinely blocked), `lib/tart/core/**`, all other test files (including `test/golden_parity_test.rb`, `test/markdown_test.rb`, `test/compaction_test.rb`, `test/settings_test.rb`, `test/commands_test.rb`, `test/skills_test.rb`, `test/support/**` — read-only; raise in PHASE 0 if a fixture is missing), `Gemfile`, `Gemfile.lock`, `bench/`. `~/.tart` never touched.
+
+**Out of scope (deferred, Grounds "Deferred" — itemize in the report's deviation table):** transcript scrolling (pi ScrollView), command/skill autocomplete (`/ar<tab>`), theme selector + custom-theme loading + terminal-capability detection, mouse support, alt-screen mode switching, overlay/popup components, pi's extension-status footer segments. No new runtime dependencies (gem-pins gate). No refactors beyond the task.
+
+**No placeholders; search before implementing** (repo grep + gem source in the worktree; pi oracle at `~/architect/spaces/20261009-pi-port/repos/pi`).
+
+## Lane plan
+
+One lane — layout, editor area, footer, theme, and the surface rework interlock inside `render/chat.rb` + `tui.rb`; the seams would overlap in any split (high effort: first component-layer parity work, plus the exact-shape work of the theme table and footer data).
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision render-surface`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/tui.rb
+    - lib/tart/theme.rb
+    - lib/tart/render/chat.rb
+    - bin/tart
+    - lib/tart.rb
+    - test/tui_test.rb
+    - test/chat_test.rb
+    - test/theme_test.rb
+    - test/launcher_smoke_test.rb
+    - README.md
 ```
+
+## Effort
+
+`architect dispatch render-surface --effort high` — component-layer parity (layout composition, bordered editor, footer data cadence, theme token table) against an oracle whose tui package is a custom framework (pi's shapes map to ratatui_ruby's, not 1:1 — BRIEF §5.1 judgment calls, every one itemized), plus the fullscreen transcript rework that retires the inline `insert_before` path.
 
 ## Acceptance Criteria
 
