@@ -306,7 +306,36 @@ project:
   - name: session-mcp-print
     ordinal: 7
     file: architecture/I07-session-mcp-print.md
-    freeze_sha:
+    freeze_sha: 66fb0291a6c3f074703b58db2abeae33671793a4
     verdict: pending
-    lanes: []
+    lanes:
+    - name: session
+      repo: raspberry-pi
+      touch_set:
+      - lib/raspberry_pi/agent/session.rb
+      - lib/raspberry_pi/agent/loop.rb
+      - test/agent_loop_test.rb
+      - test/session_test.rb
+    - name: mcp
+      repo: raspberry-pi
+      touch_set:
+      - lib/raspberry_pi/mcp.rb
+      - lib/raspberry_pi/mcp/**
+      - lib/raspberry_pi/tools/registry.rb
+      - test/mcp_test.rb
+      - test/support/mcp_echo_server.rb
+    - name: print
+      repo: raspberry-pi
+      touch_set:
+      - lib/raspberry_pi/print.rb
+      - lib/raspberry_pi.rb
+      - test/print_test.rb
+    - name: cli
+      repo: raspberry-pi
+      touch_set:
+      - bin/raspberry-pi
+      - README.md
+    rehearsal:
+      gates_digest: 821d6e26af5253dbcd8f933f4603bf282ce2088bae72236aadf47d15dcff8c82
+      at: '2026-10-09T19:59:25-06:00'
   integration_branch: project/pi-port
