@@ -101,12 +101,12 @@ Calibration: AC1-AC6 assert user-visible properties of the daily-driver surface 
 - **AC2 (/resume picker — item 2, BRIEF §3).** `/resume` dispatches (never falls through to the model), opens a picker listing the workdir's sessions newest-first, navigable by arrow keys, enter resumes, escape cancels back to the editor. `Session.list` returns mtime-descending valid-header sessions for a cwd (fixture-rooted test). Resuming through the picker lands the same state as CLI `--resume` (replayed transcript + "Resumed session" line). Every picker reduction vs pi's SessionSelectorComponent (all-sessions view, rename, cwd-mismatch prompt — whichever aren't built) is itemized. Test-proven headlessly through the kernel/command wiring.
 - **AC3 (resume replay — item 3, BRIEF §3).** `tart --resume <id>` (and picker-resume) renders the resumed session's entries in the transcript through the live-turn shapes — user echoes, assistant markdown, tool calls/results, compaction summary as the recorded entries carry them (the report's fixture dump is the contract; recorded gaps itemized, never invented) — followed by the "Resumed session" status line, and "Session compacted N times" when compaction entries exist (pi :4226-4232). No fresh MOTD on resume (itemized cut). Test-proven: a recorded fixture session (mock server, recorder on) resumed headlessly shows the replayed transcript; the model context seeding is unchanged (its existing tests stay green unmodified).
 - **AC4 (body colors — item 4a, BRIEF §3).** Body prose renders the `text` token's true color (okhsl(234 3% 89%) → verified hex constant, provenance comment), the user echo renders `text` on `userMessageBg`'s true blue (okhsl(233 41% 24%)) as a background span with no `❯ ` prompt char, tool output and thinking text render their true values (`muted`, `thinkingText`). Hex constants verified against pi's own conversion in PHASE 0 (evidence in the report); gem hex fg+bg verified live through the tui.rb seam (raw cell-style dump in the report). Non-content tokens keep 16-color analogs (itemized reduction). theme_test updated. Test-proven (readbacks assert the hex fg/bg on content-path cells).
-- **AC5 (region padding — item 4b, BRIEF §3).** A leading blank line separates every scrollback region: before each user echo (non-empty transcript), each tool block, each compaction summary, each assistant message with visible content (already present — stays). Test-proven by readback across a mixed session (user → reasoning+content → tool → user → assistant).
+- **AC5 (region padding — item 4b, BRIEF §3).** A leading blank line separates every scrollback region: before each user echo (non-empty transcript), each tool block, each compaction summary, each assistant message with visible content (already present — stays). The `❯ ` prompt char is gone with AC4's user-echo rework. Test-proven by readback across a mixed session (user → reasoning+content → tool → user → assistant).
 - **AC6 (escape interrupts — item 5, BRIEF §3).** Escape during a streaming run interrupts it through the port's interrupt path (composing with the existing cancel semantics — their tests green); escape with autocomplete open cancels the autocomplete only; escape while idle is a no-op (double-escape /tree|/fork CUT, itemized — no session branches). Test-proven kernel-driven (mock server streaming + synthetic escape key).
 - **AC7 (deviation discipline — BRIEF §5).** Every PHASE 0 verify item is in the findings table with file:line evidence (including the recorded-entry fixture dump and the hex/truecolor live verification); the parity-deviation table is empty or itemized — the spec-mandated cuts (`--resume` flag-shape hint, MOTD-on-resume, horizontal outputPad indent, non-content tokens 16-color, picker reductions, recorded-entry gaps, double-escape cut) appear there, never silently.
 - **AC8 (regressions — BRIEF §2).** All standing guards stay green: tui-seam, gem-pins, env-tripwire, bench-seam, stderr gates, launcher smoke, the full suite; goldens byte-identical.
 
-Gate intent notes: `resume-hint`, `resume-command`, `replay`, `truecolor`, `padding` are **tripwires** — presence/absence of identifiers only; substance is architect-read from the report's fixture dump, citations, and test readbacks. `*-guard` gates prove the touched test files run standalone. The rest are the standing regression guards (GREEN on base by design).
+Gate intent notes: `resume-hint`, `resume-command`, `replay`, `truecolor`, `user-echo` are **tripwires** — presence/absence of identifiers only; substance is architect-read from the report's fixture dump, citations, and test readbacks. `*-guard` gates prove the touched test files run standalone. The rest are the standing regression guards (GREEN on base by design).
 
 ```gates
 - id: suite-green
@@ -203,7 +203,7 @@ Gate intent notes: `resume-hint`, `resume-command`, `replay`, `truecolor`, `padd
   ac: AC3
   cwd: repos/tart
   cmd: |-
-    grep -qi 'Resumed session\|replay' lib/tart/render/chat.rb bin/tart && echo REPLAY_OK
+    grep -q 'Resumed session' lib/tart/render/chat.rb bin/tart && echo REPLAY_OK
   expect:
     exit_code: 0
     stdout_match: REPLAY_OK
@@ -217,14 +217,14 @@ Gate intent notes: `resume-hint`, `resume-command`, `replay`, `truecolor`, `padd
     exit_code: 0
     stdout_match: COLOR_OK
 
-- id: padding-tripwire
-  ac: AC5
+- id: user-echo-tripwire
+  ac: AC4, AC5
   cwd: repos/tart
   cmd: |-
-    grep -n 'blank_line' lib/tart/render/chat.rb | grep -q . && echo PADDING_OK
+    ! grep -q '❯ ' lib/tart/render/chat.rb && echo ECHO_OK
   expect:
     exit_code: 0
-    stdout_match: PADDING_OK
+    stdout_match: ECHO_OK
 
 - id: env-tripwire
   ac: AC8
