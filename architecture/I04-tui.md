@@ -514,11 +514,114 @@ READ-ONLY references.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I04-tui-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence tui --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### tui
+
+### PHASE 0 findings — ratatui_ruby 1.5.0 verify items (gem source: `~/.local/share/mise/installs/ruby/4.0.7/lib/ruby/gems/4.0.0/gems/ratatui_ruby-1.5.0`)
+
+| Verify item | Spec said | Reality (evidence) | Verdict |
+|---|---|---|---|
+| `TerminalLifecycle.init_terminal` viewport options | inline/fixed? `viewport:` + `height:` semantics; terminal modes | `lib/ratatui_ruby/terminal_lifecycle.rb:53-81` + `ext .../src/terminal/init.rs:34-92`: modes are `:fullscreen` (raw mode + **EnterAlternateScreen**, default) and `:inline` (raw mode, no alt screen, `height` default 8). Mouse capture is enabled **unconditionally** (`init.rs:64-66`, no opt-out). Focus-change and bracketed-paste are optional flags. `restore_terminal` (lifecycle:88-110) disables symmetrically per mode; restore is `ensure`-safe. Port's `TUI.run` passes `viewport:`/`height:`/`focus_events:`/`bracketed_paste:` through 1:1 — verified | matches; mouse-capture note recorded |
+| `insert_inline_content` | scrollback insertion API | **No such method exists in 1.5.0.** The real API is `insert_before(height, widget)` — `terminal_lifecycle.rb:196-232` (Ruby, inline-viewport guard, draw-mode guard), `ext .../src/terminal/mutations.rs:10-70` (both Crossterm and Test wrappers). Behavior (gem doc + empirical): renders widget into an `height`-line buffer inserted above the inline viewport; viewport shifts down, then scrolls at screen bottom; viewport area may be clobbered → must `draw` after. Raises `Invariant` if viewport not inline or called during draw | spec name wrong; port uses `insert_before` |
+| `init_test_terminal(width, height, viewport_type, …)` viewport types | can hermetic tests exercise inline? | `terminal_lifecycle.rb:83-97` + `init.rs:94-123`: parses `"inline"` identically to the real path; `viewport_height` defaults to the test screen height when nil. Empirical (scratch run): test terminal 20x8 inline h=4 → viewport `Rect(x=0,y=0,20,4)`; `insert_before(2, …)` → viewport shifts to `y=2`, content lands in rows above | hermetic inline path works; viewport starts at the TOP (y=0), not bottom |
+| buffer/content readback | I02 seam exposes one; extend if needed | `get_buffer_content` — `ext .../src/terminal/queries.rs:11-53`: TestBackend only (raises `Error::Terminal` on Crossterm); all rows as `"\n"`-joined string incl. wide-char skip logic. Seam already exposes `Session#buffer_content` — no extension needed | matches; no extension needed |
+| key/paste event shapes; bracketed_paste; modifiers | event shapes for input | `Event::Key.new(code:, modifiers: [], kind:)` (`event/key.rb:151-155`); `text?` ⇔ single-char code (`event/key/character.rb:26-28`); `ctrl?` = modifier or left/right_control (`event/key/modifier.rb:14`); key→code table in `ext .../src/events.rs` (`"backspace" ⇒ KeyCode::Backspace` at :33). `Event::Paste(content:)` — whole bracketed block is one atomic event (`event/paste.rb`). Bracketed paste enabled by `init_terminal`/opt-out param | matches |
+| style/color vocabulary | on `Draw.string`/cells | `Draw.string(x, y, string, style)` → `StringCmd` (`lib/ratatui_ruby/draw.rb`); `Style::Style.new(fg:, bg:)`; `get_cell_at` returns fg/bg as symbols (`:red`, `:indexed_n`, `"#rrggbb"`) + modifier list (`queries.rs:189-249`). Not needed for the plain-text iteration | verified, unused (plain-text scope) |
+| render dispatch | (needed for `draw`) | `RatatuiRuby.draw(tree)` → `render_node` (`ext .../src/rendering.rs:14-70`): `respond_to?("render")` first, else class-name dispatch (Paragraph via `widgets::paragraph::render`); nested `draw` forbidden; `insert_before` during draw forbidden (`Invariant`) | verified |
+| ruby_llm 2.1 `after_tool_result` signature (inherited claim) | re-verify | **Confirmed**: `chat.rb:1630` `run_callbacks(:after_tool_result, result)` — single arg; dispatch `callback.call(*args)` at `chat.rb:1503-1505`. `before_tool_call`/`after_tool_result` both run inside `execute_tool_with_callbacks` (`chat.rb:1623-1631`) — same thread (sequential default, config `tool_concurrency: false` at `configuration.rb:257`) / same thread per tool (threads mode, `tool_concurrency.rb:25-58`) / no suspension between them (fibers mode) — the thread-local pairing fix in `Agent::Loop#install_chat_callbacks` is sound. Live proof: approve/deny/interrupt chat tests pass with `tool_execution_end` carrying the real `RubyLLM::ToolCall` + result | confirmed; fix verified |
+| deny semantics | I03-locked | `chat.rb:1566-1572`: denial appends `{error: "The user denied the <name> tool call."}` as the tool result; model continues; call never executes | matches |
+
+### PHASE 0 disagreements (all resolved in-flight, none blocking)
+
+1. `insert_inline_content` does not exist → `insert_before` (table above).
+2. Inherited `test/chat_test.rb` could not pass as written: (a) readback helpers assumed a bottom-anchored test viewport — it is top-anchored (y=0, gem `init.rs` inline viewport starts at origin, verified empirically); (b) wrap assertion expected width-9 output at width 80; (c) kernel-driven tests called `MockLLMServer#captured_requests` — a **destructive drain** — inside `wait_until` conditions (request 2 unobservable → `work condition never satisfied` → scenario thread dies → `kernel.stop!` unreached → `kernel.run` hangs forever: the observed 300 s SIGTERM). Tests fixed; AC assertions preserved/strengthened.
+3. Inherited `Render::Chat#fit` wrap bug: broke "aaaa bbbb cccc dddd"@9 → `["aaaa","bbbb","cccc dddd"]` (word-break chosen even when the prefix already ended at a word boundary) and could loop on over-wide first graphemes. Rewritten greedy fit.
+4. Inherited `MockLLMServer#write_sse` wrote the `:pause` keepalive comment as **bare bytes into the chunked stream** (no chunk-size header) → corrupts HTTP chunked framing. Raw net/http repro: `Net::HTTPBadResponse: wrong chunk size line` after the first keepalive (`net-http-0.10.0/lib/net/http/response.rb:653`). ruby_llm's client stalls mid-slow-stream (~5 deltas, never completes). All I03-era tests masked this (fast streams have no keepalives; interrupt tests cancel early). Fixed: keepalive now properly chunk-framed (`write_chunk`). Verified: raw repro completes 1.27 s; kernel+agent slow_stream completes (`turn_end`/`agent_end`, content "first answer").
+5. Steering-loss race (real semantic defect, exposed by the steer test): a message pushed between the agent's final steering check and `agent_end` was silently dropped. Fix: `Agent::Loop#run_loop` drains the steering queue at loop start (pi parity, `agent-loop.ts:175` "user may have typed while waiting") for prompt-less runs, and `Render::Chat` restarts the run on clean `agent_end` if messages remain queued. I03's frozen pre-run-queue boundary semantics (`test_queued_message_continues_the_outer_loop`, 2 requests) preserved → **parity deviation D1** (pi consumes pre-run steering in the first turn; port consumes at the first turn boundary when a prompt opens the run).
+6. Carry-in (4) (silence async's "unhandled exception" log for the intentional `work boom` test raise) skipped: not cheap (global Console muting in tests), optional, and the `stderr-clean` gate greps only `Broken pipe` — the warn is structured JSON on stderr from `test/kernel_carryin_test.rb:34`.
+7. pi's inline init sends a DSR cursor-position query (`\e[6n`) and requires a real terminal reply (crossterm) — a bare pty cannot run the inline path without emulating the reply; recorded because it constrains any future pty-level testing of the real inline path (bench uses fullscreen).
+
+### Suite (verbatim tail)
+
+```
+Run options: --seed 5146
+# Running:
+.......................................................................
+Finished in 14.760614s, 4.8101 runs/s, 19.6469 assertions/s.
+71 runs, 290 assertions, 0 failures, 0 errors, 0 skips
+SUITE_OK
+```
+
+Stability: 10+ consecutive full-suite green runs (seeds 30214/42743-x/… and 8 consecutive chat-only runs at 13 runs, 45 assertions). The suite was half-red at takeover (`F.FEF..`, `FF...EFF`, steer-test hang → 300 s SIGTERM).
+
+### Gates (verbatim)
+
+| gate | result |
+|---|---|
+| `suite-green` | exit 0, `SUITE_OK` (71 runs, 290 assertions, 0 failures, 0 errors, 0 skips) |
+| `tui-seam` | exit 0, `SEAM_OK` |
+| `bench-seam` | exit 0, `SEAM_BENCH_OK` — fps mean 60.0 (p05 cadence 16.56 ms), event p50 9.45 ms / p95 17.99 ms, sse 500/500 (max gap 29.97 ms), subprocess 100/100, timer 100/100, synthetic 200/200, timeout-kill `{verdict: clean, kill_calls: 1, termsig: 15, zombie_gone: true, seconds_to_reap: 0.0009}`, static_wakes 0, cpu 4.2% |
+| `gem-pins` | exit 0, `PINS_OK` (`ratatui_ruby (1.5.0)`, `minitest (5.27.0)`, `ruby_llm (2.1.0)`) |
+| `stderr-clean` | exit 0, `NO_EPIPE` (no `Broken pipe` in suite stderr) |
+
+### §5 investigation — copy/paste trailing whitespace (READ-BOUND, NO FIX APPLIED)
+
+| Hypothesis | Verdict | Evidence |
+|---|---|---|
+| H1: cell padding `layout.ts:273-275` | **Confirmed contributor (narrow)** | The function is `replaceScrollbarCell` (`layout.ts:249-277`), used only by `paintScrollbar` (`layout.ts:305-324`) to paint scrollbar glyphs over a line. `beforePadding` (`" ".repeat(start - visibleWidth(before))`) pads from the line's end up to the scrollbar column → rows with a scrollbar get spaces baked up to the track column. Only affects scrollbar rows (scroll-view layouts), not general text |
+| H2: overlay padding `tui.ts:446-452` | **Confirmed contributor (conditional)** | `compositeTuiLine` (`tui.ts:426-456`): `afterPad = max(0, afterTarget - base.afterWidth)` with `afterTarget = totalWidth - actualBefore - actualOverlay` → any overlaid row (autocomplete popups, selectors) is padded with plain spaces out to the **full terminal width** whenever the base line was shorter. Applied per-frame by `compositeOverlays` (`tui.ts:1350-1429` → `tui-main-screen.ts:268-269`) |
+| H3: partial-redraw diff + visible-width logic (`tui-main-screen.ts`/`utils.ts`) | **Refuted** | The diff writer clears each rewritten line first (`\x1b[2K`, `tui-main-screen.ts:524`, 545-550) — no stale cells are left and no padding emitted; the writer appends component lines verbatim. Visible-width machinery (`visibleWidth` `utils.ts:250`, `sliceByColumn` :1263, `extractSegments` :1326) measures/slices only; `sliceWithWidth(pad: true)` pads overlay slices (counted under H2). Width-overflow check (:532-536) throws, emits nothing |
+| H-primary (found during investigation, outside the three named candidates) | **Root cause** | The Text and Markdown components pad **every rendered line to full terminal width** with plain spaces: `components/text.ts:91` (`lineWithMargins + " ".repeat(paddingNeeded)`), `:96` (`emptyLine = " ".repeat(width)` for paddingY rows); identically `components/markdown.ts:357`, `:362`; and under background, `applyBackgroundToLine` (`utils.ts:1095-1107`, `" ".repeat(paddingNeeded)` styled). Every text/markdown line pi paints carries trailing spaces to the terminal width → terminal selection/copy includes them. This is the systematic per-line mechanism the defect needs |
+| Reproduces in the port's render mechanism? | **No (not systematically)** | The port's renderer never pads text to width: scrollback is pre-wrapped via `Render::Chat.wrap` and inserted with `insert_before` (written once); live-region lines are wrapped, not padded. Ratatui's backend flushes frame diffs (cells equal to the previous frame are skipped), so untouched trailing cells are not re-emitted. Theoretical residual: a shrinking live-viewport row whose overwritten cells are emitted as explicit space cells by the diff — bounded to the viewport rows and transient, unlike pi's per-line padding. Empirical pty emission check was inconclusive (crossterm's inline-init DSR query `\e[6n` needs a real terminal reply; finding 7 above) |
+
+No fix applied anywhere (pi oracle untouched; port renderer does not carry the defect).
+
+### Judgment calls
+
+| Area | Decision |
+|---|---|
+| Render architecture | Live region = the ratatui **inline viewport** (fixed height); completed content lands above it via `TUI#insert_before` (queued on a thread-safe `Queue`, flushed by the frame loop **before** draw — `insert_before` raises during draw). Ported from `tui-main-screen.ts`'s model (growing line document, viewport = last lines, `previousViewportTop` tracking) onto the §5.1-sanctioned viewport mechanism. Live widget composition (top→bottom): status/spinner line (while busy, `⠋ tool: <name>` / `⠋ thinking`), up to `viewport_height − reserved` tail lines of the streaming text (wrapped to viewport width; deltas append, window slides), approval prompt (replaces the input line — pi displaces the editor in the editor container), input line `❯ …`; composition clipped to `viewport_height` rows |
+| Wrapping | Greedy word wrap on native visible width (`TUI.text_width` = `RatatuiRuby::Text.width`), word break preferred (breaking space consumed), hard-split over-long words/first graphemes (no infinite loop). Plain text only (markdown/ANSI-aware wrapping = pi `utils.ts` territory, recorded deviation D2) |
+| Approval prompt | Rendered as live-region rows `approve <name>? / <args JSON, width-clipped> / y = yes, n = no`. Wait = `Async::Queue#pop` on the kernel fiber (interruptible at the suspension point by `Task#stop`); decision pushed **cross-thread** via `Thread.new { queue << v }.join` (I03 lost-wakeup cure); `ensure` tears down prompt state and drains raced decisions (no pre-approval of a later call). y/Y approve, n/N deny, all other keys consumed (never reach the input line); deny → ruby_llm structured denial (`chat.rb:1570`), model continues, call never executes. pi reference: `interactive-mode.ts:2740-2757` (Yes/No selector, `kind: "permission"`, abort → dispose) |
+| Input line | Char insert (`text?` keys minus ctrl/alt), backspace, Enter (idle → `kernel.async { agent.run(text) }` as a kernel task, so Ctrl+C cancels exactly the run; running → `agent.push_message` steering), paste event inserts atomically. No history/undo/word-nav (out of scope, recorded). Input echoed into scrollback on submit (`❯ <text>`) |
+| Interrupt | Kernel owns Ctrl+C (raw-mode 0x03 + SIGINT trap net); agent run cancels at the next suspension; chat renders `interrupted` into scrollback; poller joined; terminal restored (suite-proven) |
+| Stream completion detection | `MockLLMServer#serve` routes streaming by `"stream":true` in the body / Accept header; slow_stream inserts a properly chunk-framed keepalive per 0.1 s pause (the fixed defect) |
+
+### Parity deviations (itemized — none silent)
+
+| ID | Deviation | Reason |
+|---|---|---|
+| D1 | Pre-run queued messages consumed at the first turn boundary (2 requests) instead of pi's first-turn steering (1 request) | I03-locked `test_queued_message_continues_the_outer_loop`; pi reference `agent-loop.ts:175` |
+| D2 | Plain-text streaming/rendering only (no markdown component, no ANSI-aware wrap/truncate) | Spec out-of-scope (markdown = later iteration); recorded per §5.1 |
+| D3 | Approval prompt is a key-choice prompt (y/n) rather than pi's focus-selector widget; Enter/Ctrl+C-abort path = interrupt (pi resolves undefined → deny-like) | Minimal input-line scope; observable semantics (explicit choice, deny first-class, abort tears down) match pi |
+| D4 | Live region shows the streaming text as a sliding tail window (viewport-height rows), not pi's full growing block above the editor | Fixed-height inline viewport cannot grow upward; closest faithful analog of `tui-main-screen.ts`'s model on the sanctioned mechanism |
+
+### Carry-ins (AC5) — verified in this run
+
+| Item | State | Evidence |
+|---|---|---|
+| bash timeout: single group `-TERM`, escalate once to `-KILL` after grace | done (inherited, audited) | `lib/raspberry_pi/tools/bash.rb` `term_sent` flag + `TERM_GRACE_SECONDS` (5.0); `bash_tool_test.rb` 6 runs green; bench timeout-kill probe `kill_calls: 1, verdict: clean` |
+| bash interrupt: single group `-KILL` (dead `-TERM` removed) | done (inherited, audited) | `bash.rb` `rescue RubyLLM::CancelledError` path; interrupt tests green |
+| MockLLMServer `EPIPE` rescued after client teardown | done (inherited, audited) | `write_chunk`/`serve` rescue `Errno::EPIPE`; `stderr-clean` gate = `NO_EPIPE` |
+| Silent async "unhandled exception" log (optional cosmetic) | skipped | Disagreement 6 |
+
+### Files
+
+| File | Change |
+|---|---|
+| `lib/raspberry_pi/render/chat.rb` | new (untracked) — streaming chat surface; fixed inherited wrap `fit` bug; live-region line budget; steering-race restart |
+| `lib/raspberry_pi/agent/loop.rb` | modified (inherited) — audited; + `queued_messages?`, loop-start steering drain (prompt-less runs) |
+| `lib/raspberry_pi/core/loop.rb` | modified (inherited, audited unchanged this run) — renderer widget passthrough, `attr_writer` surface, interrupt cancels spawned tasks |
+| `lib/raspberry_pi/tui.rb` | modified (inherited, audited unchanged this run) — seam extensions (`insert_before`, `buffer_content`, `viewport_area`, `paragraph`, `text_width`, key/paste events) |
+| `lib/raspberry_pi/tools/bash.rb` | modified (inherited, audited unchanged this run) — carry-ins 1–2 |
+| `lib/raspberry_pi.rb` | modified (inherited, audited unchanged this run) — requires render/chat |
+| `test/chat_test.rb` | new (untracked) — 13 tests; fixed geometry/readback helpers, drain-race, deterministic slow-stream steering |
+| `test/test_helper.rb` | modified — ScriptedSession viewport `height:` kwarg (default 4, models a real live region) |
+| `test/support/mock_llm_server.rb` | modified — chunked-framing fix for keepalive (the suite-blocking defect) |
+| `raspberry-pi.gemspec`, `Gemfile*`, `Rakefile`, `bench/**`, `README.md`, `.gitignore` | untouched (no new deps needed; bench green as-is) |
+
+No git write commands were run; the worktree remains uncommitted on `lane/I04-tui-tui`.
+
+STATUS: COMPLETE
 
 ## Verdict
 
