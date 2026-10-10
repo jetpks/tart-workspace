@@ -160,6 +160,14 @@ project:
       - bench/**
       - README.md
       - ".gitignore"
+      base_sha: afee7401404d32da3aa932f42fa1f3d61e7afbfc
+      worktree:
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-09T14:46:00-06:00'
+      integrate_sha: b2edb7480de6c74f8db44eba2cd2b9d70cb993c9
     rehearsal:
       gates_digest: 45de497b5292850526ab649933e5dbd5551781be8d5acc35f5f440564d2a25fc
       at: '2026-10-09T13:36:42-06:00'
