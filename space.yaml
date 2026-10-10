@@ -558,6 +558,13 @@ project:
       - test/loop_test.rb
       - bin/tart
       - test/launcher_smoke_test.rb
+      base_sha: 5b98831f0c664a1144cf5cf677b96f7ad9466f69
+      worktree: build/I13-live-run-fixes-kernel/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      integrate_sha: 4890aea7f4206fddee2b57b872f858de6322390c
     - name: surface
       repo: tart
       touch_set:
@@ -569,6 +576,14 @@ project:
       - test/skills_test.rb
       - test/tui_test.rb
       - test/support/mock_llm_server.rb
+      base_sha: 5b98831f0c664a1144cf5cf677b96f7ad9466f69
+      worktree: build/I13-live-run-fixes-surface/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-10T13:11:25-06:00'
+      integrate_sha: e903830dd14180bb122f5679aef8e2f61deaf670
     rehearsal:
       gates_digest: 3ac2543c5d2f44d731770a9690ba2421ccb3288b823f682ea54134a06f2d5455
       at: '2026-10-10T13:07:06-06:00'
