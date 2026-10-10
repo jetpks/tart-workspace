@@ -29,35 +29,93 @@ Inline research done at spec time (no external dependencies beyond one catalog f
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section skills-settings-commands specification --from <file>`. -->
+# Specification
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+## Objective
+
+Port pi's three remaining §3 daily-driver subsystems — **skills**, **settings**, and **slash commands** (BRIEF §3; owner ruling 2026-10-11: full §3 scope is the done bar) — and close the two carry-ins:
+
+- **I08 carry-in (BRIEF §7.6):** the compaction threshold never fires out of the box because ruby_llm's registry misses the default fireworks model (`RubyLLM::Model.find("accounts/fireworks/models/glm-5p3-flash")` → nil, live-verified at spec time — Grounds). A **registry-default context-window table** (pi's catalog value 1_048_573, Grounds) joins the resolution order so the default chat compacts without any env/settings.
+- **I09 carry-in:** the corrected env-tripwire gate clause `git grep -q 'TART_API_KEY' -- bin/tart` (I09 Verdict ruling 1, I07 session-guard precedent) enters this freeze.
+
+Reduced-surface rules (BRIEF §6): pi-compatible discovery locations and key names where cheap (`~/.tart/skills` + `<cwd>/.tart/skills`; JSON settings with pi's camelCase keys; `/skill:<name>` invocation); the port carries only the builtin commands and settings keys backed by features it actually has — every cut is an itemized deviation, never silent. Parity discipline (BRIEF §5): where the port's semantics would differ from pi's, port pi's behavior and raise the conflict.
+
+## Output format
+
+Raw tables/JSON only in the report (absolute path `build/I10-skills-settings-commands-core/report.md`): PHASE 0 findings table (every verify item below, spec-vs-reality with gem/oracle file:line evidence), test-suite output verbatim (pass/fail counts), gate-command outputs verbatim, judgment calls (the builtin command set + per-command semantics; the settings key set; the slash-dispatch seam; skill loading in tests; the `/new` reset seam; streaming-time slash behavior), the parity-deviation table (empty or itemized — silent deviation is a defect), and the files list. Every status claim backed by a command result from this run.
+
+## Tool guidance
+
+**Verification (exact, per ARCHITECT.md — post-I09 paths):**
+
+```
+cd ~/architect/spaces/20261009-pi-port/repos/tart
+bundle install --quiet && bundle exec rake        # suite (test/**/*_test.rb)
+```
+
+**Verify against the live oracle + gem before writing code (PHASE 0 — every item needs file:line evidence):**
+
+1. **pi's `formatSkillsForPrompt`** (`core/skills.ts:358-376`): transcribe the `<available_skills>` block byte-identical — header line, `<skill>` children (`name`/`description`/`location`, XML-escaped), closing tag — plus the `skillFileReadTool` logic (`"read"`/`"bash"` if declared, `"indirect"` if only selected, none → no section; `system-prompt.ts:175-182`). Read the full function; report any parameters beyond the three child elements.
+2. **pi's skill loading rules** (`core/skills.ts`): frontmatter keys and `MAX_NAME_LENGTH`/`MAX_DESCRIPTION_LENGTH` values (find them); what happens on missing/oversize name or description (diagnostic shapes); collision semantics (first-loaded wins + collision diagnostic — verify user-before-project load order and which one wins, `:425-450`); symlink canonicalization; `disable-model-invocation` effect (excluded from the system-prompt listing, still user-invocable); whether a bare `SKILL.md` at the skills-dir root (not in a per-skill subdir) loads. Map each rule onto the port; itemize every cut (ignore-file filtering `.gitignore`/`.ignore`/`.fdignore` is a sanctioned cut — the npm `ignore` package has no stdlib Ruby equivalent; `resource-loader.ts` path-expansion/`--skill` flags are out of scope).
+3. **pi's skill-command expansion** (`agent-session.ts:2144-2175` + `parseSkillBlock` `:165-187`): the `/skill:<name>` prefix match, args split/trim, and the exact expanded block (`<skill name="..." location="...">` + content + `</skill>` + blank line + args — transcribe the exact construction lines); unknown-skill passthrough (`:2155`); behavior while streaming (expanded text queues via steer `:2012-2026`). Confirm the expanded block is what the model receives as the user message and how it is recorded in the session (pi records the expanded or the raw text — find it and port it).
+4. **pi's settings merge + validation** (`core/settings-manager.ts` + `settings-schema.ts` + `docs/settings.md`): user/agent-dir + project file locations; deep-merge direction (project over user); how defaults layer (missing key → built-in default); unknown-key and JSON-parse-failure behavior (diagnostics/warnings, run continues on defaults — verify, don't assume); the exact `defaultTools` plain/`+`/`-` semantics and project-over-user composition (docs/settings.md "Tools" section + schema). Map onto the port's reduced key set (below); itemize every pi key not carried and why (no backing feature).
+5. **pi's builtin slash-command dispatch + unknown-command UX** (`modes/interactive/interactive-mode.ts` submit path): find where Enter-submitted text starting with `/` is routed — builtin table first? extension commands? `skill:`? templates? — and the exact UX when a `/foo` matches nothing (error message shown? passed to the model as text? cite the lines). Port the routing shape and the unknown-command behavior exactly; the port's builtin set is reduced (below) but the routing + unknown behavior is parity.
+6. **pi's `/compact` + `/new` semantics** (interactive-mode.ts): what `/compact` does (runs compaction now; behavior while streaming — find it); what `/new` does (fresh session: new session file, cleared context, same settings/model; cite the lines). Port both.
+7. **ruby_llm registry miss + the catalog number** (Grounds, live-verified): re-confirm `RubyLLM::Model.find("accounts/fireworks/models/glm-5p3-flash")` → nil on the worktree's pinned gem, and the catalog value 1_048_573 (pi.dev model catalog entry for this model id; fireworks' own page lists 1,048,576 checkpoint-config — pi's catalog value wins, pi is the oracle). Report both results.
+8. **Port seams (read this session; re-verify on the worktree base):** `Render::Chat#submit` idle/streaming branches (render/chat.rb:435-446) — the idle branch runs `@agent.run(text)`; a slash dispatch returns before that; `Agent::SystemPrompt.sections(selected_tools:, append_system_prompt:, cwd:, context_files:, docs_paths:)` — the `skills:` param is additive (signature change must keep existing call sites green); `Agent::Loop` compaction kwargs + `run_compaction`/`resolved_context_window` (loop.rb) — the manual-compaction seam is an additive public method; `bin/tart` `build_chat`/`build_tools`/`SELECTED_TOOLS`/`system_prompt(workdir)` — the settings-driven rewiring; `Tools::Registry.build(selected:, cwd:, mcp_servers:)`. Confirm the goldens: `test/golden_parity_test.rb` asserts system-prompt/system-message parity with no skills loaded — the `<skills>` section must not appear when skills are empty (pi: `skillFileReadTool && skills.length > 0`, system-prompt.ts:179), so goldens stay byte-identical.
+9. **Frontmatter parsing without a new gem:** stdlib `yaml` (psych) parses the `---` frontmatter block; confirm it ships on the pinned Ruby and that malformed YAML → a diagnostic, not a crash (match pi's diagnostic behavior, skills.ts). No new runtime dependencies (gem-pins gate).
+10. **Hermetic loading:** skills + settings tests use fake `$HOME`/tmp dirs (I07/I08 pattern) — `~/.tart` is never touched; the builder's worktree must not depend on the owner's real `~/.tart` or `~/.claude` contents.
+
+## Boundaries
+
+**May touch (this lane's exhaustive set):**
+
+- `lib/tart/skills.rb` (new — loading pure functions + `format_skills_for_prompt`)
+- `lib/tart/settings.rb` (new — load/merge/validate + resolution orders + the model context-window registry-default table)
+- `lib/tart/commands.rb` (new — builtin table + dispatch + skill-command expansion)
+- `lib/tart/agent/system_prompt.rb` (additive `skills:` param + the `<skills>` section)
+- `lib/tart/agent/loop.rb` (additive public manual-compaction seam only; no existing-behavior changes)
+- `lib/tart/render/chat.rb` (the submit seam: route `/`-prefixed text to Commands; minimal call-site wiring)
+- `bin/tart` (settings load; ENV-over-settings resolution for model/provider/apiBase/apiKey; `defaultTools` → Registry.build; skills → system prompt; commands/surface wiring; `--help` text)
+- `lib/tart.rb` (registration only)
+- `test/skills_test.rb`, `test/settings_test.rb`, `test/commands_test.rb` (new)
+- `test/system_prompt_test.rb`, `test/chat_test.rb`, `test/agent_loop_test.rb` (additions; existing tests pass unmodified where the API is additive)
+- `README.md` (Skills/Settings/Commands sections: discovery locations, key set, env precedence, `/skill:` + builtins)
+
+**Must not touch:** `lib/tart/compaction.rb`, `lib/tart/agent/session.rb`, `lib/tart/agent/bridge.rb`, `lib/tart/agent/status.rb`, `lib/tart/tools/**`, `lib/tart/mcp.rb`, `lib/tart/mcp/**`, `lib/tart/print.rb`, `lib/tart/tui.rb`, `lib/tart/render/markdown.rb`, `lib/tart/core/**`, `test/compaction_test.rb`, `test/session_test.rb`, `test/mcp_test.rb`, `test/print_test.rb`, `test/tui_test.rb`, `test/golden_parity_test.rb`, `test/kernel_carryin_test.rb`, `test/markdown_test.rb`, `test/loop_test.rb`, `test/tools_test.rb`, `test/support/mock_llm_server.rb` (read-only; raise in PHASE 0 with evidence if it cannot express a needed script), `Gemfile`, `Gemfile.lock`, `bench/`. `~/.tart` must never be touched (fake `$HOME`/tmp dirs in tests, as I07/I08). `lib/tart/compaction.rb` is read-only this lane: settings feed compaction through the existing `Agent::Loop` kwargs; if a change there is genuinely required, raise it in PHASE 0 with evidence instead of editing.
+
+**Out of scope:** prompt templates (`/template`), extension commands, themes/keybindings/prompt-template resource kinds, autocomplete UI for commands, pi's remaining builtins bound to unbuilt features (`/model` `/tree` `/export` `/import` `/share` `/bug` `/copy` `/name` `/changelog` `/hotkeys` `/fork` `/clone` `/trust` `/login` `/logout` `/resume` `/reload` `/session` `/scoped-models` `/thinking` — reduced set is a frozen deliverable below), models.dev registry refresh, settings JSON-schema publication, `compaction.modelOverrides`, MCP config merging into settings (mcp.json stays as-is), ignore-file filtering in skill discovery (itemized sanctioned cut), `--skill`/skill-path CLI flags, skills progress/caching, settings reload mid-session (`/reload`-style). No new runtime dependencies (gem-pins gate). No refactors beyond the task.
+
+**No placeholders; search before implementing** (the repo's `grep`/`find` tools + gem source are in the worktree; pi oracle at `~/architect/spaces/20261009-pi-port/repos/pi`).
+
+## Lane plan
+
+One lane — the three subsystems interlock at the seams (`bin/tart` wiring, `Agent::Loop` kwargs, `Render::Chat` submit, `SystemPrompt` sections); a seam between them would be artificial and the shared files would overlap. High effort: byte-identical prompt block transcription, pi's exact expansion block, merge/precedence orders, and the `/new` reset seam.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision skills-settings-commands`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/skills.rb
+    - lib/tart/settings.rb
+    - lib/tart/commands.rb
+    - lib/tart/agent/system_prompt.rb
+    - lib/tart/agent/loop.rb
+    - lib/tart/render/chat.rb
+    - bin/tart
+    - lib/tart.rb
+    - test/skills_test.rb
+    - test/settings_test.rb
+    - test/commands_test.rb
+    - test/system_prompt_test.rb
+    - test/chat_test.rb
+    - test/agent_loop_test.rb
+    - README.md
 ```
+
+## Effort
+
+`architect dispatch skills-settings-commands --effort high` — exact-string transcription (the `<available_skills>` block, the skill expansion block), pi-faithful precedence orders (env/settings/registry-default for the context window — the I08 carry-in closes here), the `/new` reset seam, and routing that must not regress goldens or the existing submit/steer paths.
 
 ## Acceptance Criteria
 
