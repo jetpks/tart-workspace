@@ -1012,11 +1012,108 @@ analysis or partial fixes.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I06-editor-markdown-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence editor-markdown --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### polish
+
+### Findings (PHASE 0)
+
+| # | Verify item | Spec claim | Reality (evidence from this run) | Verdict |
+|---|---|---|---|---|
+| 1 | pi reasoning-delta capture | deltas map to thinking blocks keyed by signature ∈ {reasoning, reasoning_content, reasoning_text} | Confirmed: `repos/pi/packages/ai/src/api/openai-completions.ts:611` — `const reasoningFields = ["reasoning_content", "reasoning", "reasoning_text"];` then :615-627 `ensureThinkingBlock(thinkingSignature)` + `thinking_delta` push | spec correct |
+| 2 | pi replays reasoning on send (the current loop.rb comment denies this) | replay gated on no preserved encrypted reasoning_details | Confirmed: `openai-completions.ts:1318` `preservedReasoningDetails = signedReasoningDetails ?? legacy…`; `:1340` `if (!preservedReasoningDetails)`; `:1346` `assistantMsg[signature] = nonEmptyThinkingBlocks.map(b => b.thinking).join("\n")` — pi does build replay from the reasoning field the deltas carried. The shipped comment ("pi does not build replay from reasoning deltas either way") is false. Corrected. | spec correct; shipped comment wrong |
+| 3 | async warn source | "Task may have ended with unhandled exception" comes from the raising-work carry-in test | Confirmed: full-suite stderr contained exactly one async warn, `class: RuntimeError, message: "work boom"`, backtrace `test/kernel_carryin_test.rb:34` (pre-fix run, verbatim in JSON log). Emitted at async-2.46.0 `lib/async/task.rb:224-226`: `rescue => error … unless @promise.waiting? then warn(self, "Task may have ended with unhandled exception.", exception: error)`. | spec correct |
+| 4 | warn mechanism | routing the raise so async observes it as handled is viable without touching `core/**` | Confirmed: `Promise#waiting?` (`async/promise.rb:63-65`) is `@waiting > 0` — set by a fiber blocked in `wait`. The kernel's supervisor (`core/loop.rb` `supervise` → `work_task.wait`) starts greedily and registers before the reactor next schedules the work fiber, so a single reactor yield (`sleep 0.001`) inside the test's work block ahead of the raise guarantees `waiting?` → no warn. `core/loop.rb` untouched (out of scope). | fix is test-side, sanctioned |
+| 5 | test_helper.rb need | polish owns it | No change needed — untouched (git status clean for it). | n/a |
+
+### Disagreements
+
+None. Checked before concluding the spec is sound for this lane: the two oracle citations (findings 1-2), the async gem source for the warn condition (finding 3), the kernel's supervisor ordering (`lib/raspberry_pi/core/loop.rb:141-172` — supervisor task created before `frame_loop`, work fiber cannot resume until the reactor yields), and the baseline suite output.
+
+### Diff summary
+
+```
+ lib/raspberry_pi/agent/loop.rb | comment-only (12 +/-4 lines, all leading-#; strip_thinking_replay body byte-identical)
+ test/kernel_carryin_test.rb    | test_raising_work_terminates_poller_and_reraises: work block now yields
+                                | (sleep 0.001) before `raise "work boom"`; assertions unchanged (16 total before and after)
+```
+
+No commits made (`git log` head `516d85a`, `git status` = 2 modified files only).
+
+### Test-suite output (verbatim, post-change)
+
+```
+$ bundle install --quiet && bundle exec rake && echo SUITE_OK
+Run options: --seed 38508
+
+# Running:
+
+....................................................................................
+
+Finished in 14.832530s, 5.6632 runs/s, 22.7878 assertions/s.
+
+84 runs, 338 assertions, 0 failures, 0 errors, 0 skips
+SUITE_OK
+```
+
+Baseline (pre-change, same tree): `84 runs, 338 assertions, 0 failures, 0 errors, 0 skips` — assertions identical, nothing weakened.
+
+### Gate outputs (verbatim)
+
+```
+# stderr-quiet
+$ bundle exec rake > /dev/null 2> stderr_gate2.log; ! grep -qi 'unhandled exception' stderr_gate2.log && echo NO_WARN && rm -f stderr_gate2.log
+NO_WARN
+
+# editor-guard (other lanes' files; chat/tui tests exist in this worktree)
+$ timeout 120 bundle exec ruby -Itest test/chat_test.rb test/tui_test.rb && echo EDITOR_OK
+16 runs, 60 assertions, 0 failures, 0 errors, 0 skips
+EDITOR_OK
+
+# markdown-guard
+$ ls test/markdown_test.rb
+ls: test/markdown_test.rb: No such file or directory
+NOT RUNNABLE: wave-1 markdown lane deliverable (not created, per lane notes)
+
+# tui-seam
+$ test -f lib/raspberry_pi/tui.rb && test -z "$(grep -rn 'RatatuiRuby\.' lib test bench bin | grep -v '^lib/raspberry_pi/tui')" && echo SEAM_OK
+SEAM_OK
+
+# bench-seam
+$ timeout 90 bundle exec ruby bench/seam_bench.rb
+SEAM_BENCH_OK
+
+# gem-pins
+$ grep -q 'ratatui_ruby (1\.5\.0)' Gemfile.lock && grep -q 'minitest (5\.' Gemfile.lock && grep -q 'ruby_llm (2\.' Gemfile.lock && echo PINS_OK
+PINS_OK
+
+# stderr-clean
+$ bundle exec rake > /dev/null 2> stderr_gate.log; ! grep -q 'Broken pipe' stderr_gate.log && echo NO_EPIPE && rm -f stderr_gate.log
+NO_EPIPE
+```
+
+### Determinism of the warn fix
+
+5 seeded reruns of `bundle exec ruby -Itest test/kernel_carryin_test.rb`, each:
+`7 runs, 16 assertions, 0 failures, 0 errors, 0 skips` — stderr clean of "unhandled exception" on every run.
+
+### Parity-deviation table
+
+| Deviation | Status |
+|---|---|
+| (none new) | The port's replay suppression vs pi's reasoning-field replay is the pre-existing I05-ratified deviation; the corrected comment now itemizes it in place (loop.rb:301-307) with oracle citations. |
+
+### Judgment calls
+
+| Call | Detail |
+|---|---|
+| Warn-fix mechanism | Test-side reactor yield (`sleep 0.001`) before the raise rather than any kernel change: `core/**` is out of scope, and the yield makes async's own suppression condition (`@promise.waiting?`, task.rb:225) deterministically true because the kernel's supervisor task registers `work_task.wait` greedily before the reactor re-schedules the work fiber. Failure semantics asserted are unchanged: `assert_raises(RuntimeError, "work boom")` + `refute poller.thread.alive?`. |
+| test_helper.rb | Owned by this lane but left untouched — no fixture change required. |
+
+### Files
+
+- `lib/raspberry_pi/agent/loop.rb` — comment-only correction of `strip_thinking_replay`'s pi-behavior claim
+- `test/kernel_carryin_test.rb` — raising-work test yields to the reactor before raising (warn suppressed, assertions identical)
+
+STATUS: COMPLETE
 
 ## Verdict
 
