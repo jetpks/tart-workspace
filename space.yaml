@@ -377,7 +377,21 @@ project:
   - name: compaction
     ordinal: 8
     file: architecture/I08-compaction.md
-    freeze_sha:
+    freeze_sha: 1cf124ddd2d640f9e9d5d5162a420a0d6550305f
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: raspberry-pi
+      touch_set:
+      - lib/raspberry_pi/compaction.rb
+      - lib/raspberry_pi/agent/loop.rb
+      - lib/raspberry_pi/agent/session.rb
+      - lib/raspberry_pi.rb
+      - test/compaction_test.rb
+      - test/session_test.rb
+      - test/agent_loop_test.rb
+      - README.md
+    rehearsal:
+      gates_digest: 50562370b68520acc4dc029d6a6357d8612e4d097dc42d5c09ba8876ef53f003
+      at: '2026-10-09T21:00:18-06:00'
   integration_branch: project/pi-port
