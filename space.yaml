@@ -509,7 +509,7 @@ project:
     ordinal: 12
     file: architecture/I12-autocomplete-scroll.md
     freeze_sha: 7acb2cebe3bfe57b94c5661df91b6d18812886ac
-    verdict: pending
+    verdict: continue
     lanes:
     - name: agent
       repo: tart

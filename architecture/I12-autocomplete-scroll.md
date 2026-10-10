@@ -1069,15 +1069,34 @@ STATUS: COMPLETE_WITH_CONCERNS (theme tokens need the architect's promotion per 
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section autocomplete-scroll verdict --from <file>`. -->
+# Post-flight (mechanical, this session's own evidence)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify autocomplete-scroll`)?
+- `architect verify` all PASS both lanes; confirmed by hand: `git diff 7acb2ceb HEAD -- architecture/I12-autocomplete-scroll.md` shows only post-freeze Builder Prompt/Report appends; `git -C <wt> log fcdeae54..` empty in both worktrees (no builder commits); worktree diffs exactly the declared touch sets (agent: loop.rb + agent_loop_test.rb; surface: chat.rb, tui.rb, bin/tart, chat_test.rb, tui_test.rb); scratch reports raw-results-only with PHASE 0 findings tables present in both (no silent compliance).
+- Integrated: agent → 3db75df7, surface → 5b98831f on `project/pi-port`; teardown clean.
+- Gates cold on the integration tree: **13/13 PASS** (suite-green 272 runs / 1072 assertions, 0 failures — 250 agent-lane + 22 surface-lane over the 247 base; both halves of cstart-tripwire green post-merge by design). Goldens byte-identical (clean `git status`).
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+# Disagreement rulings (every PHASE 0 raise + deviation-table judgment)
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+1. **Agent, item 6 — manual-path emission placement.** pi's manual `compact()` emits `compaction_start` BEFORE `prepareCompaction` (agent-session.ts:2764-2767), so pi's manual path emits start even for a nothing-to-compact attempt; the frozen contract unified all three reasons on the auto path's after-prepare placement (:3111-3119). **ACCEPT** — the frozen cross-lane contract governs, and it is the better shape: a start status that can never be followed by anything (nothing to compact) is a pi wart, not parity worth keeping; the deviation is itemized in the lane's table, not silent.
+2. **Surface, raise 1 — scrollbar theme tokens missing (spec self-contradiction).** Tool guidance said "carry them now"; Boundaries said theme.rb read-only, "a missing scrollbar token is raised, not added". **ACCEPT the raise** — the Boundaries' exhaustive touch-set is the frozen contract and wins over the guidance sentence; raising was exactly right. **MODIFY the disposition**: the interim `dim`/`muted` routing is accepted for this iteration (same rendering today), but the follow-up promotion must carry the closest ANSI analogs to pi's ACTUAL scrollbar values (dark.json:28-29: track okhsl(237 7% 33%) — blue-tinted and much darker than `dim`'s 56% — thumb okhsl(232 7% 65%)), not a default re-point to `dim`/`muted`; the choice is recorded in the token table's provenance comment either way. Queued as a backlog item (small single-file iteration).
+3. **Surface, raise 2 — enter = apply + submit.** **ACCEPT** — pi editor.ts:790-816 confirms a `/`-prefix completion falls through to submit; the spec explicitly left this to verification and the lane verified it.
+4. **Surface, raise 3 — submit trims.** **ACCEPT** — pi interactive-mode.ts:3201 trims; required by the enter-apply trailing space, else `/new ` would not dispatch. Itemized.
+5. **Surface, raise 4 — items-only provider seam.** **ACCEPT** — spec-delegated house judgment; keeps the seam static, synchronous, and headless-testable.
+6. **Surface, raise 5 — pageUp/pageDown scroll the transcript, not editor content.** **ACCEPT** — spec-directed mapping; the port's editor is single-line, so pi's editor-content pageScroll has no target.
+7. **Surface, raise 6 — gem Scrollbar widget rejected, geometry hand-ported.** **ACCEPT** — parity is the brief's bar (BRIEF §3/§5): the gem's widget burns the first/last track rows on begin/end glyphs and computes a different thumb size; pi's formula (layout.ts:285-330) is ported exactly through the `TUI.scrollbar_lines` seam helper; tui-seam gate green.
+
+# Per-AC verdicts
+
+- **AC1 (autocomplete) — PASS.** Tripwire green; substance architect-read: trigger (`slash_token` context = pi isInSlashCommandContext), fuzzy filter + scoring ported line-cited from fuzzy.ts (score weights exact), list shape (two columns, descriptions width-gated, (i/N) scroll-info, wrapping nav, exact/prefix preselect), tab/enter/escape precedence, history-yield, re-filter/dismiss on typing and space, paste cancel, provider injected with nil default + `bin/tart` SlashSource wiring. 20 chat tests cover every key path.
+- **AC2 (scrolling) — PASS.** Follow-end machine ported from scroll-view.ts:127-135 (follow while at bottom; detached stays put; landing at end re-follows — pinned by `test_page_up_pans_the_transcript_and_the_tail_refollows` + `test_a_scrolled_up_view_stays_put_as_new_output_arrives`); pageUp/pageDown + ctrl variants scroll a viewport-page; scrollbar geometry ported exactly, hidden when content fits. Carved-column vs overlay mapping itemized.
+- **AC3 (compaction-start) — PASS.** Emission exactly per the frozen contract (after prepare truthy, before the summarization call, no event when nothing to compact) — proven by ordering test, failed-summary test, no-event test, strengthened overflow/disabled tests; surface consumes it into the border with pi's verbatim per-reason labels minus the cancel hint, cleared on `:compaction`/`:agent_end`; post-hoc compaction line renders unchanged; the stale "no compaction-start seam" comment replaced with the real seam reference.
+- **AC4 (deviation discipline) — PASS.** Both findings tables complete with file:line evidence; both deviation tables itemized (11 rows surface, 2 agent) — every spec-mandated cut present, nothing silent.
+- **AC5 (regressions) — PASS.** All standing guards green cold: tui-seam (all `RatatuiRuby.` vocabulary still confined to tui.rb, `scrollbar_lines` the only new door), gem-pins, env, bench, stderr, smoke, full suite 272 runs; goldens byte-identical.
+
+# Idiomaticity read
+
+Reads like the surrounding house code throughout: pi file:line citation comments (the house comment style since I05), mutex-guarded test readbacks, section-comment method grouping, the new ANSI vocabulary entering only through a tui.rb seam helper, frozen-region behavior untouched. One playful test name (`test_page_scrolling_is_the_lists_prisoner_and_needs_no_overflow`) — within house tolerance.
+
+# KILL/CONTINUE
+
+**CONTINUE** — the last two daily-driver UX gaps from the owner's first real run (BRIEF §3, backlog item 1 gaps (e)) are closed with pi-exact parity and full deviation discipline; both lanes clean end-to-end, 13/13 gates cold, zero regressions. Only follow-up: the scrollbar token promotion (ruling 2), queued in the backlog.
