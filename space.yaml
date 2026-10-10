@@ -477,7 +477,23 @@ project:
   - name: render-surface
     ordinal: 11
     file: architecture/I11-render-surface.md
-    freeze_sha:
+    freeze_sha: de20001958e96dab605d5ad9a335f17fd0173608
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/tui.rb
+      - lib/tart/theme.rb
+      - lib/tart/render/chat.rb
+      - bin/tart
+      - lib/tart.rb
+      - test/tui_test.rb
+      - test/chat_test.rb
+      - test/theme_test.rb
+      - test/launcher_smoke_test.rb
+      - README.md
+    rehearsal:
+      gates_digest: 92712be1b9c59731b0a08cd4416dd9bd212ea2725d774d020ee024711877fd52
+      at: '2026-10-09T23:12:05-06:00'
   integration_branch: project/pi-port
