@@ -590,7 +590,44 @@ project:
   - name: third-run-parity
     ordinal: 14
     file: architecture/I14-third-run-parity.md
-    freeze_sha:
+    freeze_sha: 148fe6946ab43a9e362da9bc25aa8dcbf9db385a
     verdict: pending
-    lanes: []
+    lanes:
+    - name: agent
+      repo: tart
+      touch_set:
+      - lib/tart/agent/loop.rb
+      - lib/tart/tools.rb
+      - lib/tart/tools/registry.rb
+      - lib/tart/print.rb
+      - lib/tart/settings.rb
+      - bin/tart
+      - test/agent_loop_test.rb
+      - test/tools_test.rb
+      - test/print_test.rb
+      - test/mcp_test.rb
+      - test/settings_test.rb
+      - test/launcher_smoke_test.rb
+    - name: surface
+      repo: tart
+      touch_set:
+      - lib/tart/render/chat.rb
+      - lib/tart/theme.rb
+      - lib/tart/tui.rb
+      - lib/tart.rb
+      - test/chat_test.rb
+      - test/theme_test.rb
+      - test/tui_test.rb
+    - name: mouse
+      repo: tart
+      touch_set:
+      - lib/tart/tui.rb
+      - lib/tart/core/loop.rb
+      - lib/tart/render/chat.rb
+      - test/tui_test.rb
+      - test/loop_test.rb
+      - test/chat_test.rb
+    rehearsal:
+      gates_digest: 3cfdc9ff9b6bf027bb97a1e3fe24e1da007c65354a94946103cb9f3055895f3b
+      at: '2026-10-10T14:32:42-06:00'
   integration_branch: project/pi-port
