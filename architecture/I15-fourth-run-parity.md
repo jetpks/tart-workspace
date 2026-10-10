@@ -93,51 +93,192 @@ Raw tables/verbatim output only, in `build/I15-fourth-run-parity-core/report.md`
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse fourth-run-parity` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze fourth-run-parity` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+Calibration: AC1-AC6 assert user-visible properties of the daily-driver surface (BRIEF §3) — substance is architect-read from the Builder Report's pi/gem citations, the recorded-fixture dump, and test readbacks; tripwires pin presence only and say so. AC7 is the deviation-discipline floor (BRIEF §5); AC8 the standing regression floor (BRIEF §2).
 
-**AC1.** ...
+- **AC1 (exit resume hint — item 1, BRIEF §3).** Every interactive exit path prints `To resume this session: tart --resume <id>` after terminal restore when the session was persisted (dim label + plain command, pi interactive-mode.ts:4324-4327 / formatResumeCommand :339-355 shape; nothing when not persisted; nothing in `--print`). Test-proven (helper-level: the printed line's exact shape + the not-persisted branch; launcher smoke covers the wiring).
+- **AC2 (/resume picker — item 2, BRIEF §3).** `/resume` dispatches (never falls through to the model), opens a picker listing the workdir's sessions newest-first, navigable by arrow keys, enter resumes, escape cancels back to the editor. `Session.list` returns mtime-descending valid-header sessions for a cwd (fixture-rooted test). Resuming through the picker lands the same state as CLI `--resume` (replayed transcript + "Resumed session" line). Every picker reduction vs pi's SessionSelectorComponent (all-sessions view, rename, cwd-mismatch prompt — whichever aren't built) is itemized. Test-proven headlessly through the kernel/command wiring.
+- **AC3 (resume replay — item 3, BRIEF §3).** `tart --resume <id>` (and picker-resume) renders the resumed session's entries in the transcript through the live-turn shapes — user echoes, assistant markdown, tool calls/results, compaction summary as the recorded entries carry them (the report's fixture dump is the contract; recorded gaps itemized, never invented) — followed by the "Resumed session" status line, and "Session compacted N times" when compaction entries exist (pi :4226-4232). No fresh MOTD on resume (itemized cut). Test-proven: a recorded fixture session (mock server, recorder on) resumed headlessly shows the replayed transcript; the model context seeding is unchanged (its existing tests stay green unmodified).
+- **AC4 (body colors — item 4a, BRIEF §3).** Body prose renders the `text` token's true color (okhsl(234 3% 89%) → verified hex constant, provenance comment), the user echo renders `text` on `userMessageBg`'s true blue (okhsl(233 41% 24%)) as a background span with no `❯ ` prompt char, tool output and thinking text render their true values (`muted`, `thinkingText`). Hex constants verified against pi's own conversion in PHASE 0 (evidence in the report); gem hex fg+bg verified live through the tui.rb seam (raw cell-style dump in the report). Non-content tokens keep 16-color analogs (itemized reduction). theme_test updated. Test-proven (readbacks assert the hex fg/bg on content-path cells).
+- **AC5 (region padding — item 4b, BRIEF §3).** A leading blank line separates every scrollback region: before each user echo (non-empty transcript), each tool block, each compaction summary, each assistant message with visible content (already present — stays). Test-proven by readback across a mixed session (user → reasoning+content → tool → user → assistant).
+- **AC6 (escape interrupts — item 5, BRIEF §3).** Escape during a streaming run interrupts it through the port's interrupt path (composing with the existing cancel semantics — their tests green); escape with autocomplete open cancels the autocomplete only; escape while idle is a no-op (double-escape /tree|/fork CUT, itemized — no session branches). Test-proven kernel-driven (mock server streaming + synthetic escape key).
+- **AC7 (deviation discipline — BRIEF §5).** Every PHASE 0 verify item is in the findings table with file:line evidence (including the recorded-entry fixture dump and the hex/truecolor live verification); the parity-deviation table is empty or itemized — the spec-mandated cuts (`--resume` flag-shape hint, MOTD-on-resume, horizontal outputPad indent, non-content tokens 16-color, picker reductions, recorded-entry gaps, double-escape cut) appear there, never silently.
+- **AC8 (regressions — BRIEF §2).** All standing guards stay green: tui-seam, gem-pins, env-tripwire, bench-seam, stderr gates, launcher smoke, the full suite; goldens byte-identical.
+
+Gate intent notes: `resume-hint`, `resume-command`, `replay`, `truecolor`, `padding` are **tripwires** — presence/absence of identifiers only; substance is architect-read from the report's fixture dump, citations, and test readbacks. `*-guard` gates prove the touched test files run standalone. The rest are the standing regression guards (GREEN on base by design).
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse fourth-run-parity` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite-green
+  ac: AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: chat-guard
+  ac: AC2, AC3, AC4, AC5, AC6, AC8
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/chat_test.rb && echo CHAT_OK
+  expect:
+    exit_code: 0
+    stdout_match: CHAT_OK
+
+- id: commands-guard
+  ac: AC2, AC8
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/commands_test.rb && echo COMMANDS_OK
+  expect:
+    exit_code: 0
+    stdout_match: COMMANDS_OK
+
+- id: session-guard
+  ac: AC2, AC3, AC8
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/session_test.rb && echo SESSION_OK
+  expect:
+    exit_code: 0
+    stdout_match: SESSION_OK
+
+- id: theme-guard
+  ac: AC4, AC8
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/theme_test.rb && echo THEME_OK
+  expect:
+    exit_code: 0
+    stdout_match: THEME_OK
+
+- id: tui-guard
+  ac: AC4, AC8
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/tui_test.rb && echo TUI_OK
+  expect:
+    exit_code: 0
+    stdout_match: TUI_OK
+
+- id: loop-guard
+  ac: AC6, AC8
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/loop_test.rb && echo LOOP_OK
+  expect:
+    exit_code: 0
+    stdout_match: LOOP_OK
+
+- id: smoke-guard
+  ac: AC1, AC8
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/launcher_smoke_test.rb && echo SMOKE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SMOKE_OK
+
+- id: resume-hint
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'To resume this session' bin/tart && echo HINT_OK
+  expect:
+    exit_code: 0
+    stdout_match: HINT_OK
+
+- id: resume-command
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    grep -q '"resume"' lib/tart/commands.rb && grep -rq 'def list' lib/tart/agent/session.rb && echo RESUME_OK
+  expect:
+    exit_code: 0
+    stdout_match: RESUME_OK
+
+- id: replay-tripwire
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    grep -qi 'Resumed session\|replay' lib/tart/render/chat.rb bin/tart && echo REPLAY_OK
+  expect:
+    exit_code: 0
+    stdout_match: REPLAY_OK
+
+- id: truecolor-tripwire
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    grep -qE '#[0-9a-fA-F]{6}' lib/tart/theme.rb && ! grep -q 'user_message_text: :light_blue' lib/tart/theme.rb && echo COLOR_OK
+  expect:
+    exit_code: 0
+    stdout_match: COLOR_OK
+
+- id: padding-tripwire
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    grep -n 'blank_line' lib/tart/render/chat.rb | grep -q . && echo PADDING_OK
+  expect:
+    exit_code: 0
+    stdout_match: PADDING_OK
+
+- id: env-tripwire
+  ac: AC8
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'TART_API_KEY' README.md && grep -q 'TART_MCP_CONFIG' README.md && grep -q 'TART_CONTEXT_WINDOW' README.md && git grep -q 'TART_API_KEY' -- bin/tart && echo ENV_OK
+  expect:
+    exit_code: 0
+    stdout_match: ENV_OK
+
+- id: tui-seam
+  ac: AC8
+  cwd: repos/tart
+  cmd: |-
+    test -f lib/tart/tui.rb && test -z "$(grep -rn 'RatatuiRuby\.' lib test bench bin | grep -v '^lib/tart/tui')" && echo SEAM_OK
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_OK
+
+- id: bench-seam
+  ac: AC8
+  cwd: repos/tart
+  cmd: |-
+    timeout 90 bundle exec ruby bench/seam_bench.rb
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: gem-pins
+  ac: AC8
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'ratatui_ruby (1\.5\.0)' Gemfile.lock && grep -q 'minitest (5\.' Gemfile.lock && grep -q 'ruby_llm (2\.' Gemfile.lock && echo PINS_OK
+  expect:
+    exit_code: 0
+    stdout_match: PINS_OK
+
+- id: stderr-quiet
+  ac: AC8
+  cwd: repos/tart
+  cmd: |-
+    bundle exec rake > /dev/null 2> stderr_gate2.log; ! grep -qi 'unhandled exception' stderr_gate2.log && echo NO_WARN && rm -f stderr_gate2.log
+  expect:
+    exit_code: 0
+    stdout_match: NO_WARN
+
+- id: stderr-clean
+  ac: AC8
+  cwd: repos/tart
+  cmd: |-
+    bundle exec rake > /dev/null 2> stderr_gate.log; ! grep -q 'Broken pipe' stderr_gate.log && echo NO_EPIPE && rm -f stderr_gate.log
+  expect:
+    exit_code: 0
+    stdout_match: NO_EPIPE
 ```
 
 ## Builder Prompt
