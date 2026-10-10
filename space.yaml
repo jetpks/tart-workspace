@@ -441,7 +441,28 @@ project:
   - name: skills-settings-commands
     ordinal: 10
     file: architecture/I10-skills-settings-commands.md
-    freeze_sha:
+    freeze_sha: 88b3949bafba73ae0286280d55e50650009478b7
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/skills.rb
+      - lib/tart/settings.rb
+      - lib/tart/commands.rb
+      - lib/tart/agent/system_prompt.rb
+      - lib/tart/agent/loop.rb
+      - lib/tart/render/chat.rb
+      - bin/tart
+      - lib/tart.rb
+      - test/skills_test.rb
+      - test/settings_test.rb
+      - test/commands_test.rb
+      - test/system_prompt_test.rb
+      - test/chat_test.rb
+      - test/agent_loop_test.rb
+      - README.md
+    rehearsal:
+      gates_digest: d084aba80005e30785a21e54b9d05a1e42b8fc45f054326ff20977175cf6869d
+      at: '2026-10-09T22:16:48-06:00'
   integration_branch: project/pi-port
