@@ -966,6 +966,107 @@ Goldens: untouched — `git status --porcelain` shows only ` M lib/tart/agent/lo
 
 ### STATUS: COMPLETE
 
+### surface
+
+### PHASE 0 findings (spec-vs-reality, oracle = repos/pi read-only)
+
+| # | Verify item | Spec claim | Reality | Verdict |
+|---|---|---|---|---|
+| 1 | Trigger/update-on-typing | editor.ts:1228-1251 | confirmed: "/" at message start auto-triggers (`isAtStartOfMessage` editor.ts:2195-2200: before-cursor trim empty or "/"); continues while `isInSlashCommandContext` (:2202-2204, cursorLine 0 — single-line port always qualifies); while active every printable re-queries (:1256) | sound |
+| 2 | maxVisible default 5, clamp 3-20 | editor.ts:380-420 | confirmed (:380-381, setAutocompleteMaxVisible clamps 3..20) | sound |
+| 3 | List below editor text, area grows | editor.ts:618-634 | confirmed (`renderedAutocompleteHeight`, list rows appended after the text rows) | sound |
+| 4 | Keys while active | editor.ts:757-816 | confirmed: escape cancels (:761-764); up/down → list (:766-771); **tab = apply only** (:773-789); **enter = apply + submit for "/" prefixes** (confirm falls through to submit, :790-816) | sound — spec asked to verify; answer: apply+submit |
+| 5 | Escape/interrupt precedence | custom-editor.ts:103-111 | confirmed: app.interrupt defers to the editor (→ autocomplete cancel) while the list shows | sound |
+| 6 | History bindings yield | custom-editor.ts:127-131 | confirmed: history bindings pass to editor.handleInput, which routes up/down to the list while active | sound |
+| 7 | Fuzzy filter | interactive-mode.ts:375-383 | confirmed: `createFuzzyAutocompleteItems` → `fuzzyFilter`; filtering lives in CombinedAutocompleteProvider.getSuggestions (tui/autocomplete.ts:336-365): skills named `skill:<name>` (coding-agent interactive-mode.ts:809-818), bare-name search strips the `skill:` prefix, second pass over full names appended; fuzzyFilter (tui/fuzzy.ts:75-106): tokens split /[\s/]+/, all must match; fuzzyMatch (:12-93) scores: consecutive −5·n, gap +2·gap, word boundary −10, position +0.1·i, exact −100, alnum-swap retry +5 | sound — ported exactly (Chat.fuzzy_match/fuzzy_filter) |
+| 8 | Apply shape | tui/autocomplete.ts:419-436 | confirmed: slash apply replaces the prefix with `/<value> ` (trailing space), cursor after the space | sound |
+| 9 | Selection preselect + list nav | editor.ts:2207-2232, select-list.ts:146-155 | confirmed: exact match wins, else first prefix match, else item 0; up/down WRAP | sound |
+| 10 | List render shape | select-list.ts:76-110, 183-228 + editor.ts:248-251 | confirmed: prefix "→ "/"  "; two columns (slash layout min 12 max 32, gap 2), description only when width > 40 and ≥ MIN_DESCRIPTION_WIDTH (10) remain; "(i/N)" scroll-info line when items > maxVisible; selected row accent, description muted (coding-agent theme.ts:1061-1068) | sound |
+| 11 | Follow-end semantics | scroll-view.ts:8, 48-63, 127-135 | confirmed: followingEnd = followEnd && next === maxScrollTop; scrollBy starts from max while following; updateLayout re-clamps; `follow: "end"` wired in chat-viewport.ts:33 | sound |
+| 12 | Page keys | keybindings.ts:114-115 | confirmed defaultKeys pageUp/ctrl+pageUp, pageDown/ctrl+pageDown. Gem emits codes `"page_up"`/`"page_down"` (ratatui_ruby 1.5.0 ext events.rs:40-41) | mapped (code spelling) |
+| 13 | Scrollbar | interactive-mode.ts:976-978, layout.ts:285-330, settings-defaults.ts:63 | confirmed: `fullscreenScrollbar: "auto"`; rightmost column; track "│" / thumb "┃" ("█" while drag-active); thumb = max(min(2,track), min(track, round(track²/content))), offset = round(scrollTop/max·maxThumbTop) | sound — geometry ported exactly |
+| 14 | Compaction labels | status-indicator.ts:85-95 | confirmed: manual → "Compacting context...", threshold → "Auto-compacting...", overflow → "Context overflow detected, Auto-compacting...", each + "(⌃C to cancel)"; wired at interactive-mode.ts:3672-3681 | sound (hint cut, itemized) |
+| 15 | gem scrollbar widget | ratatui_ruby 1.5.0 | live-verified: Widgets::Scrollbar renders in a 1-cell layout column, styles per glyph, begin/end glyphs unavoidable (empty strings still burn the first/last track rows) and thumb size (3/12 for 22 content) ≠ pi's formula (7/12) | verified, REJECTED on parity — pi's formula hand-ported via `TUI.scrollbar_lines` |
+
+### PHASE 0 raises (disagreements / spec conflicts)
+
+1. **Theme tokens missing (raised, not added).** `lib/tart/theme.rb` TOKENS carries no `scrollbarTrack`/`scrollbarThumb` (pi: theme-tokens.ts:36, dark.json:28-29). The spec contradicts itself — the theme-tokens paragraph says "carry them now", the Boundaries say theme.rb is read-only and "a missing scrollbar token is raised, not added by a second hand". Raised per the Boundaries. Interim routing (one-line re-point when the tokens are promoted): track → `Theme[:dim]` (:dark_gray), thumb → `Theme[:muted]` (:gray) — the dark.json lightness order (track darker than thumb) matches dim < muted.
+2. **Enter semantics (spec left open for verification): pi is apply + submit for `/` prefixes** (editor.ts:790-816) — implemented.
+3. **Submit trim (port gap the enter path exposes):** pi's submit trims (`text = text.trim()`, interactive-mode.ts:3201); the port's submit did not — apply's trailing space would break `/new ` dispatch. Trimmed at submit entry (pi parity, itemized below).
+4. **Provider seam (house judgment, spec delegates):** items-only (`Render::Chat::SlashSource#items` → `{value:, label:, description:}`); the fuzzy filter lives in the surface as pure class methods ported exactly from fuzzy.ts. Default nil = no suggestions.
+5. **Page keys mapping:** pi's pageUp/pageDown scroll the editor's own multi-line content (editor.ts pageScroll); the port's editor is single-line — the spec directs the action to the transcript viewport. Itemized as a mapping judgment.
+6. **Gem scrollbar widget rejected** (finding 15) — geometry parity beats widget reuse; the glyph run enters through the new `TUI.scrollbar_lines` seam helper (tui-seam gate clean).
+
+### Test-suite output (verbatim, after all changes)
+
+```
+$ bundle install --quiet && bundle exec rake && echo SUITE_OK
+269 runs, 1051 assertions, 0 failures, 0 errors, 0 skips
+SUITE_OK
+```
+Base before changes: `247 runs, 954 assertions, 0 failures, 0 errors, 0 skips` (+22 new tests: 20 chat, 2 tui; def test_ count across test/ = 269 = runs — nothing buried, per the I08 lesson).
+
+### Gate-command outputs (verbatim)
+
+| gate | result |
+|---|---|
+| suite-green | `269 runs, 1051 assertions, 0 failures, 0 errors, 0 skips` + `SUITE_OK`, exit 0 |
+| chat-surface-guard | `64 runs, 260 assertions, 0 failures, 0 errors, 0 skips` + `CHAT_OK` |
+| agent-seam-guard | `13 runs, 89 assertions, 0 failures, 0 errors, 0 skips` + `AGENT_OK` (agent lane's file absent from this worktree — see below) |
+| autocomplete-tripwire | `AC_OK` |
+| scroll-tripwire | `SCROLL_OK` ('pageup' present via the pi keybinding citation) |
+| cstart-tripwire | surface half: `CSTART_SURFACE_OK` (`compaction_start` in chat.rb). The loop.rb half (`:compaction_start` in lib/tart/agent/loop.rb) cannot pass in THIS worktree — loop.rb is the agent lane's file, absent here. Emission tested in my lane only via the frozen-contract surface consumption (synthetic event). |
+| smoke-guard | `1 runs, 3 assertions, 0 failures, 0 errors, 0 skips` + `SMOKE_OK` |
+| env-tripwire | `ENV_OK` |
+| tui-seam | `SEAM_OK` (0 `RatatuiRuby.` hits outside lib/tart/tui.rb) |
+| bench-seam | `SEAM_BENCH_OK`, exit 0 |
+| gem-pins | `PINS_OK` |
+| stderr-quiet | `NO_WARN` |
+| stderr-clean | `NO_EPIPE` |
+
+Goldens: `git diff --name-only | grep -i golden` → no matches (byte-identical).
+
+### Judgment calls (each vs its pi source)
+
+- **Trigger-pattern semantics:** pi gates the inactive-side trigger to word chars/`/` (editor.ts:1228-1251); with a slash-only provider, `slash_token`'s context check alone decides — one re-query on every printable + backspace collapses both branches. CJK trigger chars cut (no CJK word segmentation in the port). Movement keys leave the list open (pi literal — only history/printable/backspace/escape/apply/paste touch it).
+- **Apply-key set:** tab = apply only; enter = apply + submit (slash prefix always, since the port's lists are slash-only — pi's non-slash apply-without-submit branch is unreachable here). Apply = prefix replaced by `/<value> ` + cursor after the space (tui/autocomplete.ts:419-436).
+- **Scrollbar geometry:** pi layout.ts:285-330 ported exactly (full-height track "│", thumb "┃", size max(min(2,track), min(track, round(track²/content))), offset round(scrollTop/max·maxThumbTop)); hidden when content ≤ viewport ("auto", settings-defaults.ts:63). Two mapped deviations: pi overlays the last column (replaceScrollbarCell) — the port carves a dedicated 1-cell layout column (content clips one cell earlier); pi's transient hide-after-scroll-idle timing (scrollbarHideDelayMs) is cut — the bar shows whenever overflowing (AC2's letter).
+- **Compaction-status labels:** COMPACTION_LABELS verbatim from status-indicator.ts:85-95 minus the cancel hint; the indicator shows whenever a compaction is running (`@busy || @compaction_reason` — a manual /compact runs outside a turn in the port); cleared by `:compaction`/`:agent_end`; post-hoc line unchanged.
+- **Provider seam:** `autocomplete:` kwarg (nil default), items-only; `bin/tart` wires `SlashSource.new(commands: Commands::BUILTINS, skills: skills.skills)`.
+
+### Parity-deviation table
+
+| deviation | reason |
+|---|---|
+| No cancel hint in the compaction label | ctrl+c aborts the whole run in the port (BRIEF §5.1) — owner-ruled |
+| maxVisible fixed 5 (no settings clamp 3-20) | no `autocompleteMaxVisible` setting — spec-mandated cut |
+| Scrollbar mode fixed "auto" (no `fullscreenScrollbar` setting) | spec-mandated cut |
+| No `@`-file mentions, no file/argument completion | spec-mandated cut |
+| No async/debounce (pi's 20ms attachment debounce, AbortController request tokens) | in-memory sync sources; itemized reduction |
+| No CJK trigger chars | no CJK segmentation in the port's editor |
+| Submit text now trimmed (echo/history/dispatch) | pi onSubmit trims (interactive-mode.ts:3201) — required by the enter-apply trailing space |
+| `@`-mention-style provider triggerCharacters / extension source tags (`[sourceTag]`) | no extensions, no path provider |
+| Scrollbar: 1-cell carved column instead of cell-replacement overlay; no transient hide-delay | gem/layout mapping, itemized above |
+| page keys scroll the transcript, not editor content | port's editor is single-line; spec-directed mapping |
+| retry/summarization border statuses, branchSummary | owner-ruled cut (tech debt); N/A (no session branches) |
+
+### Files
+
+- `lib/tart/render/chat.rb` — autocomplete state + key precedence + fuzzy filter (pure class methods) + SlashSource + scroll state (follow-end machine) + scrollbar gutter + `:compaction_start` consumption + submit trim
+- `lib/tart/tui.rb` — new seam helper `scrollbar_lines` (the only new `RatatuiRuby`-vocabulary door; builds themed Lines)
+- `bin/tart` — SlashSource wiring + help text
+- `test/chat_test.rb` — +20 tests (fuzzy scoring/filter, source shape, trigger/filter/dismiss, up/down-not-history, tab/enter/escape precedence, space dismiss, maxVisible window + scroll-info, page up/down + follow-end + stays-put, scrollbar render/move, compaction labels + clearing, kernel-driven escape-never-interrupts)
+- `test/tui_test.rb` — +2 tests (scrollbar_lines geometry/theming, gutter render readback)
+
+No commits made; worktree carries the 5-file diff only. `lib/tart/agent/loop.rb`, `lib/tart/theme.rb` and all other files untouched.
+
+### Concerns
+
+1. **Theme tokens `scrollbarTrack`/`scrollbarThumb` missing** from lib/tart/theme.rb (raise #1 above) — the scrollbar currently routes through `dim`/`muted`; the architect should promote the two tokens (suggested: track `:dark_gray`, thumb `:gray` — the current analogs) and re-point `Chat#scrollbar_glyphs`.
+2. cstart-tripwire cannot pass in this worktree until the agent lane's loop.rb emission lands (merge-time check).
+
+STATUS: COMPLETE_WITH_CONCERNS (theme tokens need the architect's promotion per raise 1; cstart-tripwire waits on the agent lane's file at merge)
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
