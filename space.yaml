@@ -316,6 +316,15 @@ project:
       - lib/raspberry_pi/agent/loop.rb
       - test/agent_loop_test.rb
       - test/session_test.rb
+      base_sha: a8ec14e81d0a4ad0d4ceb64139bfd0220e54dcc7
+      worktree:
+      integration_branch: project/pi-port
+      harness: pi
+      model: fireworks/accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-09T20:02:27-06:00'
+      effort: high
+      integrate_sha: c1e911d672822abe05e0863bfcd2c4e8df46b342
     - name: mcp
       repo: raspberry-pi
       touch_set:
@@ -324,17 +333,41 @@ project:
       - lib/raspberry_pi/tools/registry.rb
       - test/mcp_test.rb
       - test/support/mcp_echo_server.rb
+      base_sha: a8ec14e81d0a4ad0d4ceb64139bfd0220e54dcc7
+      worktree:
+      integration_branch: project/pi-port
+      harness: pi
+      model: fireworks/accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-09T20:02:28-06:00'
+      effort: high
+      integrate_sha: 904303f2ea011fdb7c5303cc4f2724f80f0e763f
     - name: print
       repo: raspberry-pi
       touch_set:
       - lib/raspberry_pi/print.rb
       - lib/raspberry_pi.rb
       - test/print_test.rb
+      base_sha: a8ec14e81d0a4ad0d4ceb64139bfd0220e54dcc7
+      worktree:
+      integration_branch: project/pi-port
+      harness: pi
+      model: fireworks/accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-09T20:02:28-06:00'
+      effort: medium
+      integrate_sha: fd46e4ff9cdcf01a4bc6a5f3fcc2b76a2bb50832
     - name: cli
       repo: raspberry-pi
       touch_set:
       - bin/raspberry-pi
       - README.md
+      base_sha: a8ec14e81d0a4ad0d4ceb64139bfd0220e54dcc7
+      worktree: build/I07-session-mcp-print-cli/wt
+      integration_branch:
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
     rehearsal:
       gates_digest: 821d6e26af5253dbcd8f933f4603bf282ce2088bae72236aadf47d15dcff8c82
       at: '2026-10-09T19:59:25-06:00'
