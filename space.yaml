@@ -493,6 +493,15 @@ project:
       - test/theme_test.rb
       - test/launcher_smoke_test.rb
       - README.md
+      base_sha: 53a08db0e5178b9e7010bffebfef7e4723723036
+      worktree:
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-09T23:15:14-06:00'
+      effort: high
+      integrate_sha: a2e333aaec4bfd51501a561a9a5e3b2a7d9e62e6
     rehearsal:
       gates_digest: 92712be1b9c59731b0a08cd4416dd9bd212ea2725d774d020ee024711877fd52
       at: '2026-10-09T23:12:05-06:00'
