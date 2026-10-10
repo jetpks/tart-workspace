@@ -292,13 +292,14 @@ project:
       - test/chat_test.rb
       - test/tui_test.rb
       base_sha: 728428d298ea82fc8692ea7734295383243f0db3
-      worktree: build/I06-editor-markdown-markdown-seam/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
       variant: false
       dispatched_at: '2026-10-09T19:36:29-06:00'
       effort: medium
+      integrate_sha: c1656f22a1a73b3222c165b4f31e03a7938a4848
     rehearsal:
       gates_digest: 6b3bc5a1e063c217bfaa5c3a355fe8f8e8196b7b27d59b9f228a69a33bd104b2
       at: '2026-10-09T19:14:41-06:00'
