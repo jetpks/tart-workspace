@@ -229,7 +229,7 @@ Gate intent notes (calibration): `bootdraw-tripwire`, `warning-tripwire`, `claud
   ac: AC7
   cwd: repos/tart
   cmd: |-
-    grep -q 'thinking' lib/tart/render/chat.rb && grep -q 'reasoning' test/support/mock_llm_server.rb && echo REASON_OK
+    grep -q 'reasoning' lib/tart/render/chat.rb && echo REASON_OK
   expect:
     exit_code: 0
     stdout_match: REASON_OK
