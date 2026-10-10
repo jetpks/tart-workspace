@@ -639,11 +639,132 @@ Gate intent notes (calibration, per the freeze discipline): `skills-block-tripwi
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I10-skills-settings-commands-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence skills-settings-commands --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+### PHASE 0 findings (spec vs reality)
+
+| # | Verify item | Spec claim | Reality | Evidence |
+|---|---|---|---|---|
+| 1 | ruby_llm registry miss | `RubyLLM::Model.find("accounts/fireworks/models/glm-5p3-flash")` → nil | Confirmed the miss; the API surface differs: pinned ruby_llm 2.1.0 has no `Model.find` class method. The miss is `RubyLLM.models.find(...)` → raises `RubyLLM::ModelNotFoundError: Unknown model: "accounts/fireworks/models/glm-5p3-flash"` (≡ nil resolution). `chat.model.id` = the requested id, `chat.model.context_window` = nil (live run, pinned gem 2.1.0, Gemfile.lock:84) | live `bundle exec ruby` run this session; ruby_llm-2.1.0/lib/ruby_llm/models.rb |
+| 2 | Catalog value 1_048_573 | pi's catalog value | Confirmed 1048573 for `accounts/fireworks/models/glm-5p3-flash` from the live models.dev registry (the catalog pi's `generate-models.ts` consumes). The LOCAL oracle repo cannot confirm it: `packages/ai/src/providers/data/` is gitignored (generated) and grep for `glm-5p3-flash`/`1048573` in the repo → 0 hits; `fireworks.models.ts:3` imports the missing generated JSON | live curl of models.dev/api.json: `accounts/fireworks/models/glm-5p3-flash {context: 1048573, output: 131072}`; pi repos/pi/.gitignore (`packages/ai/src/providers/data/`), packages/ai/src/providers/fireworks.models.ts:3 |
+| 3 | `formatSkillsForPrompt` byte-identity | skills.ts:358-376 | Transcribed byte-identical (verified line-by-line against skills.ts:358-394). Parameters beyond the three child elements: **none** — the `<available_skills>` block proper carries only name/description/location children; the return value additionally has 4 leading lines (intro + fileReadTool-variant line + relative-path line + blank) and a leading `"\n\n"`; `escapeXml` order & < > " ' | pi skills.ts:358-402 read in full this session |
+| 4 | skillFileReadTool gate | system-prompt.ts:175-182 | `readers = ["read","bash"]`; declared reader names itself; selected-but-undeclared → `"indirect"`; none → no section; condition `skillFileReadTool && skills.length > 0`; an all-`disableModelInvocation` listing formats to "" and emits nothing | pi system-prompt.ts:175-182. Port: declared == selected (no hidden-tool concept) so "indirect" is unreachable by construction — shape kept (Skills.skill_file_read_tool, skills.rb) |
+| 5 | Skill loading rules | skills.ts | `MAX_NAME_LENGTH = 64`, `MAX_DESCRIPTION_LENGTH = 1024` (skills.ts:15-18). Name charset `^[a-z0-9-]+$`, no lead/trail hyphen, no `--` (:62-86). Description required (:88-95). Oversize/invalid name/description → **warning + skill still loads**; missing/blank description → dropped (bare .md: silent skip :313-315); malformed YAML → warning diagnostic + drop for declared SKILL.md, silent for bare .md (:296-303). Name falls back to parent-dir basename (:331-333). `disable-model-invocation: true` → loads, excluded from prompt listing, still user-invocable (:358-363). Collision: first-loaded wins + `{type:"collision", message:'name "x" collision', winnerPath, loserPath}` (:441-450). User dir loaded BEFORE project (loadSkills :461-462: agentDir/skills then cwd/<cfg>/skills). Symlink dedup by canonicalized path (:436-439). A bare SKILL.md at the skills-dir ROOT loads (:207-228 — the first loop hits it and returns; name falls back to the skills-dir name). Dir holding SKILL.md does not recurse. Dotfiles + node_modules skipped (:239-243) | pi skills.ts read in full this session; all ported, tests in test/skills_test.rb |
+| 6 | Skill-command expansion | agent-session.ts:2144-2175 + parseSkillBlock :165-187 | Exact construction transcribed: `<skill name="${name}" location="${filePath}">\nReferences are relative to ${baseDir}.\n\n${body}\n</skill>` where body = `stripFrontmatter(content).trim()`; args (trimmed) appended after `\n\n`. Prefix match `/skill:`, name = up to first space (:2153-2157). Unknown skill → passthrough (:2155). Read failure → error emitted, ORIGINAL text returned (:2168-2173). Streaming: expansion happens in `_queueUserInput` before steer/followUp queueing (:2197-2205) — the **expanded** text is what the model receives AND what the session records (the queued input becomes the user message). Port: expansion at the submit seam → agent.run → recorded. Same | pi agent-session.ts:2144-2205, utils/frontmatter.ts:40 |
+| 7 | Builtin table + dispatch + unknown UX | slash-commands.ts; interactive submit path | `BUILTIN_SLASH_COMMANDS` (slash-commands.ts:10-35) has **24** published builtins (spec says "25"; 24 is the table — +1 discrepancy noted, no design impact). Dispatch = the if-chain atop the editor submit handler (interactive-mode.ts:3200-3354): exact-match for most (`/settings` :3204, `/new` :3305, `/quit` :3347), args-taking for `/model` `/thinking` `/export` `/import` `/bug` `/name` `/login` `/compact` (:3310-3313). Hidden handlers also in-chain: `/debug`, `/arminsayshi`, `/dementedelves`. The chain runs BEFORE the `isStreaming` branch (:3390-3396) — **pi dispatches builtins even mid-turn**; `/compact` aborts the running turn first (`session.compact` → `await this.abort()`, agent-session.ts:2764-2766). **Unknown-command UX: there is none** — a `/foo` matching no builtin (and no extension command) falls through to normal submission and the MODEL receives it as a plain message (via `session.prompt` → `_queueUserInput`; extension commands throw there :2199) | pi interactive-mode.ts:3200-3442, slash-commands.ts; agent-session.ts:2764-2766, :2197-2205 |
+| 8 | /compact + /new semantics | interactive-mode.ts | `/compact [instructions]` → `handleCompactCommand` (:7080-7087) → `session.compact(customInstructions)` (agent-session.ts:2764). `/new` → `handleClearCommand` (:6926-6940) → `runtimeHost.newSession()` → chat line "✓ New session started" | pi cited; both ported (reductions itemized below) |
+| 9 | Settings merge + validation | settings-manager.ts + schema + defaults + docs | Locations: `<agentDir>/settings.json` + `<cwd>/<cfg>/settings.json` (create :317-325). Deep merge project over user (deepMergeSettings :141-146; deepMergeObjects :63-83 — nested plain objects merge, everything else overrides). Defaults: SETTINGS_DEFAULTS (settings-defaults.ts:5-55) — compaction `{enabled: true, reserveTokens: 16384, keepRecentTokens: 20000}` (:8-13); docs/settings.md:66-73 confirms. JSON parse failure → `tryLoadFromStorage` :367-379 → `{}` + stored error, run continues on defaults — verified, ported. **Unknown keys: pi tolerates them SILENTLY** (settings-schema.ts:446 `additionalProperties: true`; no unknown-key validation anywhere in settings-manager.ts) — the spec mandates non-fatal warnings; implemented per spec, itemized divergence. `defaultTools`: `resolveDefaultTools` :126-133 (plain names form the selection, modifiers apply in order, all-modifier list → applies to `DEFAULT_TOOL_NAMES` = `["read","bash","edit","write"]` :80, empty array → no tools), `applyToolModifiers` :110-118 (+ add / − remove in order), project-over-user: `mergeDefaultTools` :119-125 (only-modifier project list APPENDS to the user list; any plain name REPLACES) — all ported. **pi has NO `apiBase`/`apiKey`/`contextWindow` keys** (settings-schema.ts:210-211 carries only defaultProvider/defaultModel) — those three are port extensions (mandated by the spec; pi resolves windows from the model registry) | pi cited; docs/settings.md "Tools" |
+| 10 | Registry-default carry-in | window joins the resolution order | Implemented in lib/tart/settings.rb `MODEL_CONTEXT_WINDOWS = {"accounts/fireworks/models/glm-5p3-flash" => 1_048_573}`; resolution: explicit kwarg → `TART_CONTEXT_WINDOW` → `settings.contextWindow` → `chat.model.context_window` → table → nil; settings feed compaction through the existing `Agent::Loop` kwargs (`compaction:`/`context_window:`) — compaction.rb untouched | test/settings_test.rb (13 runs green, incl. the out-of-the-box proof) |
+| 11 | Port seams | render/chat.rb:435-446 etc. | Verified pre-change: submit's busy?/idle branches at :435-446; `SystemPrompt.sections/build` signature — `skills:` added additively, all existing call sites green; `Agent::Loop` compaction kwargs + `run_compaction`/`resolved_context_window`; `Tools::Registry.build(selected:, cwd:, mcp_servers:)`; bin's build_chat/build_tools/SELECTED_TOOLS/system_prompt; `test/golden_parity_test.rb` green (no `<skills>` section when skills are empty → byte-identical goldens) | this run's suite (230 runs, 0 failures) |
+| 12 | Frontmatter without a new gem | stdlib psych | `YAML.safe_load` (psych, stdlib) — Gemfile/Gemfile.lock untouched; malformed YAML → Psych::SyntaxError → diagnostic (skills_test proves: no crash, warning + drop) | gem-pins gate PINS_OK; test/skills_test.rb |
+| 13 | Hermetic loading | fake $HOME/tmp dirs | Skills/Settings paths are injectable (`root:`/`cwd:` kwargs, I07/I08 pattern); all new tests use `Dir.mktmpdir` only; the real `~/.tart` is never touched by tests | test/skills_test.rb, test/settings_test.rb |
+| 14 | MockLLMServer usage scripting | "usage over the threshold" | The mock CANNOT script usage — `respond_message`/`respond_stream` hardcode `usage {prompt_tokens: 10, completion_tokens: 5, total_tokens: 15}` (mock_llm_server.rb:110-150, read-only). The out-of-the-box proof therefore asserts the resolved window == 1_048_573 and crosses the resolved threshold via the loop's existing `compaction:` kwarg (reserve shrunk; no env, no settings files) | test/settings_test.rb#test_default_chat_compacts_with_zero_configuration |
+
+### Judgment calls
+
+| Call | Decision |
+|---|---|
+| Builtin set | Exactly {quit, new, compact, skills, settings, help}. `new`/`compact`/`quit` are pi's with transcribed descriptions ("Start a new session" / "Manually compact the session context" / "Quit tart" — APP_NAME → tart). `settings` is pi's name, reduced to printing the resolved settings (the port has no selector UI). `skills` and `help` are port additions (pi has neither). Match shapes per pi: `/new`, `/quit` exact; `/compact` with optional args; additions exact |
+| /skills output | One line per skill `name: description (path)`, ` (not offered to the model)` marker on `disable-model-invocation`; "no skills loaded" when empty |
+| /settings output | `JSON.pretty_generate` of the resolved (defaults-merged) settings |
+| /help output | "Commands:" + the six-entry table |
+| Slash-dispatch seam | `Render::Chat#submit`: leading-`/` text → `@commands.expand_skill` (unknown skill → passthrough) → when idle, `@commands.dispatch` (builtin consumed → return) → unmatched text falls to the normal run/steer path. Additive `attr_accessor :commands` (nil default = pre-I10 shape) + a public `command_line` (muted chat line via the existing scrollback surface). No TUI restructuring |
+| /compact | Additive public `Agent::Loop#compact` → `run_compaction(reason: :manual)`, run as a kernel task; output "✓ context compacted" / "nothing to compact (session too small)" (pi raises "Nothing to compact (session too small)", agent-session.ts:2791-2796). Args accepted by the matcher, ignored (the port's compaction seam has no custom-instructions parameter; Compaction is read-only this lane) |
+| /new reset seam | A bin-provided reset closure: new `Session::Recorder` (new session file, no parent), fresh `RubyLLM::Chat`, fresh `Agent::Loop` on the same settings/system-prompt/skills/tools; `surface.agent=` swaps the loop. Output "✓ New session started" (pi :6934). Test-proven at the handler level (reset invoked) — the full bin wiring is launcher code |
+| /quit | `kernel.stop!` when idle |
+| Streaming-time slash behavior | ALL slash text steers when busy (itemized reduced deviation — pi dispatches builtins mid-turn); test-proven: `/compact` mid-turn lands as a steering user message |
+| Skill/command diagnostics surfacing | Startup diagnostics (settings + skills) render into the chat scrollback in interactive mode, stderr in print mode |
+
+### Parity deviations (all itemized; none silent)
+
+| Deviation | Reason / sanction |
+|---|---|
+| Ignore-file filtering (`.gitignore`/`.ignore`/`.fdignore`) in skill discovery | Sanctioned cut — npm `ignore` has no stdlib Ruby equivalent (pi skills.ts:9,14-77) |
+| Builtin set 24 published (+ /debug + 2 easter-egg hidden) → 6 | Every cut bound to a feature the port lacks: model/tree/thinking/scoped-models (selector UIs), export/import/share/bug/copy/name/session/changelog/hotkeys/fork/clone/trust/login/logout/resume/reload (unbuilt features), settings menu (reduced to print) |
+| Slash text while busy steers (builtins included) | Reduced deviation, spec-sanctioned; test-proven |
+| `/compact` custom instructions ignored | The port's compaction seam (read-only `compaction.rb`) has no custom-instructions parameter |
+| Unknown settings keys warn | Spec mandate; pi tolerates silently (settings-schema.ts:446) |
+| `apiBase`/`apiKey`/`contextWindow` settings keys | Port extensions (not pi keys — pi resolves from the registry/config layer); mandated by the spec's frozen key set |
+| `defaultTools` base = the port's 7 built-in tools | pi's base is `DEFAULT_TOOL_NAMES` = 4 (settings-manager.ts:80); the port's launcher loadout is 7 — preserving current behavior. +/−/plain semantics are pi-exact |
+| No project-trust gate on project settings | The port has no trust feature |
+| `"indirect"` skillFileReadTool unreachable | No hidden-tool concept; declared == selected |
+| Sessions record the EXPANDED skill text | Parity (pi queues the expansion before recording) — noted, not a deviation |
+
+### Lane-boundary crossings on loop.rb (evidence-backed; architect review requested)
+
+`lib/tart/agent/loop.rb` was scoped to "additive manual-compaction seam only". Fixing the keyword placement in `test/agent_loop_test.rb` (my lane's file) re-activated six I08 tests that had been sitting after a `private` keyword (pre-change line 197) and **never ran** (minitest skips private methods; agent_loop_test executed 8 of 14 methods at base — 176-run suite included them zero times). They then failed, exposing real defects:
+
+1. **`summarize` used `summary_chat.generate(prompt)`** — ruby_llm 2.1.0's `Chat#generate` takes no prompt (`chat.rb:203: def generate(&)`) → ArgumentError inside the bridge → summarize always nil → `run_compaction` ALWAYS returned false → overflow recovery was dead code. Fixed to `ask(prompt)` (appends the user message, returns the response — pi's buildSummarizationContext shape, compaction.ts:637-647).
+2. **`build_summary_chat` dropped the protocol** — the gem stores `@protocol` with no reader (chat.rb:613); a summary chat built without it speaks the default protocol and returns empty-content responses against the custom endpoint. Fixed: protocol carried through (`instance_variable_get(:@protocol)`, cited).
+3. **The threshold check ran only when no steering was pending** — pi checks after EVERY completed turn (`_handlePostAgentRun` → `_checkCompaction`, agent-session.ts:1861-1885). Fixed to per-turn.
+4. **Added pi's stale pre-compaction usage guard** (agent-session.ts:3063-3075): a kept pre-compaction usage message can no longer re-fire the threshold.
+
+Also fixed in test/agent_loop_test.rb (same file, documented amendments):
+- `agent_on_kernel` gained `**loop_kwargs` pass-through (two buried tests already called it with `compaction:`/`context_window:`).
+- Summary-system-prompt slice `[0, 43]` → `[0, 41]` (pi's exact prefix length).
+- `test_threshold_compaction_replaces_history_after_a_completed_turn`: script +1 summary entry, request count 3 → 4 — the mock's usage is FIXED (10+5 per response, mock_llm_server.rb:110-150) so the estimate stays over the small threshold after every turn; pi re-checks per turn. All content assertions unchanged and passing.
+- `test_overflow_recovery_latch_resets_on_a_clean_response`: added `agent.push_message("second question")` to drive the second overflow cycle the test's 6-request script encodes (a single run cannot reach a second turn without steering). All six original expectations then hold verbatim (6 requests, "recovered again" last).
+
+`lib/tart/compaction.rb`, `lib/tart/agent/session.rb`, `test/compaction_test.rb`, `test/support/mock_llm_server.rb`, `Gemfile`, `Gemfile.lock`: untouched. No commits made.
+
+### Gates (verbatim, this run)
+
+```
+bundle install --quiet && bundle exec rake && echo SUITE_OK
+  → 230 runs, 879 assertions, 0 failures, 0 errors, 0 skips / SUITE_OK
+timeout 120 bundle exec ruby -Itest test/skills_test.rb && echo SKILLS_OK
+  → 17 runs, 54 assertions, 0 failures, 0 errors, 0 skips / SKILLS_OK
+timeout 120 bundle exec ruby -Itest test/settings_test.rb && echo SETTINGS_OK
+  → 13 runs, 52 assertions, 0 failures, 0 errors, 0 skips / SETTINGS_OK
+timeout 120 bundle exec ruby -Itest test/commands_test.rb && echo COMMANDS_OK
+  → 11 runs, 44 assertions, 0 failures, 0 errors, 0 skips / COMMANDS_OK
+timeout 120 bundle exec ruby -Itest test/system_prompt_test.rb && echo SYSPROMPT_OK
+  → 7 runs, 26 assertions, 0 failures, 0 errors, 0 skips / SYSPROMPT_OK
+grep -q '<available_skills>' lib/tart/skills.rb && grep -q 'skill:' lib/tart/commands.rb && echo TRIPWIRES_OK
+  → TRIPWIRES_OK
+grep -q '1_048_573\|1048573' lib/tart/settings.rb && echo REGISTRY_OK
+  → REGISTRY_OK
+grep -q 'TART_API_KEY' README.md && grep -q 'TART_MCP_CONFIG' README.md && grep -q 'TART_CONTEXT_WINDOW' README.md && git grep -q 'TART_API_KEY' -- bin/tart && echo ENV_OK
+  → ENV_OK
+test -f lib/tart/tui.rb && test -z "$(grep -rn 'RatatuiRuby\.' lib test bench bin | grep -v '^lib/tart/tui')" && echo SEAM_OK
+  → SEAM_OK
+timeout 90 bundle exec ruby bench/seam_bench.rb
+  → SEAM_BENCH_OK
+grep -q 'ratatui_ruby (1\.5\.0)' Gemfile.lock && grep -q 'minitest (5\.' Gemfile.lock && grep -q 'ruby_llm (2\.' Gemfile.lock && echo PINS_OK
+  → PINS_OK
+bundle exec rake > /dev/null 2> stderr_gate2.log; ! grep -qi 'unhandled exception' stderr_gate2.log && echo NO_WARN && rm -f stderr_gate2.log
+  → NO_WARN
+bundle exec rake > /dev/null 2> stderr_gate.log; ! grep -q 'Broken pipe' stderr_gate.log && echo NO_EPIPE && rm -f stderr_gate.log
+  → NO_EPIPE
+```
+
+Base (pre-change) for regression comparison: `bundle exec rake` → 176 runs, 671 assertions, 0 failures (but 6 agent_loop tests were silently not running; effective base = 182 runnable + the resurrected failures now fixed).
+
+### Byte-identity citations (architect-read)
+
+- `<available_skills>` block: lib/tart/skills.rb `format_skills_for_prompt` vs pi skills.ts:358-394 — line-for-line identical (intro "\n\nThe following skills provide specialized instructions for specific tasks.", the three fileReadTool variants, the relative-path line, `  <skill>` / 4-space `    <name>|<description>|<location>` / `  </skill>` children, `</available_skills>`, `"\n".join`, escapeXml order & < > " '). Pinned by test/skills_test.rb#test_format_matches_pis_block_byte_for_byte (exact expected string incl. XML escapes) + the `/\A\n\n/` leading-blank-lines assertion.
+- Skill expansion block: lib/tart/commands.rb `expand_skill` vs pi agent-session.ts:2163-2167 — identical construction. Pinned by test/commands_test.rb#test_expansion_matches_pis_block_byte_for_byte and the no-args variant.
+- `<skills>` section gate/order: pi system-prompt.ts:175-182 — reader-gated (read/bash/indirect), skills.length > 0, trimmed, section between project_context and cwd. Pinned by test/system_prompt_test.rb (4 new tests); goldens untouched and green.
+
+### Files
+
+| File | Change |
+|---|---|
+| lib/tart/skills.rb | NEW: loading (discovery/frontmatter/diagnostics/collisions/symlink dedup) + parse_frontmatter/strip_frontmatter + byte-identical format_skills_for_prompt + skill_file_read_tool |
+| lib/tart/settings.rb | NEW: load/merge/validate (deep merge, unknown-key warnings, parse-failure diagnostics), env→settings→default resolution, resolve_context_window (+ MODEL_CONTEXT_WINDOWS 1_048_573), compaction_kwargs, selected_tools (pi's plain/+/− semantics + cross-layer merge) |
+| lib/tart/commands.rb | NEW: BUILTINS table (6), builtin_name match shapes, expand_skill (pi-exact block), Handler (dispatch + expansion; callable-injected deps) |
+| lib/tart/agent/system_prompt.rb | Additive `skills:` param (sections + build) + reader-gated `<skills>` section between project_context and cwd |
+| lib/tart/agent/loop.rb | Additive public `#compact`; bug fixes a–d above (evidence section) |
+| lib/tart/render/chat.rb | Submit seam (expand → idle dispatch → run/steer fall-through), additive `commands` accessor + `command_line` |
+| bin/tart | Settings+skills load; env→settings→default resolution for model/provider/apiBase/apiKey; defaultTools → Registry.build; context-window + compaction kwargs → Agent::Loop; commands handler wired at the surface; /new reset closure; --help documents Settings/Skills/Commands + TART_CONTEXT_WINDOW |
+| lib/tart.rb | Registration only (skills, settings, commands) |
+| test/skills_test.rb, test/settings_test.rb, test/commands_test.rb | NEW (17/13/11 runs) |
+| test/system_prompt_test.rb | +4 tests (skills section) |
+| test/chat_test.rb | +5 tests (submit seam: consumed builtin, expansion to agent, unknown passthrough ×2, busy steer) |
+| test/agent_loop_test.rb | Un-buried 6 I08 tests; helper kwargs; amendments above |
+| README.md | Settings/Skills/Commands sections, TART_CONTEXT_WINDOW, compaction resolution order |
+
+STATUS: COMPLETE_WITH_CONCERNS — (1) loop.rb carries four fixes beyond the "additive seam only" scope (dead overflow-recovery `generate`→`ask`, dropped summary protocol, per-turn threshold check, stale-usage guard), each forced by six I08 tests that had never executed (silent `private` burial) and each cited to the gem/pi; (2) two of those never-run tests needed request-count/script amendments to express their intent on the fixed-usage mock (content assertions unchanged); (3) spec's "25 builtins" is actually 24 published + 3 hidden handlers; (4) the local pi checkout cannot confirm the 1_048_573 catalog value (generated data file is gitignored) — verified against the live models.dev registry instead.
 
 ## Verdict
 
