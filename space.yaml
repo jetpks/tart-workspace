@@ -516,6 +516,15 @@ project:
       touch_set:
       - lib/tart/agent/loop.rb
       - test/agent_loop_test.rb
+      base_sha: fcdeae54a08b99a72bbfbd5b7137efbd309c4e3a
+      worktree:
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-10T12:00:37-06:00'
+      effort: medium
+      integrate_sha: 230f069ef869385631ffc9c7fcaae7c5fb4c8d19
     - name: surface
       repo: tart
       touch_set:
@@ -524,6 +533,15 @@ project:
       - bin/tart
       - test/chat_test.rb
       - test/tui_test.rb
+      base_sha: fcdeae54a08b99a72bbfbd5b7137efbd309c4e3a
+      worktree:
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-10T12:00:39-06:00'
+      effort: high
+      integrate_sha: 1bc86c4a38d6064895bbe454a82f5db213473b7f
     rehearsal:
       gates_digest: c31b5c333c1d461e8f5cc905ac9d512b0b49eb1eb3c1daf13369678481271aa4
       at: '2026-10-10T11:57:37-06:00'
