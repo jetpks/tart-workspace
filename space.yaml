@@ -248,7 +248,7 @@ project:
       - test/kernel_carryin_test.rb
       - test/test_helper.rb
       base_sha: 516d85aa02a0543fc95a72328698fbaf96f922f5
-      worktree: build/I06-editor-markdown-polish/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
@@ -263,7 +263,7 @@ project:
       - test/tui_test.rb
       - README.md
       base_sha: 516d85aa02a0543fc95a72328698fbaf96f922f5
-      worktree: build/I06-editor-markdown-editor/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
@@ -278,7 +278,7 @@ project:
       - lib/raspberry_pi.rb
       - test/markdown_test.rb
       base_sha: 516d85aa02a0543fc95a72328698fbaf96f922f5
-      worktree: build/I06-editor-markdown-markdown/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
@@ -291,12 +291,14 @@ project:
       - lib/raspberry_pi/tui.rb
       - test/chat_test.rb
       - test/tui_test.rb
-      base_sha: 516d85aa02a0543fc95a72328698fbaf96f922f5
+      base_sha: 728428d298ea82fc8692ea7734295383243f0db3
       worktree: build/I06-editor-markdown-markdown-seam/wt
       integration_branch:
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
       variant: false
+      dispatched_at: '2026-10-09T19:36:29-06:00'
+      effort: medium
     rehearsal:
       gates_digest: 6b3bc5a1e063c217bfaa5c3a355fe8f8e8196b7b27d59b9f228a69a33bd104b2
       at: '2026-10-09T19:14:41-06:00'
