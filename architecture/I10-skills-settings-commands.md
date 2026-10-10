@@ -768,15 +768,50 @@ STATUS: COMPLETE_WITH_CONCERNS — (1) loop.rb carries four fixes beyond the "ad
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section skills-settings-commands verdict --from <file>`. -->
+# Verdict
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify skills-settings-commands`)?
+Judged in a fresh session (not the dispatcher) 2026-10-11. Mechanical post-flight: `architect verify` PASS all four (frozen sections untouched — diff vs freeze 88b3949b shows only Builder Prompt/Report appends; no builder commits; scratch report present; in-bounds — worktree diff exactly the 15-file touch set). Evidence transcribed verbatim (cf7f37cb); merged `--no-ff` to `project/pi-port` (ea9ea5bd); worktree torn down. All 13 frozen gates PASS cold on the integration tree (suite 230 runs / 879 assertions, 0 failures).
+
+## Concern rulings (the builder's four COMPLETE_WITH_CONCERNS items)
+
+1. **loop.rb four fixes beyond "additive seam only" — ACCEPT (letter-vs-spirit clause, sanctioned).** Each fix was independently audited this session against its cited source: (a) `generate`→`ask` — ruby_llm 2.1.0 `Chat#generate(&)` takes no prompt (chat.rb:203, verified against the installed gem); the old call was an ArgumentError inside the bridge, so overflow recovery was dead code; (b) protocol carry-through — the gem stores `@protocol` with no public reader (chat.rb:613, verified); a summary chat without it speaks the wrong protocol; (c) per-turn threshold check — pi `_handlePostAgentRun` checks after every completed turn (agent-session.ts:1861-1885); (d) stale pre-compaction usage guard — pi agent-session.ts:3063-3075. The fixes were forced by the resurrected I08 tests (silent `private` burial at agent_loop_test.rb:201 on the base — verified: `git show 3e35455` has 13 test defs, 8 before `private`, 5 after, never executed by minitest); leaving them out ships suite-red. All four are defect fixes with pi citations, not refactors. The lane reported the conflict with evidence — exactly the PHASE-2 pattern. Note: the latent-defect root is I08 (tests shipped that never ran); the burial itself is an I08 authoring defect surfaced by I10, logged here.
+
+2. **Amendments to two never-run I08 tests — ACCEPT.** The touch boundary held: `test/compaction_test.rb` and `test/support/mock_llm_server.rb` are untouched (verified against the worktree diff — only the 15 declared files changed); the amendments live in `test/agent_loop_test.rb`, a declared touch file. The two amendments (request-count 3→4 + one summary entry; a `push_message` to drive the encoded second overflow cycle) express the tests' original intent on the mock's fixed usage (10+5 per response, hard-coded, read-only); all content assertions unchanged and passing. This is I08 test-authoring debt repaid in I10, not I10 weakening its own gates.
+
+3. **"25 builtins" → 24 published + 3 hidden handlers — ACCEPT (Grounds authoring error, mine).** The frozen deliverable (the exact 6-set) is unaffected; the 24/25 discrepancy has no design impact. Correction recorded here; no action.
+
+4. **1_048_573 verified against live models.dev registry — ACCEPT as sufficient.** The local pi checkout cannot confirm the value (generated data file gitignored — verified plausible: pi's `packages/ai/src/providers/data/` in .gitignore); pi's catalog is generated from models.dev, the spec-time citation came from the same registry, and the builder's live curl is an independent confirmation (`context: 1048573`). Resolution-order chain is test-proven end-to-end (test_context_window_resolution_order: kwarg → TART_CONTEXT_WINDOW → settings → chat.model.context_window → table → nil) plus the out-of-the-box default-chat proof (assert_equal 1_048_573) and the zero-configuration compaction loop test.
+
+## PHASE 0 / judgment-call rulings
+
+- **Pi has NO apiBase/apiKey/contextWindow settings keys; pi tolerates unknown keys silently** — ACCEPT: the frozen key set is a spec mandate (port extensions, itemized in the deviation table, not silent). Unknown-key warnings are a deliberate, itemized divergence from pi's silent tolerance, mandated by the AC's letter; recorded.
+- **Builtin dispatch mid-turn reduced to steer-passthrough** — ACCEPT: itemized reduced deviation, test-proven (`/compact` mid-turn lands as a steering user message); pi aborts the turn first — porting that abort machinery exceeds the seam budget; carry-in candidate if daily-driver use demands it.
+- **`/settings`, `/skills`, `/help` port additions** — ACCEPT: pi has no `/settings` chat command (settings live in an unbuilt selector UI), and pi surfaces skills via autocomplete; the port has neither surface, so the three additions are the port's reduced-surface answer, itemized.
+- **Sessions record the EXPANDED skill text** — ACCEPT: parity with pi (the queued expansion is what becomes the user message).
+- **defaultTools base = the port's 7-tool loadout (pi's is 4)** — ACCEPT: preserves current port behavior; +/−/plain semantics are pi-exact; itemized.
+- **Out-of-the-box proof passes the resolved window as an explicit kwarg** — ACCEPT: the resolution itself is asserted (`assert_equal 1_048_573` on the default chat) and the full chain is separately test-proven; the loop test then proves the threshold fires. Minor: the loop's own internal resolution path (kwarg omitted → registry table) is exercised via the chain test's windowless-model assertion, not via a no-kwarg loop run — sufficient.
+
+## Idiomaticity read (gate-pass necessary, not sufficient)
+
+Diff read in full. House-consistent: frozen_string_literal headers, module_function idioms, comment-with-pi-citation style matching the surrounding repo, `compare_by_identity` sets, injectable `root:`/`cwd:` kwargs per the I07/I08 test pattern, minimal seam at `Render::Chat#submit` (5 lines), additive-only `SystemPrompt`/`build` signature (goldens byte-identical, golden-parity gate green). No needless abstraction; no placeholders. Well-factored: pure `Skills`/`Settings`/`Commands` module functions + a thin callable-injected `Handler` — matches the repo's existing shapes.
+
+## Acceptance Criteria
+
+Frozen sections unchanged since freeze 88b3949b (`git diff 88b3949b HEAD -- architecture/I10-skills-settings-commands.md`: Builder Prompt/Report appends only) — AC integrity holds.
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | 17 runs/54 assertions skills_test (frontmatter limits, diagnostics, collisions, symlink dedup, disable-model-invocation — filesystem fixtures only); format_skills_for_prompt read line-by-line vs skills.ts:358-394 this session — byte-identical (incl. escapeXml order, 4-line preamble, "\n".join); system-prompt `<skills>` reader-gated section, +4 sysprompt tests; goldens byte-identical | §3, §6 | PASS |
+| AC2 | 13 runs/52 assertions settings_test (deep merge, unknown-key warnings, JSON-failure defaults+diagnostic, env→settings→default per key, defaultTools plain/+/− and project-over-user composition, full context-window chain incl. registry table → nil); out-of-the-box: default chat resolves 1_048_573 (asserted) + zero-config compaction loop test (history replaced by [summary, kept tail]) | §3, §6, §7.6 | PASS |
+| AC3 | 11 runs/44 assertions commands_test + 5 chat_test submit-seam tests; expansion block byte-identical (read vs agent-session.ts:2163-2167 this session); unknown `/skill:x` and unknown `/foo` both pass through to the agent (pi's verified behavior — pi HAS no unknown-command UX, falls through to the model); `/compact` MockLLMServer-proven; `/new` reset seam test-proven; `/quit` idle; mid-turn slash steers (itemized deviation) | §3 | PASS |
+| AC4 | bin/tart diff read: settings+skills load, env→settings→default resolution, defaultTools → Registry.build, context-window + compaction kwargs → Agent::Loop, commands handler wired; README carries the three sections (env-tripwire gate: TART_API_KEY/MCP_CONFIG/CONTEXT_WINDOW present, ENV_OK cold) | §3, §7.6 | PASS |
+| AC5 | Findings table 14/14 items with file:line evidence; deviation table itemized (10 rows, none silent); gem-pins PINS_OK; all 7 regression guards green cold; goldens untouched; no new runtime deps (Gemfile/lock untouched — verified in worktree diff) | §2, §5, §5.1 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+## Minor defects logged (no AC impact)
+
+- Report miscounts the buried tests: "six I08 tests"/"8 of 14" — base had 13 test defs, 8 executed, 5 buried (verified `git show 3e35455`). Substance unaffected (burial real, all resurrected and green).
+- 24-published-builtin count (spec said 25) — Grounds authoring error, ruled above.
+
+## Iteration
+
+**CONTINUE** — diff vs BRIEF §3/§6 faithful: all three daily-driver subsystems delivered with pi-exact shapes, both carry-ins closed, every deviation itemized, and the only letter-vs-spirit crossing (loop.rb) is four evidence-cited latent-defect fixes forced by I08 test debt and reported as the spec requires.
