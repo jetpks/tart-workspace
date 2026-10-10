@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: rename-tart
+  current_iteration: skills-settings-commands
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -438,4 +438,10 @@ project:
     rehearsal:
       gates_digest: 50a9907c4dbaa879487a29bcc59e9d29ef72b5a51796f3b4609ef53559364950
       at: '2026-10-09T21:41:24-06:00'
+  - name: skills-settings-commands
+    ordinal: 10
+    file: architecture/I10-skills-settings-commands.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
