@@ -1225,6 +1225,74 @@ No commits made; working tree left uncommitted for the architect.
 
 STATUS: COMPLETE_WITH_CONCERNS — (1) stderr-quiet fails in this worktree: the pre-existing async "unhandled exception" warn from `test/kernel_carryin_test.rb:34` is the polish lane's AC1 deliverable; I did not touch its files (outside my boundaries) and it should pass at integration; (2) markdown-guard not runnable here (`test/markdown_test.rb` is the markdown lane's new file); (3) recorded simplifications in the parity table above (chars vs graphemes, word-run vs Intl.Segmenter, up/down always navigate, unverified real-terminal arrival for modified navigation keys).
 
+### markdown
+
+Lane: markdown (wave 1). Working dir: build/I06-editor-markdown-markdown/wt @ 516d85a (project/pi-port base). No commits made (git log stays at 516d85a; `git status --short` = ` M lib/raspberry_pi.rb`, `?? lib/raspberry_pi/render/markdown.rb`, `?? test/markdown_test.rb`).
+
+### PHASE 0 findings (spec-vs-reality, file:line evidence)
+
+| # | Verify item | Spec claim | Reality | Evidence |
+|---|---|---|---|---|
+| 1 | MarkdownTheme function surface | ≈markdown.ts:198-213 | Exact: `interface MarkdownTheme` at :198-214 — heading, link, linkUrl, code, codeBlock, codeBlockBorder, quote, quoteBorder, hr, listBullet, bold, italic, strikethrough, underline, highlightCode?, codeBlockIndent? | repos/pi/packages/tui/src/components/markdown.ts:198-214 |
+| 2 | Theme colors (interactive) | port the observable distinctions | `getMarkdownTheme()` = fg roles only: mdHeading=yellow, mdLink=blue, mdLinkUrl=muted, mdCode=violet, mdCodeBlock=green, mdCodeBlockBorder=muted, mdQuote=muted, mdQuoteBorder=muted, mdHr=muted, mdListBullet=violet | theme/theme.ts:1022-1036; theme/dark.json:42-51 (light.json identical :42-51) |
+| 3 | Token handling: list/blockquote/code | ≈markdown.ts:148-160 | Block cases: code :530-550 (border fences + "  " indent, `codeBlockIndent ?? "  "` :531), list :552-554 (no trailing spacing) + renderList :766-806 (normalized `- `/`N. ` bullets :775-779, continuation indent to marker width :781-782, nested lists unprefixed :794-798, loose blank rows, empty item keeps bare marker :804-806), blockquote :566-612 ("│ " quoteBorder prefix, quote(italic) :567), hr :615-617 (`"─" * min(width, 80)`), space → "" :594-596, heading :473-499 (h1 = heading(bold(underline)) :481-483, h3+ styled `#`-prefix :493), paragraph :501-507 | markdown.ts (same file) |
+| 4 | Inline token handling | — | strong :683-687, em :689-693, codespan :695-697 (raw text, no nesting), link :699-719 (link(underline(text)); OSC-8 if hyperlinks else linkUrl ` (href)` fallback unless text==href / mailto-equal :711-719), del :725-729, escape :681-682 | markdown.ts |
+| 5 | StrictStrikethroughTokenizer | markdown.ts:9 | `STRICT_STRIKETHROUGH_REGEX = /^(~~)(?=[^\s~])((?:\\.|[^\\])*?(?:\\.|[^\s~\\]))\1(?=[^~]|$)/` — content may not start/end with whitespace or `~` | markdown.ts:8-21 |
+| 6 | ratatui_ruby 1.5.0 Style modifiers | which modifier symbols exist | `:bold, :dim, :italic, :underlined, :slow_blink, :rapid_blink, :reversed, :hidden, :crossed_out`; named colors incl. `:yellow, :green, :gray, :light_blue, :light_magenta` — all vocabulary choices are valid symbols | gem lib/ratatui_ruby/style/style.rb (modifiers doc block, colors :46-53) |
+| 7 | Cell readback surface (AC2/AC5 proof mechanism) | `Cell#fg` proven | `TUI::Session#cell_fg(x,y)` → `RatatuiRuby.get_cell_at(x, y).fg` exists in the port; NOT exercised by this lane — cell-readback proof belongs to the wave-2 markdown-seam lane (AC5) | lib/raspberry_pi/tui.rb (Session#cell_fg) |
+| 8 | Editor verify items (set_cursor_position reachability, key_event arrivals, word-navigation semantics) | PHASE 0 of lane `editor` | Out of this lane's scope; not verified here, not duplicated | — |
+| 9 | test/test_helper.rb | raise if needed | Shared `RaspberryPi::Test` base used unchanged; nothing needed | test/test_helper.rb |
+| 10 | No markdown gem in bundle | hand-rolled default | No markdown parser gem present (Gemfile.lock: async, ratatui_ruby, ruby_llm + dev); hand-rolled implemented — no gem proposed, no new deps | Gemfile, Gemfile.lock |
+
+### Disagreements / judgment calls
+
+| # | Item | Call + reason |
+|---|---|---|
+| 1 | "code" in the span vocabulary (Spec deliverable 4) | Carried as fg role (`:light_magenta`), not a `code` boolean: pi's `code` theme fn is fg-only (theme.ts:1027) and ratatui 1.5.0 has no code modifier (style/style.rb modifiers list). AC4's letter (observable distinction) is satisfied; no conflict. |
+| 2 | hr width | Converter takes `width:` kwarg (nil → cap 80): pi sizes hr to content width capped at 80 (markdown.ts:616); the converter has no terminal context, the seam passes viewport width. |
+| 3 | Gem-neutrality test stricter than the gate | `test_converter_source_is_gem_neutral` refutes the bare token `RatatuiRuby` anywhere in the file (the tui-seam gate greps `RatatuiRuby\.`); the class comment reworded to keep even the prose clean. |
+| 4 | Hand-rolled parser | No disagreement: the subset is ~10 constructs; a CommonMark engine would be a new runtime dep (forbidden without raised disagreement) for behavior we'd immediately subset. |
+
+### Markdown vocabulary shape (for the wave-2 markdown-seam lane)
+
+- `Render::Markdown.rows(text, width: nil)` → `Array<Array<Span>>`; one row per display line; empty row = blank line.
+- `Render::Markdown::Span` = `Struct(text, fg, modifiers, keyword_init: true)`; `fg` = `TUI.style` color symbol or nil; `modifiers` = subset of `[:bold, :italic, :underlined, :crossed_out]` (ratatui modifier names).
+- Seam conversion: row → `TUI::Text::Line`, span → `TUI::Text::Span` (`fg` → `Style#fg`, `modifiers` → `Style#modifiers`); document in lib/raspberry_pi/render/markdown.rb class comment.
+
+### Parity-deviation table (itemized; nothing silent)
+
+| Deviation | pi behavior | Port behavior | Why |
+|---|---|---|---|
+| OSC-8 hyperlinks | rendered when terminal supports (markdown.ts:702-709) | linkUrl ` (href)` fallback always (markdown.ts:711-719) | terminal hyperlinks out of scope (spec) |
+| Paragraph soft breaks | single line with `\n`, wrapped later | one row per soft break | rows are display lines; wrapping is the seam's concern |
+| Flanking rules | full CommonMark/marked delimiter runs | approximated: padded delimiter content → literal; intraword `__` allowed | hand-rolled subset; edge cases itemized here |
+| Quote inner styling | outer ANSI prefix trick (markdown.ts:573-583) | default-fg spans recolored gray + italic; colored spans keep fg, gain italic | matches pi's observable behavior (inner ANSI colors survive) |
+| Tables / LaTeX / html tokens / task markers / syntax highlighting (`highlightCode`) / `codeBlockIndent` option | supported | not ported | out of subset (spec) |
+| List nesting depth | arbitrary (marked) | arbitrary via recursion (indent 4 spaces/depth) | ported |
+
+### Gate commands (verbatim results, this run)
+
+| Gate | Result | Output |
+|---|---|---|
+| suite-green | PASS | `bundle exec rake` → `109 runs, 369 assertions, 0 failures, 0 errors, 0 skips`, exit 0 (no `SUITE_OK` echo form run — rake itself exited 0) |
+| markdown-guard | PASS | `25 runs, 31 assertions, 0 failures, 0 errors, 0 skips` + `MD_OK` |
+| tui-seam | PASS | `SEAM_OK` |
+| gem-pins | PASS | `PINS_OK` |
+| bench-seam | PASS | `SEAM_BENCH_OK` (exit 0) |
+| editor-guard | PASS | `16 runs, 60 assertions, 0 failures, 0 errors, 0 skips` (chat/tui untouched, still green) |
+| golden_parity_test.rb | PASS | `10 runs, 89 assertions, 0 failures, 0 errors, 0 skips` |
+| stderr-quiet | FAIL (expected — polish lane's AC1, not this lane's files) | suite stderr carries `"message":"Task may have ended with unhandled exception."` from test/kernel_carryin_test.rb:34 raising work — exactly the defect lane `polish` must fix |
+
+### Files
+
+| File | Change |
+|---|---|
+| lib/raspberry_pi/render/markdown.rb | new — `Render::Markdown` converter + `Span` vocabulary, zero gem references |
+| lib/raspberry_pi.rb | one added line: `require_relative "raspberry_pi/render/markdown"` |
+| test/markdown_test.rb | new — 25 tests, every subset construct asserted with markdown.ts file:line citations |
+
+STATUS: COMPLETE_WITH_CONCERNS — (1) gate stderr-quiet fails at this tip pending lane `polish`'s AC1 fix (evidence above; outside my touch set); (2) cell-readback proof of the vocabulary is deferred to wave-2 markdown-seam per the lane plan (AC5).
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
