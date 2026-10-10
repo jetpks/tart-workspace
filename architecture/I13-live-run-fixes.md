@@ -884,11 +884,112 @@ your worktree is your regression proof.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I13-live-run-fixes-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence live-run-fixes --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### kernel
+
+### PHASE 0 findings
+
+| Verify item | Spec says | Reality | Evidence |
+|---|---|---|---|
+| pi boot render | "pi renders on start" | Confirmed: `Tui.start()` ends with `this.requestRender()` | repos/pi/packages/tui/src/tui.ts:927-943 (requestRender at :943) |
+| Boot-draw root cause | `draw_frame` gated `@dirty \|\| animating?`; `@dirty = false` at init | Confirmed as stated | lib/tart/core/loop.rb:299 (gate), :66 (init, pre-change) |
+| IO::Buffer warning repro | fires on first in-reactor IO, ruby 4.0.7 + async 2.46.0 | Confirmed | `ruby -e 'require "async"; Async { File.open("tw","wx"){ \|f\| f.write("x") } }'` → `-e:1: warning: IO::Buffer is experimental and both the Ruby and C interface may change in the future!`, exit 0 |
+| Filter pattern: "returns nil for exactly that message" | literal match | **Disagreement (mechanism detail):** `Warning.warn` receives the decorated string `"warn_probe.rb:10: warning: IO::Buffer is experimental ...!\n"` with kw `{category: :experimental}` (live probe on 4.0.7) — literal equality never fires. Implemented as `include?` on the exact sentence; all other warnings pass `super` | /tmp warn_probe run: `MSG: "warn_probe.rb:10: warning: IO::Buffer is experimental and both the Ruby and C interface may change in the future!\n" KW: {category: :experimental}` |
+| Warning fires in print mode? | verify with Open3; if not, unit-prove the filter | **Does NOT fire** in the smoke shape (Open3, MockLLMServer, tmp HOME, `bin/tart -p`): stdout `smoke answer`, stderr empty, exit 0. Cause: print mode does no in-reactor IO — LLM work bridges to a worker thread (lib/tart/agent/bridge.rb), no session recorder passed (lib/tart/print.rb `Print.run`) | smoke probe before/after: `EXIT=0`, `--- STDERR ---` empty both runs |
+| Filter placement | "in bin/tart before kernel.run" | Placed at the top of `Executable.run` — a superset (covers print mode too, which has no `kernel.run`) | bin/tart (`Warning.extend(QuietIOBufferWarning)` first line of `run`) |
+| Unit-testability of filter | filter lives in bin/tart | bin/tart runs `Tart::Executable.run(ARGV)` at load; cannot be required. Rejected `if __FILE__ == $PROGRAM_NAME` guard: gem-installed binstub (`spec.bindir = "bin"`, tart.gemspec) `load`s bin/tart without changing `$PROGRAM_NAME` → launcher would never run. Test evals bin/tart source minus the final run line instead | test/launcher_smoke_test.rb `launcher_filter` |
+| Goldens | untouched | Untouched; `test/golden_parity_test.rb` not modified | git status: 4 files, all in BOUNDARIES |
+| Versions | ruby 4.0.7 / async 2.46 / ratatui 1.5.0 / minitest 5.x | `ruby 4.0.7 (2026-09-15 revision 229531a6cf) +PRISM [arm64-darwin23]`; Gemfile.lock: `async (2.46.0)`, `ratatui_ruby (1.5.0)`, `minitest (5.27.0)`, `ruby_llm (2.1.0)` | command output this run |
+
+### Live warning evidence (before)
+
+Full-suite run (test process — no filter there, correct: the filter installs only in the launcher's `Executable.run`) reproduces the owner's warning verbatim, at the exact frame the owner saw:
+
+```
+lib/tart/agent/session.rb:318: warning: IO::Buffer is experimental and both the Ruby and C interface may change in the future!
+```
+
+### Suppression repro (raw)
+
+Without filter (before):
+
+```
+stderr: /Users/eric/.../console-1.38.0/lib/console/output/serialized.rb:95: warning: IO::Buffer is experimental and both the Ruby and C interface may change in the future!
+```
+
+With filter (`Warning.extend(QuietIOBufferWarning)`):
+
+```
+stderr: {"time":...,"severity":"warn",...,"message":"Task may have ended with unhandled exception."...}   (unrelated async EEXIST from the repro's stale temp file)
+unrelated warning must pass through
+```
+
+No IO::Buffer line; unrelated warning passes through. Repro: `/tmp/suppress2.rb`, ruby 4.0.7, async 2.46.0.
+
+### Smoke/stderr before-after (item 2, exact smoke shape)
+
+| Run | exit | stdout | stderr |
+|---|---|---|---|
+| Before (no filter) | 0 | `smoke answer` | (empty) |
+| After (filter installed) | 0 | `smoke answer` | (empty) |
+
+`grep -c "IO::Buffer"` on after-output: `0`. Warning never fires in print mode (see PHASE 0); per spec the filter is unit-proven instead of a smoke stderr assertion.
+
+### Suite output (before → after)
+
+| | runs | assertions | failures | errors |
+|---|---|---|---|---|
+| Before (baseline) | 272 | — | 0 | 0 |
+| After | 274 | 1074 | 0 | 0 |
+
+(+2: boot-draw test in loop_test, filter unit test in launcher_smoke_test)
+
+```
+bundle exec rake && echo SUITE_OK
+→ 274 runs, 1074 assertions, 0 failures, 0 errors, 0 skips / SUITE_OK
+```
+
+### Gate commands (verbatim results)
+
+| id | result |
+|---|---|
+| suite-green | `274 runs, 1074 assertions, 0 failures, 0 errors, 0 skips` → `SUITE_OK`, exit 0 |
+| kernel-guard | `8 runs, 12 assertions, 0 failures, 0 errors, 0 skips` → `LOOP_OK`, exit 0 |
+| bootdraw-tripwire | `BOOTDRAW_OK` |
+| warning-tripwire | `WARN_OK` |
+| smoke-guard | `2 runs, 4 assertions, 0 failures, 0 errors, 0 skips` → `SMOKE_OK`, exit 0 |
+| env-tripwire | `ENV_OK` |
+| tui-seam | `SEAM_OK` |
+| bench-seam | `SEAM_BENCH_OK`, exit 0 |
+| gem-pins | `PINS_OK` |
+| stderr-quiet | `NO_WARN` |
+| stderr-clean | `NO_EPIPE` |
+
+### Judgment calls
+
+| Call | Basis |
+|---|---|
+| `@dirty = true` at init (first frame dirty by definition); dirty-gate and event-driven frame loop untouched | pi renders on start (tui.ts:943); I01 static-CPU design preserved (test_static_loop_is_not_fixed_rate still green) |
+| Filter matches the exact IO::Buffer-experimental sentence via `include?` (message arrives decorated: `"file:line: warning: <sentence>\n"`, `category: :experimental`) | live probe, see PHASE 0 |
+| Filter installed at top of `Executable.run`, not literally before `kernel.run` | superset of the spec's placement; covers print mode |
+| Smoke test evals bin/tart minus final run line instead of `require`-ing it; no `__FILE__ == $PROGRAM_NAME` guard | guard would break gem-binstub execution (binstub `load`s bin/tart, `$PROGRAM_NAME` = stub) |
+| No stderr assertion added to the smoke test | spec's own instruction when the warning never fires in the smoke shape; unit test added instead |
+
+### Parity deviations
+
+None. (No renderer/event-shape changes; pi's start-render behavior is matched, not deviated.)
+
+### Files
+
+| File | Change |
+|---|---|
+| lib/tart/core/loop.rb | +4/-1: `@dirty = true` at init + comment (boot render) |
+| bin/tart | +20: `QuietIOBufferWarning` module + `Warning.extend` at top of `run` |
+| test/loop_test.rb | +12: `test_first_frame_draws_at_boot_with_zero_events` |
+| test/launcher_smoke_test.rb | +37: filter unit test (suppression + pass-through) |
+
+No commits made; working tree has exactly these 4 modified files (`git status --short`).
+
+STATUS: COMPLETE
 
 ## Verdict
 
