@@ -17,35 +17,77 @@ no research. Write + commit: `architect section live-run-fixes grounds --from <f
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section live-run-fixes specification --from <file>`. -->
+# Specification
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+## Objective
+
+The owner's second daily-driver run (2026-10-10 local) surfaced seven live defects/wants (BRIEF §3 daily-driver parity; owner rulings logged in ARCHITECT.md decisions 2026-10-10, commit c6158e5). All root causes are architect-verified (this session, evidence below) — the builders implement against them:
+
+1. **Blank boot** — the surface renders only after the first input event: `Core::Loop#draw_frame` is gated on `@dirty || animating?` and `@dirty = false` at init (lib/tart/core/loop.rb:66, 299), so nothing draws until an event sets dirty. pi renders on start.
+2. **IO::Buffer warning corrupts the edit box** — async 2.46's reactor wrapper instantiates an `IO::Buffer` on the first IO inside a reactor task, once per process, and ruby 4.0.7 blames the outermost user frame (the owner saw it at lib/tart/agent/session.rb:318 = the first persist inside the reactor). Architect repro: `ruby -e 'require "async"; Async { File.open("tw", "wx") { |f| f.write(...) } }'` warns; a `Warning`-callback filter (extend a module onto `Warning` whose `#warn` returns nil for exactly the IO::Buffer-experimental message, `super` otherwise) silences it — verified this session. It is NOT session.rb's fault; session.rb is untouched.
+3. **`/skills` crashes** — `Render::Chat#command_line` sits under `private` (lib/tart/render/chat.rb:550, 739) while bin/tart:187 wires the Commands handler with `output: ->(text) { surface.command_line(text) }` → NoMethodError on first `/skills`.
+4. **`/ar<tab>` completes nothing** — two verified facts and one open question. Verified: `~/.tart/` has no `skills/` dir (only `sessions/`), no builtin fuzzy-matches "ar", and the owner's pi surfaces their skills from `~/.claude/skills` (the architect skill lives there) — a source tart does not scan (owner ruling: scan it). Open (builder verifies live): whether the live tab-key path applies at all — headless tab-apply tests pass, so the live event shape may also be broken.
+5. **ctrl+d doesn't exit when the input is empty** — pi `app.exit` (default key ctrl+d): exits only when the editor is empty, falls through to delete-char-forward otherwise (repos/pi custom-editor.ts:118-125, core/keybindings.ts:28). The port never handles ctrl+d.
+6. **Theme tokens** — I12 ruling 2 carry-in, owner-confirmed: `Theme::TOKENS` carries no `scrollbarTrack`/`scrollbarThumb`; pi's actual values are blue-tinted (dark.json:28-29: track okhsl(237 7% 33%), thumb okhsl(232 7% 65%)) — NOT the interim `dim`/`muted`. Also promote `thinkingText` (dark.json:26, okhsl(226 7% 65%)) for item 7.
+7. **No dim streaming reasoning** — ruby_llm parses reasoning deltas into `chunk.thinking` (gem chat_completions/streaming.rb:28-29: `delta['reasoning_content'] || delta['reasoning']`), and the surface's `:message_update` handler appends only `chunk.content` (chat.rb:249-252). pi renders thinking live in the streaming message (assistant-message.ts:99-175: thinking runs render as markdown in `thinkingText` color, italic; collapsed by the `hideThinkingBlock` setting with a "Thinking..." label, click-to-expand) via message_update → updateContent (interactive-mode.ts:3524-3535).
+
+Two disjoint lanes: **kernel** (items 1+2 — loop.rb + launcher) and **surface** (items 3-7 — chat/theme/skills + tests).
+
+## Output format
+
+Raw tables/verbatim output only, per lane, in `build/I13-live-run-fixes-<lane>/report.md`: PHASE 0 findings table (every verify item below, spec-vs-reality with file:line evidence), test-suite output verbatim (pass/fail counts, before/after), gate-command outputs verbatim, judgment calls (each vs its pi source with file:line), the parity-deviation table (empty or itemized), the live-verification evidence for item 4 (raw PTY/synthetic-run output, not prose claims), and the files list. Every status claim backed by a command result from this run.
+
+## Tool guidance
+
+- Verification: `bundle install --quiet && bundle exec rake` (full suite; no count frozen). Single files: `bundle exec ruby -Itest test/<file>.rb`. Goldens: untouched — any golden change is a defect, raise it in PHASE 0.
+- Oracle (read-only, `repos/pi/packages/coding-agent`): item 5 — `modes/interactive/components/custom-editor.ts:118-125` (app.exit: empty-editor exit, fall-through to delete-char-forward), `core/keybindings.ts:28` (`app.exit` default ctrl+d). Item 7 — `modes/interactive/components/assistant-message.ts:99-175` (thinking runs: joined markdown, `thinkingText` color, italic; hidden state = italic label, click-toggle; spacing rules), `modes/interactive/interactive-mode.ts:3524-3535` (live updateContent during message_update), `modes/interactive/theme/theme-tokens.ts:35` + `theme/dark.json:26` (thinkingText okhsl(226 7% 65%)). Item 6 — `theme/dark.json:26-29`.
+- Gem (read-only, verify against installed source before use): ruby_llm 2.1.0 — `chunk.thinking` carries per-delta reasoning text (`protocols/chat_completions/streaming.rb:28-29`); the completed `Message#thinking` (`message.rb:52`) — VERIFY in PHASE 0 that the final message at `:message_end` carries the joined thinking (drive the mock server with reasoning deltas and print the message's thinking; if the gem drops it at completion, raise it — do not work around silently). ratatui_ruby 1.5.0 — verify the live event shape for ctrl+d (code "d" + ctrl modifier?) and tab (code "tab"?) with a PTY or the synthetic-events seam BEFORE implementing items 4/5 key handling; report the raw events.
+- Mock server: `test/support/mock_llm_server.rb` is touchable for ONE purpose only — adding a script shape that streams reasoning deltas (`reasoning_content` in the chat-completions delta shape). No changes to existing shapes. If a different fixture is missing, raise it in PHASE 0 instead of editing.
+- Theme analog mapping: TOKENS values are the house ANSI analogs of pi's okhsl values with provenance comments (the house pattern, theme.rb:9-40). Pick the closest ANSI symbol per pi value (blue-tinted family for all three new tokens); record the exact analog choice + why in the token table comments.
+- Live-run verification (item 4): the port's own synthetic-events seam (I01 Design B) or a PTY harness (`IO::PTY`/`script`) driving `bin/tart` against the MockLLMServer — with skills fixture dirs seeded so `/ar` has matches. Raw event dumps and screen readbacks in the report. `~/.tart` is NEVER touched by tests or fixtures — all discovery tests use explicit fixture roots.
+
+## Boundaries
+
+**kernel lane — may touch:** `lib/tart/core/loop.rb`, `test/loop_test.rb`, `bin/tart`, `test/launcher_smoke_test.rb`.
+
+- **Item 1 (boot draw):** the first frame renders once at boot with zero input events (pi renders on start). Keep the dirty-gating for all later frames (the static-CPU property is I01's measured design — do not switch to a fixed-rate draw). loop_test asserts a draw with no events processed.
+- **Item 2 (warning filter):** filter exactly the one experimental-IO::Buffer warning message at the launcher (bin/tart, before `kernel.run`), via the architect-verified `Warning`-callback shape (module whose `#warn(message, **)` returns nil for that message only, `super` otherwise). All other warnings pass through untouched (test: an unrelated warning still reaches stderr — a tiny unit test in loop_test.rb or the smoke test, builder's call, recorded). launcher_smoke_test additionally asserts the boot's stderr contains no "IO::Buffer is experimental" line (verify it does today first — raw before/after output in the report; if print mode never triggers it, say so with evidence and assert the filter's unit behavior instead).
+- No renderer/event-shape changes; chat.rb/loop event contract untouched (the surface lane builds in parallel).
+
+**surface lane — may touch:** `lib/tart/render/chat.rb`, `lib/tart/theme.rb`, `lib/tart/skills.rb`, `test/chat_test.rb`, `test/theme_test.rb`, `test/skills_test.rb`, `test/tui_test.rb`, `test/support/mock_llm_server.rb` (reasoning-delta script shape ONLY, per Tool guidance).
+
+- **Item 3 (/skills crash):** make `command_line` reachable from the bin/tart wiring shape (it is a render API the handler wiring calls — public placement is the house shape; check chat.rb's other externally-wired methods for the convention and match it). Regression: a kernel-driven test submits `/skills` through a real `Commands::Handler` wired exactly like bin/tart:185-191 (output/spawn/agent/reset/quit lambdas) with skills loaded — asserts no raise and the listing rendered. No other visibility changes.
+- **Item 4 (autocomplete live):** FIRST verify live (per Tool guidance) and report raw events/readbacks; fix whatever the verification shows broken (tab-key handling, trigger, or apply) to match the I12 semantics. THEN discovery: `Skills.load` scans user skills from `<root>/skills` (unchanged, pi parity, first-loaded wins) AND `~/.claude/skills` (owner ruling 2026-10-10: the owner's daily-driver pi surfaces that dir; `~/.tart/skills` does not exist) — order: `<root>/skills`, then `~/.claude/skills`, then `<cwd>/.tart/skills`; same loading rules (SKILL.md roots, recursion, frontmatter validation, realpath dedup, collision diagnostics). Tests: fixture dirs (never real `~` paths), including a fixture with `~/.claude/skills` shape, first-loaded-wins across the two user sources. The completion target for `/ar<tab>` is `/skill:architect ` (the port's routing shape, commands.rb:56).
+- **Item 5 (ctrl+d):** ctrl+d on empty input exits the run (the same path the `/quit` handler uses — the surface holds `kernel:`); non-empty falls through to delete-char-forward (pi custom-editor.ts:118-125). Headless tests for both paths. If the gem's live event shape differs (verified in PHASE 0 per Tool guidance), map it and record.
+- **Item 6 (tokens):** add `thinkingText`, `scrollbarTrack`, `scrollbarThumb` to `Theme::TOKENS` as house ANSI analogs of pi's dark.json:26-29 values (blue-tinted family) with provenance comments; re-point `Chat#scrollbar_glyphs` from `dim`/`muted` to the new tokens; update the affected rendering assertions (chat_test/tui_test as needed); theme_test asserts the three tokens + comments.
+- **Item 7 (dim reasoning):** `:message_start` resets a live reasoning buffer alongside `@live`; `:message_update` appends `chunk.thinking&.text` deltas (nil-safe, gem streaming.rb:28-29) to the reasoning buffer AND `chunk.content` to `@live` (unchanged); the live region renders the reasoning dim (thinkingText token, italic-style analog if the seam supports it — otherwise dim color, recorded) while it grows, above/before the live content, in the transcript live area. At `:message_end`, the assistant message's joined thinking (verify per Tool guidance: `message.thinking.text`) renders as a dim block before the content in the transcript (pi assistant-message.ts:99-175 order); collapsed/toggle state is CUT (no setting, no click-toggle — itemized deviation). `strip_thinking_replay` (loop.rb) is untouched — the agent lane's replay strip stays; the recorder/session stay untouched. If PHASE 0 finds the completed message lacks thinking, raise it and implement only the live-stream half, reporting the gap.
+- **Both lanes — must not touch:** each other's files (exhaustive above); `lib/tart/agent/loop.rb`, `lib/tart/agent/session.rb`, `lib/tart/agent/bridge.rb`, `lib/tart/commands.rb`, `lib/tart/settings.rb`, `lib/tart/compaction.rb`, `lib/tart/render/markdown.rb`, `lib/tart/core/**` (kernel lane: loop.rb only), `lib/tart/tui.rb`, `lib/tart.rb`, all other test files (read-only; raise gaps in PHASE 0), `Gemfile`, `Gemfile.lock`, `bench/`, `Rakefile`, `README.md`, `~/.tart`, real `~/.claude`.
+- **Out of scope:** retry/summarization border statuses (owner-ruled cut), thinking collapse/toggle + `hideThinkingBlock` setting, markdown rendering OF the reasoning (plain dim text is the reduction; itemized), mouse/wheel, theme selector, `@`-file completion, any provider/async changes. No new runtime dependencies. No refactors beyond the task.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision live-run-fixes`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: kernel
+  repo: tart
+  touch:
+    - lib/tart/core/loop.rb
+    - test/loop_test.rb
+    - bin/tart
+    - test/launcher_smoke_test.rb
+- name: surface
+  repo: tart
+  touch:
+    - lib/tart/render/chat.rb
+    - lib/tart/theme.rb
+    - lib/tart/skills.rb
+    - test/chat_test.rb
+    - test/theme_test.rb
+    - test/skills_test.rb
+    - test/tui_test.rb
+    - test/support/mock_llm_server.rb
 ```
+
+## Effort call
+
+Surface lane: **high** (five items, two requiring live verification against the gem event shapes; item 7 is new streaming state). Kernel lane: **medium** (two small, tightly-specified fixes with architect-verified root causes and repro'd mechanisms).
 
 ## Acceptance Criteria
 
