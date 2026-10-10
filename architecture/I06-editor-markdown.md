@@ -1592,6 +1592,71 @@ Lane: markdown (wave 1). Working dir: build/I06-editor-markdown-markdown/wt @ 51
 
 STATUS: COMPLETE_WITH_CONCERNS — (1) gate stderr-quiet fails at this tip pending lane `polish`'s AC1 fix (evidence above; outside my touch set); (2) cell-readback proof of the vocabulary is deferred to wave-2 markdown-seam per the lane plan (AC5).
 
+### markdown-seam
+
+### PHASE 0 findings
+
+| # | Verify item | Evidence (this run unless noted) | Verdict |
+|---|---|---|---|
+| 1 | `Frame#set_cursor_position` (ratatui_ruby 1.5.0 frame.rb:193–200) reachable / cell-readable? | Port never calls it (`grep set_cursor_position\|show_cursor -r lib/` → no matches); it positions the terminal hardware cursor, not a buffer cell — not observable via `get_cell_at`. Editor lane's fake cursor (base commit 728428d) is the only readback-provable mechanism. No change needed. | confirmed |
+| 2 | Style modifier vocabulary | `style/style.rb`: modifiers are `:bold :dim :italic :underlined :slow_blink :rapid_blink :reversed :hidden :crossed_out`; `buffer/cell.rb:55,131` — `Cell#modifiers` reads back as symbol array. Probe this run: `:yellow` fg + `[:bold]` read back on the headless inline terminal. | confirmed |
+| 3 | `TUI.key_event(code, modifiers:)` + kernel forwarding | tui.rb:178–179 confirmed; kernel forwards every non-interrupt key event to `on_event` (core/loop.rb:280–287). Binding surface = `edit_input`'s case in chat.rb; all editor tests in base green. | confirmed |
+| 4 | pi oracle markdown.ts citations (converter consumed, not modified) | Spot-checked `repos/pi/packages/tui/src/components/markdown.ts`: StrictStrikethroughTokenizer :9–21, theme interface :199–213, heading :473–499, hr :612–618, link :699–719 — in-base `Render::Markdown` citations accurate. | confirmed |
+| 5 | Empty markdown row → blank line (seam dependency) | Probe this run: `Text::Line.new(spans: [])` in a Paragraph renders exactly one blank row on the headless inline terminal. | confirmed |
+| 6 | Line/Span/Style constructors off-frame | Gem `text/line.rb`, `style/style.rb`: pure `Data` objects, no terminal session required — building markdown Lines on the agent fiber is safe. | confirmed |
+
+### PHASE 0 disagreements / scope statements
+
+1. **Row wrapping is a seam responsibility the spec does not name (scope addition, raised):** `Render::Markdown.rows` wraps only the hr; the frozen base test `test_completed_message_lands_above_the_live_region_wrapped` requires prose to wrap at width. Added `Chat.wrap_row` (styled-row word wrap reusing the existing `fit`, break-space consumption identical to `wrap`) in chat.rb — inside the touch set.
+2. **Conversion shape:** `TUI.markdown_line(row)` accepts duck-typed spans (`text`/`fg`/`modifiers`) — tui.rb never references `Render::Markdown`, keeping tui.rb the gem-only seam with no require cycle.
+3. **Dead key removed:** `FG[:assistant]` (nil) became unused once completions render markdown; removed it and updated the palette comment. Existing tests referenced only `FG[:status]/[:tool]/[:user]`.
+4. No disagreements with the spec's ACs, boundaries, or parity requirements. README (editor lane's, AC3) already documents the key bindings in base — verified present, untouched.
+
+### Judgment calls
+
+| Call | Decision |
+|---|---|
+| Cursor mechanism | pi's fake cursor (reversed modifier) — already in base; hardware cursor unreachable through the tree-draw seam and not cell-readable (finding 1). |
+| Markdown render point | At `message_end` (completion) only; live region streams raw source verbatim. Deviation table below. |
+| Span→Line conversion | `TUI.markdown_line(row)` → `TUI.line(row.map { TUI.span(...) })`; empty row → Line with `spans: []` → one blank row (probe-verified). |
+| Styled-row wrap | `Chat.wrap_row` reuses `fit` (same word-break/space-consumption semantics as plain `wrap`); spans re-grouped per wrapped line by source-span identity (`styled_row`); fitting rows and blank rows pass through unchanged. Same width-vs-char-index simplification as the pre-existing `fit`. |
+| Assistant styling source | Per-span styles from the converter's vocabulary; plain prose keeps terminal default (converter's paragraph styling), so `test_user_assistant_tool_and_status_lines_read_back_distinct_fg_colors` holds unmodified. |
+| Scrollback entry format | Changed from `[lines, fg]` pairs to final `TUI::Text::Line` arrays built at enqueue time (plain path wraps+fgs; markdown path converts); `flush_scrollback` just inserts. Internal representation, no public-interface change. |
+
+### Parity-deviation table (itemized)
+
+| Deviation | Reason |
+|---|---|
+| pi renders markdown while streaming; the port renders markdown at completion only — the live region carries verbatim streaming text | The live region is the ratatui_ruby inline viewport re-rendered per frame; restyling mid-stream would require markdown re-conversion per delta. Sanctioned shape per the lane brief; test-pinned by `test_live_region_streams_markdown_source_verbatim`. |
+| Markdown scrollback rows wrap via `Chat.wrap_row` (char-index/width conflation for multi-cell-width chars), not pi's grapheme-aware wrap | Same recorded simplification as the pre-existing `Chat.wrap`/`fit`. |
+| Converter-level approximations (soft breaks as rows, flanking-rule approximation, intraword `__`, no OSC-8) are inherited from `Render::Markdown` (markdown lane's record) — unchanged by the seam. | out of seam scope |
+
+### Files changed
+
+| File | Change |
+|---|---|
+| lib/raspberry_pi/tui.rb | +9: `TUI.markdown_line(row)` (markdown-vocabulary row → `Text::Line`). |
+| lib/raspberry_pi/render/chat.rb | Assistant completions route `message_end` → `enqueue_markdown` (`Render::Markdown.rows(width:)` → `Chat.wrap_row` → `TUI.markdown_line`); `enqueue_scrollback` builds plain lines at enqueue; `flush_scrollback` inserts final Lines; removed dead `FG[:assistant]`; +`wrap_row`/`styled_row`. |
+| test/chat_test.rb | +5 tests: markdown styled scrollback (cell readback: heading `:yellow`/`[:bold, :underlined]`, strong `[:bold]`, plain default), verbatim streaming live region, kernel-driven markdown end-to-end (MockLLMServer), `wrap_row` purity; +`scrollback_cells` helper. |
+| test/tui_test.rb | +1 test: `markdown_line` fg/modifier readback + blank-line row. |
+
+### Gate results (verbatim)
+
+| Gate | Result |
+|---|---|
+| suite-green | `128 runs, 434 assertions, 0 failures, 0 errors, 0 skips` exit=0 (baseline pre-lane: 123 runs, 418 assertions, 0 failures) |
+| stderr-quiet | `NO_WARN` (grep -ci 'unhandled exception' → 0) |
+| editor-guard | `33 runs, 114 assertions, 0 failures, 0 errors, 0 skips` |
+| markdown-guard | `25 runs, 31 assertions, 0 failures, 0 errors, 0 skips` |
+| tui-seam | `SEAM_OK` |
+| bench-seam | `SEAM_BENCH_OK` (timeout 90 not hit) |
+| gem-pins | `PINS_OK` (ratatui_ruby 1.5.0, minitest 5.x, ruby_llm 2.x) |
+| stderr-clean | `NO_EPIPE` |
+
+Git state: branch lane/I06-editor-markdown-markdown-seam at 728428d, working tree modified in exactly the four lane files (`git status --short` above), no commits made.
+
+STATUS: COMPLETE
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
