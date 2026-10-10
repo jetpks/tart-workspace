@@ -549,7 +549,7 @@ project:
     ordinal: 13
     file: architecture/I13-live-run-fixes.md
     freeze_sha: 7d56bcb78afcf6dcaeb20c6918e53d227613182f
-    verdict: pending
+    verdict: continue
     lanes:
     - name: kernel
       repo: tart
@@ -559,7 +559,7 @@ project:
       - bin/tart
       - test/launcher_smoke_test.rb
       base_sha: 5b98831f0c664a1144cf5cf677b96f7ad9466f69
-      worktree: build/I13-live-run-fixes-kernel/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
@@ -577,7 +577,7 @@ project:
       - test/tui_test.rb
       - test/support/mock_llm_server.rb
       base_sha: 5b98831f0c664a1144cf5cf677b96f7ad9466f69
-      worktree: build/I13-live-run-fixes-surface/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
