@@ -1295,6 +1295,131 @@ Baseline (pre-work) suite: 286 runs, 1105 assertions, 0 failures. After: 290 run
 
 STATUS: COMPLETE_WITH_CONCERNS — (1) cross-lane NO_APPROVAL gate RED solo by design (agent-lane files hold the plumbing; bin/tart:196 still wires surface.approval); (2) integration must re-point bin/tart's reset lambda to `surface.new_session`; (3) AC8's MOTD re-render and the footer nil-level shape are itemized deviations from pi's letter, per the frozen AC/contract.
 
+### mouse
+
+### Files touched (worktree, lane/I14-third-run-parity-mouse)
+
+| file | change |
+|---|---|
+| lib/tart/tui.rb | +2 seam helpers: `mouse_event` (synthetic gem Mouse events), `osc52_copy` (OSC 52 clipboard write) |
+| lib/tart/core/loop.rb | bare pointer-motion events no longer set the frame-dirty flag (motion still dispatches to the surface) |
+| lib/tart/render/chat.rb | wheel scroll (`scroll_by`, alt 5×), full selection state machine (anchor/focus, char/word/line granularity, double/triple click, drag, copy-on-select), inverse-highlight composition in `transcript_widget`, selection cleared in `new_session` |
+| test/tui_test.rb | +2 tests (seam event shape, OSC 52 payload) |
+| test/loop_test.rb | +3 tests (mouse routing, motion-no-redraw, state-carrying-mouse-redraw) |
+| test/chat_test.rb | +7 tests (wheel 1×/5×, follow re-arm, drag+copy, double-click word, triple-click line, plain-click collapse, selection survives wheel) |
+
+`git status --porcelain` = exactly these 6 files. `test/fixtures`, bench, bin, theme, markdown, lib/tart.rb: 0 diffs (goldens byte-identical).
+
+### PHASE 0 findings (spec vs reality, oracle = repos/pi)
+
+| # | verify item | spec | reality | evidence |
+|---|---|---|---|---|
+| 1 | gem mouse event shape | kind/button/modifiers/position | `RatatuiRuby::Event::Mouse(kind:, x:, y:, button:, modifiers:)`, kind ∈ down/up/drag/moved/scroll_up/scroll_down/scroll_left/scroll_right; modifiers include `"alt"` | synthetic-seam dump below; gem lib event/mouse.rb:95-100; ext events.rs:552-612 |
+| 2 | kernel routes mouse to surface | needs building | already generic: `Loop#process` dispatches every non-sentinel, non-ctrl-c event to `on_event`; no type filter | lib/tart/core/loop.rb `process`; proven by `test_mouse_events_route_to_the_surface` |
+| 3 | mouse capture on real path | assumed | `EnableMouseCapture` on every real init, `DisableMouseCapture` on restore | gem ext init.rs:67, :174, :181 |
+| 4 | lines-per-event default | pi's default | library default = 1 (`options.wheelScrollLines ?? 1`). Note: pi-the-APP passes `"auto"` by default (tui-renderer.ts:38) — spec rules the knob cut, port uses the constant 1 | tui-alt-screen.ts:271; wheel-scroll.ts whole file is the cut accelerator |
+| 5 | alt+wheel 5× | :170-173 | `ALT_WHEEL_SCROLL_MULTIPLIER = 5`, applied when SGR button bit 3 set (:710); the gem delivers it as `modifiers: ["alt"]` | tui-alt-screen.ts:79, :710; events.rs:594-602; dump below |
+| 6 | follow re-arm rule | pin pi | `scrollBy`: `followingEnd = followEnd && next === maxScrollTop` — a move away detaches, landing at the end re-arms; wheel-down while following clamps and stays armed. Port matches: `scroll_by` detaches, render clamp re-arms (`transcript_widget`) | scroll-view.ts:127-135; chat.rb `scroll_by` + existing I12 clamp |
+| 7 | selection state machine | :83-107, :218+ | anchor/focus SelectionPoints, granularity char/word/line, initial range for drag extension, press/drag/release split | tui-alt-screen.ts:83-107, :1322-1416, :1226-1244 |
+| 8 | double/triple click | :83-107 | `DOUBLE_CLICK_INTERVAL_MS = 500`; count cycles 1→2→3→1 on same row + same word range | tui-alt-screen.ts:82, :1247-1267 |
+| 9 | word boundaries | path/kebab-aware :83-84 | joiners `{"/", "-"}`; clicked segment + adjacent selectable segments joined across a joiner. Port: WORD_CHAR runs expanded across `/-` (the standing I12 recorded simplification of Intl.Segmenter word-like); any other single character selects itself (matches pi: a non-word segment is its own selection) | tui-alt-screen.ts:85, :1167-1212 |
+| 10 | highlight form | PHASE 0 verify renderer vocabulary | pi = SGR 7 (inverse) over selected cells. The seam's span/line vocabulary expresses exactly this: `modifiers: [:reversed]` (existing readback precedent). NO theme token needed — no raise required | tui-alt-screen.ts:1572-1584 (`applySelectionHighlight`); test/chat_test.rb:52 precedent |
+| 11 | copy-on-select default | verify | on by default (`copyOnSelect ?? true`); on release with non-empty selection text | tui-alt-screen.ts:269, :1332-1366 |
+| 12 | clipboard mechanism | OSC52 vs system call | pi-the-app prefers the host-injected native clipboard (`copyToClipboard` platform tools, tui-renderer.ts:39-45); when omitted the library falls back to an OSC 52 write: `\e]52;c;<base64>\a` | tui-alt-screen.ts:1476-1487; tui-renderer.ts:39-45 |
+| 13 | selection survives scroll-follow | verify pi | YES — pi stores selection points as scrollView content rows (`row = scrollTop + pointerRow − rect.y`), text read from `scrollContentLines`; scrolling/follow never clears it. Port matches (buffer-row anchors; wheel does not touch selection) | tui-alt-screen.ts:1133-1155, :994-1006 (routeWheel touches no selection state) |
+| 14 | selection on transcript replace | — | pi host calls `resetTextSelection()` when replacing the transcript | interactive-mode.ts:4096; port clears in `new_session` |
+| 15 | transcript-area geometry for mouse mapping | — | transcript is the fullscreen composition's first child (Min constraint) → terminal rows 0..rows−1; pointer y maps directly, col clamps to area width (scrollbar gutter excluded while overflowing) | chat.rb `build_widget`; tui-alt-screen.ts:1133-1155 (same clamps) |
+
+### Raw gem mouse-event dumps (synthetic seam, headless, live run this session)
+
+Driver: pushed `RatatuiRuby::Event::Mouse` events via `TUI::Session#push_event`, drained via `drain_synthetic` (script at /tmp/mouse_probe.rb):
+
+```json
+[
+  {"type":"mouse","kind":"scroll_up","x":3,"y":4,"button":"none","modifiers":[],"mouse?":true,"scroll?":true,"to_sym":"scroll_up"},
+  {"type":"mouse","kind":"scroll_down","x":3,"y":4,"button":"none","modifiers":["alt"],"mouse?":true,"scroll?":true,"to_sym":"scroll_down"},
+  {"type":"mouse","kind":"down","x":5,"y":2,"button":"left","modifiers":[],"mouse?":true,"scroll?":false,"to_sym":"mouse_left_down"},
+  {"type":"mouse","kind":"drag","x":9,"y":2,"button":"left","modifiers":[],"mouse?":true,"scroll?":false,"to_sym":"mouse_left_drag"},
+  {"type":"mouse","kind":"up","x":9,"y":2,"button":"left","modifiers":[],"mouse?":true,"scroll?":false,"to_sym":"mouse_left_up"},
+  {"type":"mouse","kind":"down","x":7,"y":3,"button":"right","modifiers":[],"mouse?":true,"scroll?":false,"to_sym":"mouse_right_down"},
+  {"type":"mouse","kind":"moved","x":8,"y":3,"button":"none","modifiers":[],"mouse?":true,"scroll?":false,"to_sym":"mouse_moved"}
+]
+```
+
+### Test-suite output (before / after)
+
+Before (base 8dde841, this run):
+```
+Finished in 18.858150s, 15.4310 runs/s, 60.3453 assertions/s.
+291 runs, 1138 assertions, 0 failures, 0 errors, 0 skips
+```
+After (this lane):
+```
+Finished in 18.986492s, 15.9587 runs/s, 63.3082 assertions/s.
+303 runs, 1202 assertions, 0 failures, 0 errors, 0 skips
+SUITE_OK
+```
+
+### Gate commands (verbatim, cwd = worktree root)
+
+```
+$ bundle install --quiet && bundle exec rake && echo SUITE_OK
+→ 303 runs, 1202 assertions, 0 failures, 0 errors, 0 skips / SUITE_OK
+
+$ timeout 180 bundle exec ruby -Itest test/tui_test.rb && echo TUI_OK
+→ 17 runs, 54 assertions, 0 failures, 0 errors, 0 skips / TUI_OK
+
+$ timeout 180 bundle exec ruby -Itest test/loop_test.rb && echo LOOP_OK
+→ 11 runs, 17 assertions, 0 failures, 0 errors, 0 skips / LOOP_OK
+
+$ timeout 180 bundle exec ruby -Itest test/chat_test.rb && echo CHAT_OK
+→ 82 runs, 365 assertions, 0 failures, 0 errors, 0 skips / CHAT_OK
+
+$ grep -rqi 'wheel' lib/tart/core/loop.rb lib/tart/render/chat.rb lib/tart/tui.rb && echo WHEEL_OK
+→ WHEEL_OK   (RED on base: exit 1 — verified before implementing)
+
+$ grep -rqi 'drag\|clipboard\|copy.on.select' lib/tart/render/chat.rb lib/tart/tui.rb && echo SELECT_OK
+→ SELECT_OK  (RED on base: exit 1 — verified before implementing)
+
+$ timeout 120 bundle exec ruby -Itest test/launcher_smoke_test.rb
+→ 3 runs, 8 assertions, 0 failures, 0 errors, 0 skips
+
+$ timeout 300 bundle exec ruby bench/seam_bench.rb
+→ ...JSON stats... / SEAM_BENCH_OK
+
+$ git status --porcelain test/fixtures bench bin lib/tart.rb lib/tart/theme.rb lib/tart/render/markdown.rb | wc -l
+→ 0  (goldens byte-identical; gem pin Gemfile.lock ratatui_ruby (= 1.5.0) untouched)
+
+$ git status --porcelain | wc -l
+→ 6  (exactly the lane's files; no commits made)
+```
+
+Env-tripwire / settings env-save tests run inside the suite (settings_test, green). No git write commands were run.
+
+### Judgment calls (each vs its pi source)
+
+| call | pi source | rationale |
+|---|---|---|
+| Kernel: a bare `moved` event does not set the dirty flag | applyMouseDispatchResult renders on press/click/drag/wheel, not motion (tui-alt-screen.ts:931-942) | all-motion capture is on (gem init.rs:67); per-pointer-step redraws would burn idle CPU exactly where pi avoids it. Motion still dispatches to the surface. Test-proven both ways |
+| Wheel delta while following moves relative to the rendered end | scroll-view.ts scrollBy `start = followingEnd ? maxScrollTop : scrollTop` | port's `@scroll_offset` tracks the rendered max while following (I12 render assigns it), so `@scroll_offset + delta` is equivalent |
+| Double-click on a non-word character selects that single character | pi's clicked segment (getWordSelection :1178-1187) — a non-word-like segment is its own selection | same observable result for single-char segments; multi-space runs may segment differently under Intl.Segmenter (unobservable without Node) — same recorded simplification family as I12 |
+| Right/middle button events ignored outside wheel | handleSelectionMouseEvent :1322-1324 (left button only) | right-click paste is Windows-only in pi and CUT (below) |
+
+### Parity deviations (all itemized)
+
+| deviation | pi behavior | port behavior |
+|---|---|---|
+| `fullscreen-wheel-scroll-lines` settings knob + `"auto"` acceleration | WheelScrollLines setting, velocity-based accelerator (wheel-scroll.ts whole file; tui-renderer.ts:38 default `"auto"`) | CUT (spec-mandated). Constant: 1 line per wheel event (the library default, tui-alt-screen.ts:271); alt+wheel 5× kept |
+| Right-click paste | `onRightClickPaste` (tui-renderer.ts:42), Windows-only (tui-alt-screen.ts:1079-1099) | CUT (spec-mandated) |
+| Clipboard reduction | prefers host-injected native clipboard (pbcopy-class platform tools, tui-renderer.ts:39-45); OSC 52 only as library fallback | OSC 52 write only (`TUI.osc52_copy`, tui-alt-screen.ts:1483-1485 shape: `\e]52;c;<base64>\a`). No native-clipboard attempt, no "Copied!"/error flash overlay (flash machinery :1477-1483 cut) |
+| Selection drag edge auto-scroll | 50 ms interval timer scrolls when dragging past the viewport edge (updateSelectionAutoScroll :1270-1320) | CUT — drag stays within the visible window |
+| Scrollbar mouse-drag / hover | pointer drags the scrollbar thumb (handleScrollbarMouseEvent :1112-1162) | CUT — scrollbar stays render-only (not in the spec's build list) |
+| URL click activation (OSC 8) | openUrl on primary click (:1339-1352) | CUT — port has no OSC 8 links (markdown.rb standing reduction) |
+| Component mouse dispatch (clickCount/mouseCapture to components) | dispatchMouseToLayout/target machinery (:843-941) | CUT — the port's surface has no mouse-targetable components; wheel + selection only |
+
+### STATUS
+STATUS: COMPLETE
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
