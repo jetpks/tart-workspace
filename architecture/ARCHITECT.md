@@ -14,10 +14,9 @@
 - Goal: port the used parts of the pi coding harness to async-Ruby (`raspberry-pi`) — single-user daily driver on socketry `async` + `ratatui_ruby` + `ruby_llm`.
 - Last iteration: I01 seam-spike — ADOPT (CONTINUE): Design B seam picked by measurement; BRIEF §4.1 resolved.
 - Last iteration: I02 core-loop — CONTINUE (all 5 AC PASS; 6 latent failure-path defects folded into I03 as carry-ins).
-- Last iteration: I03 agent-loop — **CONTINUE (all 6 AC PASS, judged in fresh session 2026-10-09)**: agent/tool loop + seven parity tools + safety gating + I02 carry-ins, merged to `project/pi-port` (afee740). Goldens machine-derived from pi's live sources; every parity deviation raised and ruled (none silent). Two things the next sessions must know:
-  - **AC4 conflict resolved by owner decision → BRIEF §5.1 foundation-mechanics carve-out** (2026-10-09): signal delivery / process spawn-reap / startup-shutdown ordering are a sanctioned deviation category — do what's idiomatic for Ruby + the fiber ecosystem, itemized per iteration, never silent. The two-phase bash kill is thereby blessed; the parity ledger is clean. Remaining polish (backlog item 3): timeout path should send `-TERM` once (not every poll), interrupt path should skip the pointless back-to-back TERM.
-  - **Kernel lost-wakeup cure** (I03 Builder Report): async 2.46 `Async::Queue` pushes from another fiber *on the reactor thread* can lose the scheduler wakeup — reactor-originated sentinel pushes now cross a thread boundary (`Loop#signal`, loop.rb). Already merged; any future kernel code pushing to `@events` must use `signal`.
-- Next: TUI iteration (streaming render, inline viewport chat, approval gates; copy/paste trailing-WS root-cause investigation against pi's `tui` package happens there — BRIEF §5).
+- Last iteration: I03 agent-loop — CONTINUE (all 6 AC PASS, judged in fresh session 2026-10-09): agent/tool loop + seven parity tools + safety gating + I02 carry-ins, merged to `project/pi-port` (afee740). Goldens machine-derived from pi's live sources; every parity deviation raised and ruled (none silent).
+- Last iteration: I04 tui — **CONTINUE (all 6 AC PASS, judged in fresh session 2026-10-09)**: streaming chat render on the ratatui inline viewport + input line + y/n approval gates + I03 kill-polish carry-ins, merged to `project/pi-port` (d14c39ca). **§5 copy/paste root cause ESTABLISHED**: pi's Text/Markdown components pad every rendered line to full terminal width (`text.ts:91,96`, `markdown.ts:357,362`, `utils.ts:1095–1107`), plus narrower scrollbar (`layout.ts:249–277`) and overlay (`tui.ts:426–456`) contributors; the diff writer itself is clean (`\x1b[2K` clears + verbatim appends). The port's renderer does NOT reproduce it systematically. Post-parity normalization item re-scoped accordingly (see Backlog).
+- Next: harness is end-to-end usable (chat → tools → approval → steering). Backlog candidates: markdown rendering (pi `markdown.ts`), the re-scoped §5 whitespace item, input-line editor niceties.
 
 ## Repos in scope
 
@@ -50,6 +49,7 @@ raspberry-pi:  bundle install --quiet && bundle exec rake   # default task = min
 | 01 | seam-spike | done (spike: ADOPT) | 240b98e4 | none (spike — nothing to integrate; scratch evidence in `build/I01-seam-spike-seam-probe/`) | ADOPT — Design B seam; all 5 AC PASS | architecture/I01-seam-spike.md |
 | 02 | core-loop | done | c03f1be0 | project/pi-port (merged 64789025) | CONTINUE — all 5 AC PASS; 6 latent defects logged as carry-ins (I02 Verdict) | architecture/I02-core-loop.md |
 | 03 | agent-loop | done | c7ad8d5c | project/pi-port (merged afee7401) | CONTINUE — all 6 AC PASS; 7 deviations ruled (AC4 two-phase-kill conflict → reconcile next parity iteration); kernel lost-wakeup cure merged | architecture/I03-agent-loop.md |
+| 04 | tui | done | e6d373a2 | project/pi-port (merged d14c39ca) | CONTINUE — all 6 AC PASS (fresh session 2026-10-09); §5 root cause established (pi per-line width padding — text/markdown components); 4 deviations ruled (D1–D4, none silent); carry-ins 1–3 done, 4 skipped (optional) | architecture/I04-tui.md |
 Status values: speccing → frozen → dispatched → in-flight → awaiting-verdict → done.
 
 ## Backlog (ordered; no ordinal until `architect new`)
@@ -61,9 +61,12 @@ Status values: speccing → frozen → dispatched → in-flight → awaiting-ver
 
 - _[next planned item]_
 
-1. TUI iteration (build) — streaming render, inline viewport chat, approval gates; copy/paste trailing-WS root-cause investigation against pi's `tui` package (BRIEF §5).
-2. Bash kill polish (small; fold into the TUI or next berry-touching iteration; BRIEF §5.1 sanctioned) — timeout path: send `-TERM` once, escalate to `-KILL` once after the grace (currently re-sends every 50 ms poll); interrupt path: the back-to-back `-TERM`+`-KILL` should be a single group `-KILL` (the TERM is dead code there — nothing runs between the two sends).
-3. Polish carry-ins (I03 Verdict, minor; fold with item 2) — (a) mock server `write_sse` should rescue `Errno::EPIPE` after client teardown for clean suite stderr; (b) optional: silence async-2.x's "unhandled exception" log for the intentional carry-in test raise (cosmetic).
+1. Markdown rendering (pi `components/markdown.ts` — D2's recorded follow-up): rendered markdown in scrollback/live region, ANSI-aware wrap/truncate (`utils.ts` territory).
+2. §5 whitespace normalization, **re-scoped post-I04**: root cause is pi-side per-line width padding in Text/Markdown components (`text.ts:91,96`, `markdown.ts:357,362`, `utils.ts:1095–1107`); the port's renderer does not reproduce it systematically. Remaining port-side work is only the bounded transient residual (shrinking live-viewport rows emitting explicit space cells); the pi-side fix (trim trailing padding at the diff-writer/component boundary) is a decision for the pi repo, not the port — surface to the human before speccing.
+3. Minor render polish (I04 Verdict nits): `Render::Chat#live_lines` budget arithmetic vs the authoritative `last(viewport_height)` clip; optional: silence async-2.x's "unhandled exception" warn for the intentional carry-in test raise.
+4. Input-line editor niceties (out of scope since I04, recorded D-series): history, undo/kill-ring, word navigation, autocomplete.
+
+Done from this list: TUI iteration (was item 1, delivered as I04); bash kill polish + EPIPE carry-ins (were items 2–3, delivered in I04, gate-held).
 
 ## Open items for the human / architect
 
