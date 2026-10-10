@@ -1115,6 +1115,116 @@ NO_EPIPE
 
 STATUS: COMPLETE
 
+### editor
+
+### Lane: editor (I06 wave 1)
+
+## Scope executed
+
+Input-line editor in `lib/raspberry_pi/render/chat.rb` + seam additions in `lib/raspberry_pi/tui.rb`: fake cursor at the insertion point (cell-readback-provable), mid-line editing, in-memory history (pi's editor.ts semantics), word-wise operations (pi's word-navigation.ts semantics), README key-binding docs. Files touched (exactly the lane set): `lib/raspberry_pi/render/chat.rb`, `lib/raspberry_pi/tui.rb`, `test/chat_test.rb`, `test/tui_test.rb`, `README.md`. No git write commands run (`git status` clean pre-work; `git diff` only, shown to architect).
+
+## PHASE 0 findings (verify items, spec-vs-reality)
+
+| # | Item | Result | Evidence |
+|---|---|---|---|
+| 1 | `Frame#set_cursor_position` exists in ratatui_ruby 1.5.0 | ✅ | `frame.rb:193–244` (`:method: set_cursor_position`, native) |
+| 2 | Hardware cursor reachable through the port's inline-viewport draw path? | ❌ NO — kernel draws via the tree form `RatatuiRuby.draw(widget)` (`ratatui_ruby.rb:320` → private native `_draw(tree)`); `set_cursor_position` exists only on the Frame of the **block** form. `Widgets::Cursor` in a raw array tree does not move it either (measured below) | `ratatui_ruby.rb:314–337`; experiment row A |
+| 3 | Hardware cursor cell-readback-provable on the headless test terminal? | ❌ NO — `get_cell_at` returns buffer cells (symbol/fg/bg/underline_color/modifiers); a hardware cursor position is not a cell. AC2's frozen property is cell readback | `cell.rb`; experiment rows A/B |
+| 4 | Fake cursor (pi's approach) cell-readback-provable? | ✅ YES — a span with `modifiers: [:reversed]` reads back `[symbol, [:reversed]]` mid-line, and a reversed trailing space survives at end-of-line | `tui.ts:199–207 renderFakeCursor`, `editor.ts:583–597` (oracle); `style/style.rb:86–89` (modifier vocabulary: bold/dim/italic/underlined/slow_blink/rapid_blink/reversed/hidden/crossed_out), `cell.rb:36–38,128–131` (`modifiers` readback + `reversed?`); experiment rows B/C |
+| 5 | `TUI.key_event(code, modifiers:)` shape | ✅ `Event::Key.new(code:, modifiers: [], kind: :standard)`; modifiers strings `"ctrl"/"alt"/"shift"`; codes `"left" "right" "up" "down" "home" "end" "backspace" "delete"` | `tui.rb:178–179` (port), `event/key.rb:100–163`, `event/key/navigation.rb:56` (`del:` → `"delete"`) |
+| 6 | Which key events the kernel forwards to `Render::Chat#on_event` | Everything except STOP/WAKE/INTERRUPT sentinels and in-band Ctrl+C (`TUI.ctrl_c?`) — the editor sees code+modifiers for arrows/ctrl-w/alt-b/f/delete unchanged | `core/loop.rb:292–307` (`process`) |
+| 7 | Real-gem `Key#text?` | `code.length == 1` — **ignores modifiers**, so alt+f is `text?` true; the port's printable guard `!(modifiers & %w[ctrl alt]).any?` is load-bearing | `event/key/character.rb:26–27` |
+| 8 | test_helper `KeyEvent` double divergence | Double's `text? = code.length == 1 && !ctrl?` (alt-modified single chars are text?); with the printable guard both real and double behave identically → **no test_helper change needed, nothing to raise** | `test/test_helper.rb` |
+| 9 | pi history semantics | `editor.ts:427–438 addToHistory`: trim, skip empty, skip consecutive duplicate, unshift, cap 100. `navigateHistory` :454–484: index −1 = live draft; up walks older; down back toward draft; draft captured on entering browsing, restored at −1; up places cursor at **start**, down at **end** | oracle `components/editor.ts` |
+| 10 | pi word-boundary semantics | `word-navigation.ts:17–70` + `utils.ts:1006 PUNCTUATION_REGEX`, :1011 `isWhitespaceChar`: skip trailing whitespace, then one boundary unit — word-like segment (with the ASCII-punct sub-rule: stop after the last punct match inside it) or non-word non-whitespace run. Measured consequence ported exactly: on `"hello world"` ctrl+w deletes `"world"` **keeping the separator space** (pi cursor lands at 6, not 5); on `"hello "` it deletes `"hello "` (whitespace is trailing) | oracle files; test_find_word_backward_boundaries |
+| 11 | pi keybindings defaults | `keybindings.ts:82–145`: cursorLeft `left/ctrl+b`; cursorRight `right/ctrl+f`; cursorWordLeft `alt+left/ctrl+left/alt+b`; cursorWordRight `alt+right/ctrl+right/alt+f`; cursorLineStart `home/ctrl+a`; cursorLineEnd `end/ctrl+e`; deleteCharBackward `backspace`; deleteCharForward `delete/ctrl+d`; deleteWordBackward `ctrl+w/alt+backspace`; deleteWordForward `alt+d/alt+delete`; submit `enter` | oracle `keybindings.ts` |
+| 12 | pi markdown theme/token surface (markdown lane's file — verified for the findings record, not built by this lane) | `markdown.ts:198–213` theme fns; `theme.ts:1023–1033` token mapping; `system-theme.ts:87–117` dark-theme slots (heading yellow, link blue+underline, linkUrl neutral, code violet, codeBlock green, quote/hr/borders neutral, listBullet violet); `StrictStrikethroughTokenizer` `markdown.ts:9–19`; heading/list/blockquote/code/hr rendering `markdown.ts:426–450, 563–610, 763–815` | oracle files |
+| 13 | markdown-guard runnable in this worktree | ❌ NOT RUNNABLE — `test/markdown_test.rb` does not exist here (wave-1 markdown lane deliverable). Recorded; not created | `ls test/` |
+| 14 | Baseline suite before work | 84 runs, 338 assertions, 0 failures, 0 errors, 0 skips | run at 19:19 |
+
+Experiments (verbatim, ratatui_ruby 1.5.0, headless inline test terminal):
+
+```
+# A: hardware cursor unreachable via tree form
+RatatuiRuby.draw([RatatuiRuby::Widgets::Paragraph.new(text: "hello"),
+                  RatatuiRuby::Widgets::Cursor.new(x: 8, y: 0)])
+RatatuiRuby.get_cursor_position  # => [1, 3]   (viewport base, NOT (8,0))
+RatatuiRuby.get_cell_at(8, 0)    # => [" ", nil, []]
+
+# B: fake cursor mid-line — reversed grapheme reads back
+spans ["❯ hi", "X" reversed, " there"] → get_cell_at(4, 0) # => ["X", nil, [:reversed]]
+
+# C: fake cursor end-of-input — reversed trailing space reads back
+spans ["❯ hi", " " reversed] → get_cell_at(4, 0) # => [" ", nil, [:reversed]]
+```
+
+## Cursor mechanism (the lane's PHASE 0 call)
+
+**Fake cursor** (pi's `renderFakeCursor` analog): the grapheme at the insertion point renders with the `reversed` modifier; at end-of-input a highlighted trailing space. Why: findings #2/#3 — the hardware cursor is unreachable through the port's tree-draw seam (`set_cursor_position` is block-form-Frame-only) and is not cell-readback-provable in any case; the reversed modifier is proven readable on the headless terminal (experiment C). Frozen property (readback-visible distinction at end-of-input and mid-input) met.
+
+## Judgment calls
+
+- **Key-binding table (ported; ported from `keybindings.ts` defaults, port key surface = code + ctrl/alt/shift):**
+
+  | Key | Action |
+  |---|---|
+  | printable chars | insert at cursor |
+  | Left / Right (+ Ctrl+B / Ctrl+F) | cursor one char |
+  | Backspace | delete before cursor |
+  | Delete / Ctrl+D | delete after cursor |
+  | Home / End (Ctrl+A / Ctrl+E) | line start / end |
+  | Alt+Left, Ctrl+Left, Alt+B | word backward |
+  | Alt+Right, Ctrl+Right, Alt+F | word forward |
+  | Ctrl+W, Alt+Backspace | delete word backward |
+  | Alt+D, Alt+Delete | delete word forward |
+  | Up / Down | history previous / next |
+  | Enter | submit (steer when busy) |
+
+- **History recall semantics as ported** (`Chat#add_to_history`/`navigate_history`): trimmed submissions only; consecutive-duplicate suppression; cap 100 (HISTORY_LIMIT); most recent first; index −1 = live draft, captured when browsing starts and restored on Down past the newest; Up places the cursor at line start, Down at line end (pi's `cursorPlacement`); any editing/movement key exits browsing (pi `exitHistoryBrowsing`).
+- **Recorded simplifications (parity table):**
+  1. Edit/move units are **chars**, not grapheme clusters (pi segments graphemes; the port's input is single-line plain text today).
+  2. `Intl.Segmenter` word-like segments approximated by word-character runs (`[[:alnum:]_]]`) with pi's exact ASCII `PUNCTUATION_REGEX` set as boundaries — for every representative input the landing position matches (verified: `hello world|`→6, `hello |`→0, `foo.bar|`→4, `foo.|`→3); recorded, not silent.
+  3. Up/Down **always** navigate history (pi only from the first/last visual line of its multi-line editor; the port is single-line).
+  4. Any non-history key exits history browsing; pi's exact per-handler set was not exhaustively enumerated (observable difference: none for the single-line case).
+  5. Input longer than one row clips at the viewport edge (pre-existing; pi scrolls horizontally) — unchanged this lane.
+  6. Modified navigation keys on a **real** terminal (ctrl+left etc.) could not be verified headless (no tty); bindings follow pi's defaults and are proven through synthetic events, which is the port's only testable key surface.
+- **Parity deviations adopted:** none beyond the recorded simplifications above. AC2/AC3 are met as written; no AC conflicts found.
+- **Existing test comment updated:** `test_input_line_edits_and_submits`'s ctrl+e line — previously "non-printing: ignored", now ctrl+e is bound (move-to-end); assertion unchanged and still true (buffer untouched).
+
+## Gate results (verbatim)
+
+| Gate | Result | Output |
+|---|---|---|
+| suite-green | ✅ PASS | `98 runs, 387 assertions, 0 failures, 0 errors, 0 skips` + `SUITE_OK` |
+| editor-guard | ✅ PASS | `29 runs, 102 assertions, 0 failures, 0 errors, 0 skips` + `EDITOR_OK` |
+| tui-seam | ✅ PASS | `SEAM_OK` |
+| bench-seam | ✅ PASS | `SEAM_BENCH_OK` (mean fps/synthetic p95 within self-asserted thresholds) |
+| gem-pins | ✅ PASS | `PINS_OK` |
+| stderr-clean | ✅ PASS | `NO_EPIPE` |
+| stderr-quiet | ❌ FAIL in this worktree — **not this lane's file** | 1 × `"Task may have ended with unhandled exception."` from `test/kernel_carryin_test.rb:34` (`work boom`) — the pre-existing I04 warn; the fix lives in `test/kernel_carryin_test.rb`/`test/test_helper.rb` (polish lane's touch set, outside my boundaries). Expected to go green at wave-1 integration when polish merges. |
+| markdown-guard | ⚠ NOT RUNNABLE in this worktree | `test/markdown_test.rb` does not exist yet (markdown lane deliverable); recorded per lane notes, not created |
+
+Suite verbatim (final full run):
+
+```
+Finished in 14.825263s, 6.6103 runs/s, 26.1041 assertions/s.
+98 runs, 387 assertions, 0 failures, 0 errors, 0 skips
+SUITE_OK
+```
+
+New editor tests (all cell-readback or public-path, no mocks/stubs of the class under test): cursor readback at end-of-input and mid-input after Left (and back after Right); cursor hidden while the approval prompt holds the row; printable insert at cursor; backspace-before / forward-delete-after; Home/End/Ctrl+B/Ctrl+F; history order (A,B → up=B, up=A, down=B, down=draft); recalled entry editable and sends as edited (scrollback echo `❯ !A`); duplicate/empty submissions enter history once; pure `find_word_backward`/`find_word_forward` boundary tables; Ctrl+W through the key surface; Alt+B/Alt+F word jumps.
+
+## Files
+
+- `lib/raspberry_pi/tui.rb` — `TUI.span` (fg + modifier span vocabulary), `TUI.line` (String → single span; array of spans → multi-span row), `TUI::Session#cell_modifiers` (readback).
+- `lib/raspberry_pi/render/chat.rb` — `@cursor` + history state; `edit_input` dispatch (pi keybindings); `add_to_history`/`navigate_history`; editing primitives (insert/delete_backward/delete_forward/move_*/delete_word_*); `find_word_backward`/`find_word_forward` (pure, `class << self`); `input_spans` (fake-cursor row); `submit` records history.
+- `test/chat_test.rb`, `test/tui_test.rb` — 15 new tests + span vocabulary test.
+- `README.md` — Usage: input-line editing section (cursor, key-binding table, history semantics).
+
+No commits made; working tree left uncommitted for the architect.
+
+STATUS: COMPLETE_WITH_CONCERNS — (1) stderr-quiet fails in this worktree: the pre-existing async "unhandled exception" warn from `test/kernel_carryin_test.rb:34` is the polish lane's AC1 deliverable; I did not touch its files (outside my boundaries) and it should pass at integration; (2) markdown-guard not runnable here (`test/markdown_test.rb` is the markdown lane's new file); (3) recorded simplifications in the parity table above (chars vs graphemes, word-run vs Intl.Segmenter, up/down always navigate, unverified real-terminal arrival for modified navigation keys).
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
