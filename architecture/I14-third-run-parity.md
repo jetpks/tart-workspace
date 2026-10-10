@@ -1422,15 +1422,66 @@ STATUS: COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section third-run-parity verdict --from <file>`. -->
+# Verdict — I14 third-run-parity
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify third-run-parity`)?
+Judged in a fresh session (this session dispatched nothing — wave 1 was judged/integrated 2026-10-10 by a different session, wave 2 (mouse) was dispatched by that session too). Mechanical post-flight re-confirmed by hand: `architect verify` all-3-lanes PASS, and independently — frozen region byte-identical vs freeze 148fe694 (diff touches only Builder Prompt/Builder Report appends, first hunk at line 370), zero builder commits on any lane branch (mouse off 8dde841), mouse worktree held exactly its 6 declared files.
+
+## Gates (cold, integration tree after mouse merge 89417777)
+
+24/24 PASS — including the two wave-2 tripwires (`wheel` → WHEEL_OK, `selection` → SELECT_OK) that were RED after wave 1 by frozen design, now flipped GREEN, and the `loop-guard` wave-2 gate. Integrated tree: 303 runs, 1202 assertions, 0 failures, 0 errors.
+
+## Disagreement rulings (all PHASE 0 items from BOTH waves; none silent)
+
+**Wave 1 — agent lane:**
+1. Port setting key `thinkingLevel` vs pi's schema key `defaultThinkingLevel` (settings-schema.ts:212) — **ACCEPT**. The frozen cross-lane contract and gate spell `thinkingLevel`; divergence commented at `THINKING_LEVELS` in settings.rb. Not silent, not unbounded — the port's settings key set already diverges (`contextWindow`).
+2. Built-in default `"medium"` vs pi's state fallback `"off"` — **ACCEPT**. pi's only named default constant is `DEFAULT_THINKING_LEVEL = "medium"` (defaults.ts:3), effective whenever a default model resolves — always, in the port. Consequence accepted: the contract's `nil → model alone` branch is defensive-only.
+3. AC1 kwarg deletion breaks chat_test.rb solo (13 × `unknown keyword: :approval`) — **ACCEPT**. The lane built the AC-faithful deletion and recorded the breakage verbatim rather than touching the surface lane's file; the interlock resolved exactly as predicted at wave-1 integration (291 runs green).
+4. `Tools::DESTRUCTIVE` deleted as approval marking machinery — **ACCEPT** (grep-verified: no other consumers).
+
+**Wave 1 — surface lane:**
+5. No new VERSION constant in lib/tart.rb (version.rb:4 already defines it; a second would warn on every boot) — **ACCEPT**. The spec's "new constant" was a spec-authoring miss; the VERSION_OK tripwire's intent (MOTD reads `Tart::VERSION`) is satisfied via the existing constant + provenance comment.
+6. /new re-renders the MOTD block (AC8 letter) though pi never re-renders the header (separate container, interactive-mode.ts:2210-2218) — **ACCEPT**, itemized. The port's flat transcript makes the re-render the faithful analog of pi's clear+initial-render.
+7. Footer nil → model alone; pi's `model • thinking off` state unreachable — **ACCEPT** (frozen contract letter; deviation itemized).
+8. Item 7 tool-block leading spacer observed in pi (tool-execution.ts:85) but NOT added — **ACCEPT**. Correct scope discipline: adjacent gap recorded, not silently expanded into.
+9. `Render::Chat.new` gains `motd:`/`settings_root:` kwargs — **ACCEPT**. Injectable seam keeps MOTD tests off real `~/.tart`/`~/.claude`; bin/tart's unchanged constructor gets production behavior.
+10. Boot context segment corrected to `0.0%` (standing test pinned the defect) — **ACCEPT**.
+11. `test_live_region_streams_markdown_source_verbatim` rewritten — **ACCEPT**. It pinned the I06 deviation item 3 overturns by owner ruling.
+12. Dim analog = `:gray` — **ACCEPT**. The blue tint is unrepresentable in the gem's 16-color vocabulary; `:gray` is the closest expressible lightness; one token, no fork.
+
+**Wave 2 — mouse lane:**
+13. Wheel constant 1 line/event (pi library default, tui-alt-screen.ts:271) though pi-the-app passes `"auto"` — **ACCEPT**. The knob+accelerator cut is spec-mandated and itemized; the library default is the correct frozen constant.
+14. Word boundaries via WORD_CHAR runs across `/-` (I12's recorded simplification of Intl.Segmenter) — **ACCEPT**. Same recorded simplification family; multi-space segmentation differences are unobservable without Node and itemized.
+15. Clipboard = OSC 52 write only (pi prefers host-injected native clipboard, tui-renderer.ts:39-45) — **ACCEPT**. Closest portable mechanism through the seam; reduction (no native attempt, no "Copied!" flash) itemized.
+16. Kernel: bare pointer motion does not set the frame-dirty flag — **ACCEPT**. pi applyMouseDispatchResult renders on press/click/drag/wheel, not motion (:931-942); with all-motion capture on, per-move redraws would burn idle CPU. Test-proven both ways (motion-no-redraw + state-carrying-redraw).
+17. Right-click paste CUT — **ACCEPT** (Windows-only in pi, tui-alt-screen.ts:1079-1099).
+
+No scope creep, no goalpost-moving by the human this iteration beyond what was ruled into the spec at spec time.
+
+## Acceptance Criteria
+
+Frozen sections unchanged since freeze 148fe694 — confirmed (`architect verify` PASS all lanes; hand-checked `git diff 148fe694 HEAD -- architecture/I14-third-run-parity.md` = appends only).
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 approvals deleted | NO_APPROVAL green; bash-through-loop test; deletion itemized in agent deviation table (reverses I03) | §3, owner ruling | PASS |
+| AC2 spacing | chat_test readbacks: reasoning+content separator, reasoning-only none, message-end per pinned rule | §3 | PASS |
+| AC3 live markdown | mid-stream styled readback before :message_end; reasoning stays plain dim italic (itemized) | §3, owner ruling | PASS |
+| AC4 stable order | architect-family tie test asserts pre-sort order | §3 | PASS |
+| AC5 edit box | full-width, horizontal borders only, no prompt char; all I06/I12/I13 editor tests green unmodified | §3 | PASS |
+| AC6 thinking level | THINKING_OK; settings resolution + bin/tart wiring + footer render test-proven both sides | §3 | PASS |
+| AC7 dim analog | DIM_OK; `:gray` + provenance; theme_test updated; footer-dim test | §3 | PASS |
+| AC8 /new clears | kernel-driven test through Commands wiring; accent line; MOTD re-render itemized deviation | §3 | PASS |
+| AC9 MOTD | logo (owner's art, 8dde841) + VERSION + port-real hints + [Context]/[Skills]; every cut itemized; architect-read vs pi header shape | §3, owner ruling | PASS |
+| AC10 context percent | 0.0% boot / real % / ? post-compaction + threshold coloring tests | §3 | PASS |
+| AC11 wheel scroll | WHEEL_OK; 1×/5× + follow re-arm tests through the synthetic seam; raw gem dumps in report; knob cut itemized | §3, owner ruling | PASS |
+| AC12 text selection | SELECT_OK; anchor/extend, char/word/line granularity, path/kebab word test, inverse-highlight readbacks, copy-on-select (OSC 52) test; right-click paste + reductions itemized | §3, owner ruling | PASS |
+| AC13 deviation discipline | all three reports: complete PHASE 0 findings tables with file:line + raw dumps; deviation tables itemized (never silent) | §5 | PASS |
+| AC14 regressions | 24/24 gates green cold incl. tui-seam, gem-pins, env-tripwire, bench-seam, stderr, smoke; goldens byte-identical | §2 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+## Architect-read of the diff vs Specification intent
+
+Mouse lane (the unjudged delta): the selection point model — buffer-row anchors with `boundary` exclusive ends — is pi's own shape (content-row anchoring is exactly why the selection survives scroll-follow, matching pi's scrollView-row storage), `scroll_page` now delegates to the shared `scroll_by` (a DRY consolidation of previously duplicated clamp logic), `display_lines` unifies the transcript+live buffer the window and the mouse machinery both address, and every constant carries its pi citation. The `motion` guard in the kernel is the one cross-cutting change and is minimal, commented, and test-proven both directions. Idiomaticity: house-consistent (Struct Point, frozen constant hashes, `return … unless` guards, predicate naming); nothing a careful reader of this repo would flag. Wave-1 half already architect-read at wave-1 judgment (22/24 then).
+
+## Iteration
+
+**CONTINUE** — all 13 third-run items landed, 24/24 frozen gates green cold on the integrated tree (303 runs), every deviation itemized per BRIEF §5; the port now matches pi's daily-driver surface including the two promoted mouse deferrals (diff vs BRIEF §3 faithful).
