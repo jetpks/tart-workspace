@@ -239,7 +239,7 @@ project:
     ordinal: 6
     file: architecture/I06-editor-markdown.md
     freeze_sha: 376b5472be83275f36dbf628276333cfe97ef777
-    verdict: pending
+    verdict: continue
     lanes:
     - name: polish
       repo: raspberry-pi

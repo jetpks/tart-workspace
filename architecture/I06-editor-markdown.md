@@ -1659,15 +1659,69 @@ STATUS: COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section editor-markdown verdict --from <file>`. -->
+# I06 Verdict — editor-markdown
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify editor-markdown`)?
+Judged 2026-10-10, third session (post-flight on the seam lane, wave-1 judged in the
+prior session). Freeze 376b5472; frozen sections verified untouched
+(`git diff 376b5472 HEAD -- architecture/I06-editor-markdown.md` touches only lines
+≥162 — appended Builder Prompt/Report; Grounds/Specification/Acceptance Criteria
+byte-stable). Seam lane post-flight: no builder commits (`git log 728428d..` empty),
+working tree modified in exactly the four declared seam files, scratch report present
+with PHASE 0 findings + disagreements raised. Integrated a8ec14e8 on project/pi-port;
+all 8 gates PASS cold on the integration tree (suite-green 128 runs / 434 assertions /
+0F — grew from the 123/418 integrated base, nothing weakened; stderr-quiet NO_WARN;
+editor-guard 33/114; markdown-guard 25/31; tui-seam SEAM_OK; bench-seam SEAM_BENCH_OK;
+gem-pins PINS_OK; stderr-clean NO_EPIPE).
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+## Disagreement rulings
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+| # | Lane, disagreement | Ruling | Why |
+|---|---|---|---|
+| 1 | polish — none raised (checked spec soundness with oracle + gem evidence) | ACCEPT (nothing to rule) | Findings table carries file:line evidence for every claim. |
+| 2 | editor — simplification: char units, not grapheme clusters | ACCEPT | Input is single-line plain text; segmentation is moot until multi-line editing (out of scope). |
+| 3 | editor — simplification: word-runs + pi's ASCII PUNCTUATION_REGEX vs Intl.Segmenter | ACCEPT | Representative inputs verified landing positions match pi (`hello world|`→6 etc.); itemized, not silent. |
+| 4 | editor — Up/Down always navigate history | ACCEPT | Port's input is single-line; pi's visual-line gating exists only for its multi-line editor. |
+| 5 | editor — real-terminal arrival of modified navigation keys unverifiable headless | ACCEPT | Synthetic key events are the port's only testable surface; bindings ported from pi's defaults verbatim. |
+| 6 | markdown — `code` carried as fg role (`:light_magenta`), not a boolean modifier | ACCEPT | pi's `code` theme fn is fg-only (theme.ts:1027) and ratatui_ruby 1.5.0 has no code modifier; AC4's letter (observable distinction) is met. |
+| 7 | markdown — converter takes `width:` kwarg (hr sizing) | ACCEPT | Converter is gem-neutral with no terminal context; pi caps hr at 80 (markdown.ts:616) and the seam passes viewport width — the sanctioned shape. |
+| 8 | markdown — gem-neutrality test stricter than the tui-seam gate (bare-token refute) | ACCEPT | Stricter than frozen — never a defect. |
+| 9 | markdown-seam — scope addition: `Chat.wrap_row` (styled word-wrap) in chat.rb | ACCEPT | The frozen base test `test_completed_message_lands_above_the_live_region_wrapped` requires prose to wrap at width; styled wrap belongs to the seam, inside the touch set, raised in PHASE 0 — the sanctioned path, not silent creep. |
+| 10 | markdown-seam — removed dead `FG[:assistant]` (nil) + palette comment update | ACCEPT | Unused once completions render markdown; existing fg-distinction test passes unmodified (plain prose keeps terminal default). |
+| 11 | markdown-seam — scrollback entries now final `TUI::Text::Line`s built at enqueue | ACCEPT | Internal representation only; no public interface change; `flush_scrollback` simplifies as a result. |
+| 12 | markdown-seam — deviation: markdown renders at completion only; live region streams verbatim source | ACCEPT | The spec's sanctioned shape (the inline viewport re-renders per frame; re-conversion per delta is not worth it); deviation itemized in the parity table AND test-pinned (`test_live_region_streams_markdown_source_verbatim`). |
+
+No letter-vs-spirit conflicts raised by any lane. No human scope creep observed.
+
+## Per-AC verdicts
+
+| AC | Verdict | Evidence |
+|---|---|---|
+| AC1 (comment + stderr — BRIEF §2) | **PASS** | Architect-read comment (loop.rb): states pi's replay behavior with openai-completions.ts citations + the I05-ratified suppression deviation; comment-only diff, `strip_thinking_replay` body byte-identical. stderr-quiet NO_WARN with assertions identical pre/post (16/16) — warn suppressed via reactor yield, not weakened assertions; 5 seeded reruns deterministic. |
+| AC2 (cursor — BRIEF §7.1) | **PASS** | Cell readback at end-of-input (reversed trailing space) and mid-input after cursor-left; left/right/backspace/forward-delete/insert proven; mechanism = fake cursor (hardware `set_cursor_position` is block-form-Frame-only and not cell-readable — findings #2/#3, experiment A); suite green, editor-guard PASS. |
+| AC3 (history + word ops — BRIEF §7.1) | **PASS** | History order test (A,B → up=B, up=A, down=B, down=draft), recalled entry editable and sends as edited; `find_word_backward`/`find_word_forward` pure boundary tables matching word-navigation.ts semantics (separator-space consequence ported); README key-binding table present (architect-read in the integrated diff). |
+| AC4 (markdown converter — BRIEF §7.1, §2) | **PASS** | Every subset construct test-asserted with markdown.ts file:line citations (25 tests); vocabulary gem-neutral (bare-token refute stricter than the frozen gate); no new runtime deps (Gemfile.lock unchanged, gem-pins PASS). |
+| AC5 (markdown seam — BRIEF §7.1) | **PASS** | Cell readback of styled scrollback: heading `:yellow` + `[:bold, :underlined]` (markdown.ts:481-483), strong `[:bold]`, plain prose terminal-default; kernel-driven end-to-end via MockLLMServer; user echo/tool/status/approval rendering unchanged (their tests pass unmodified — only additions in the test diff); live region verbatim-streaming test-pinned; deviation itemized (ruling 12). |
+| AC6 (PHASE 0 + parity discipline — BRIEF §2, §5.1) | **PASS** | All four lanes' findings tables carry gem/oracle file:line evidence; every deviation/simplification itemized — no silent compliance; all 8 gates PASS cold post-integration with the suite grown 123→128 runs, no measured property weakened. |
+
+## Idiomaticity / house-style read
+
+Fresh-context read of the full I06 diff (728428d..a8ec14e8 plus the wave-1 diff read in
+the prior session): `wrap_row`/`styled_row` reuse the existing `fit`/`chunk_while`
+idioms with span-identity regrouping (`a.equal?(b)`) — the right shape, not a re-derivation;
+`enqueue_markdown`/`enqueue_scrollback` read like the surrounding enqueue path;
+`TUI.markdown_line` keeps tui.rb the sole gem seam (duck-typed spans, no require cycle);
+test helpers (`scrollback_cells`) follow the existing readback-helper idiom. No defects
+to flag.
+
+## Iteration call
+
+**CONTINUE.** Both remaining daily-driver friction points from the first live session
+are closed — visible cursor + full input editing/history/word-ops, and assistant
+replies render as styled markdown in scrollback — with all four lanes integrated, all
+gates green cold, and zero weakened properties (diff vs BRIEF §7.1 / §2).
+
+Next toward BRIEF §7 (definition of done): the remaining gaps are §7.1 resumable JSONL
+sessions, §7.2 tool schema-gating/approval, §7.3 MCP, §7.4 print mode, §7.5 the §5
+whitespace toggle (post-parity), §7.6 compaction, and §7.7 the end-to-end multi-tool
+session. Suggested next iteration: JSONL session persistence (§7.1), the last
+interactive-TUI gap.
