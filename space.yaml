@@ -462,6 +462,15 @@ project:
       - test/chat_test.rb
       - test/agent_loop_test.rb
       - README.md
+      base_sha: 3e354553ae6fb13f2885e7a85ee1f653943ab3e8
+      worktree:
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-09T22:19:42-06:00'
+      effort: high
+      integrate_sha: 93142f628ac9c4d6105d9d7cc519a847a2ac4bc8
     rehearsal:
       gates_digest: d084aba80005e30785a21e54b9d05a1e42b8fc45f054326ff20977175cf6869d
       at: '2026-10-09T22:16:48-06:00'
