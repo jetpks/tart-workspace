@@ -370,10 +370,194 @@ Gate intent notes (calibration): `no-approval`, `thinking-level`, `dim-analog`, 
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I14-third-run-parity-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section third-run-parity prompt --append --lane <lane> --from build/I14-third-run-parity-<lane>/prompt.md`. -->
+### agent
+
+### LANE agent — your boundaries
+
+- Working directory: /Users/eric/architect/spaces/20261009-pi-port/build/I14-third-run-parity-agent/wt
+  (a git worktree of the tart repo, branch lane/I14-third-run-parity-agent, based on
+  project/pi-port at 94f79cf — everything through I13 + the hermeticity follow-up: kernel +
+  agent/tool loop with seven parity tools, safety/approval gating (yours to delete),
+  thinking-replay strip, fullscreen TUI surface with bordered input editor + theme tokens +
+  footer + autocomplete + transcript scrolling + scrollbar + compaction-start border status +
+  dim streaming reasoning, JSONL session recording + resume, stdio MCP client, print mode,
+  CLI launcher, compaction, skills/settings/slash commands incl. ~/.claude/skills discovery.
+  Suite green (286 runs). All must stay green.)
+- Your scratch report (write RAW results here when done):
+  /Users/eric/architect/spaces/20261009-pi-port/build/I14-third-run-parity-agent/report.md
+- You may touch ONLY: lib/tart/agent/loop.rb, lib/tart/tools.rb, lib/tart/tools/registry.rb,
+  lib/tart/print.rb, lib/tart/settings.rb, bin/tart, test/agent_loop_test.rb,
+  test/tools_test.rb, test/print_test.rb, test/mcp_test.rb, test/settings_test.rb,
+  test/launcher_smoke_test.rb. Nothing else.
+- Space-root paths are READ-ONLY references. The pi oracle is repos/pi (read-only, at
+  /Users/eric/architect/spaces/20261009-pi-port/repos/pi — cite file:line from it).
+- Lane-specific notes:
+  - Your lane owns item 1's PLUMBING side (approval deletion: loop/tools/registry/print/bin
+    + the agent-side tests) and item 8's DATA side (the thinkingLevel setting + bin/tart's
+    footer_data wiring). The approval UI inside render/chat.rb and the footer RENDER belong
+    to the PARALLEL surface lane — do not touch any of their files.
+  - FROZEN CROSS-LANE CONTRACT: you wire `thinking_level:` into bin/tart's footer_data
+    hash(s), sourced from a new `thinkingLevel` setting (pi's vocabulary + default, verified
+    in PHASE 0 from repos/pi settings-schema.ts + footer.ts:226-244). The surface lane
+    renders `footer_data[:thinking_level]` as `model • <level>` (nil → model alone). Build
+    your side against exactly that key shape; do not change the surface side.
+  - The surface lane deletes Render::Chat's approval UI in parallel. Your worktree keeps
+    chat.rb unchanged and must stay fully green WITHOUT the surface lane's changes — the
+    deleted-method reference in bin/tart's approval wiring is removed by YOU (it is your
+    file), so your worktree is self-consistent.
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo or in the read-only
+oracle repo. Silent compliance is a failure. Silent scope additions are a
+failure. If you have no disagreements, state what you checked before concluding
+the spec is sound. Verify the named APIs/formats/versions against the live
+dependencies before planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed in BOUNDARIES. You
+are one of several parallel lane agents working in isolated worktrees; files
+outside your lane belong to other agents — touching them fails your lane.
+No placeholder implementations — search the codebase before implementing;
+full implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive collection/enumerable
+forms); well-factored and DRY-ish; terse but clear; pragmatic, not clever — the
+smallest change that does the job, no abstraction it doesn't need. Consistency
+with the surrounding code is part of correctness here: a change that works but
+fights the house style (or introduces an inconsistency a careful reader of this
+repo would never write) is not done. Tests stay simple and terse, exercising
+public behavior, no mock/stub of the class under test. Verify your work by
+running the acceptance criteria's gate commands and record the verbatim output. Do NOT commit and do NOT run any
+git write command (commit/add/branch/reset/checkout) — the architect commits
+and merges after verification, and verifies you made no commits. Do NOT delete
+lock files or escalate privileges if a command fails; record the exact error
+and continue. Do NOT use `run_in_background` (or shell `&`) for your own work —
+this process terminates when you end your turn and reaps its own children, so
+backgrounded work is SIGTERMed and its output lost while the run still exits
+0; run long commands serially in the foreground instead. Give every
+potentially long command an explicit timeout; if a
+runtime will not start unattended (interactive prompt, server with no timeout),
+record the exact failure in your report and route around it — never busy-wait
+or retry in a loop. When done, write your report to the scratch file given to
+you, build/I14-third-run-parity-agent/report.md (an absolute path outside your
+worktree), with RAW results only — tables, numbers, command output — no
+interpretation, no "promising". Every status claim must be backed by a command
+result from this run. Keep the report compact — tables and numbers, not prose.
+Do not title the report — the architect's tooling supplies the heading when it
+transcribes; keep any headings inside the report at `###` or deeper. End it with
+exactly one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them)
+| BLOCKED (exact blocker + what you tried). Verdicts belong to the architect
+and the human. Persist until your lane is fully handled end-to-end; do not stop
+at analysis or partial fixes.
+
+=== OBJECTIVE (and why) ===
+
+The owner's third daily-driver run surfaced 13 items; all root causes are architect-verified
+against the pi oracle. Your lane owns TWO of them (full 13-item context so you understand
+the parallel lanes):
+
+1. **Approvals must be DELETED (owner ruling 2026-10-10, reverses I03's deliberate gating).**
+   pi ships no permissions system — `agent-loop.ts:832` executes tools unconditionally
+   (plugins can add gating; the owner: "delete the approval machinery. it has to wait until
+   we develop extension support and that's fine"). The machinery on YOUR side:
+   - `Agent::Loop`'s `approval:` kwarg/callback and `handle_approvals` (lib/tart/agent/
+     loop.rb:48-71, 397-404) — tools execute unconditionally.
+   - `Tools`/`Registry` `requires_approval`/`approval_module` (lib/tart/tools.rb:34,
+     lib/tart/tools/registry.rb:16-84) — no tool registers approval; ruby_llm's native
+     approval mechanics simply never trigger.
+   - `print.rb`'s auto-approve shim (lib/tart/print.rb:45-46, the `approval: ->(_tool_call)
+     { true }` line + its disposition comment).
+   - `bin/tart`'s `approval:` wiring (:196) and the y/n help-text mentions (:12, :103).
+   - The approval-specific tests in agent_loop_test, tools_test, print_test, mcp_test.
+   The Render::Chat approval UI (prompt rows, pending_approval, y/n keys) is the SURFACE
+   lane's — not yours. Reintroduction is future extension-support work; record the deletion
+   in your report's parity-deviation table (it is a reversal of I03, never silent).
+   PHASE 0: verify no session golden encodes approval state (any golden change = defect,
+   raise it — do not edit goldens).
+
+8. **Thinking level (the footer's "model • <level>" right side — pi footer.ts:226-244).**
+   Your side is the DATA: add a `thinkingLevel` setting (PHASE 0: pi's vocabulary and
+   default from repos/pi/packages/coding-agent/src/core/settings-schema.ts + how
+   state.thinkingLevel resolves; follow the house Settings.resolve_* pattern) and wire
+   `thinking_level:` into bin/tart's footer_data hash(s) (:185-199 region) per the frozen
+   contract above. The footer render is the surface lane's.
+
+=== OUTPUT FORMAT ===
+
+Raw tables/verbatim output only, in your scratch report: PHASE 0 findings table (every
+verify item, spec-vs-reality with file:line evidence), test-suite output verbatim
+(before/after counts), gate-command outputs verbatim, judgment calls (each vs its pi source
+with file:line), the parity-deviation table (empty or itemized — the approval deletion MUST
+appear there), and the files list. Every status claim backed by a command result from this
+run.
+
+=== TOOL GUIDANCE ===
+
+- Verification: `bundle install --quiet && bundle exec rake` (no count frozen). Single
+  files: `bundle exec ruby -Itest test/<file>.rb`. Goldens: untouched — any golden change
+  is a defect, raise it in PHASE 0.
+- Oracle (read-only): item 1 — `src/core/agent-loop.ts:832`. Item 8 —
+  `src/modes/interactive/components/footer.ts:226-244`, `src/core/settings-schema.ts`
+  (thinkingLevel vocabulary + default).
+- Gem (read-only): ruby_llm 2.1.0 — verify in PHASE 0 that with no tool registering
+  `requires_approval`, `Chat#run_tools` executes everything (the native mechanics stay
+  dormant). No gem changes.
+
+=== BOUNDARIES ===
+
+May touch: lib/tart/agent/loop.rb, lib/tart/tools.rb, lib/tart/tools/registry.rb,
+lib/tart/print.rb, lib/tart/settings.rb, bin/tart, test/agent_loop_test.rb,
+test/tools_test.rb, test/print_test.rb, test/mcp_test.rb, test/settings_test.rb,
+test/launcher_smoke_test.rb.
+
+Must NOT touch: lib/tart/render/** (the parallel surface lane owns chat.rb/theme.rb/tui.rb),
+lib/tart/core/**, lib/tart/commands.rb, lib/tart/skills.rb, lib/tart/compaction.rb,
+lib/tart.rb, all other test files (read-only; raise gaps in PHASE 0), Gemfile*, bench/,
+README.md (help-text changes live in bin/tart's own strings only).
+
+Out of scope: any footer/CHAT rendering, mouse anything, MOTD, markdown, the surface side
+of approvals. No new runtime dependencies. No refactors beyond the task.
+
+=== ACCEPTANCE CRITERIA (frozen) ===
+
+- **AC1 (approvals deleted).** No approval machinery remains anywhere: tools execute
+  unconditionally (pi agent-loop.ts:832), no approval kwarg/callback/marking/UI/prompt/
+  wiring/help text. A gated-tool shape (bash) runs through the loop with no decision point.
+  Approval-specific tests deleted; suite green. The deletion is itemized in the deviation
+  table (reverses I03; reintroduction = future extension support).
+- **AC6 (thinking level, your side).** The frozen `footer_data[:thinking_level]` contract
+  lands on your side: the `thinkingLevel` setting (pi's vocabulary + default) + bin/tart's
+  wiring. Test-proven (settings resolution + the wired hash).
+- **AC13 (deviation discipline).** Every PHASE 0 verify item is in the findings table with
+  file:line evidence; the parity-deviation table is empty or itemized — the approval
+  deletion appears there, never silently.
+- **AC14 (regressions).** All standing guards stay green: gem-pins, env-tripwire,
+  stderr gates, launcher smoke, the full suite; goldens byte-identical.
+
+Gate commands you must run and record verbatim (cwd = your worktree root):
+`bundle install --quiet && bundle exec rake && echo SUITE_OK`;
+`timeout 180 bundle exec ruby -Itest test/agent_loop_test.rb && echo AGENT_OK` (same shape
+for tools_test/print_test/mcp_test/settings_test/launcher_smoke_test);
+`! grep -rq 'requires_approval\|handle_approvals\|approval_module\|pending_approval' lib bin test && echo NO_APPROVAL`;
+`grep -q 'thinkingLevel' lib/tart/settings.rb && grep -q 'thinking_level' bin/tart && echo THINKING_OK`;
+the standing env/gem-pins/stderr gates from the frozen gates block.
+
+NOTE on the two cross-lane gates: `NO_APPROVAL` and `THINKING_OK` span BOTH wave-1
+lanes' files (chat.rb is the surface lane's). They are INTEGRATION-time gates — each is
+RED in your solo worktree by design (the surface lane owns the other half). Record your
+half's evidence (e.g. `grep -c pending_approval` on YOUR files → 0) and never touch the
+surface lane's files to make a cross-lane gate pass.
 
 ## Builder Report
 
