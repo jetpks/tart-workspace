@@ -91,51 +91,211 @@ Surface lane: **high** (five items, two requiring live verification against the 
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse live-run-fixes` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze live-run-fixes` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+Calibration: AC1-AC7 assert user-visible properties of the daily-driver surface (BRIEF §3) — the substance is architect-read from the Builder Report's pi/gem citations, the tests, and the raw live-verification evidence; tripwires pin keyword presence only. AC8 is the deviation-discipline floor (BRIEF §5). AC9 is the standing regression floor (BRIEF §2) — regression guards, expected GREEN on base and after.
 
-**AC1.** ...
+- **AC1 (boot draw — BRIEF §3).** The first frame renders at boot with zero input events — no blank screen until a key/mouse event. pi renders on start; the port's `draw_frame` dirty-gate stays for all later frames (I01's static-CPU design). Test-proven at the kernel level (a draw with no events), and architect-read against the live-run report.
+- **AC2 (quiet first turn — BRIEF §3/§5).** No "IO::Buffer is experimental" warning (or any ruby warning text) reaches the terminal during boot or the first turn. Exactly that one message is filtered at the launcher (architect-verified mechanism: async 2.46's reactor instantiates an IO::Buffer on first in-reactor IO, blamed to the outermost user frame); all other warnings still pass through (unit-proven). Smoke/probe evidence raw in the report.
+- **AC3 (/skills crash fixed — regression).** Submitting `/skills` through the exact bin/tart handler wiring (output/spawn/agent/reset/quit lambdas over a real Handler with skills) renders the listing without raising — kernel-driven, test-proven. No other visibility changes beyond the one method.
+- **AC4 (live autocomplete + skill discovery — BRIEF §3, owner ruling 2026-10-10).** With the owner's skill sources seeded in fixtures, `/ar<tab>` applies `/skill:architect ` — the live key path verified (raw event dumps/readbacks in the report: gem tab/ctrl event shapes confirmed, any live-path defect fixed). Discovery: `Skills.load` scans `<root>/skills` (pi parity) AND `~/.claude/skills` (owner-directed deviation, first-loaded-wins between the two user sources), then `<cwd>/.tart/skills`. Test-proven headlessly with fixture roots; live evidence raw in the report.
+- **AC5 (ctrl+d — BRIEF §3).** ctrl+d with an empty editor exits the run; with content it deletes forward (pi custom-editor.ts:118-125 app.exit semantics). Both paths test-proven headlessly.
+- **AC6 (theme tokens — I12 ruling 2 carry-in, owner-confirmed).** `Theme::TOKENS` carries `thinkingText`, `scrollbarTrack`, `scrollbarThumb` as house ANSI analogs of pi's actual dark.json:26-29 values (blue-tinted family, NOT dim/muted), provenance comments updated; `Chat#scrollbar_glyphs` re-pointed to the scrollbar tokens; token assertions updated. Test-proven.
+- **AC7 (dim streaming reasoning — BRIEF §3, owner ruling).** Reasoning deltas render dim (thinkingText) as they stream, in the live region before the live content; at completion the assistant's joined thinking renders as a dim block before the content in the transcript (pi assistant-message.ts:99-175 order; no toggle/collapse — itemized). `strip_thinking_replay` and the agent loop untouched. Test-proven with mock-server reasoning deltas (both the live-stream and completed-message paths, per the PHASE 0 verification of the completed message's thinking).
+- **AC8 (parity/deviation discipline — BRIEF §5).** Every PHASE 0 verify item is in the findings table with file:line evidence; the parity-deviation table is empty or itemized — the known cuts (~/.claude/skills scan as owner-directed deviation, reasoning no-toggle, plain-dim reasoning rendering, gem event-shape mappings, anything the live verification uncovers) appear there, never silently.
+- **AC9 (regressions — BRIEF §2).** All standing guards stay green: tui-seam (every `RatatuiRuby.` call confined to `lib/tart/tui.rb`), gem-pins, env-tripwire, bench-seam, stderr gates, the launcher smoke, and the full suite; goldens byte-identical.
+
+Gate intent notes (calibration): `bootdraw-tripwire`, `warning-tripwire`, `claude-skills-tripwire`, `reasoning-tripwire`, `tokens-tripwire`, `ctrld-tripwire` are **tripwires** — presence only; the substance of AC1-AC7 is architect-read from the report's citations, tests, and raw live evidence, never gate-proven. `kernel-guard`, `chat-guard`, `skills-guard`, `theme-guard`, `tui-guard`, `agent-seam-guard`, `smoke-guard` prove the touched test files run standalone. The rest are the standing regression guards (GREEN on base by design).
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse live-run-fixes` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite-green
+  ac: AC1, AC2, AC3, AC4, AC5, AC6, AC7, AC8, AC9
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: kernel-guard
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/loop_test.rb && echo LOOP_OK
+  expect:
+    exit_code: 0
+    stdout_match: LOOP_OK
+
+- id: chat-guard
+  ac: AC3, AC4, AC5, AC6, AC7
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/chat_test.rb && echo CHAT_OK
+  expect:
+    exit_code: 0
+    stdout_match: CHAT_OK
+
+- id: skills-guard
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/skills_test.rb && echo SKILLS_OK
+  expect:
+    exit_code: 0
+    stdout_match: SKILLS_OK
+
+- id: theme-guard
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/theme_test.rb && echo THEME_OK
+  expect:
+    exit_code: 0
+    stdout_match: THEME_OK
+
+- id: tui-guard
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/tui_test.rb && echo TUI_OK
+  expect:
+    exit_code: 0
+    stdout_match: TUI_OK
+
+- id: agent-seam-guard
+  ac: AC7, AC9
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/agent_loop_test.rb && echo AGENT_OK
+  expect:
+    exit_code: 0
+    stdout_match: AGENT_OK
+
+- id: bootdraw-tripwire
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    grep -qi 'boot\|first frame\|first draw' lib/tart/core/loop.rb test/loop_test.rb && echo BOOTDRAW_OK
+  expect:
+    exit_code: 0
+    stdout_match: BOOTDRAW_OK
+
+- id: warning-tripwire
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'IO::Buffer' bin/tart test/launcher_smoke_test.rb && echo WARN_OK
+  expect:
+    exit_code: 0
+    stdout_match: WARN_OK
+
+- id: skills-crash-tripwire
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'command_line' test/chat_test.rb && echo CRASH_OK
+  expect:
+    exit_code: 0
+    stdout_match: CRASH_OK
+
+- id: claude-skills-tripwire
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    grep -q '.claude' lib/tart/skills.rb test/skills_test.rb && echo CLAUDE_OK
+  expect:
+    exit_code: 0
+    stdout_match: CLAUDE_OK
+
+- id: ctrld-tripwire
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    grep -qi 'ctrl.*d\|app.exit\|exit' lib/tart/render/chat.rb | head -1 | grep -q . && echo CTRLD_OK
+  expect:
+    exit_code: 0
+    stdout_match: CTRLD_OK
+
+- id: tokens-tripwire
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'thinkingText' lib/tart/theme.rb && grep -q 'scrollbarTrack' lib/tart/theme.rb && grep -q 'scrollbarThumb' lib/tart/theme.rb && echo TOKENS_OK
+  expect:
+    exit_code: 0
+    stdout_match: TOKENS_OK
+
+- id: reasoning-tripwire
+  ac: AC7
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'thinking' lib/tart/render/chat.rb && grep -q 'reasoning' test/support/mock_llm_server.rb && echo REASON_OK
+  expect:
+    exit_code: 0
+    stdout_match: REASON_OK
+
+- id: smoke-guard
+  ac: AC2, AC9
+  cwd: repos/tart
+  cmd: |-
+    timeout 180 bundle exec ruby -Itest test/launcher_smoke_test.rb && echo SMOKE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SMOKE_OK
+
+- id: env-tripwire
+  ac: AC9
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'TART_API_KEY' README.md && grep -q 'TART_MCP_CONFIG' README.md && grep -q 'TART_CONTEXT_WINDOW' README.md && git grep -q 'TART_API_KEY' -- bin/tart && echo ENV_OK
+  expect:
+    exit_code: 0
+    stdout_match: ENV_OK
+
+- id: tui-seam
+  ac: AC9
+  cwd: repos/tart
+  cmd: |-
+    test -f lib/tart/tui.rb && test -z "$(grep -rn 'RatatuiRuby\.' lib test bench bin | grep -v '^lib/tart/tui')" && echo SEAM_OK
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_OK
+
+- id: bench-seam
+  ac: AC9
+  cwd: repos/tart
+  cmd: |-
+    timeout 90 bundle exec ruby bench/seam_bench.rb
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: gem-pins
+  ac: AC9
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'ratatui_ruby (1\.5\.0)' Gemfile.lock && grep -q 'minitest (5\.' Gemfile.lock && grep -q 'ruby_llm (2\.' Gemfile.lock && echo PINS_OK
+  expect:
+    exit_code: 0
+    stdout_match: PINS_OK
+
+- id: stderr-quiet
+  ac: AC9
+  cwd: repos/tart
+  cmd: |-
+    bundle exec rake > /dev/null 2> stderr_gate2.log; ! grep -qi 'unhandled exception' stderr_gate2.log && echo NO_WARN && rm -f stderr_gate2.log
+  expect:
+    exit_code: 0
+    stdout_match: NO_WARN
+
+- id: stderr-clean
+  ac: AC9
+  cwd: repos/tart
+  cmd: |-
+    bundle exec rake > /dev/null 2> stderr_gate.log; ! grep -q 'Broken pipe' stderr_gate.log && echo NO_EPIPE && rm -f stderr_gate.log
+  expect:
+    exit_code: 0
+    stdout_match: NO_EPIPE
 ```
 
 ## Builder Prompt
