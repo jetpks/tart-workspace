@@ -608,6 +608,15 @@ project:
       - test/mcp_test.rb
       - test/settings_test.rb
       - test/launcher_smoke_test.rb
+      base_sha: 94f79cfb06a041c638c61697b5c9dba38979cf6e
+      worktree: build/I14-third-run-parity-agent/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-10T14:37:39-06:00'
+      effort: medium
+      integrate_sha: '09505f57abc44e111e6face50d49a055d88d1dac'
     - name: surface
       repo: tart
       touch_set:
@@ -618,6 +627,15 @@ project:
       - test/chat_test.rb
       - test/theme_test.rb
       - test/tui_test.rb
+      base_sha: 94f79cfb06a041c638c61697b5c9dba38979cf6e
+      worktree: build/I14-third-run-parity-surface/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-10T14:37:51-06:00'
+      effort: high
+      integrate_sha: bb300e5f8ca1b67de3726c0af04e54d01815d1c4
     - name: mouse
       repo: tart
       touch_set:
@@ -627,6 +645,12 @@ project:
       - test/tui_test.rb
       - test/loop_test.rb
       - test/chat_test.rb
+      base_sha: 94f79cfb06a041c638c61697b5c9dba38979cf6e
+      worktree: build/I14-third-run-parity-mouse/wt
+      integration_branch:
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
     rehearsal:
       gates_digest: 3cfdc9ff9b6bf027bb97a1e3fe24e1da007c65354a94946103cb9f3055895f3b
       at: '2026-10-10T14:32:42-06:00'
