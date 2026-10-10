@@ -50,10 +50,10 @@ repos:
   added_at: '2026-10-09T02:10:51-06:00'
 - provider: github.com
   organization: jetpks
-  name: raspberry-pi
-  full_name: github.com/jetpks/raspberry-pi
-  clone_url: git@github.com:jetpks/raspberry-pi.git
-  path: repos/raspberry-pi
+  name: tart
+  full_name: github.com/jetpks/tart
+  clone_url: git@github.com:jetpks/tart.git
+  path: repos/tart
   added_at: '2026-10-09T02:28:08-06:00'
 notes: []
 tickets: []
