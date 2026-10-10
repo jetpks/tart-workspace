@@ -238,9 +238,36 @@ project:
   - name: editor-markdown
     ordinal: 6
     file: architecture/I06-editor-markdown.md
-    freeze_sha: 6d16cf44a9f1abf8868816c1b02fae99b502e2b0
+    freeze_sha: 376b5472be83275f36dbf628276333cfe97ef777
     verdict: pending
-    lanes: []
+    lanes:
+    - name: polish
+      repo: raspberry-pi
+      touch_set:
+      - lib/raspberry_pi/agent/loop.rb
+      - test/kernel_carryin_test.rb
+      - test/test_helper.rb
+    - name: editor
+      repo: raspberry-pi
+      touch_set:
+      - lib/raspberry_pi/render/chat.rb
+      - lib/raspberry_pi/tui.rb
+      - test/chat_test.rb
+      - test/tui_test.rb
+      - README.md
+    - name: markdown
+      repo: raspberry-pi
+      touch_set:
+      - lib/raspberry_pi/render/markdown.rb
+      - lib/raspberry_pi.rb
+      - test/markdown_test.rb
+    - name: markdown-seam
+      repo: raspberry-pi
+      touch_set:
+      - lib/raspberry_pi/render/chat.rb
+      - lib/raspberry_pi/tui.rb
+      - test/chat_test.rb
+      - test/tui_test.rb
     rehearsal:
       gates_digest: 6b3bc5a1e063c217bfaa5c3a355fe8f8e8196b7b27d59b9f228a69a33bd104b2
       at: '2026-10-09T19:14:41-06:00'
