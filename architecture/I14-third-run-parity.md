@@ -33,30 +33,6 @@ Root causes (oracle-cited):
 
 ## Specification
 
-# Grounds
-
-The owner's third daily-driver run (2026-10-10 local) surfaced 13 items. All root causes are architect-verified this session against the pi oracle (`repos/pi/packages/coding-agent`) with citations below; owner rulings are logged in ARCHITECT.md's decisions log (2026-10-10, third-session entry). BRIEF §3 (daily-driver parity) is the bar.
-
-Provenance of the batch: items 3 (live markdown), 6 (wheel scroll), and 10 (text select) were RECORDED deferrals (I06 out-of-scope + itemized deviation; I11 "mouse support" deferred, reaffirmed I12/I13) — promoted by owner ruling, not new findings. Items 5 (edit box), 8 (thinking level), and 13 (context percent) were I11 spec-authoring misses: the first-run quote asked for "the model/effort" and the footer's context percent; I11's freeze never carried them, and the east/west borders + `> ` prompt were port inventions pi does not have. The remainder are new third-run findings.
-
-Root causes (oracle-cited):
-
-1. **Approvals** — pi ships no permissions system (`agent-loop.ts:832` executes tools unconditionally; plugins add gating). The port's I03 approval machinery spans `Agent::Loop` (approval kwarg + `handle_approvals`, loop.rb:48-71, 397-404), `Tools`/`Registry` (`requires_approval` + `approval_module`, registry.rb:16-84), `Render::Chat` (prompt rows, `pending_approval`, y/n key consumption, `Chat#approval`), `bin/tart` (wiring :196, help text :12/:103), `print.rb` (auto-approve shim :45-46). Owner ruling: DELETE (not default-off); reintroduction is future extension-support work.
-2. **Thinking/message spacing** — pi `assistant-message.ts`: `Spacer(1)` after a thinking run when visible content follows (:172-174); blank-line spacing between transcript items (chatContainer spacers, interactive-mode.ts:854-868 — PHASE 0 pins the exact between-message rule). The port renders reasoning block and content back-to-back, and no blank after a completed message.
-3. **Live markdown** — pi re-renders the streaming message as Markdown on every delta (`streamingComponent.updateContent(streamingMessage, true)`, interactive-mode.ts:3519-3535; assistant-message.ts Markdown with `isStreaming` transform :107-109). The port renders the live region as raw source (I06's itemized deviation, now overridden for CONTENT; the reasoning block stays plain-dim per I13's standing ruling).
-4. **Autocomplete order** — no usage-based ranking exists in pi. All `skill:architect*` items tie identically on query "ar" (same match offsets after the constant `skill:` prefix); pi's JS `Array.sort` is stable so ties keep pre-sort list order, Ruby's `sort_by` is NOT stable so the tie order is arbitrary (the observed architect-research-first). Fix: stable tie-break by pre-sort index; PHASE 0 verifies pi's pre-sort list order.
-5. **Edit box** — pi's editor (tui `editor.ts`): `paddingX` (default 0), horizontal borders ONLY (`renderTopBorder` :511 carries status, `renderBottomBorder` :516), full width from column 0, NO east/west borders, NO prompt char. The port's bordered area + `> ` prompt are I11 inventions.
-6. **Wheel scroll** — pi: `WheelScrollAccelerator` (tui `wheel-scroll.ts`), alt+wheel moves 5× (`tui-alt-screen.ts:170-173`), lines-per-event setting. The gem HAS mouse events (`event/mouse.rb`, `events.rs:210+` crossterm parse) — the port's kernel never routes them (PHASE 0 verifies the pump shape).
-7. **(same as 2 — post-message blank line.)**
-8. **Thinking level** — pi footer right side: `model • <thinkingLevel>` for reasoning-capable models (`"thinking off"` when off), footer.ts:226-244. The port has no thinking-level source at all.
-9. **Footer colors** — pi's whole footer is `dim` (pwd line, stats, model — footer.ts:280-288) with the context percent colored warning >70% / error >90%. pi's `dim` = okhsl(229 8% 56%) — a blue-tinted mid gray (dark.json:24). The port's `dim` analog `:dark_gray` (~50% neutral) is the defect; re-point the analog (I13 token discipline).
-10. **Text select** — pi's fullscreen OWNS selection (SGR capture disables native): anchor/focus, character/word/line granularity, double-click word with path/kebab-aware boundaries (tui-alt-screen.ts:83-107), copy-on-select. Real machinery; the port has none.
-11. **/new** — pi: `handleClearCommand` → `runtimeHost.newSession()` → `renderCurrentSessionState` CLEARS chatContainer + re-renders initial state, then an accent "✓ New session started" line (interactive-mode.ts:6926-6936, 2209-2216). The port's /new resets the session but never clears the transcript.
-12. **MOTD** — pi's built-in header (interactive-mode.ts:1040-1080): logo + compact hints line + "Press ctrl+o …" notice + onboarding line; loadedResources sections (interactive-mode.ts:1778-1860): `[Context]`/`[Skills]`/`[Prompts]`/`[Extensions]`/`[Themes]` sorted dim lists. Owner ruling: adapt — logo placeholder constant (owner designs tart's art later; identity deviation, itemized), version line, hints reflecting the PORT's real keys, `[Context]` + `[Skills]` only; `[Prompts]`/`[Extensions]`/updates CUT (no machinery), ctrl+o expand machinery CUT, onboarding line CUT (pi-branding) — all itemized.
-13. **Context percent** — the `(auto)` suffix is pi's autoCompact indicator (footer.ts:194-201 — the port already has it right). The missing piece: pi computes the context-usage PERCENT from session stats (0.0% at boot; footer.ts:143-162 `getSessionStats`/`getContextUsage`), coloring warning >70% / error >90% (:206-213). The port prints `?` until the first usage arrives (chat.rb `context_used` nil-pre-usage).
-
-# Specification
-
 ## Objective
 
 Close the owner's third daily-driver run's 13 items (BRIEF §3; decisions log 2026-10-10 third-session entry; Grounds above). Two waves:
