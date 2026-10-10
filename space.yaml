@@ -146,7 +146,7 @@ project:
     ordinal: 4
     file: architecture/I04-tui.md
     freeze_sha: e6d373a23df886b9fac526497f1fc0950645a347
-    verdict: pending
+    verdict: continue
     lanes:
     - name: tui
       repo: raspberry-pi
