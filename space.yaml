@@ -238,7 +238,10 @@ project:
   - name: editor-markdown
     ordinal: 6
     file: architecture/I06-editor-markdown.md
-    freeze_sha:
+    freeze_sha: 6d16cf44a9f1abf8868816c1b02fae99b502e2b0
     verdict: pending
     lanes: []
+    rehearsal:
+      gates_digest: 6b3bc5a1e063c217bfaa5c3a355fe8f8e8196b7b27d59b9f228a69a33bd104b2
+      at: '2026-10-09T19:14:41-06:00'
   integration_branch: project/pi-port
