@@ -300,10 +300,230 @@ Gate intent notes (calibration): `bootdraw-tripwire`, `warning-tripwire`, `claud
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I13-live-run-fixes-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section live-run-fixes prompt --append --lane <lane> --from build/I13-live-run-fixes-<lane>/prompt.md`. -->
+### kernel
+
+### LANE kernel — your boundaries
+
+- Working directory: /Users/eric/architect/spaces/20261009-pi-port/build/I13-live-run-fixes-kernel/wt
+  (a git worktree of the tart repo, branch lane/I13-live-run-fixes-kernel, based on
+  project/pi-port at 5b98831f — everything through I12: kernel + agent/tool loop with seven parity
+  tools, safety/approval gating, thinking-replay strip, fullscreen TUI surface with the bordered
+  input editor + theme tokens + footer + autocomplete + transcript scrolling + scrollbar +
+  compaction-start border status, JSONL session recording + resume, stdio MCP client, print
+  mode, CLI launcher, compaction, I10 skills/settings/slash commands. Suite green (272 runs).
+  All must stay green.)
+- Your scratch report (write RAW results here when done):
+  /Users/eric/architect/spaces/20261009-pi-port/build/I13-live-run-fixes-kernel/report.md
+- You may touch ONLY: lib/tart/core/loop.rb, test/loop_test.rb, bin/tart,
+  test/launcher_smoke_test.rb. Nothing else.
+- Space-root paths are READ-ONLY references. The pi oracle is repos/pi (read-only, at
+  /Users/eric/architect/spaces/20261009-pi-port/repos/pi — cite file:line from it).
+- Lane-specific notes:
+  - Your lane is TWO small, tightly-specified fixes with architect-verified root causes
+    (this session, repro'd): item 1 (blank boot) and item 2 (IO::Buffer warning) of the spec
+    below. The other five items belong to the PARALLEL surface lane (chat/theme/skills) —
+    do not touch any of their files.
+  - Item 1 root cause (verified): `Core::Loop#draw_frame` is gated `return unless @dirty ||
+    animating?` (lib/tart/core/loop.rb:299) and `@dirty = false` at init (:66) — nothing
+    draws until the first event sets dirty. pi renders on start. Keep the dirty-gate for all
+    later frames (I01's measured static-CPU design — do NOT switch to a fixed-rate draw).
+    loop_test must prove a draw happens with ZERO events processed.
+  - Item 2 root cause (verified, repro'd this session): ruby 4.0.7 warns "IO::Buffer is
+    experimental and both the Ruby and C interface may change in the future!" on the first
+    IO::Buffer instantiation inside an Async reactor task — async 2.46's reactor wrapper
+    creates one on the first in-reactor IO, once per process, blamed to the outermost user
+    frame (the owner saw it at agent/session.rb:318 = first persist; session.rb is NOT at
+    fault and is not yours to touch). Verified suppression: a Warning-callback filter
+    (module with `def warn(message, **)` returning nil for exactly that message, `super`
+    otherwise, extended onto `Warning`) silences it. Place the filter in bin/tart before
+    `kernel.run`; filter EXACTLY that one message — all other warnings must still pass
+    through (prove it: an unrelated warning still reaches stderr, raw output in your report).
+    First verify with Open3 evidence whether print-mode boot (launcher_smoke_test's shape)
+    currently emits the warning on stderr — record before/after stderr verbatim; if it never
+    fires in print mode, say so with evidence and prove the filter's unit behavior instead
+    (a tiny unit test).
+  - launcher_smoke_test.rb: add the stderr assertion only if your before-evidence shows the
+    warning fires in the smoke shape; otherwise assert the filter's unit behavior. Record
+    which and why.
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo or in the read-only
+oracle repo. Silent compliance is a failure. Silent scope additions are a
+failure. If you have no disagreements, state what you checked before concluding
+the spec is sound. Verify the named APIs/formats/versions against the live
+dependencies before planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed in BOUNDARIES. You
+are one of several parallel lane agents working in isolated worktrees; files
+outside your lane belong to other agents — touching them fails your lane.
+No placeholder implementations — search the codebase before implementing;
+full implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive collection/enumerable
+forms); well-factored and DRY-ish; terse but clear; pragmatic, not clever — the
+smallest change that does the job, no abstraction it doesn't need. Consistency
+with the surrounding code is part of correctness here: a change that works but
+fights the house style (or introduces an inconsistency a careful reader of this
+repo would never write) is not done. Tests stay simple and terse, exercising
+public behavior, no mock/stub of the class under test. Verify your work by
+running the acceptance criteria's gate commands and record the verbatim output. Do NOT commit and do NOT run any
+git write command (commit/add/branch/reset/checkout) — the architect commits
+and merges after verification, and verifies you made no commits. Do NOT delete
+lock files or escalate privileges if a command fails; record the exact error
+and continue. Do NOT use `run_in_background` (or shell `&`) for your own work —
+this process terminates when you end your turn and reaps its own children, so
+backgrounded work is SIGTERMed and its output lost while the run still exits
+0; run long commands serially in the foreground instead. Give every
+potentially long command an explicit timeout; if a
+runtime will not start unattended (interactive prompt, server with no timeout),
+record the exact failure in your report and route around it — never busy-wait
+or retry in a loop. When done, write your report to the scratch file given to
+you, build/I13-live-run-fixes-kernel/report.md (an absolute path outside your
+worktree), with RAW results only — tables, numbers, command output — no
+interpretation, no "promising". Every status claim must be backed by a command
+result from this run. Keep the report compact — tables and numbers, not prose.
+Do not title the report — the architect's tooling supplies the heading when it
+transcribes; keep any headings inside the report at `###` or deeper. End it with
+exactly one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them)
+| BLOCKED (exact blocker + what you tried). Verdicts belong to the architect
+and the human. Persist until your lane is fully handled end-to-end; do not stop
+at analysis or partial fixes.
+
+=== OBJECTIVE (and why) ===
+
+The owner's second daily-driver run (2026-10-10 local) surfaced seven live
+defects/wants. Your lane owns items 1 and 2 (the full seven-item context, so
+you understand the parallel surface lane):
+
+1. **Blank boot** — the surface renders only after the first input event:
+   `Core::Loop#draw_frame` is gated on `@dirty || animating?` and `@dirty =
+   false` at init (lib/tart/core/loop.rb:66, 299), so nothing draws until an
+   event sets dirty. pi renders on start.
+2. **IO::Buffer warning corrupts the edit box** — async 2.46's reactor wrapper
+   instantiates an `IO::Buffer` on the first IO inside a reactor task, once per
+   process, and ruby 4.0.7 blames the outermost user frame (the owner saw it at
+   lib/tart/agent/session.rb:318 = the first persist inside the reactor).
+   Architect repro: `ruby -e 'require "async"; Async { File.open("tw", "wx")
+   { |f| f.write(...) } }'` warns; a `Warning`-callback filter (extend a module
+   onto `Warning` whose `#warn` returns nil for exactly the IO::Buffer-
+   experimental message, `super` otherwise) silences it — verified by the
+   architect. It is NOT session.rb's fault; session.rb is untouched (and not
+   yours).
+
+(The other five items — /skills crash, /ar<tab> autocomplete + ~/.claude
+skills discovery, ctrl+d, theme tokens, dim streaming reasoning — belong to
+the parallel surface lane. Do not touch their files.)
+
+=== OUTPUT FORMAT ===
+
+Raw tables/verbatim output only, in your scratch report: PHASE 0 findings table
+(every verify item, spec-vs-reality with file:line evidence), test-suite output
+verbatim (pass/fail counts, before/after), gate-command outputs verbatim, the
+smoke/stderr before-after evidence for item 2, judgment calls (each vs its pi
+source or the repro with file:line), the parity-deviation table (empty or
+itemized), and the files list. Every status claim backed by a command result
+from this run.
+
+=== TOOL GUIDANCE (verification commands; verify-against-reality list) ===
+
+- Verification: `bundle install --quiet && bundle exec rake` (full suite; no
+  count frozen). Single files: `bundle exec ruby -Itest test/<file>.rb`.
+  Goldens: untouched — any golden change is a defect, raise it in PHASE 0.
+- Oracle (read-only, repos/pi/packages/coding-agent): boot render — find where
+  pi renders the first frame at start (tui app init / render loop; cite
+  file:line in your findings).
+- Ruby 4.0.7 / async 2.46: verify the warning + suppression yourself with
+  minimal repros before implementing (the architect's repro above is the
+  pattern); record the raw repro output in your report.
+- Gate commands you must run and record verbatim (from the frozen AC below):
+  suite-green, kernel-guard, bootdraw-tripwire, warning-tripwire, smoke-guard,
+  env-tripwire, tui-seam, bench-seam, gem-pins, stderr-quiet, stderr-clean.
+  All must pass in your worktree.
+
+=== BOUNDARIES (may touch / must not touch / out of scope) ===
+
+**may touch:** lib/tart/core/loop.rb, test/loop_test.rb, bin/tart,
+test/launcher_smoke_test.rb.
+
+**must not touch:** everything else — in particular lib/tart/render/chat.rb,
+lib/tart/theme.rb, lib/tart/skills.rb, test/chat_test.rb, test/theme_test.rb,
+test/skills_test.rb, test/tui_test.rb, test/support/** and all other lib/tart/**
+(the surface lane owns those); test/golden_parity_test.rb; Gemfile,
+Gemfile.lock, bench/, Rakefile, README.md; `~/.tart` never touched.
+
+**out of scope:** everything in the spec's items 3-7 (surface lane); no
+renderer/event-shape changes; no new runtime dependencies; no refactors
+beyond the task.
+
+=== ACCEPTANCE CRITERIA (frozen — the architect re-runs these to judge; verify
+against them, do not edit or work around) ===
+
+Your lane carries AC1 (boot draw), AC2 (quiet first turn), AC8 (deviation
+discipline), AC9 (regressions) — the full frozen set:
+
+- **AC1 (boot draw — BRIEF §3).** The first frame renders at boot with zero
+  input events — no blank screen until a key/mouse event. pi renders on start;
+  the port's `draw_frame` dirty-gate stays for all later frames (I01's
+  static-CPU design). Test-proven at the kernel level (a draw with no events),
+  and architect-read against the live-run report.
+- **AC2 (quiet first turn — BRIEF §3/§5).** No "IO::Buffer is experimental"
+  warning (or any ruby warning text) reaches the terminal during boot or the
+  first turn. Exactly that one message is filtered at the launcher
+  (architect-verified mechanism); all other warnings still pass through
+  (unit-proven). Smoke/probe evidence raw in the report.
+- **AC3-AC7** belong to the surface lane (listed in the full frozen set for
+  context — your work must not regress them; the full suite proves it).
+- **AC8 (parity/deviation discipline — BRIEF §5).** Every PHASE 0 verify item
+  is in the findings table with file:line evidence; the parity-deviation table
+  is empty or itemized — never silent.
+- **AC9 (regressions — BRIEF §2).** All standing guards stay green: tui-seam
+  (every `RatatuiRuby.` call confined to `lib/tart/tui.rb`), gem-pins,
+  env-tripwire, bench-seam, stderr gates, the launcher smoke, and the full
+  suite; goldens byte-identical.
+
+Gate commands (frozen; run them, record verbatim):
+
+```gates
+- id: suite-green
+  cmd: bundle install --quiet && bundle exec rake && echo SUITE_OK   (expect SUITE_OK, exit 0)
+- id: kernel-guard
+  cmd: timeout 180 bundle exec ruby -Itest test/loop_test.rb && echo LOOP_OK   (expect LOOP_OK, exit 0)
+- id: bootdraw-tripwire
+  cmd: grep -qi 'boot\|first frame\|first draw' lib/tart/core/loop.rb test/loop_test.rb && echo BOOTDRAW_OK
+- id: warning-tripwire
+  cmd: grep -q 'IO::Buffer' bin/tart test/launcher_smoke_test.rb && echo WARN_OK
+- id: smoke-guard
+  cmd: timeout 180 bundle exec ruby -Itest test/launcher_smoke_test.rb && echo SMOKE_OK
+- id: env-tripwire
+  cmd: grep -q 'TART_API_KEY' README.md && grep -q 'TART_MCP_CONFIG' README.md && grep -q 'TART_CONTEXT_WINDOW' README.md && git grep -q 'TART_API_KEY' -- bin/tart && echo ENV_OK
+- id: tui-seam
+  cmd: test -f lib/tart/tui.rb && test -z "$(grep -rn 'RatatuiRuby\.' lib test bench bin | grep -v '^lib/tart/tui')" && echo SEAM_OK
+- id: bench-seam
+  cmd: timeout 90 bundle exec ruby bench/seam_bench.rb   (expect SEAM_BENCH_OK, exit 0)
+- id: gem-pins
+  cmd: grep -q 'ratatui_ruby (1\.5\.0)' Gemfile.lock && grep -q 'minitest (5\.' Gemfile.lock && grep -q 'ruby_llm (2\.' Gemfile.lock && echo PINS_OK
+- id: stderr-quiet
+  cmd: bundle exec rake > /dev/null 2> stderr_gate2.log; ! grep -qi 'unhandled exception' stderr_gate2.log && echo NO_WARN && rm -f stderr_gate2.log
+- id: stderr-clean
+  cmd: bundle exec rake > /dev/null 2> stderr_gate.log; ! grep -q 'Broken pipe' stderr_gate.log && echo NO_EPIPE && rm -f stderr_gate.log
+```
+
+The parallel surface lane owns chat-guard, skills-guard, theme-guard, tui-guard,
+agent-seam-guard, skills-crash-tripwire, claude-skills-tripwire, ctrld-tripwire,
+tokens-tripwire, reasoning-tripwire — their halves cannot pass in your worktree
+(absent files); the full suite in your worktree is your regression proof.
 
 ## Builder Report
 
