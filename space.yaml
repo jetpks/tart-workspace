@@ -426,6 +426,15 @@ project:
       - ".gitignore"
       - raspberry-pi.gemspec
       - tart.gemspec
+      base_sha: 7eef23ed884f0bf0cfb42247a16dde327273a57a
+      worktree: build/I09-rename-tart-rename/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-09T21:43:06-06:00'
+      effort: medium
+      integrate_sha: 7a7c0d3a0b0527dd3fe5261bbf13d479b784cfa9
     rehearsal:
       gates_digest: 50a9907c4dbaa879487a29bcc59e9d29ef72b5a51796f3b4609ef53559364950
       at: '2026-10-09T21:41:24-06:00'
