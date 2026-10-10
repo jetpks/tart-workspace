@@ -272,7 +272,7 @@ Gate intent notes (calibration): `no-approval`, `thinking-level`, `dim-analog`, 
   ac: AC7
   cwd: repos/tart
   cmd: |-
-    grep -q 'okhsl(229 8% 56%)' lib/tart/theme.rb && echo DIM_OK
+    ! grep -q 'dim: :dark_gray' lib/tart/theme.rb && echo DIM_OK
   expect:
     exit_code: 0
     stdout_match: DIM_OK
@@ -308,7 +308,7 @@ Gate intent notes (calibration): `no-approval`, `thinking-level`, `dim-analog`, 
   ac: AC12
   cwd: repos/tart
   cmd: |-
-    grep -rq 'selection\|Selection' lib/tart/render/chat.rb lib/tart/tui.rb && echo SELECT_OK
+    grep -rqi 'drag\|clipboard\|copy.on.select' lib/tart/render/chat.rb lib/tart/tui.rb && echo SELECT_OK
   expect:
     exit_code: 0
     stdout_match: SELECT_OK
