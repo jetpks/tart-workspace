@@ -678,11 +678,111 @@ Gates you can run locally (from your worktree):
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I17-tool-turn-parity-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence tool-turn-parity --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### timing
+
+### PHASE 0 — disagreements / deviations
+
+1. Spec's `handle_item` premise corrected by evidence, no deviation in code. The spec said `handle_item`'s `:tool_execution_end` branch (lib/tart/agent/loop.rb:481-482) "re-emits recorded events" that have no duration and asked me to decide whether it can carry duration. Evidence: those items are NOT recorded session items. `rg -n "tool_execution" lib/` shows the only producers of `:tool_execution_start`/`:tool_execution_end` items are the two `@sink&.call` sites in `install_chat_callbacks` (lib/tart/agent/loop.rb:437,440); `work_callable` (lib/tart/agent/loop.rb:385-393) pushes only `:chunk`/`:step` items, and `session.rb` recording is untouched by this branch. So the `handle_item` branch is the live path itself and forwards `item[:duration]` directly — the replay gap (pi records durationMs at packages/coding-agent/src/core/agent-session.ts:1358; the port does not) remains open exactly as the spec itemized, with no recording-shape change.
+2. No other disagreements. Verified before implementing: pi oracle anchors exist (tool-execution.ts:61 `durationMs?: number`, :137 `durationMs: this.result?.durationMs`; nested-tool-calls.ts:82 `Math.round(performance.now() - (this.startedAt.get(record) ?? performance.now()))`; agent-session.ts:1358 `...(event.durationMs === undefined ? {} : { durationMs: event.durationMs })`). ruby_llm 2.1.0 callback shape confirmed in `install_chat_callbacks`' existing comment (after_tool_result receives result only; pairing via Thread.current works in both ToolConcurrency modes).
+
+### Diff (lane files only; no commits made)
+
+- lib/tart/agent/loop.rb: `before_tool_call` arms `Thread.current[:tart_tool_started_at]` via `Process.clock_gettime(Process::CLOCK_MONOTONIC)`; `after_tool_result` computes the Float-second delta and emits it as `duration:` on `:tool_execution_end`; `handle_item`'s `:tool_execution_end` branch forwards `item[:duration]`.
+- test/agent_loop_test.rb: duration assertions appended to `test_multi_turn_tool_round_trip_on_the_kernel` (public behavior only, no mocks of the class under test).
+
+### Event-vocabulary test (verbatim tail)
+
+    bundle exec ruby -Itest test/agent_loop_test.rb -n /round_trip/
+
+    Finished in 0.048440s, 20.6441 runs/s, 474.8142 assertions/s.
+
+    1 runs, 23 assertions, 0 failures, 0 errors, 0 skips
+
+The round-trip test's new duration row asserts exactly one `:tool_execution_end` from the round trip with `duration` a `Float >= 0.0` (always present; `0.0` legitimate).
+
+### 10-sample duration table (real tool round-trips through the loop)
+
+Script (verbatim), run with `bundle exec ruby` from the worktree; reuses the suite's `MockLLMServer` / `TestChat` (defined top-level for exactly such non-minitest callers):
+
+```ruby
+# frozen_string_literal: true
+
+# I17 timing lane: 10 real tool round-trips through Tart::Agent::Loop
+# (mock OpenAI endpoint, real ruby_llm client, real `ls` tool execution);
+# print each :tool_execution_end duration (Float seconds, monotonic).
+require_relative "/Users/eric/architect/spaces/20261009-pi-port/build/I17-tool-turn-parity-timing/wt/test/test_helper"
+require_relative "/Users/eric/architect/spaces/20261009-pi-port/build/I17-tool-turn-parity-timing/wt/test/support/mock_llm_server"
+
+server = MockLLMServer.new.start
+dir = Dir.mktmpdir("tart-i17-")
+File.write(File.join(dir, "fixture.txt"), "x")
+
+durations = 10.times.map do |i|
+  server.script([
+    {type: :stream, content: "listing #{i}", tool_calls: [{id: "call_#{i}", name: "ls", arguments: {path: "."}}]},
+    {type: :message, content: "done"},
+  ])
+  tools = Tart::Tools::Registry.build(selected: %w[ls], cwd: dir)
+  events = []
+  chat = Tart::Test::TestChat.build(server, tools: tools.values, system_prompt: "test prompt")
+  agent = Tart::Agent::Loop.new(chat:, tools:, on_event: ->(e) { events << e })
+  agent.run("list the files")
+  ends = events.select { |e| e[:type] == :tool_execution_end }
+  raise "expected exactly one tool_execution_end, got #{ends.size}" unless ends.size == 1
+  ends.first[:duration]
+end
+
+server.stop
+FileUtils.rm_rf(dir)
+puts durations.map(&:to_s)
+```
+
+Raw output (verbatim, one Float per execution, monotonic seconds):
+
+```
+0.00043699995148926973
+5.1999930292367935e-05
+5.9999991208314896e-05
+9.200000204145908e-05
+6.399990525096655e-05
+5.700008478015661e-05
+5.4999953135848045e-05
+4.900002386420965e-05
+4.800001624971628e-05
+4.600000102072954e-05
+```
+
+(`ls` on a tiny fixture is effectively instant — sub-millisecond monotonic deltas, consistent with pi rendering `Took 0.0s`.)
+
+### Frozen gates (verbatim)
+
+```
+bundle exec rake 2>&1 | tail -6 && echo SUITE_OK
+
+Finished in 19.550334s, 18.1071 runs/s, 71.8146 assertions/s.
+
+354 runs, 1404 assertions, 0 failures, 0 errors, 1 skips
+
+You have skipped tests. Run with --verbose for details.
+SUITE_OK
+```
+
+(1 skip is pre-existing; suite exit 0.)
+
+s2-parity live gate (expected exit 1 in this worktree — `Took`-line candidates remain for the render lane):
+
+```
+bin/pty-tester run parity/scenarios/s2_tool_turn.yml --out /tmp/i17-s2
+s2_exit=1
+```
+
+Candidates (from /tmp/i17-s2/summary.json / report.md): `diff.classes = {"unknown-candidate": 10, "parity-run-path": 2}`; candidate lines include `- Took 0.0s` (pi-only), `+ ⎿ bash: pty-tester`, `- $ echo pty-tester`, `+ The bash tool ran; fixed final reply for the spike.`, `- pty-tester`, `+/- blank lines`, `-↑20 ↓10 0.0%/33k (auto) ...(mock)` vs `+(openai)`. `pi.capture:17` shows ` Took 0.0s`; tart renders none — render lane's remaining work, untouched here.
+
+### Scope check
+
+`git status --porcelain` after work: only `M lib/tart/agent/loop.rb` and `M test/agent_loop_test.rb` (+4 net lines). No commits, no git writes; recording shape (`lib/tart/agent/session.rb`), `lib/tart/render/**`, `parity/**` untouched.
+
+STATUS: COMPLETE
 
 ## Verdict
 
