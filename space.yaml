@@ -1084,6 +1084,14 @@ project:
       - lib/tart/render/transcript.rb
       - test/chat_test.rb
       - test/render/**
+      base_sha: 5cc263ecff8ba422c1d0e1235cda57fd496d9df2
+      worktree: build/I25-transcript-expandables-transcript/wt
+      integration_branch:
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-11T16:57:12-06:00'
+      effort: high
     rehearsal:
       gates_digest: f35c6097edc5e8e835b6a82eca1619d5a65454afcab166158085185f5301839b
       at: '2026-10-11T16:55:03-06:00'
