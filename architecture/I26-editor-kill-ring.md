@@ -71,51 +71,148 @@ Measured this session (2026-10-11) at base **16f20fd** (= `project/pi-port` tip 
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse editor-kill-ring` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze editor-kill-ring` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria — I26 editor-kill-ring
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC1 (kill ring + bindings).** `Tart::Render::KillRing` exists in `lib/tart/render/kill_ring.rb` with pi kill-ring.ts's surface (`push`/`peek`/`rotate`/`length`, accumulate + prepend semantics); `Editor` gains `delete_to_line_start`, `delete_to_line_end`, `yank`, `yank_pop`; `chat.rb edit_input` dispatches ctrl+u → delete-to-line-start, ctrl+k → delete-to-line-end, ctrl+y → yank, alt+y → yank-pop, plus pi's remaining word-delete defaults (alt+backspace, alt+d) if keybindings.ts:124-135 confirms them; ctrl+a/ctrl+e bindings are unchanged. A kill exits history browsing before mutating (editor.ts:1627). The editor stays single-line — pi's line-merge branches are itemized cuts, never silent.
 
-**AC1.** ...
+**AC2 (kill semantics fidelity — test-pinned).** The pi semantics hold and are pinned by direct-class tests: consecutive kills accumulate into ONE ring entry (kill, kill → yank pastes both); backward kills prepend, forward kills append; an intervening non-kill action breaks the accumulate window (pi's lastAction discipline); yank inserts the most recent entry at the cursor; yank-pop is a no-op unless the immediately-preceding action was a yank and the ring holds >1 entry, and cycles oldest-ward on repeat. Suite fully green with those tests included.
+
+**AC3 (parity + registry discipline).** Post-integration, cold from the integrated tree: s1–s6 all exit 0; `gems/tui-split-rig/registry.yml` gains lines only — no existing line removed or modified (`git show <base>:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml` shows no `<` lines).
+
+**AC4 (scope discipline).** The integrated diff touches exactly: `lib/tart/render/kill_ring.rb` (new), `lib/tart/render/editor.rb`, `lib/tart/render/chat.rb`, `test/chat_test.rb` (binding-level tests only), `test/render/**` (new direct-class files), `gems/tui-split-rig/**`. Nothing else — `bin/tart`, `lib/tart.rb`, `theme.rb`, `tui.rb`, and the wave-sealed component files (transcript.rb included) are untouched.
+
+**AC5 (suite + bench).** The default rake task fully green (run-count delta > 0 expected — new tests; byte-wise chat_test.rb changes limited to the new binding cases), and the seam bench prints `SEAM_BENCH_OK`.
+
+**AC6 (rig expansion delivered).** `gems/tui-split-rig/scenarios/s7_compaction.yml` exists, runs both apps through a compaction against the rig's machinery, and exits 1 at baseline with a itemized candidate list (the panel-port work list) in the rig lane's report — NOT a crash, a measured diff; the pending-state probe documents pi's toolPendingBg mid-flight bytes and the port's completion-only shape with capture evidence. The ctrl+d tripwire rides the corrected clause (I13 ruling 6): `grep -qi 'app\.exit\|ctrl.*d' lib/tart/render/chat.rb` — and future stays-intact gates carry NO `flush_reasoning` grep (I25 carry-in).
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse editor-kill-ring` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: kill-ring-class
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    test -f lib/tart/render/kill_ring.rb && grep -q 'def push' lib/tart/render/kill_ring.rb && grep -q 'def peek' lib/tart/render/kill_ring.rb && grep -q 'def rotate' lib/tart/render/kill_ring.rb && echo KILL_RING_OK
+  expect:
+    exit_code: 0
+    stdout_match: KILL_RING_OK
+
+- id: editor-ops
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'def delete_to_line_start' lib/tart/render/editor.rb && grep -q 'def delete_to_line_end' lib/tart/render/editor.rb && grep -q 'def yank' lib/tart/render/editor.rb && grep -q 'def yank_pop' lib/tart/render/editor.rb && echo EDITOR_OPS_OK
+  expect:
+    exit_code: 0
+    stdout_match: EDITOR_OPS_OK
+
+- id: bindings-wired
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'when "u"' lib/tart/render/chat.rb && grep -q 'when "k"' lib/tart/render/chat.rb && grep -q 'when "y"' lib/tart/render/chat.rb && echo BINDINGS_OK
+  expect:
+    exit_code: 0
+    stdout_match: BINDINGS_OK
+
+- id: s1-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/parity-gate-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/parity-gate-s6
+  expect:
+    exit_code: 0
+
+- id: s7-baselined
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    test -f gems/tui-split-rig/scenarios/s7_compaction.yml && gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7; test $? -eq 1
+  expect:
+    exit_code: 0
+
+- id: registry-additions-only
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    if git show 16f20fd:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml | grep -q '^<'; then exit 1; else echo REGISTRY_ADDITIONS_ONLY_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: REGISTRY_ADDITIONS_ONLY_OK
+
+- id: ctrld-tripwire
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    grep -qi 'app\.exit\|ctrl.*d' lib/tart/render/chat.rb && echo CTRLD_OK
+  expect:
+    exit_code: 0
+    stdout_match: CTRLD_OK
+
+- id: sealed-files-untouched
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only 16f20fd HEAD | grep -qvE '^(lib/tart/render/kill_ring.rb|lib/tart/render/editor.rb|lib/tart/render/chat.rb|test/chat_test.rb|test/render/|gems/tui-split-rig/)'; then exit 1; else echo SCOPE_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
 
 ## Builder Prompt
