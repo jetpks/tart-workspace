@@ -1005,6 +1005,15 @@ project:
       - bin/tart
       - test/chat_test.rb
       - test/render/**
+      base_sha: a7b72f9fc7a22c61d8e3707c98d2382a9abbb4a1
+      worktree: build/I22-decomp-wave2-input-line/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-11T14:48:53-06:00'
+      effort: high
+      integrate_sha: d3482f7df90d5a6dbc96a292bcfe30551521305a
     rehearsal:
       gates_digest: 3bd2e5fa6260b7f203d23a528bbbacb4710b587c4ee86e6e9f5cafef526b9c5f
       at: '2026-10-11T14:46:01-06:00'
