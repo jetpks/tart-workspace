@@ -37,35 +37,77 @@ Attribution: the port renders every non-bash tool through the invented `⎿ name
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section tool-render-parity specification --from <file>`. -->
+### Objective
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+Close the next two measured slices of **BRIEF §8 (exact-parity program)** in one iteration — `bin/pty-tester run parity/scenarios/s2_tool_turn.yml` and `…/s3_tool_turn_files.yml` both exit **0** — plus harden the rig itself (the mock-server script-shift flake) and extend the instrument with **s4_bash_variants**, whose baseline candidate list becomes the NEXT iteration's work list for the carried I17 CUTs. Three disjoint seams in one repo: the **bash reaper cure** (fast commands measure like pi's evented exit), the **file-tool render** (pi's write/read renderCall shapes), and the **rig** (mock robustness + s4).
+
+Unlike I17, there is **no new cross-lane contract**: the `duration:` contract already landed (I17, merged). Every lane provisions off the merged base 981f4553 where the other seams already live, so **each lane proves its own exit-0 in its own worktree** — bash-cure closes s2 (render already landed), file-render closes s3 (write/read are in-process file tools, no duration involvement), rig hardens the instrument both proofs run on.
+
+The measured work list is Grounds' two candidate lists; every item there is in scope and nothing else is. The carried I17 CUTs (bash preview truncation, expand hints, truncation warnings, exit-code statuses) are **out of scope** — unmeasured until s4's baseline lands; this iteration only authors the scenario that measures them. `Elapsed` (live-only) stays CUT. Non-bash tools OTHER than write/read (edit/grep/ls/find) keep the existing `⎿` shape, itemized unmeasured. pi's write-call syntax highlighting is CUT (no highlighter in the port; invisible to s3's `.txt`) — itemized, never silent.
+
+### Output format (raw evidence, no interpretation)
+
+- bash-cure: the reaper-mechanism description (what replaced the poll loop, one paragraph, pi-anchor-commented in code); a 10-sample duration table for `echo pty-tester` through the tool (raw Floats, plus the median); the s2 live run command + exit code + `summary.json` classes + candidates verbatim (expect ZERO unknown-candidate); the kill/timeout/cancellation test list with pass/fail output; any legitimate test updates, itemized.
+- file-render: the named test list (write live + replay, read live + replay, shape/style/blank-structure pins) with the per-row byte assertions they pin; the s3 live run command + exit code + `summary.json` classes + candidates verbatim (expect ZERO unknown-candidate); any golden fixture updates, itemized (expect none — verified this session: no fixture pins `⎿`).
+- rig: the mock-robustness named test + output; the `s4_bash_variants.yml` verbatim; the s4 baseline run command + exit code + per-app completion + candidates verbatim (the next work list — expect exit 1; itemize the Took-duration pair as the in-flight bash-cure item if present, exclude it from the work list); pin test names + rake tail.
+- PHASE 0: numbered disagreements/deviations with file:line evidence, as ever.
+
+### Tool guidance (verify against live sources BEFORE writing code)
+
+- Verification: `bundle install --quiet && bundle exec rake` (minitest, test/**/*_test.rb); `bundle exec ruby bench/seam_bench.rb` → `SEAM_BENCH_OK`.
+- Parity instrument: `bin/pty-tester run parity/scenarios/<s>.yml [--out DIR]` — exit 0 = parity, 1 = unknown candidates, 2 = rig failure. Live runs need tmux + `pi` on PATH (present). Control baselines (READ ONLY, architect's runs this session): `tmp/parity-gate-s2/` (s2), `tmp/parity-s3-control/` (s3) in the space's repos/tart. **THE CAPTURE IS THE CONTRACT** — s2's pi rows 9–20, s3's settled captures settle the tool-turn regions.
+- pi oracle sources (readable in the worktree's sibling checkout `repos/pi` — read-only): `core/tools/renderers/write.ts:96-143,145-177`, `core/tools/renderers/read.ts:35-149,151+`, the renderers' shared `renderToolPath` util (find via imports), `core/tools/bash.ts:5,112` (evented spawn), `:14,78-89` (BASH_PREVIEW_LINES truncation — s4's target), `:65-101` (warnings/exit statuses — s4's target).
+- bash-cure mechanism guidance (the WHAT is frozen, the how is the builder's): the cure must make process-exit detection immediate (no fixed-interval poll as the primary mechanism) while preserving the observable contract: pgroup spawn, two-phase TERM-once→KILL-after-grace on timeout, cancellation checkpoints (`RubyLLM::Support::Cancellation.check` between events), reader-thread drain/join semantics, output truncation (2000 lines/50KB), and the `wall_time_seconds`/`details` result fields. Ruby has no evented child-exit; the idiomatic analog is a dedicated reaper thread doing a BLOCKING `Process.waitpid2` and signaling completion (queue/condvar) to the coordinator, which keeps the deadline/cancellation checks. Verify the approach against Ruby's `Process.waitpid2` semantics (no timeout arg) in PHASE 0 before building.
+- Mock server: `test/support/mock_llm_server.rb` `serve(io)` (:114) — read the whole file before editing; the fix must not disturb the EPIPE teardown path (:137-141, I03 carry-in) or `rearm!` semantics.
+- Existing seams to build on: chat.rb `BASH_TOOL` dispatch + `enqueue_bash_block`/`padded_fg_rows`/`tool_result_text` (I17 — the write/read render slots in beside the bash branch), `replay_assistant` (the replay dispatch), Theme token table. Follow the I16/I17 idioms: pi-source anchor comments, factored per-tool helpers, test-pinned rows.
+
+### Boundaries
+
+- **bash-cure lane may touch:** `lib/tart/tools/bash.rb`, `test/bash_tool_test.rb`. **Must not:** anything else — the render is already landed (I17), `duration:` is the loop's (already landed), no render/parity/test-support changes.
+- **file-render lane may touch:** `lib/tart/render/chat.rb`, `lib/tart/theme.rb`, `test/chat_test.rb`, `test/theme_test.rb`, `test/fixtures/**` (additions/updates it authors itself only). **Must not:** `lib/tart/agent/**`, `lib/tart/tools/**`, `parity/**`, `tart.gemspec`/`Gemfile*`, `bin/tart`, any other test file.
+- **rig lane may touch:** `test/support/mock_llm_server.rb`, `parity/scenarios/s4_bash_variants.yml` (NEW — create), `test/parity/scenario_test.rb`. **Must not:** `lib/**`, `bin/**`, `parity/registry.yml` (no new sanctioned classes), any other test file, `parity/scenarios/s[123]*.yml` (already shipped).
+- All lanes: no refactors beyond the task; no placeholder code; search before implementing (`rg` the whole repo before adding any helper); builders never commit; report raw evidence to `build/I18-<lane>/report.md` with a final `STATUS:` line (`COMPLETE` / `BLOCKED: <why>`).
+- **Liveness note (bash-cure):** your worktree's s2 run must exit 0 ALONE (the render landed on your base). If it still exits 1 on the Took pair after your cure, your cure did not remove the quantum — do not chase it in render files; investigate your reaper.
+- **Liveness note (file-render):** your worktree's s3 run must exit 0 ALONE (write/read are in-process; no duration involvement). If a Took pair appears, that is a rig anomaly — record it, do not touch agent/timing files.
+- PHASE 0 (mandatory, before any code): re-read this spec against the repo; raise every disagreement with file:line evidence. Silent compliance is a defect. In particular: verify the pi renderer anchors above actually say what this spec claims (formatWriteCall shapes, formatReadResult content lines, renderToolPath), verify `Process.waitpid2` blocking semantics against Ruby docs/live before planning the reaper, and verify the mock server's full serve flow before editing it.
+
+### Rig design (the contract)
+
+1. **Mock robustness:** a connection whose request line is nil (nothing sent) must be skipped — no `@script` shift, no request-log entry, no response; the next real request gets the next spec. Proven by a named test that opens a real TCP connection to the server, sends nothing, closes it, then drives a full scripted session and asserts the script aligned. Do not weaken the EPIPE path or error specs.
+2. **s4_bash_variants.yml (NEW):** three scripted responses per app (the proven s3 N=3 shape): response 1 — a bash tool call whose output exceeds pi's preview truncation (`BASH_PREVIEW_LINES` = 5, bash.ts:14 — e.g. a `seq`-style command; verify the line count triggers pi's truncated preview + expand hint); response 2 — a bash tool call that exits non-zero with stderr (verify the shape against pi's exit-code status rendering, bash.ts:65-101); response 3 — the fixed final reply. `expected_requests: 3`, env block staging `TART_MODEL_PROVIDER: mock` (the s1/s2/s3 seam). Comment in the file that `Elapsed` (live-only) is invisible to settled captures and stays unmeasured.
+3. **s4 baseline (evidence-only):** run it ONCE against your worktree base; report the candidates verbatim as the next work list. NO exit-0 requirement, NO registry change. Expected noise: the Took-duration pair may appear (the bash-cure lane is landing in parallel — your base does not have it); if present, itemize it as the in-flight bash-cure item and EXCLUDE it from the work list.
+
+### Lane plan (disjoint, same repo)
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision tool-render-parity`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: bash-cure
+  repo: tart
+  touch:
+    - lib/tart/tools/bash.rb
+    - test/bash_tool_test.rb
+- name: file-render
+  repo: tart
+  touch:
+    - lib/tart/render/chat.rb
+    - lib/tart/theme.rb
+    - test/chat_test.rb
+    - test/theme_test.rb
+    - test/fixtures/**
+- name: rig
+  repo: tart
+  touch:
+    - test/support/mock_llm_server.rb
+    - parity/scenarios/s4_bash_variants.yml
+    - test/parity/scenario_test.rb
 ```
+
+The three touch sets are disjoint by construction (tools/ vs render/ vs support+parity). `parity/scenarios/s4_bash_variants.yml` is a NEW file (create; the touch set authorizes creation). A conflict at integration is a spec defect to kill-and-respec, never hand-resolved.
+
+### Effort call
+
+- **bash-cure: high** — concurrency machinery rewrite (reaper thread, deadline/cancellation coordination) where a subtle deadlock or lost-kill regression is easy; tightly bounded file set.
+- **file-render: high** — byte-parity render archaeology across live + replay paths, two tools, blank-structure derivation.
+- **rig: medium** — a skip-guard plus a scenario file, with live baseline runs.
 
 ## Acceptance Criteria
 
