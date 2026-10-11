@@ -686,6 +686,114 @@ LANE: render (I20 viewport-parity) — files touched: `lib/tart/render/chat.rb`,
 No s1/s2/s3 scenario or registry changes were needed; no classes survived on s4.
 STATUS: COMPLETE
 
+### rig
+
+### PHASE 0 — disagreements / deviations (evidence cited)
+
+1. **`parity-run-path` cannot cover the spill path — spec's hedge resolved.** The port spills to `File.join(Dir.tmpdir, "tart-bash-#{pid}-#{hex}.log")` (`lib/tart/tools/output_accumulator.rb:181`, prefix passed by `lib/tart/tools/bash.rb`); pi spills to `join(tmpdir(), "pi-bash-<hex>.log")` (`repos/pi/packages/coding-agent/src/utils/output-files.ts:12-14`, prefix `pi-bash` at `core/bash-executor.ts:66`). Neither lands under `run-<n>/`. Baseline confirmed: the s5 notice lines carry OS-tempdir paths and were unknown-candidates before the pin.
+2. **Spec's "3 mock requests" for s5 is unattainable under the rig's scripting.** One response is consumed per mock request (`test/support/mock_llm_server.rb` script queue; s2: tool call + final = 2; s4: 2 tool calls + final = 3). One bash call + final = **2** requests; a third scripted response would require a second turn, and a turn with no tool call ends the run at request 2 → `completed=false` → exit 2, contradicting AC4's "complete the expected requests and settle". Deviation: s5 uses `expected_requests: 2` / 2 responses. s6 (bash + write + final) = 3 requests, within the spec's "3-4".
+3. **"The notice fg pair WILL appear as a candidate" — the fg itself cannot.** Captures come from `tmux capture-pane -p` (`lib/tart/parity/runner.rb:184-188`), which strips SGR attributes. What surfaces instead is the notice **text** divergence (pi composes `[Full output: … . Truncated: showing N of M lines]`, `renderers/bash.ts:96-111`; the port renders the model-facing `[Showing lines …]` notice as-is, `chat.rb:1140-1142` + `bash.rb:218-231`). Recorded verbatim below.
+4. **s6's "port renders call rows un-wrapped (clipped)" is true only for the write call row.** The port's bash `$ <command>` row wraps via `padded_fg_rows`/`Chat.wrap` (`chat.rb:1133`, `496-514`); only `write_call_rows` emits one unwrapped `TUI.line` (`chat.rb:1267-1270`). Baseline: the bash row wrapped identically in both apps (zero candidates from it); the write row produced the wrap-vs-clip candidate pair.
+5. **First s6 draft (112-char path) was a null measurement — corrected.** pad(1) + `write`(5) + space(1) + path(112) = 119 ≤ the 120-col pane, so no wrap, no clip: baseline exit 0, zero candidates. Path lengthened to 160 chars (still sandbox-relative); the re-run produced the expected candidates. The spec's ">100 chars" threshold is too low to cross the pane.
+6. **Suite count**: `386 runs, 1533 assertions, 0 failures, 0 errors, 1 skips` — the skip is the opt-in `PTY_TESTER_LIVE` live-run test, pre-existing.
+
+### Scenario files
+
+Delivered verbatim in the worktree:
+- `parity/scenarios/s5_bash_truncation.yml` — `seq 1 2100` bash call (crosses the 2000-line tail cap, `lib/tart/tools/support/truncate.rb:11`) + fixed final reply; `expected_requests: 2`; env `TART_MODEL_PROVIDER=mock`.
+- `parity/scenarios/s6_long_calls.yml` — 132-char shell-neutral bash command, write of a 160-char sandbox-relative path with short content, fixed final reply; `expected_requests: 3`; env `TART_MODEL_PROVIDER=mock`.
+
+### Load pins (test/parity/scenario_test.rb, s3/s4 pattern)
+
+- `test_loads_the_shipped_s5_bash_truncation_scenario` — pins name `s5_bash_truncation`, prompt `run the long seq`, expected_requests 2, responses.size 2, `bash` + `{command: "seq 1 2100"}` ("2100 lines crosses the 2000-line model-facing tail cap"), final-reply content, footer env seam.
+- `test_loads_the_shipped_s6_long_calls_scenario` — pins name, prompt, expected_requests 3, responses.size 3, `bash` call with `command.length > 120` ("crosses the 120-col viewport"), `write` call with `path.length > 100` + content `parity s6 note`, final-reply content, footer env seam.
+
+### Baselines (verbatim)
+
+Command: `bin/pty-tester run parity/scenarios/s5_bash_truncation.yml --out /tmp/i20-s5-pinned` → **exit 1**
+
+```
+- pi: completed=true requests=2/2 boot_settle=1092ms reply_settle=1118ms
+- tart: completed=true requests=2/2 boot_settle=1391ms reply_settle=1134ms
+per-class: 2x truncation-spill-path, 2x unknown-candidate, 2x parity-run-path
+```
+
+```
+@@ -22,2 +21,2 @@
+- [Full output: /var/folders/zn/swxnrrxx1pj6gw65sd_kzm2m0000gp/T/pi-bash-cdcfa975415db71b.log. Truncated: showing 2000
+- of 2100 lines]
++ [Showing lines 101-2100 of 2100. Full output:
++ /var/folders/zn/swxnrrxx1pj6gw65sd_kzm2m0000gp/T/tart-bash-75447-acc1f33c.log]
+@@ -39,1 +38,1 @@
+-/private/tmp/i20-s5-pinned/run-1/sandbox/pi
++/tmp/i20-s5-pinned/run-1/sandbox/tart
+```
+
+Attribution: the two path-bearing notice lines → `truncation-spill-path`; `of 2100 lines]` and `+ [Showing lines 101-2100 of 2100. Full output:` → unknown-candidate (the notice divergence, on the work list); the sandbox footer lines → `parity-run-path`.
+
+Pre-pin s5 run (`--out /tmp/i20-s5-baseline`, exit 1, pi+tart completed 2/2): `4x unknown-candidate, 2x parity-run-path` — all four notice lines unknown-candidates, paths verbatim `pi-bash-6cab84d3ae44a958.log` / `tart-bash-74441-fd2c7a4d.log`.
+
+Command: `bin/pty-tester run parity/scenarios/s6_long_calls.yml --out /tmp/i20-s6-pinned` → **exit 1**
+
+```
+- pi: completed=true requests=3/3 boot_settle=1119ms reply_settle=1127ms
+- tart: completed=true requests=3/3 boot_settle=1381ms reply_settle=1137ms
+per-class: 6x unknown-candidate, 2x parity-run-path
+```
+
+```
+@@ -26,3 +25,1 @@
+- write
+- s6-long-path-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-p
+- ad-pad-pad-pad-pad-pad-pad-pad-pad-pad.txt
++ write s6-long-path-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-pad-
+@@ -33,0 +34,2 @@
++
++
+@@ -39,1 +38,1 @@
+-/private/tmp/i20-s6-pinned/run-1/sandbox/pi
++/tmp/i20-s6-pinned/run-1/sandbox/tart
+```
+
+pi wraps the write row to three visual lines (`write` / path row 1 / path row 2); the port clips one row at the 120-col pane. The two `+` blank lines are the hunk-alignment slack from the missing wrapped rows. The bash `$ <command>` row wrapped identically in both apps — no candidate from it (consistent with `chat.rb:1133` wrapping like pi).
+
+Pre-correction s6 run (112-char path, `--out /tmp/i20-s6-baseline`): **exit 0**, `2x parity-run-path` only, both apps 3/3 — the null measurement from disagreement 5.
+
+### Registry decision (evidenced pin)
+
+Pinned one class in `parity/registry.yml`:
+
+```yaml
+  - name: truncation-spill-path
+    pattern: '/(pi|tart)-bash-[0-9a-f-]+\.log'
+```
+
+Evidence: the s5 baseline proved a path-shaped candidate the existing classes fail to cover — both apps' spill files live in the OS temp dir with per-run random segments (port `output_accumulator.rb:181` `Dir.tmpdir`; pi `output-files.ts:12-14` `tmpdir()`), not under `run-<n>/`, so `parity-run-path` (`run-\d+/`) and `staged-sandbox-path` (`sandbox/(pi|tart)-run-\d+`) cannot match. Philosophy matches the seed classes: path noise, not a rendering difference. The name satisfies the seed guard (`test_seed_registry_contains_only_path_or_sandbox_classes`, registry_test.rb:31-37 — matches /path|sandbox/). Post-pin s5 re-run: the two path-bearing lines classify `truncation-spill-path`; the notice divergence still surfaces as 2 unknown-candidates. Suite stays green (386 runs, 0 failures).
+
+### Gates (verbatim)
+
+```
+$ bundle install --quiet && bundle exec rake && echo SUITE_OK
+SUITE_OK
+  (386 runs, 1533 assertions, 0 failures, 0 errors, 1 skips)
+
+$ bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+SEAM_BENCH_OK
+
+$ test -f parity/scenarios/s5_bash_truncation.yml && test -f parity/scenarios/s6_long_calls.yml && echo SCENARIOS_OK
+SCENARIOS_OK
+
+$ bin/pty-tester run parity/scenarios/s5_bash_truncation.yml --out /tmp/i20-s5-pinned
+  exit 1  (the baseline — candidates recorded above)
+
+$ bin/pty-tester run parity/scenarios/s6_long_calls.yml --out /tmp/i20-s6-pinned
+  exit 1  (the baseline — candidates recorded above)
+```
+
+Gemspec runtime dependency set unchanged (`git diff --stat tart.gemspec Gemfile Gemfile.lock` → empty). No commits made; `git log -1` = `206af8d Merge lane/I19-bash-preview-collapse-rig`. Working tree touches: `parity/scenarios/s5_bash_truncation.yml` (new), `parity/scenarios/s6_long_calls.yml` (new), `test/parity/scenario_test.rb`, `parity/registry.yml` (evidenced pin) — no other files.
+
+STATUS: COMPLETE_WITH_CONCERNS (s5 pinned at expected_requests: 2, not the spec's 3 — the rig's one-response-per-request scripting makes 3 unattainable for a one-tool-call scenario without a rig failure; spill-path registry class pinned per the baseline-proven gap; the s5 fg pair is invisible to capture-pane, the notice text divergence is the observable; s6 required a >113-char path to cross the pane)
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
