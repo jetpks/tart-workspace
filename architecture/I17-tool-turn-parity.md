@@ -195,10 +195,133 @@ Calibration: AC1 is a **deliverable-number criterion** (the exit code IS the poi
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I17-tool-turn-parity-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section tool-turn-parity prompt --append --lane <lane> --from build/I17-tool-turn-parity-<lane>/prompt.md`. -->
+### timing
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo. Silent compliance
+is a failure. Silent scope additions are a failure. If you have no
+disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed in BOUNDARIES. You
+are one of several parallel lane agents working in isolated worktrees; files
+outside your lane belong to other agents — touching them fails your lane.
+No placeholder implementations — search the codebase before implementing;
+full implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive forms); well-factored and
+DRY-ish; terse but clear; pragmatic, not clever — the smallest change that does
+the job, no abstraction it doesn't need. Tests stay simple and terse, exercising
+public behavior, no mock/stub of the class under test. Verify your work by
+running the acceptance criteria's gate commands and record the verbatim output.
+Do NOT commit and do NOT run any git write command (commit/add/branch/reset/
+checkout) — the architect commits and merges after verification, and verifies
+you made no commits. Do NOT delete lock files or escalate privileges if a
+command fails; record the exact error and continue. Do NOT use run_in_background
+(or shell `&`) for your own work — run long commands serially in the foreground
+with explicit timeouts instead. When done, write your report to the scratch
+file given below (an absolute path OUTSIDE your worktree), with RAW results
+only — tables, numbers, command output — no interpretation. Every status claim
+must be backed by a command result from this run. Keep the report compact.
+Do not title the report; keep any headings at `###` or deeper. End with exactly
+one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them) |
+BLOCKED (exact blocker + what you tried). Verdicts belong to the architect and
+the human.
+
+=== LANE: timing (I17 tool-turn-parity) ===
+
+Report file: /Users/eric/architect/spaces/20261009-pi-port/build/I17-tool-turn-parity-timing/report.md
+
+=== OBJECTIVE (and why) ===
+
+BRIEF §8 exact-parity program, I17's second seam. The bash tool turn's settled
+screen diverges from pi 1.1.0 partly because the port never measures tool
+execution duration — pi renders a ` Took 0.0s` line (muted) from a per-execution
+`durationMs`. Your lane lands the port's timing seam, ONE field on ONE event:
+
+The frozen cross-lane contract: `Tart::Agent::Loop`'s `:tool_execution_end`
+event gains `duration:` — the tool execution's wall duration as **Float
+seconds** (monotonic clock, e.g. `Process.clock_gettime(Process::CLOCK_MONOTONIC)`
+delta around the execution; `0.0` is legitimate — pi renders `Took 0.0s` for
+instant commands, no clamping). Always present on live executions.
+
+Implementation site (verify in PHASE 0): `lib/tart/agent/loop.rb`
+`install_chat_callbacks` — `before_tool_call` (:437 area) arms the clock,
+`after_tool_result` (:440 area) computes and emits it. The `handle_item`
+replay of `:tool_execution_end` (:481-482) re-emits recorded events — decide
+with evidence whether that path can carry duration (it re-emits from recorded
+items that have none — if it cannot, itemize; do NOT change the recording
+shape).
+
+OUT OF SCOPE (the render lane owns the display; the recording shape is frozen
+this iteration): do NOT touch `lib/tart/render/**`, do NOT add duration to
+session recording (`record`/entries — the replay gap is itemized, not closed),
+do NOT render anything.
+
+=== OUTPUT FORMAT ===
+
+- The agent-loop event-vocabulary test output tail (the `:tool_execution_end`
+  assertion carrying `duration:`), verbatim.
+- A 10-sample duration table from a real tool round-trip through the loop
+  (raw Float values, one per execution, e.g. `0.0`, `0.012`, …) — the script
+  you ran to produce it, verbatim.
+- The frozen gate outputs you ran (suite at minimum; the s2-parity live gate
+  WILL still exit 1 in your worktree — the render lane closes the remaining
+  candidates; record its exit + candidate list verbatim anyway).
+- PHASE 0: numbered disagreements/deviations with file:line evidence.
+
+=== TOOL GUIDANCE ===
+
+- Verification: `bundle install --quiet && bundle exec rake` (minitest,
+  test/**/*_test.rb). Your lane's test file: `test/agent_loop_test.rb` (the
+  event-vocabulary test lives there — extend it with the duration row; keep
+  it terse, public-behavior only).
+- pi oracle anchors (readable at
+  /Users/eric/architect/spaces/20261009-pi-port/repos/pi — read-only, do not
+  edit): `packages/coding-agent/src/modes/interactive/components/tool-execution.ts:61,137`
+  (`durationMs` on the tool result), `packages/coding-agent/src/core/nested-tool-calls.ts:82`
+  (pi measures per execution: `Math.round(performance.now() - startedAt)`),
+  `packages/coding-agent/src/core/agent-session.ts:1358` (pi RECORDS durationMs —
+  the port deliberately does not this iteration; itemize, never copy).
+- Expected intermediate state: your worktree's live s2 run
+  (`bin/pty-tester run parity/scenarios/s2_tool_turn.yml --out <scratch>`)
+  still exits 1 — the `Took`-line candidates remain until the render lane
+  lands. That is the frozen-contract design, not your failure; record it.
+
+=== BOUNDARIES ===
+
+MAY touch: `lib/tart/agent/loop.rb`, `test/agent_loop_test.rb` — nothing else.
+MUST NOT touch: `lib/tart/render/**`, `lib/tart/agent/session.rb` (recording
+shape frozen), `parity/**`, `tart.gemspec`/`Gemfile*`, `bin/tart`,
+`test/chat_test.rb`, any other test file. No refactors beyond the field; no
+placeholders; `rg` before implementing.
+
+=== ACCEPTANCE CRITERIA (frozen — verify against them, do not edit or work around) ===
+
+AC2 (timing seam — BRIEF §8). Live tool executions carry `duration:` (Float
+seconds, monotonic, `0.0` legitimate) on `:tool_execution_end`, always present;
+proven headlessly by a named test in `test/agent_loop_test.rb` asserting the
+event's duration field from a real tool round-trip. The session recording
+shape is untouched (no duration recorded — the replay gap stays itemized).
+
+Gates you can run locally (from your worktree):
+
+    bundle install --quiet && bundle exec rake && echo SUITE_OK   # exit 0
+    bin/pty-tester run parity/scenarios/s2_tool_turn.yml --out <scratch-dir>
+      # expected: exit 1, Took-line candidates remaining (render lane's)
 
 ## Builder Report
 
