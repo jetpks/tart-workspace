@@ -64,51 +64,140 @@ Measured this session (2026-10-11) at base **53ca4b49** (= `project/pi-port` tip
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse decomp-wave4` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze decomp-wave4` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+**AC1 (extraction shape).** The Specification's target class assignment holds — every enumerated method and constant defined in its assigned class/module (`Motd`, `UserBash`, `Footer`); none of the moved methods still defined in `chat.rb`; the moved state ivars (`@user_bash_task`, `@user_bash_slot`, `@user_bash_excluded`, `@user_bash_command`, `@user_bash_cancel_flag`, `@pending_bash_records`, `@branch`, `@branch_fetched`, `@branch_reader`, `@usage_totals`, `@last_usage`, `@usage_stale`) and constants (`LOGOS_DIR`, `HINTS_LINE`, `PI_HINTS`, `PI_NOTICE_LINE`, `PI_ONBOARDING_LINE`, `DEFAULT_BRANCH_READER`) live on their classes and no reference to the ivars remains anywhere in `chat.rb`, comments included (a bare constant reference at a re-pointed call site — e.g. `Footer::DEFAULT_BRANCH_READER` as the constructor default — is legal; an assignment is not). A PHASE-0-raised, architect-ruled re-assignment is legal; a silent one is a defect.
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC2 (state + seam discipline).** The classes own ONLY their state — no reference to Chat's kernel/scrollback/session/mutex/footer_data/agent/editor/autocomplete state inside `motd.rb`/`user_bash.rb`/`footer.rb` beyond the constructor-injected seams; the external seams are exactly the sanctioned ones: Motd is stateless (params threaded, module-function), UserBash takes constructor-injected kernel/busy-reader/completion-sinks, Footer takes the branch reader at construction and data per call; the completion sinks route the block render, the record, and the warning lines back through Chat; Chat's `footer_data=` writer, constructor params, and public surface are unchanged; `bin/tart` is untouched; Chat's mutex/synchronization boundaries are unchanged (the same operations synchronize as at base).
 
-**AC1.** ...
+**AC3 (byte-exact parity).** Post-integration, cold from the integrated tree: s1–s6 all exit 0 via `gems/tui-split-rig/bin/tui-split-rig` with zero unknown candidates, and `gems/tui-split-rig/registry.yml` is byte-identical to base **53ca4b49**'s `gems/tui-split-rig/registry.yml`.
+
+**AC4 (scope discipline).** The I25/coordinator families enumerated out-of-scope remain defined in `chat.rb` and untouched by this wave except the sanctioned call-site re-points (`accumulate_usage`/`reseed_usage` at the event/replay call sites, the user-bash routing inside `submit`/escape handling, the footer composition inside `build_widget`); probed at `enqueue_motd`, `enqueue_scrollback`, `enqueue_message`, `enqueue_markdown`, `enqueue_bash_block`, `enqueue_user_bash_block`, `enqueue_tool_block`, `enqueue_write_block`, `enqueue_read_block`, `push_expandable`, `skill_panel_rows`, `replay_entries`, `flush_reasoning`, `display_lines`, `transcript_widget`, `build_widget`, `status_line`, `status_title`, `editor_border_color`, `thinking_level`, `submit`, `edit_input`, `handle_mouse`, `set_tool_output_expanded`, `clear_transcript`; `bin/tart` and the wave-1/2/3 sealed files are untouched; the lane's diff carries no change outside its declared touch set.
+
+**AC5 (suite + bench).** The default rake task fully green, and the seam bench prints `SEAM_BENCH_OK`.
+
+**AC6 (test surgery).** The coordinator tests stay in `chat_test.rb` with their names and assertions (moves-only; the expected run-count delta is 0); the `footer_data=` call sites keep working unchanged; the suite's run count changes only by a PHASE-0-raised, reported reason.
+
+**AC7 (idiomaticity — architect-read, not gate-held).** The decomposition reads like the surrounding house style: class/module doc comments carrying their pi citations forward (interactive-mode.ts / pi-logo.ts / keybinding-hints.ts / footer.ts / bash-execution.ts / footer-data-provider.ts), the state-and-seams idioms of waves 1–3 (module-function purity for Motd; constructor-injected seams for UserBash/Footer per Picker/Selection), no abstraction beyond the assignment table, no delegator shims for internal helpers. Judged on the integrated diff; defects flagged with file:line in the Verdict.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse decomp-wave4` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/parity-gate-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/parity-gate-s6
+  expect:
+    exit_code: 0
+
+- id: moved-methods-gone
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    if grep -nE '^[[:space:]]*def (self[.])?(pi_hint_spans|motd_logo_lines|tart_header_lines|pi_header_lines|pi_mark|apple_terminal\?|motd_sections|context_sources|motd_skill_names|dim_compact_list|user_bash_command|user_bash|finish_user_bash|record_user_bash|cancel_user_bash|user_bash_fields|user_bash_record|flush_pending_bash_records|footer_widget|read_branch|footer_stats|context_used|context_segment|context_fg|cache_hit_rate|accumulate_usage|reseed_usage)([[:space:](=]|$)' lib/tart/render/chat.rb; then exit 1; else echo MOVED_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: MOVED_OK
+
+- id: constants-gone
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    if grep -nE '^[[:space:]]*(LOGOS_DIR|HINTS_LINE|PI_HINTS|PI_NOTICE_LINE|PI_ONBOARDING_LINE|DEFAULT_BRANCH_READER) *=' lib/tart/render/chat.rb; then exit 1; else echo CONSTANTS_MOVED_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: CONSTANTS_MOVED_OK
+
+- id: state-leak
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    if grep -nE '@(user_bash_task|user_bash_slot|user_bash_excluded|user_bash_command|user_bash_cancel_flag|pending_bash_records|branch|branch_fetched|branch_reader|usage_totals|last_usage|usage_stale)\b' lib/tart/render/chat.rb; then exit 1; else echo NO_STATE_LEAK_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: NO_STATE_LEAK_OK
+
+- id: new-classes-present
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    test -f lib/tart/render/motd.rb && test -f lib/tart/render/user_bash.rb && test -f lib/tart/render/footer.rb && echo CLASSES_OK
+  expect:
+    exit_code: 0
+    stdout_match: CLASSES_OK
+
+- id: wave5-intact
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'def enqueue_motd' lib/tart/render/chat.rb && grep -q 'def enqueue_scrollback' lib/tart/render/chat.rb && grep -q 'def enqueue_message' lib/tart/render/chat.rb && grep -q 'def enqueue_markdown' lib/tart/render/chat.rb && grep -q 'def enqueue_bash_block' lib/tart/render/chat.rb && grep -q 'def enqueue_user_bash_block' lib/tart/render/chat.rb && grep -q 'def enqueue_tool_block' lib/tart/render/chat.rb && grep -q 'def enqueue_write_block' lib/tart/render/chat.rb && grep -q 'def enqueue_read_block' lib/tart/render/chat.rb && grep -q 'def push_expandable' lib/tart/render/chat.rb && grep -q 'def skill_panel_rows' lib/tart/render/chat.rb && grep -q 'def replay_entries' lib/tart/render/chat.rb && grep -q 'def flush_reasoning' lib/tart/render/chat.rb && grep -q 'def display_lines' lib/tart/render/chat.rb && grep -q 'def transcript_widget' lib/tart/render/chat.rb && grep -q 'def build_widget' lib/tart/render/chat.rb && grep -q 'def status_line' lib/tart/render/chat.rb && grep -q 'def status_title' lib/tart/render/chat.rb && grep -q 'def editor_border_color' lib/tart/render/chat.rb && grep -q 'def thinking_level' lib/tart/render/chat.rb && grep -q 'def submit' lib/tart/render/chat.rb && grep -q 'def edit_input' lib/tart/render/chat.rb && grep -q 'def handle_mouse' lib/tart/render/chat.rb && grep -q 'def set_tool_output_expanded' lib/tart/render/chat.rb && grep -q 'def clear_transcript' lib/tart/render/chat.rb && echo WAVE5_INTACT_OK
+  expect:
+    exit_code: 0
+    stdout_match: WAVE5_INTACT_OK
+
+- id: registry-unchanged
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    git show 53ca4b49:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml && echo REGISTRY_UNCHANGED_OK
+  expect:
+    exit_code: 0
+    stdout_match: REGISTRY_UNCHANGED_OK
 ```
 
 ## Builder Prompt
