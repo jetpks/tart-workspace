@@ -27,35 +27,69 @@ I19 landed the bash preview collapse byte-correct (s4's convo rows byte-identica
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section viewport-parity specification --from <file>`. -->
+### Objective
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+Close the s4 slice of **BRIEF §8** — `bin/pty-tester run parity/scenarios/s4_bash_variants.yml` exits **0** — by fixing the two viewport defects the I20 Grounds root-caused (A: the transcript viewport budget — the missing widgets-above dock spacer row; B: the transient auto scrollbar — activity-gated visibility, auto-hide, overlay instead of a carved column), plus the small I19 carry-forward (the truncation notice's `warning` fg, pi bash.ts:88). In parallel, the rig seam authors + baselines the next two measured slices: **s5_bash_truncation** (output truncation + notice composition) and **s6_long_calls** (call-row wrapping) — evidence-only baselines whose candidate lists are the NEXT iteration's work list; no exit-0 is frozen for them.
+
+The s4 exit-0 mechanism is evidence-backed (Grounds probe): with both fixes, tart's settled s4 window is byte-identical to pi's (offset 2, hints-line first, ends at the reply, spacer row below, no rail, no carved padding).
+
+### Output format (raw evidence, no interpretation)
+
+- render: the named test list (viewport budget + spacer row + settled-window geometry on the probe shape; transient rail: mark sites, hide timing, force-hide-on-fit, overlay shape incl. the no-carved-padding row shape; notice fg) with the per-row assertions they pin; the probe re-run (command + exit code + both captures' first/last content rows + geometry); the s4 + s1/s2/s3 run commands + exit codes; any legitimate test updates, itemized.
+- rig: the two scenarios' files (verbatim), the load-pin tests, each baseline run's command + exit code + classes + candidates verbatim; any registry decision, evidenced.
+- PHASE 0: numbered disagreements/deviations with file:line evidence, as ever.
+
+### Tool guidance (verify against live sources BEFORE writing code)
+
+- Verification: `bundle install --quiet && bundle exec rake` (minitest); `bundle exec ruby bench/seam_bench.rb` → `SEAM_BENCH_OK`.
+- Parity instrument: `bin/pty-tester run parity/scenarios/<s>.yml --out DIR` (exit 0 = parity). **Control baselines (READ ONLY, architect's runs this session):** `tmp/probe-reply25d/` in `repos/tart` (the 25-paragraph probe: exit 1; pi offset 2 / tart offset 1, buffers identical) and `tmp/parity-gate-s4/` (I19's post-collapse state: exit 1, two classes). The probe scenario source: `tmp/probe_reply25.yml` — the lane re-creates it in ITS OWN scratch dir and re-runs; expected POST-FIX: **exit 0**.
+- pi oracle (read-only, `repos/pi`):
+  - `packages/coding-agent/src/modes/interactive/chat-viewport.ts:22-45` — the VStack `[transcript, dock]`; the dock's children and their natural heights.
+  - `packages/coding-agent/src/modes/interactive/interactive-mode.ts:966-968, 2502-2517` — `renderWidgets` / `renderWidgetContainer(…, spacerWhenEmpty: true, …)` — the widgets-above default `Spacer(1)`.
+  - `packages/tui/src/components/scroll-view.ts` IN FULL — `:46-55` (options, `scrollbarHideDelayMs` default 1000), `:74-82` (`isScrollbarVisible`, `getContentWidth` — full content width for `"auto"`), `:97-118` (`markScrollbarActivity`/`hideTransientScrollbar` — the timer + re-render), `:119-123` (`setScrollbarActive`), `:131-192` (the mark sites: scrollTo/scrollBy/scrollToStart/scrollToEnd; updateLayout does NOT mark), `:200` (force-hide on fit), `:215-220` (render).
+  - `packages/tui/src/layout.ts:280-294, 307-330` — `getScrollbarGeometry` (`includeHiddenAuto` is for geometry queries, NOT painting) and `paintScrollbar` (paints only when `isScrollbarVisible`; overlays the last column via `replaceScrollbarCell`; thumb `█` when active, `┃` at rest, :317-319).
+  - `packages/coding-agent/src/core/tools/renderers/bash.ts:88` — the truncation notice renders `theme.fg("warning", …)`.
+  - PHASE 0 must ALSO verify what drives `setScrollbarActive` in pi (rg it) and port the reachable subset, itemizing any cut.
+- Existing seams to build on (read IN FULL before writing): `lib/tart/render/chat.rb` — `transcript_area_rows` (≈:1601, the budget), `build_widget`/`transcript_widget` (≈:1890-1940, the layout + the carved rail column + the follow-end offset math + `scrollbar_glyphs`), the scroll-state section (`scroll_page`/`scroll_by`, ≈:1592-1612 — the user-scroll seams that map to pi's mark sites), `split_truncation_notice` (I19 — the notice's fg moves to `Theme[:warning]`), `Chat#initialize`'s `@kernel` (the Core::Loop). Timer/redraw seams: `lib/tart/core/loop.rb` — `animate(duration:)` (wakes an idle loop, deadline-paced frames while open), `async`/`every` (reactor-context timers), the dirty-gated `draw_frame`. Two legal port shapes for the auto-hide (builder's call, itemize the choice): (i) a one-shot reactor timer that clears the flag and wakes a redraw; (ii) an activity timestamp + a re-armed `@kernel.animate` window, the render checking elapsed ≥ delay to clear the flag. Either way: no busy redraw storm at idle, re-armed on new activity, and NO real-second sleeps in tests (inject a short delay or fake the clock — see how existing tests control time).
+- House style: pi-source anchor comments, factored helpers, terse public-interface tests (the `with_chat`/`draw`/`cell_fg` idiom in `test/chat_test.rb`), no mock/stub of the class under test.
+
+### Boundaries
+
+- **render lane may touch:** `lib/tart/render/chat.rb`, `lib/tart/core/loop.rb` (ONLY a minimal timer/wake seam if shape (i) needs one — prefer no-change shapes first), `test/chat_test.rb`, `test/loop_test.rb` (only if loop.rb is touched). **Must not:** `lib/tart/tui.rb` (the scrollbar GEOMETRY helper `scrollbar_lines` is already pi-exact — the defect is the trigger, not the geometry), `lib/tart/tools/**`, `lib/tart/agent/**`, `bin/tart`, `parity/**`, `tart.gemspec`/`Gemfile*`, any other test file.
+- **rig lane may touch:** `parity/scenarios/s5_bash_truncation.yml` (new), `parity/scenarios/s6_long_calls.yml` (new), `test/parity/scenario_test.rb` (load pins). **Must not:** `lib/**`, `bin/**`, `parity/registry.yml` UNLESS a baseline run proves a path class fails to cover a sanctioned-path candidate (evidence in the report; the registry stays owner-ruled minimal), any other file.
+- All lanes: no refactors beyond the task; no placeholders; search before implementing (`rg` the whole repo before adding any helper); builders never commit; report raw evidence to `build/I20-viewport-parity-<lane>/report.md` with a final `STATUS:` line.
+- PHASE 0 (mandatory): re-read this spec against the repo; raise every disagreement with file:line evidence — in particular verify the Grounds' arithmetic (the dock row counts, the probe offsets, the mark sites) against the live pi source and the port's current code before planning. Silent compliance is a defect.
+
+### Lane plan (disjoint, same repo)
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision viewport-parity`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: render
+  repo: tart
+  touch:
+    - lib/tart/render/chat.rb
+    - lib/tart/core/loop.rb
+    - test/chat_test.rb
+    - test/loop_test.rb
+- name: rig
+  repo: tart
+  touch:
+    - parity/scenarios/s5_bash_truncation.yml
+    - parity/scenarios/s6_long_calls.yml
+    - test/parity/scenario_test.rb
 ```
+
+Disjoint by construction (render seam vs parity data + pins). A conflict at integration is a spec defect to kill-and-respec, never hand-resolved.
+
+### Rig-lane scenario guidance
+
+- **s5_bash_truncation:** one bash tool call whose output exceeds the model-facing tail cap (2000 lines — e.g. `seq 1 2100`), then a short final reply; 3 mock requests. Measures: the collapsed preview (last-5 + hint) over a 2000-line output, the `[Showing lines … Full output: <path>]` notice composing AFTER the collapsed block (I19's landing), the spill-file path (expect the `parity-run-path` class to cover it if the spill lands under the staging root — verify with the baseline), and the notice fg pair (`warning` vs `tool_output` — the parallel render lane is fixing it; on THIS lane's base it will appear as a candidate; record it verbatim, expected). Shell-neutral commands only.
+- **s6_long_calls:** one bash tool call with a >120-char command (the `$ <command>` call row), one write tool call with a long (>100-char) staged path, then a short final reply; 3-4 mock requests. Measures the I18 no-wrap CUT (pi's Text wraps call rows to the viewport; the port renders them un-wrapped). Long paths must stay under the staged sandbox so the path classes cover them.
+- Both: author with the house comment header (why/what measured), pin loads in `test/parity/scenario_test.rb` per the existing s1-s4 pin pattern, baseline each live (record exit code + classes + candidates verbatim). EXPECTED baseline: exit 1 on both (they measure unported classes). Do NOT pin new registry classes for render defects — candidates are the work list; only path-shaped noise may be pinned, with evidence.
+
+### Effort call
+
+- **render: high** — two viewport mechanisms against a live rig, port-mechanics judgment (the timer shape), overlay-vs-carve row surgery, and byte-exact window geometry; tightly bounded file set.
+- **rig: medium** — two scenario files + pins + two baseline runs, following the s2-s4 authoring pattern.
 
 ## Acceptance Criteria
 
