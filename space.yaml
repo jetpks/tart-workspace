@@ -1085,7 +1085,7 @@ project:
       - test/chat_test.rb
       - test/render/**
       base_sha: 5cc263ecff8ba422c1d0e1235cda57fd496d9df2
-      worktree: build/I25-transcript-expandables-transcript/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
