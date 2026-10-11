@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: tool-turn-parity
+  current_iteration: tool-render-parity
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -759,7 +759,7 @@ project:
       - lib/tart/agent/loop.rb
       - test/agent_loop_test.rb
       base_sha: 0fccfc74399a28b5128b2ee61d5ab4d9e1adf792
-      worktree: build/I17-tool-turn-parity-timing/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
@@ -774,7 +774,7 @@ project:
       - test/theme_test.rb
       - test/fixtures/**
       base_sha: 0fccfc74399a28b5128b2ee61d5ab4d9e1adf792
-      worktree: build/I17-tool-turn-parity-render/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
@@ -788,7 +788,7 @@ project:
       - parity/scenarios/s3_tool_turn_files.yml
       - test/parity/scenario_test.rb
       base_sha: 0fccfc74399a28b5128b2ee61d5ab4d9e1adf792
-      worktree: build/I17-tool-turn-parity-rig/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
@@ -797,4 +797,10 @@ project:
     rehearsal:
       gates_digest: 187b55cc8627cbb60db2f902354d8b8fb7a9e4d26380fb891ef17e52c0ef29b4
       at: '2026-10-10T21:14:11-06:00'
+  - name: tool-render-parity
+    ordinal: 18
+    file: architecture/I18-tool-render-parity.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
