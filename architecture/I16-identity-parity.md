@@ -204,51 +204,87 @@ construction; a conflict at integration is a spec defect to kill-and-respec, nev
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse identity-parity` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze identity-parity` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+Calibration: AC1/AC3 are **deliverable-number criteria** (the exit code IS the point — exact);
+AC2/AC5 assert properties (floors, not snapshots); the two grep gates below are **tripwires**
+(keyword-landed, not proof — substance is architect-read from the named tests and the rig run).
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
-
-**AC1.** ...
+- **AC1 (s1 settled-screen parity — BRIEF §8).** `bin/pty-tester run parity/scenarios/s1_text_turn.yml`
+  exits **0**: every settled-screen difference line between pi 1.1.0 and default-identity tart
+  is covered by the existing registry (path normalization only). `parity/registry.yml` gains no
+  new classes — a divergence is fixed in the render, never classified away.
+- **AC2 (identity seam — BRIEF §8).** Identity resolves CLI > `TART_IDENTITY` env > settings
+  `identity` > default `"pi"`; invalid values error naming the valid ones. Default (no config)
+  boots pi's header bytes; identity=tart restores the owner's art collection, `tart v0.1.0`,
+  and the tart hints line; the exit resume-hint line and abort prefix follow identity. The
+  structural parity items (transcript padding, spacers, footer model-segment format) hold in
+  BOTH modes — the toggle is identity-only. Proven headlessly by named tests in
+  test/chat_test.rb / test/settings_test.rb (resolution precedence table + per-mode MOTD bytes).
+- **AC3 (rig env seam + tart-mode scenario — pty-tester BRIEF §2).** Scenario YAML carries
+  per-app env overrides applied by the runner (the designed branding-toggle seam); a pinned
+  `parity/scenarios/s1_tart.yml` boots tart with identity=tart and its settled capture shows
+  the tart header (tart version line present) and no pi half-block logo bytes.
+- **AC4 (suite, bench, pins).** `bundle exec rake` green (0 failures, 0 errors) including the
+  new identity/env-seam tests; `bench/seam_bench.rb` prints SEAM_BENCH_OK; gemspec runtime
+  dependency set = today's plus exactly `fast-uuid`.
+- **AC5 (fast-uuid adoption).** Session-id generation runs through `Fast::UUID` (String-form
+  v7; the `SecureRandom.uuid` fallback → `Fast::UUID.uuid_v4`); the existing session-id tests
+  (format, ordering, uniqueness, injectable time) pass **unmodified**. PHASE 0 rules on
+  `Fast::UUID.uuid_v7` burst/same-millisecond behavior vs the hand-rolled implementation with
+  measured evidence — no silent swap.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse identity-parity` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC2, AC3, AC4, AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-parity
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    bin/pty-tester run parity/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+  expect:
+    exit_code: 0
+
+- id: s1-tart-mode
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    bin/pty-tester run parity/scenarios/s1_tart.yml --app tart --out tmp/parity-gate-tart && grep -q "tart v" tmp/parity-gate-tart/run-1/tart.capture && ! grep -q "▀▀█" tmp/parity-gate-tart/run-1/tart.capture && echo TART_MODE_OK
+  expect:
+    exit_code: 0
+    stdout_match: TART_MODE_OK
+
+- id: identity-seam-tripwire
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    grep -q "TART_IDENTITY" bin/tart && grep -q "identity" lib/tart/settings.rb && echo IDENTITY_SEAM_OK
+  expect:
+    exit_code: 0
+    stdout_match: IDENTITY_SEAM_OK
+
+- id: fast-uuid-tripwire
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    grep -q "fast-uuid" tart.gemspec && grep -q "Fast::UUID" lib/tart/agent/session.rb && echo FAST_UUID_OK
+  expect:
+    exit_code: 0
+    stdout_match: FAST_UUID_OK
 ```
 
 ## Builder Prompt
