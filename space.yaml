@@ -808,6 +808,15 @@ project:
       touch_set:
       - lib/tart/tools/bash.rb
       - test/bash_tool_test.rb
+      base_sha: 981f455317243c40e84a22ab4094f53264d7a88d
+      worktree:
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-10T21:44:52-06:00'
+      effort: high
+      integrate_sha: 51f10eaf5f150fbabb5a3a6b43eccbcc21507bd8
     - name: file-render
       repo: tart
       touch_set:
@@ -816,12 +825,30 @@ project:
       - test/chat_test.rb
       - test/theme_test.rb
       - test/fixtures/**
+      base_sha: 981f455317243c40e84a22ab4094f53264d7a88d
+      worktree:
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-10T21:45:05-06:00'
+      effort: high
+      integrate_sha: f579dada84a3b529c1b97d9047ce12b6f51b9b06
     - name: rig
       repo: tart
       touch_set:
       - test/support/mock_llm_server.rb
       - parity/scenarios/s4_bash_variants.yml
       - test/parity/scenario_test.rb
+      base_sha: 981f455317243c40e84a22ab4094f53264d7a88d
+      worktree:
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-10T21:44:52-06:00'
+      effort: medium
+      integrate_sha: 99f792a250e37e0fe75c8958969983c39901c996
     rehearsal:
       gates_digest: cc068859dd14e45d7ba9b75cfba7ee475aa164deb75210109c5c2c7c482f58ef
       at: '2026-10-10T21:40:51-06:00'
