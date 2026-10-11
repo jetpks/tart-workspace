@@ -93,51 +93,101 @@ Disjoint by construction (render seam vs parity data + pins). A conflict at inte
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse viewport-parity` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze viewport-parity` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+Calibration: AC1 is the **deliverable-number criterion** (the exit code is the point — exact, and unlike I19 the exit-0 mechanism is evidence-backed by the Grounds' probe + source arithmetic); AC2 and AC6 assert **properties** (bounded from the defect side — the exact mechanism shape stays port freedom per BRIEF §5.1, itemized); AC3's guards are GREEN on base by design (chat.rb is the landed I17–I19 surface); AC4's deliverable is the **baseline record itself** (exit 1 on base is the expected, correct outcome — the candidate lists are the point); the tripwires are presence-greps (keyword-landed; substance is architect-read from the render evidence).
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
-
-**AC1.** ...
+- **AC1 (s4 settled-screen parity — BRIEF §8, the I19/I20 slice).** `bin/pty-tester run parity/scenarios/s4_bash_variants.yml` exits **0**: the settled windows byte-identical — offset 2 both sides (top mark scrolled off, hints-line first, ends at the final reply), the widgets-above spacer row below the transcript both sides, NO rail glyphs at settle, no carved trailing padding (tart's rows end at content like pi's). `parity/registry.yml` gains no new classes. The probe scenario (the Grounds' 25-paragraph overflow-by-one) also exits 0 when re-run against the lane's tree.
+- **AC2 (viewport parity — BRIEF §8, property).** The transcript's row budget matches pi's dock accounting: the widgets-above default spacer row renders between the transcript and the editor (a blank dock row), and the transcript viewport budget drops correspondingly (pi's arithmetic: dock = spacer 1 + editor + footer). The auto scrollbar is **transient** per pi's scroll-view.ts: it paints only while scroll activity is fresh — marked on the port's user-scroll seams (the analogs of pi's scrollTo/scrollBy/scrollToStart/scrollToEnd; NOT on the render-time follow-end adjustment), auto-hidden after the pi hide delay (default 1000 ms), force-hidden when content fits, with a redraw at hide and no busy redraw storm at idle; the rail renders as an OVERLAY on the last column while visible (full-width content wrap for `"auto"` — the permanent carved column is retired), thumb `█` while active / `┃` at rest ported-or-itemized per what drives pi's `setScrollbarActive`. The transient state, its marker, and the hide-delay constant carry pi's names (pi-source anchor comments, the I16-I19 idiom). Named tests in `test/chat_test.rb` pin: the budget arithmetic + spacer row; the settled-window geometry on the probe shape (overflow-by-one → offset 2, top mark off-window); rail hidden at settle/fit, visible on user scroll, hidden after the delay (no real-second sleeps in tests); the overlay row shape (no carved trailing pad on non-rail rows); the mark sites (user scroll marks, follow-end does not).
+- **AC3 (s1/s2/s3 regression — BRIEF §8).** All three still exit 0 — the spacer row and budget change shift nothing that fits the viewport (short transcripts: the dock spacer is a blank row where viewport padding was blank), the overlay retirement changes no fitting row (the carve only applied on overflow), s2's echo/s3's write-read shapes untouched.
+- **AC4 (rig scenarios — the next measured work list).** `parity/scenarios/s5_bash_truncation.yml` and `parity/scenarios/s6_long_calls.yml` exist, load (pinned in `test/parity/scenario_test.rb` per the s1-s4 pattern), and each baselines live: both apps complete the expected requests and settle, exit **1**, classes + candidates recorded verbatim in the report (expected classes: the truncation-notice fg pair on base, spill/long-path noise if the path classes don't cover it). No registry pin without a baseline-proven path-class gap, evidenced in the report.
+- **AC5 (suite, bench — standing).** `bundle exec rake` green (0 failures, 0 errors) including the new tests; `bench/seam_bench.rb` prints `SEAM_BENCH_OK`; the gemspec runtime dependency set is unchanged.
+- **AC6 (truncation notice fg — the I19 carry-forward).** The truncation notice rows render pi's `warning` fg (bash.ts:88) instead of the inherited `tool_output`, unit-pinned beside the I19 notice-composition test; live measurement rides the judging session's s5 run on the integrated tree (NOT a frozen gate — s5's exit 0 belongs to a later freeze once its baseline is read).
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse viewport-parity` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC2, AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s4-parity
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    bin/pty-tester run parity/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
+  expect:
+    exit_code: 0
+
+- id: s1-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    bin/pty-tester run parity/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    bin/pty-tester run parity/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    bin/pty-tester run parity/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
+  expect:
+    exit_code: 0
+
+- id: transient-tripwire
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    grep -q "mark_scrollbar_activity" lib/tart/render/chat.rb && echo TRANSIENT_OK
+  expect:
+    exit_code: 0
+    stdout_match: TRANSIENT_OK
+
+- id: spacer-tripwire
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    grep -qiE "spacer.?when.?empty|widgets?-above" lib/tart/render/chat.rb && echo SPACER_OK
+  expect:
+    exit_code: 0
+    stdout_match: SPACER_OK
+
+- id: notice-fg-tripwire
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    grep -q "Theme\\[:warning\\]" lib/tart/render/chat.rb && echo NOTICE_FG_OK
+  expect:
+    exit_code: 0
+    stdout_match: NOTICE_FG_OK
+
+- id: scenarios-tripwire
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    test -f parity/scenarios/s5_bash_truncation.yml && test -f parity/scenarios/s6_long_calls.yml && echo SCENARIOS_OK
+  expect:
+    exit_code: 0
+    stdout_match: SCENARIOS_OK
 ```
 
 ## Builder Prompt
