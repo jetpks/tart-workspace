@@ -126,7 +126,7 @@ Measured this session (2026-10-11) at base **16f20fd** (= `project/pi-port` tip 
   ac: AC1
   cwd: repos/tart
   cmd: |-
-    grep -q 'when "u"' lib/tart/render/chat.rb && grep -q 'when "k"' lib/tart/render/chat.rb && grep -q 'when "y"' lib/tart/render/chat.rb && echo BINDINGS_OK
+    grep -q 'when "u"' lib/tart/render/chat.rb && grep -q 'when "k"' lib/tart/render/chat.rb && grep -q 'when "y"' lib/tart/render/chat.rb && grep -q 'yank_pop' lib/tart/render/chat.rb && echo BINDINGS_OK
   expect:
     exit_code: 0
     stdout_match: BINDINGS_OK
@@ -183,7 +183,9 @@ Measured this session (2026-10-11) at base **16f20fd** (= `project/pi-port` tip 
   ac: AC6
   cwd: repos/tart
   cmd: |-
-    test -f gems/tui-split-rig/scenarios/s7_compaction.yml && gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7; test $? -eq 1
+    test -f gems/tui-split-rig/scenarios/s7_compaction.yml || exit 1
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7
+    test $? -eq 1
   expect:
     exit_code: 0
 
