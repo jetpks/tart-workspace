@@ -540,6 +540,143 @@ The collapse itself landed and is byte-correct: both settled captures are now 40
 
 STATUS: COMPLETE_WITH_CONCERNS (AC1 exit-0 blocked by two surviving out-of-scope classes: the tart-only MOTD logo row `▀▀█  v1.1.0` (+1 buffer row vs pi) and the auto scrollbar rail that then paints — recorded verbatim above, not chased per spec; AC2/AC3/AC5 fully green)
 
+### rig
+
+### Moved test
+
+`test_an_empty_tcp_connection_consumes_no_scripted_response` → `test/parity/mock_llm_extension_test.rb` (placed after `test_rearm_serves_the_same_script_to_a_fresh_app`, before `private`). Behavior, assertions, and intent unchanged. Helper dedup: no helpers added to the destination (`with_server`/`fetch_content` already existed there). Orphaned and removed from `test/parity/scenario_test.rb`: the test's private `with_server`, the test's private `fetch_content` (both used only by the moved test in that file — `rg` verified), and the now-unused `require "net/http"` / `require "socket"` lines.
+
+### Move diff (verbatim, `git diff`)
+
+```diff
+diff --git i/test/parity/mock_llm_extension_test.rb w/test/parity/mock_llm_extension_test.rb
+index 7d80d2a..aa6519e 100644
+--- i/test/parity/mock_llm_extension_test.rb
++++ w/test/parity/mock_llm_extension_test.rb
+@@ -4,6 +4,7 @@ require_relative "../test_helper"
+ require_relative "../../lib/tart/parity"
+ require_relative "../support/mock_llm_server"
+ require "net/http"
++require "socket"
+ 
+ module Tart
+   # The parity-rig extensions of MockLLMServer (I02): per-request wire
+@@ -39,6 +40,21 @@ module Tart
+       end
+     end
+ 
++    # AC4 (I18 rig robustness): a connection that sends no request line
++    # consumes no scripted response — no @script shift, no request-log
++    # entry, no response — so the next real request gets the next spec.
++    def test_an_empty_tcp_connection_consumes_no_scripted_response
++      with_server([{type: :message, content: "one"}, {type: :message, content: "two"}]) do |server|
++        TCPSocket.new("127.0.0.1", server.port).close
++
++        assert_equal "one", fetch_content(server)
++        assert_equal "two", fetch_content(server)
++        logs = server.captured_request_logs
++        assert_equal 2, logs.size
++        assert logs.all? { |entry| entry[:method] == "POST" && entry[:path] == "/v1/chat/completions" }
++      end
++    end
++
+     private
+ 
+     def with_server(specs)
+diff --git i/test/parity/scenario_test.rb w/test/parity/scenario_test.rb
+index 31df01f..4c77a1d 100644
+--- i/test/parity/scenario_test.rb
++++ w/test/parity/scenario_test.rb
+@@ -2,8 +2,6 @@
+ 
+ require_relative "../test_helper"
+ require_relative "../../lib/tart/parity"
+-require "net/http"
+-require "socket"
+ 
+ module Tart
+   # Scenario loading: the shipped data files and the failure path.
+@@ -109,34 +107,5 @@ module Tart
+       assert_raises(Parity::Error) { Parity::Scenario.load("/nonexistent/scenario.yml") }
+     end
+ 
+-    # AC4 (I18 rig robustness): a connection that sends no request line
+-    # consumes no scripted response — no @script shift, no request-log
+-    # entry, no response — so the next real request gets the next spec.
+-    def test_an_empty_tcp_connection_consumes_no_scripted_response
+-      with_server([{type: :message, content: "one"}, {type: :message, content: "two"}]) do |server|
+-        TCPSocket.new("127.0.0.1", server.port).close
+-
+-        assert_equal "one", fetch_content(server)
+-        assert_equal "two", fetch_content(server)
+-        logs = server.captured_request_logs
+-        assert_equal 2, logs.size
+-        assert logs.all? { |entry| entry[:method] == "POST" && entry[:path] == "/v1/chat/completions" }
+-      end
+-    end
+-
+-    private
+-
+-    def with_server(specs)
+-      server = MockLLMServer.new.script(specs).start
+-      yield server
+-    ensure
+-      server&.stop
+-    end
+-
+-    def fetch_content(server)
+-      uri = URI("http://127.0.0.1:#{server.port}/v1/chat/completions")
+-      response = Net::HTTP.post(uri, {model: "m", stream: false}.to_json, "content-type" => "application/json")
+-      JSON.parse(response.body).fetch("choices")[0].fetch("message").fetch("content")
+-    end
+   end
+ end
+```
+
+### Suite tail after the move (`bundle exec rake`, verbatim)
+
+```
+Finished in 19.815550s, 19.0255 runs/s, 75.6477 assertions/s.
+
+377 runs, 1499 assertions, 0 failures, 0 errors, 1 skips
+
+You have skipped tests. Run with --verbose for details.
+SUITE_OK
+```
+
+Note: 1 pre-existing skip (intentional, unrelated to this lane — present on base; no behavior change in this lane).
+
+### Gate results (verbatim)
+
+```
+$ bundle install --quiet && bundle exec rake 2>&1 | tail -15 && echo SUITE_OK
+SUITE_OK   (exit 0; full tail above)
+
+$ bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+SEAM_BENCH_OK
+
+$ grep -q "test_an_empty_tcp_connection_consumes_no_scripted_response" test/parity/mock_llm_extension_test.rb && echo RIG_HOME_OK
+RIG_HOME_OK
+
+$ ! grep -q "test_an_empty_tcp_connection_consumes_no_scripted_response" test/parity/scenario_test.rb && echo REMOVED_OK
+REMOVED_OK
+
+$ git diff --stat
+ test/parity/mock_llm_extension_test.rb | 16 ++++++++++++++++
+ test/parity/scenario_test.rb           | 31 -------------------------------
+ 2 files changed, 16 insertions(+), 31 deletions(-)
+```
+
+### PHASE 0 — disagreements/deviations
+
+1. **Only `require "socket"` was added to `mock_llm_extension_test.rb`, not both requires.** `require "net/http"` already exists there (line 6 pre-move); re-adding it is dead code. Spec said "lift it (with the `require "net/http"` / `require "socket"` lines it needs)" — the net/http line is not needed, so it was not duplicated.
+2. **Also removed the orphaned `require "net/http"` / `require "socket"` lines from `scenario_test.rb`,** which the spec's deletions list did not explicitly name. Verified orphaned: `rg -n "with_server|fetch_content|TCPSocket|Net::HTTP" test/parity/scenario_test.rb` showed usage only inside the moved test. Considered in-scope under AC4's "no helper duplication remains that the move orphans" (unused requires are the same orphanage); flagged per no-silent-scope rule.
+3. **No functional deviations.** Named APIs verified against live files pre-move: both files privately duplicated `with_server`/`fetch_content` as the spec stated; the three sibling rig-extension tests are in `mock_llm_extension_test.rb` as stated. The moved test now runs through the destination file's `fetch_content` (which delegates to its private `post` helper) instead of scenario_test's inline `Net::HTTP.post` — identical request/assertion semantics for this test, so intent unchanged.
+
+No commits made; no git write commands run.
+
+STATUS: COMPLETE
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
