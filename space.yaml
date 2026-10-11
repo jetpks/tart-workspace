@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: viewport-parity
+  current_iteration: decomp-wave1
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -936,4 +936,10 @@ project:
     rehearsal:
       gates_digest: 3843f7f3dd88185e626ed42b2a22c17809b2e2af48da91b10d2572331ddb06b1
       at: '2026-10-10T23:07:58-06:00'
+  - name: decomp-wave1
+    ordinal: 21
+    file: architecture/I21-decomp-wave1.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
