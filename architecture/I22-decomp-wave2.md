@@ -581,15 +581,27 @@ STATUS: COMPLETE_WITH_CONCERNS — (a) s1_tart exits 1 at base AND in this lane 
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section decomp-wave2 verdict --from <file>`. -->
+- **Disagreement rulings** (all six PHASE 0 items, builder's report §6):
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify decomp-wave2`)?
+  1. `Chat#input` sync letter-conflict (shape rule (a) "same methods synchronize as at base" — at base a bare unsynchronized `attr_reader` — vs item (f) listing `input` among the "mutex-synchronized delegation" readbacks): **ACCEPT** the builder's resolution (followed (f)). Item (f) is the more specific instruction for the readback set; it leaves every readback synchronized under one invariant, and the builder verified no mutex-held Chat method calls `input` internally (the render_frame→build_widget→editor_widget chain greps clean) — no reentrant-deadlock path. Frozen-region self-contradiction was my authoring defect; the builder surfaced it rather than picking silently. Carried into I23's spec authoring: state sync per readback explicitly, once.
+  2. One line changed in out-of-scope `motd_skill_names` (`@autocomplete.items` → `@autocomplete.source.items`, + `Autocomplete#attr_reader :source`): **ACCEPT** — the unavoidable mechanical consequence of shape rule (g) re-homing the source; the MOTD family method remains defined in chat.rb and is not one of AC4's probed identifiers; raised PHASE 0, not silent. The `source` reader is also a legitimate seam (pi's provider object), not a delegator shim.
+  3. `WORD_CHAR`/`PUNCTUATION`/`WHITESPACE` moved to `Editor` with a one-line chat.rb bridge `WORD_CHAR = Editor::WORD_CHAR`: **ACCEPT** — the constants move with their pi citation to the class that owns the word-navigation helpers; the bridge keeps the out-of-scope mouse-selection family byte-unchanged. The narrowest legal resolution; a shared-constants module would have been abstraction beyond the assignment table.
+  4. Net test delta +4 (441 → 445): **ACCEPT** — AC6 sanctions a PHASE-0-raised, reported reason; the reason is concrete and correct: the spec's move list demands direct-class coverage (`filter_suggestions`/`best_match_index` behavior, apply-through-a-real-Editor, Picker enter-fires-on_select, lines/widget_rows budget) that has no existing Chat-surface counterpart to move, while the STAY list pins the Chat-surface tests. Both letters cannot be met by pure moves. Keeping `test_recalled_history_entry_is_editable_and_sends_as_edited` in chat_test.rb (its assertions span submit→echo→agent — coordinator behavior) is the right call.
+  5. `Picker#handle` returning an open-flag (true = open; closed picker no-ops; Chat routes `@picker = nil unless @picker.handle(event)`): **ACCEPT** — the sanctioned "or your equivalent" of shape rule (e); it is also the cleaner seam (the picker owns its closed state, Chat only drops its holder).
+  6. Autocomplete/Picker method renames inside the new classes (prefix drop: `autocomplete_lines` → `lines(width)`, `picker_widget` → `widget(width)`, `navigate_suggestions` → `navigate`, …): **ACCEPT** — per shape rules (d)/(e) and house style; a class-scoped `Autocomplete#autocomplete_lines` would be stutter. The renames stay inside the new files; Chat's public surface (`edit_input`, `submit`, the readbacks, `open_session_picker`) is untouched.
+
+  Letter-versus-spirit conflicts: none degraded the artifact — every tension was resolved toward the property and reported.
+
+- **Acceptance Criteria integrity** — `architect verify decomp-wave2` all four checks PASS; frozen region byte-identical since freeze fee0b6d6 (`git diff fee0b6d6 HEAD -- architecture/I22-decomp-wave2.md` touches only post-freeze Builder Prompt/Report); no builder commits off base a7b72f9f; worktree diff exactly the declared touch set.
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | moved-methods-gone MOVED_OK; ivar-leak NO_IVAR_LEAK_OK; slash-source-moved SLASH_SOURCE_MOVED_OK; new-classes-present CLASSES_OK — all cold on the integrated tree | §8 | PASS |
+| AC2 | All four class files read: no kernel/scrollback/transcript/mutex references inside them; update/apply flow through the editor (slash_token query, replace_token write surface); Picker on_select wired by unchanged open_session_picker/on_resume=; readbacks synchronize; Chat surface unchanged but the sanctioned namespace | §8 | PASS |
+| AC3 | s1–s6 all exit 0 cold via the integrated tree; registry-unchanged REGISTRY_UNCHANGED_OK (byte-identical to a7b72f9f) | §8 | PASS |
+| AC4 | wave3-intact WAVE3_INTACT_OK (all 11 probes); diff name-only = exactly the 11-file touch set; the one motd_skill_names line is the PHASE-0-ruled consequence above | §8 | PASS |
+| AC5 | suite 445 runs, 1787 assertions, 0 failures, 0 errors (1 pre-existing rig skip); bench SEAM_BENCH_OK | §8 | PASS |
+| AC6 | 13 tests moved out of chat_test.rb (147 → 134 defs), 17 in the new files (8 editor + 6 autocomplete + 3 picker); spot-checked names are true moves from base; classes driven directly; net +4 PHASE-0-ruled above | §8 | PASS |
+| AC7 | Architect-read: class doc comments carry the pi citations (editor.ts/word-navigation.ts/autocomplete.ts/select-list.ts/session-selector.ts/custom-editor.ts) forward; `clear`/`replace_token`/`handle` are the smallest ops covering their call sites; no delegator shims; no abstraction beyond the assignment table; reads like the wave-1 modules (Text/Panel family style) | §8 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+- **Iteration — CONTINUE** — a 515-line stateful extraction out of chat.rb (2,748 → 2,233) with the byte-exact oracle green on all six scenarios, registry untouched, all 14 gates PASS cold, and six PHASE-0 disagreements each resolved toward the property. chat.rb is now a coordinator plus the viewport/content families; the decomposition program (BRIEF §8 done-bar runway) proceeds to wave 3.

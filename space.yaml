@@ -991,7 +991,7 @@ project:
     ordinal: 22
     file: architecture/I22-decomp-wave2.md
     freeze_sha: fee0b6d69aa1b8c787cd687ad8dd2e60111377ce
-    verdict: pending
+    verdict: continue
     lanes:
     - name: input-line
       repo: tart
