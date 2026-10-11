@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: tool-render-parity
+  current_iteration: bash-preview-collapse
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -852,4 +852,10 @@ project:
     rehearsal:
       gates_digest: cc068859dd14e45d7ba9b75cfba7ee475aa164deb75210109c5c2c7c482f58ef
       at: '2026-10-10T21:40:51-06:00'
+  - name: bash-preview-collapse
+    ordinal: 19
+    file: architecture/I19-bash-preview-collapse.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
