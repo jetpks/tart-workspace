@@ -902,12 +902,26 @@ project:
       - lib/tart/core/loop.rb
       - test/chat_test.rb
       - test/loop_test.rb
+      base_sha: 206af8de4f93f69ca1481f837029380e63dedbf0
+      worktree: build/I20-viewport-parity-render/wt
+      integration_branch:
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
     - name: rig
       repo: tart
       touch_set:
       - parity/scenarios/s5_bash_truncation.yml
       - parity/scenarios/s6_long_calls.yml
       - test/parity/scenario_test.rb
+      base_sha: 206af8de4f93f69ca1481f837029380e63dedbf0
+      worktree: build/I20-viewport-parity-rig/wt
+      integration_branch:
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-10T23:10:46-06:00'
+      effort: medium
     rehearsal:
       gates_digest: 3843f7f3dd88185e626ed42b2a22c17809b2e2af48da91b10d2572331ddb06b1
       at: '2026-10-10T23:07:58-06:00'
