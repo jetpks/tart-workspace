@@ -29,35 +29,52 @@ Measured this session (2026-10-11) at base **a7b72f9f** (= `project/pi-port` tip
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section decomp-wave2 specification --from <file>`. -->
+- **Objective.** The second wave of the five-wave chat-surface decomposition (Grounds 1–6; owner decisions in ARCHITECT.md): a **pure refactor — zero behavior change, proven byte-exact by the rig** (BRIEF §8: s1–s6 stay exit 0; no new registry classes, no parity-needle movement). Wave 1 moved the stateless clusters to pure modules; **wave 2 moves the input-line cluster — stateful this time, pi's component shape** (Grounds 6): three stateful classes + the SlashSource rename + one pure-helper completion, with `Chat` surviving as the coordinator (pi's `interactive-mode.ts` role — key dispatch, submit, locks, render composition). Why: the parity program reached its §8 bar, feature work resumes next, and this refactor has the byte-exact oracle (the rig) that later feature work will not; chat.rb is a 2,748-line god object the next waves (viewport, content, transcript) keep colliding in.
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+- **Target class assignment (the decomposition shape — the deliverable; every line range verified at base a7b72f9f, Grounds 2):**
 
+  | Class (new file) | Owns (state) | Methods (from Chat; chat.rb l. at base) |
+  |---|---|---|
+  | `Tart::Render::Editor` (`lib/tart/render/editor.rb`) | `@input`, `@cursor`, `@history`, `@history_index`, `@history_draft`; `HISTORY_LIMIT` | `insert` (2343), `insert_printable` (2421), `delete_backward` (2349), `delete_forward` (2357), `delete_word_backward` (2396), `delete_word_forward` (2405), `move_left` (2364), `move_right` (2369), `move_start` (2374), `move_end` (2379), `move_word_backward` (2384), `move_word_forward` (2389), `exit_history_browsing` (2413), `history_previous` (2009), `history_next` (2011), `navigate_history` (2013), `add_to_history` (1620), `input_spans` (2434), `bash_mode?` (2167), `slash_token` (1635), + class helpers `find_word_backward` (605), `find_word_forward` (625) |
+  | `Tart::Render::Autocomplete` (`lib/tart/render/autocomplete.rb`) | `@suggestions`, `@selected`, the injected source; `AUTOCOMPLETE_MAX` | `update_autocomplete` (1649), `filter_suggestions` (1658), `best_match_index` (1666), `cancel_autocomplete` (1678), `navigate_suggestions` (1684), `apply_suggestion` (1692), `autocomplete_rows` (2559), `autocomplete_lines` (2574), `autocomplete_column_width` (2590), `autocomplete_row` (2595), `autocomplete_description` (2608), + class helpers `fuzzy_match` (648), `fuzzy_subsequence_score` (659), `fuzzy_filter` (691) |
+  | `Tart::Render::Picker` (`lib/tart/render/picker.rb`) | `@items`, `@selected`, `@on_select`; `PICKER_MAX` | `picker_input` (2623), `navigate_picker` (2636), `picker_widget` (2644), `picker_lines` (2658), `picker_widget_rows` (2672), + `items`/`selected` readbacks |
+  | `Tart::Render::SlashSource` (`lib/tart/render/slash_source.rb`) | — | moves wholesale out of `Chat` (715–729); body unchanged; namespace `Tart::Render::SlashSource` |
+  | `Tart::Render::Text` (existing module) gains | — | `clip_spans` (2439 region) — pure span utility completing wave 1's text family; the four callers (2123, 2151, 2228, 2288) become `Text.clip_spans` |
+
+  **Shape rules.** (a) The classes are **not thread-safe by design** — `Chat` owns `@mutex` exactly as today (same synchronize boundaries, Grounds 2; `render_frame` and the readbacks synchronize; event handling runs on the kernel task unsynchronized). (b) Cross-object flow follows data ownership: `Autocomplete#update(editor)` computes the token via `editor.slash_token` (a query on editor state — pi's isInSlashCommandContext lives in custom-editor.ts); `Autocomplete#apply(editor)` performs pi's applyCompletion slice surgery through an editor write surface (exact form — attr accessors vs a small mutator — is house-judgment; pick one, stay consistent, PHASE 0 if it misfits). (c) `Picker` gets the select callback at construction (pi onSelect): Chat's `open_session_picker` public seam is UNCHANGED (bin/tart:262 calls it), constructs the Picker with `on_select: ->(item) { @on_resume&.call(item[:path]) }` — the `on_resume=` attr_accessor seam stays on Chat (bin/tart:267). (d) Width threading: `Picker#lines`/`#widget` take `width` (house style, the I21-established pattern — `markdown_lines(text, width, …)`). (e) Chat's key dispatch (`edit_input`) calls the objects (`@editor.insert`, `@autocomplete.update(@editor)`, `return @picker.handle-or-equivalent if @picker`); Chat's esc/ctrl+c input-clearing branches call an editor op, not raw ivar writes — add the smallest editor op that covers both call sites (esc bash-mode clear, ctrl+c clear). (f) Chat keeps: `edit_input`, `submit`, `@last_ctrl_c`, `editor_widget`, `editor_border_color` (calls `@editor.bash_mode?`), `status_title`/`status_line`, `editor_area_rows`, `build_widget`, `open_session_picker`, the readbacks (`input`/`suggestions`/`suggestions_index`/`picker_items`/`picker_index` — mutex-synchronized delegation to the objects; these are Chat's public surface, NOT delegator shims), `MIN_EDITOR_ROWS`. (g) Chat's constructor param list is FROZEN (`autocomplete:` param stays — bin/tart); internally Chat constructs the `Autocomplete` with the source. Naming of the holder ivars is builder judgment — keep it obvious (`@editor`, `@autocomplete`, `@picker`).
+
+  If any assignment proves wrong at the code (a method secretly reads kernel/scrollback state, two classes share state better homed once), raise it PHASE 0 with the line evidence — do not silently reshape.
+
+- **Context.** Grounds 1–6 (all measured this session at base a7b72f9f): the cluster inventory, the state ownership, the caller facts, the pi citation targets, and the mutex discipline. Base tree: suite 441/1762 green, s1–s6 exit 0 cold.
+
+- **Output format.** RAW results only, to the scratch report: (a) the method-move table (each moved method/class-helper → its class, plus each moved state ivar → its class); (b) `wc -l lib/tart/render/chat.rb` before/after + `wc -l` of each new class file; (c) the ivar-leak proof: `grep -nE '@(input|cursor|history|history_index|history_draft|suggestions|selected)\b' lib/tart/render/chat.rb` → no matches (comment lines included in the check — comments may not reference them either, to keep the gate honest; move the prose to the classes); (d) `bundle exec rake` tail with run/assertion counts (net test delta expected ≈ 0 — moves, not rewrites); (e) s1–s6 runs via `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml --out <scratch>/<s>` — all six RAW exit codes, each 0; (f) PHASE 0 disagreements (mandatory) + STATUS line.
+
+- **Tool guidance.**
+  - Verification (tart repo): `bundle install --quiet && bundle exec rake` (default task = minitest, includes the rig's tests), `bundle exec ruby bench/seam_bench.rb` (prints `SEAM_BENCH_OK`).
+  - Byte-exact oracle: the six rig runs above. Exit 0 on all six = byte-identical settled screens vs pi — the proof the refactor changed nothing. A single unknown-candidate line is a FAIL to root-cause and report, never paper over.
+  - pi citations to carry forward in the moved bodies: editor.ts (navigateHistory :454-484, handleInput routing :766-771, :790-816, autocompleteState block :1228-1251, getBestAutocompleteMatchIndex :2207-2232, applyAutocompleteSuggestions :2432-2442, SLASH_COMMAND_SELECT_LIST_LAYOUT :248-251), word-navigation.ts:17-70, autocomplete.ts (CombinedAutocompleteProvider :336-365, no-space rule :340-341, applyCompletion :419-436), select-list.ts (handleInput wrap :146-155, getVisibleRange, getPrimaryColumnWidth, descriptions :189-210), custom-editor.ts:2202-2204, session-selector.ts (header :147, tree rows :459-460). The bodies already carry most of these — move them with the code.
+  - Test surgery: tests move to `test/render/editor_test.rb`, `test/render/autocomplete_test.rb`, `test/render/picker_test.rb` (SlashSource's listing test homes with autocomplete's or its own file — judgment). **Moves, not rewrites**: keep test names and assertions; adapt call sites. Editor-state behavior tests (input edits, cursor, history, word-boundaries, find_word_* probes, fuzzy_filter rank, SlashSource listing) drive the classes directly (`Editor.new` — cursor readback may read `editor.cursor`); **coordinator behavior stays in chat_test.rb** (key dispatch/routing: list-wins up/down, esc routing, ctrl+c double-press, ctrl+d exit, paste-cancels-list, /resume picker wiring through `open_session_picker` + `on_resume`). Driving a moved class through Chat's surface in a moved test file is a defect — test the seam that owns the behavior.
+  - `bin/tart` line 209 changes `Render::Chat::SlashSource` → `Render::SlashSource` (the ONLY external call-site change; `open_session_picker`/`on_resume=`/`autocomplete:` seams unchanged).
+
+- **Boundaries.**
+  - **May touch:** `lib/tart/render/chat.rb`, `lib/tart/render/editor.rb`, `lib/tart/render/autocomplete.rb`, `lib/tart/render/picker.rb`, `lib/tart/render/slash_source.rb` (new), `lib/tart/render/text.rb` (the `clip_spans` addition only), `bin/tart` (the ONE line-209 namespace change only), `test/chat_test.rb`, `test/render/**`. **Must not:** any other lib file (`markdown.rb`, `panel.rb`, `bash_block.rb`, `file_blocks.rb`, `tool_block.rb`, `theme.rb`, `tui.rb`, `commands.rb`, `lib/tart.rb` — chat.rb requires its own collaborators, the I21-established style), `tart.gemspec`, `Rakefile` (globs already cover `test/**`), `gems/tui-split-rig/**`, `bench/**`, `test/support/**`, `Gemfile*`. If a call-site change seems needed outside the set, PHASE 0 it, do not touch.
+  - **Out of scope — wave 3+ families that MUST remain in `chat.rb` untouched:** scroll/scrollbar (`scroll_by`, `scroll_page`, `mark_scrollbar_activity`, `scrollbar_glyphs`, `overlay_rail_cell`, `transcript_widget`, `transcript_area_rows`, `display_lines`, `viewport_width`), mouse selection (`selection_*`, `word_range`, `word_char?`, `next_click_count`, `highlight_row`, `selection_columns`, `clip`-adjacent cell helpers), footer/stats (`footer_*`, `read_branch`, `context_*`, `cache_hit_rate`), MOTD/identity (`enqueue_motd`, `pi_header_lines`, `motd_sections`, `pi_hint_spans`), transcript/scrollback/expandables/replay (`enqueue_*`, `push_expandable`, `flush_scrollback`, `set_tool_output_expanded`, `complete`, `live_lines`), widget layout (`build_widget`, `dock_spacer_*`), user-bash execution, `submit`, `edit_input`, `status_*`, `set/cycle_thinking_level`. Also out of scope: any behavior change, any API redesign beyond the assignment table, publishing/gemspec changes.
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision decomp-wave2`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: input-line
+  repo: tart
+  touch:
+    - lib/tart/render/chat.rb
+    - lib/tart/render/editor.rb
+    - lib/tart/render/autocomplete.rb
+    - lib/tart/render/picker.rb
+    - lib/tart/render/slash_source.rb
+    - lib/tart/render/text.rb
+    - bin/tart
+    - test/chat_test.rb
+    - test/render/**
 ```
+
+- **Effort.** **High** — a ~500-line stateful extraction from a 2,748-line file with byte-exact gates, cross-object flow judgment (update/apply through the editor, the Picker callback wiring), and test surgery that splits editor-state tests from coordinator tests. One lane — the cluster is one tightly coupled seam; parallel lanes would collide in chat.rb/chat_test.rb.
 
 ## Acceptance Criteria
 
