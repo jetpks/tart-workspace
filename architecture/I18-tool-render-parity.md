@@ -943,15 +943,49 @@ STATUS: COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section tool-render-parity verdict --from <file>`. -->
+## Verdict (judging session 2026-10-10 — this session dispatched nothing; frozen region audited untouched vs 3376abd1)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify tool-render-parity`)?
+### Post-flight (audited, not trusted)
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+All 12 mechanical checks PASS, re-confirmed by hand: frozen sections untouched (diff vs freeze_sha shows only Builder Prompt appended post-freeze), zero builder commits in all three worktrees (`git log project/pi-port..` empty), scratch reports present with raw results + raised PHASE-0 disagreements, and all three worktrees held exactly their declared touch sets. Integration clean: three lanes merged `--no-ff` onto `project/pi-port` (9d65e151 → f119c696 → fa7283ba), zero conflicts — the lane plan was disjoint.
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+### PHASE-0 rulings
+
+bash-cure:
+1. Bounded `completed.pop(timeout: 0.05)` vs AC3's "no fixed-interval poll as the primary mechanism" — **ACCEPT**. Exit *detection* is evented (the reaper's blocking `waitpid2` pushes the Queue; the pop returns the instant it does — measured 0.0023 s median vs 0.062 pre-cure); the bounded timeout only paces deadline escalation and cancellation checkpoints, which are cooperative-only in ruby_llm 2.1.0. Honest sub-boundary durations, the property built.
+2. pi anchor path drift (`bash.ts:5,112` → actual :109-117 region) — **ACCEPT**, factual; mechanism confirmed on the real source.
+3. Single -KILL via `killed` flag — **ACCEPT**, spec-mandated tightening of the old re-send-every-iteration.
+4. Cancellation rescue restructured (`reaper&.join(TERM_GRACE_SECONDS)` instead of a second `waitpid2`) — **ACCEPT**, necessitated by reaper ownership; avoids the ECHILD double-reap.
+
+file-render:
+1. `renderToolPath` contracts against HOME, not cwd (render-utils.ts:10-18) — **ACCEPT**; evidence-backed correction of the spec's prose; the s3 capture settles the bytes.
+2. Read result renders nothing unless error/expanded (read.ts:68-70) — **ACCEPT**; the capture-is-the-contract rule wins over the spec's loose prose, and the builder cited the control capture.
+3-6. CUTs itemized (pi-docs compact class, write highlighting, call-row wrapping, Elapsed) — **ACCEPT**, all four sanctioned or capture-invisible; the no-wrap CUT is queued for a later wrap slice.
+7. Replay cannot distinguish a recorded write error — **ACCEPT**; pi's own replay shares the recorded gap; rendering nothing either way is parity.
+8. Expand-hint is three styles, not one "muted" — **ACCEPT**; byte-exact beats the prose description.
+
+rig:
+1. Empty-TCP test placed in `scenario_test.rb`, not the natural home `mock_llm_extension_test.rb` — **ACCEPT**; the frozen boundary forbade the natural home and the spec's fallback rule was applied as written; placement correctly flagged. (Follow-up: allow the natural home in the next touch-set revision.)
+2. Oracle path correction (renderers/bash.ts:14/:78-89 for the preview; exit status at bash.ts:402, not :65-101) — **ACCEPT**, factual; s4 was designed against the real shapes.
+3. Preview command rationale (`seq 1 12` → 7 hidden earlier lines, far under model truncation limits) — **ACCEPT**, verified reasoning; good isolation of preview-render from truncation-footer.
+
+No silent compliance anywhere — all three lanes raised real, evidence-cited disagreements.
+
+### Per-AC verdicts
+
+- **AC1 (s2 settled-screen parity): PASS.** Gate exit 0 cold; classes = `parity-run-path: 2` only; the Took pair closed by honest measured durations (10-sample median 0.0023 s, no clamping — verified by direct diff read: the duration value path is untouched).
+- **AC2 (s3 settled-screen parity): PASS.** Gate exit 0 cold; zero unknown candidates; write/read render pi's call-side shapes on live + replay paths; the invented `⎿ write:/⎿ read:` shapes and the reply-ordering artifact are gone.
+- **AC3 (bash reaper immediacy): PASS.** Named test `test_fast_commands_pay_no_poll_quantum` (N=10, median 0.0023 s < 0.05 s); kill/timeout/cancellation/group/truncation tests all green, three pre-existing tests unmodified; mechanism is the idiomatic reaper-thread analog of pi's exit event.
+- **AC4 (rig robustness): PASS.** Named empty-TCP test against the live server; guard is a two-line early return; EPIPE teardown, error specs, `rearm!` untouched.
+- **AC5 (s4 baseline, evidence-only): PASS.** Scenario shipped + load-pinned; baseline run reported verbatim (exit 1 as expected) with the two Took pairs excluded as the in-flight bash-cure noise; the next work list is reported (banner chrome, preview collapse, right-rail, run-path shape).
+- **AC6 (suite, bench — standing): PASS.** Integrated tree: 377 runs, 1499 assertions, 0 failures, 0 errors (1 pre-existing skip); `SEAM_BENCH_OK`; gemspec untouched by every lane diff.
+
+### Idiomaticity / house-style read
+
+All three diffs read like the surrounding code: pi-source anchor comments in the I16/I17 idiom, one shared dispatch (`enqueue_tool_block`) unifying the live and replay paths, per-tool helpers factored to the same shape as `enqueue_bash_block`, terse guard-style tests on public behavior with no mock/stub of classes under test. No defects.
+
+### Call
+
+**CONTINUE** — the exact-parity program's s2 and s3 slices are closed (both scenarios exit 0), the rig is hardened, and s4's baseline work list (banner chrome, bash preview collapse, the tart right-rail fill to col 120, call-row wrapping) is measured and feeding the next iteration. One decisive reason: two more settled screens are byte-indistinguishable from pi with honest machinery underneath.
+
+Follow-ups carried: the no-wrap CUT (write/read call rows overflow the viewport where pi's Text wraps) and the rig-test placement (natural home `mock_llm_extension_test.rb`) both become next-spec ground.

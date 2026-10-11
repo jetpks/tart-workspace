@@ -801,7 +801,7 @@ project:
     ordinal: 18
     file: architecture/I18-tool-render-parity.md
     freeze_sha: 3376abd15469e421671f803b474acf6b9b6d4648
-    verdict: pending
+    verdict: continue
     lanes:
     - name: bash-cure
       repo: tart
