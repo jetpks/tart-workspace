@@ -939,7 +939,34 @@ project:
   - name: decomp-wave1
     ordinal: 21
     file: architecture/I21-decomp-wave1.md
-    freeze_sha:
+    freeze_sha: 2abfac554e2b03f2f0531fcf8b221bc157083b34
     verdict: pending
-    lanes: []
+    lanes:
+    - name: rig
+      repo: tart
+      touch_set:
+      - gems/tui-split-rig/**
+      - lib/tart/parity.rb
+      - lib/tart/parity/**
+      - bin/pty-tester
+      - parity/**
+      - test/parity/**
+      - Rakefile
+      - tart.gemspec
+      - README.md
+    - name: render
+      repo: tart
+      touch_set:
+      - lib/tart/render/chat.rb
+      - lib/tart/render/text.rb
+      - lib/tart/render/panel.rb
+      - lib/tart/render/bash_block.rb
+      - lib/tart/render/file_blocks.rb
+      - lib/tart/render/tool_block.rb
+      - lib/tart.rb
+      - test/chat_test.rb
+      - test/render/**
+    rehearsal:
+      gates_digest: 9d93b29bfdc039a6b5627c8d6a470870704e6638fd5f33409afada382076e3d9
+      at: '2026-10-11T14:01:00-06:00'
   integration_branch: project/pi-port
