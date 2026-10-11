@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: transcript-expandables
+  current_iteration: editor-kill-ring
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1096,4 +1096,10 @@ project:
     rehearsal:
       gates_digest: f35c6097edc5e8e835b6a82eca1619d5a65454afcab166158085185f5301839b
       at: '2026-10-11T16:55:03-06:00'
+  - name: editor-kill-ring
+    ordinal: 26
+    file: architecture/I26-editor-kill-ring.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
