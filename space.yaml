@@ -442,7 +442,7 @@ project:
     ordinal: 10
     file: architecture/I10-skills-settings-commands.md
     freeze_sha: 88b3949bafba73ae0286280d55e50650009478b7
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
