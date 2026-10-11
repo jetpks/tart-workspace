@@ -150,10 +150,181 @@ Calibration: AC1 is the **deliverable-number criterion** (the exit code is the p
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I19-bash-preview-collapse-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section bash-preview-collapse prompt --append --lane <lane> --from build/I19-bash-preview-collapse-<lane>/prompt.md`. -->
+### render
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo. Silent compliance
+is a failure. Silent scope additions are a failure. If you have no
+disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed in BOUNDARIES. You
+are one of several parallel lane agents working in isolated worktrees; files
+outside your lane belong to other agents — touching them fails your lane.
+No placeholder implementations — search the codebase before implementing;
+full implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive forms); well-factored and
+DRY-ish; terse but clear; pragmatic, not clever — the smallest change that does
+the job, no abstraction it doesn't need. Tests stay simple and terse, exercising
+public behavior, no mock/stub of the class under test. Verify your work by
+running the acceptance criteria's gate commands and record the verbatim output.
+Do NOT commit and do NOT run any git write command (commit/add/branch/reset/
+checkout) — the architect commits and merges after verification, and verifies
+you made no commits. Do NOT delete lock files or escalate privileges if a
+command fails; record the exact error and continue. Do NOT use run_in_background
+(or shell `&`) for your own work — run long commands serially in the foreground
+with explicit timeouts instead. When done, write your report to the scratch
+file given below (an absolute path OUTSIDE your worktree), with RAW results
+only — tables, numbers, command output — no interpretation. Every status claim
+must be backed by a command result from this run. Keep the report compact.
+Do not title the report; keep any headings at `###` or deeper. End with exactly
+one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them) |
+BLOCKED (exact blocker + what you tried). Verdicts belong to the architect and
+the human.
+
+=== LANE: render (I19 bash-preview-collapse) ===
+
+Report file: /Users/eric/architect/spaces/20261009-pi-port/build/I19-bash-preview-collapse-render/report.md
+
+=== OBJECTIVE (and why) ===
+
+BRIEF §8 exact-parity program, the s4 slice. The s4 baseline
+(s4_bash_variants) measures four candidate classes — banner chrome, bash
+preview collapse, tart right-rail, blank padding — and the architect's probe
+(row arithmetic, in Grounds) proved three of them DERIVE from one defect: the
+port renders every bash output line, where pi collapses the block to the LAST
+5 lines + a `... (N earlier lines, ctrl+o to expand)` hint
+(BASH_PREVIEW_LINES = 5, VisualLinePreview keep: "end"). Uncollapsed, tart's
+s4 transcript is 41 rows vs pi's 35 → tart's viewport overflows → follow-end
+scrolls 6 rows (banner + a blank scroll off; the auto scrollbar paints —
+correct semantics, mis-triggered by the taller content). Collapsed, the
+transcript fits: no scroll, banner visible, scrollbar hidden — one fix closes
+all four classes.
+
+Your lane ports the collapse into the bash block: when the rendered output
+exceeds 5 lines, keep the LAST 5 and render the hint row; 5 lines or fewer
+render in full with no hint. The hint bytes and styles are pi's: muted
+`... (N earlier lines,` + plain ` ` + dim `ctrl+o` + muted ` to expand)` —
+the I18 write-block's expand-hint row family (write.ts:117-118) is the in-repo
+idiom to follow, with bash.ts's differing text (`earlier lines`, no total).
+The collapse is PRESENTATION-ONLY: the model still sees the full output; the
+output truncation/spill machinery (last 2000 lines / 50KB) is untouched and
+composes unchanged (when both fire, the truncation notice rows follow the
+collapsed block per pi's composition — verify against pi source).
+
+The ctrl+o expand BINDING is a carried CUT (backlog C): the hint's TEXT
+renders for byte parity, nothing is bound — itemized, never silent.
+
+The live and replay paths share `enqueue_bash_block`, so one landing covers
+both; pin both in tests.
+
+OUT OF SCOPE: the scrollbar/viewport code (lib/tart/tui.rb — no change needed;
+if a class survives the collapse, record it, do not chase it), the write/read
+renderers, the duration seam, the tools, parity/**, everything outside your
+touch set.
+
+=== EXPECTED STATE (read twice) ===
+
+Your worktree provisions off the merged base where I17/I18 landed (bash block
+shapes, duration seam, write/read renderers). Your s4 live run must exit 0
+ALONE once the collapse lands. If a class survives (banner, rail, blanks),
+that class is a REAL defect of its own — record it verbatim in your report;
+do NOT touch tui/viewport files to chase it. Your s2 run must stay exit 0
+(s2's echo output is under the 5-line boundary — no visible change); s3 must
+stay exit 0 (write/read untouched).
+
+=== OUTPUT FORMAT ===
+
+- The named test list (collapsed shape; exact-5 no-hint boundary; exact-6
+  `... (1 earlier lines, ...)` boundary; trailing-blank handling per pi's
+  VisualLinePreview; hint byte/style pins; live + replay rows; truncation
+  composition) with the per-row byte assertions they pin.
+- The s4 live run: command + exit code + summary.json classes + candidates
+  verbatim (expect ZERO unknown-candidate).
+- The s2 + s3 regression runs: commands + exit codes.
+- Any legitimate test updates, itemized.
+- PHASE 0: numbered disagreements/deviations with file:line evidence.
+
+=== TOOL GUIDANCE ===
+
+- Verification: `bundle install --quiet && bundle exec rake` (your tests live
+  in test/chat_test.rb — extend it; keep tests terse, public-behavior only,
+  no mock/stub of the class under test).
+- Live rig: `bin/pty-tester run parity/scenarios/<s>.yml --out <scratch-dir>`
+  (tmux + pi on PATH, present; exit 0 = parity). Architect control baseline
+  (READ ONLY): /Users/eric/architect/spaces/20261009-pi-port/repos/tart/tmp/s4-probe/
+  (exit 1; the four-class candidate decomposition + row arithmetic are in the
+  spec's Grounds — s4 row counts: pi 35 rows / tart 41 rows).
+- pi oracle (read-only):
+  /Users/eric/architect/spaces/20261009-pi-port/repos/pi —
+  packages/coding-agent/src/core/tools/renderers/bash.ts:14,60-90 (collapsed
+  vs expanded paths, hint bytes);
+  packages/coding-agent/src/modes/interactive/components/visual-truncate.ts
+  (VisualLinePreview IN FULL — keep: "end", exact boundary, trailing-blank/\r
+  handling); packages/tui/src/layout.ts:285,309-330 (scrollbar "auto"
+  visibility — context only).
+- Existing machinery to build on: read lib/tart/render/chat.rb IN FULL —
+  `enqueue_bash_block` (I17, where the collapse lands), the I18
+  `write_content_rows` expand-hint row idiom, `padded_fg_rows`, Theme tokens.
+
+=== BOUNDARIES ===
+
+MAY touch: `lib/tart/render/chat.rb`, `test/chat_test.rb` — nothing else.
+MUST NOT touch: `lib/tart/tools/**` (the tool + truncation/spill machinery —
+presentation-only change), `lib/tart/agent/**`, `lib/tart/tui.rb`, `parity/**`,
+`tart.gemspec`/`Gemfile*`, `bin/tart`, any other test file, `test/support/**`.
+No refactors beyond the collapse; no placeholders; `rg` before implementing.
+
+=== ACCEPTANCE CRITERIA (frozen — verify against them, do not edit or work around) ===
+
+AC1 (s4 settled-screen parity — BRIEF §8, the I18 hand-off). `bin/pty-tester
+run parity/scenarios/s4_bash_variants.yml` exits **0**: the settled screens
+are byte-indistinguishable — the 12-line output collapsed to pi's last-5 +
+`... (7 earlier lines, ctrl+o to expand)`, the banner rows back (no follow-end
+scroll), no scrollbar rail, blanks aligned. `parity/registry.yml` gains no
+new classes.
+
+AC2 (bash preview collapse — BRIEF §8, property). Bash tool output blocks
+render pi's collapsed preview when the output exceeds 5 lines: the LAST 5
+lines kept, the hint row byte-exact (`... (N earlier lines, ctrl+o to
+expand)`) with pi's muted/dim span styles, no collapse and no hint at 5 lines
+or fewer; live and replay paths share the shape; existing
+truncation-warning behavior composes unchanged. Named tests in
+`test/chat_test.rb` pin the collapsed shape, the exact-5/exact-6 boundaries,
+trailing-blank handling (per pi's `VisualLinePreview` source, verified in
+PHASE 0), and the replay rows.
+
+AC3 (s2/s3 regression — BRIEF §8). `parity/scenarios/s2_tool_turn.yml` and
+`parity/scenarios/s3_tool_turn_files.yml` still exit 0 — short outputs (s2's
+echo) must render identically (under the 5-line boundary) and the write/read
+shapes (s3) must be untouched.
+
+AC5 (suite, bench — standing). `bundle exec rake` green (0 failures, 0
+errors) including the new collapse tests; `bench/seam_bench.rb` prints
+`SEAM_BENCH_OK`; the gemspec runtime dependency set is unchanged.
+
+Gates you can run locally (from your worktree):
+
+    bundle install --quiet && bundle exec rake && echo SUITE_OK   # exit 0
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1            # SEAM_BENCH_OK
+    bin/pty-tester run parity/scenarios/s4_bash_variants.yml --out <scratch-dir>
+      # expected AFTER your collapse: exit 0
+    bin/pty-tester run parity/scenarios/s2_tool_turn.yml --out <scratch-dir>   # exit 0
+    bin/pty-tester run parity/scenarios/s3_tool_turn_files.yml --out <scratch-dir>  # exit 0
 
 ## Builder Report
 
