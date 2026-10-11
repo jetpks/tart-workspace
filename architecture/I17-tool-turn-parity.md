@@ -519,6 +519,163 @@ Gates you can run locally (from your worktree):
     bin/pty-tester run parity/scenarios/s2_tool_turn.yml --out <scratch-dir>
       # expected: exit 1, exactly the Took-line candidates remaining
 
+### rig
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo. Silent compliance
+is a failure. Silent scope additions are a failure. If you have no
+disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed in BOUNDARIES. You
+are one of several parallel lane agents working in isolated worktrees; files
+outside your lane belong to other agents — touching them fails your lane.
+No placeholder implementations — search the codebase before implementing;
+full implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions. Tests stay simple and terse,
+exercising public behavior. Verify your work by running the acceptance
+criteria's gate commands and record the verbatim output. Do NOT commit and do
+NOT run any git write command (commit/add/branch/reset/checkout) — the
+architect commits and merges after verification, and verifies you made no
+commits. Do NOT delete lock files or escalate privileges if a command fails;
+record the exact error and continue. Do NOT use run_in_background (or shell
+`&`) for your own work — run long commands serially in the foreground with
+explicit timeouts instead. When done, write your report to the scratch file
+given below (an absolute path OUTSIDE your worktree), with RAW results only —
+tables, numbers, command output — no interpretation. Every status claim must
+be backed by a command result from this run. Keep the report compact. Do not
+title the report; keep any headings at `###` or deeper. End with exactly one
+status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them) |
+BLOCKED (exact blocker + what you tried). Verdicts belong to the architect and
+the human.
+
+=== LANE: rig (I17 tool-turn-parity) ===
+
+Report file: /Users/eric/architect/spaces/20261009-pi-port/build/I17-tool-turn-parity-rig/report.md
+
+=== OBJECTIVE (and why) ===
+
+BRIEF §8 exact-parity program, I17's instrument lane. Two halves:
+
+**(a) s2 footer staging (data-only, must land).** The s2 settled screen's last
+divergence is the footer right segment: pi renders `(mock) mock-1` (its staged
+mock catalog), tart renders `(openai) mock-1` (the un-staged defaultProvider
+fallback). s1 already stages the fix (`parity/scenarios/s1_text_turn.yml`'s
+`env: tart: TART_MODEL_PROVIDER: mock` — the I16 seam). Give
+`parity/scenarios/s2_tool_turn.yml` the same env block. Data-only — no code.
+
+**(b) s3 file-tool scenario (new, evidence-only).** The port's non-bash tool
+renders (`read`/`write`/`edit`/…) are unmeasured — no scenario exercises any
+non-bash tool turn, so the divergences are invisible to the instrument.
+Author `parity/scenarios/s3_tool_turn_files.yml`: a tool turn exercising ≥1
+**non-bash file tool** — preferred shape: response 1 scripts a `write` tool
+call (a small file into the app's sandbox cwd), response 2 scripts a `read`
+of that same file, response 3 the fixed final reply (`expected_requests: 3`).
+Both apps must complete the scripted rounds. Pin its load in
+`test/parity/scenario_test.rb` (the s1/s2 pin pattern).
+
+Then run it ONCE against your worktree base (the render lanes are still
+in-flight in parallel — the port's non-bash renders are unchanged this
+iteration, which is exactly what s3 must measure): report the baseline
+`summary.json` candidates verbatim — that list IS the next iteration's work
+list. NO exit-0 requirement, NO registry change.
+
+**Tool-feasibility duty (PHASE 0, before authoring):** verify the chosen
+tool calls' argument shapes complete in BOTH apps under the rig's staged
+sandbox — especially `write`'s path requirements (relative-to-cwd vs
+absolute) in both pi's and the port's tool implementations, and whether the
+rig's sandbox starts empty. Verify the mock server scripts consecutive
+multi-round tool calls (`test/support/mock_llm_server.rb` — s2 shows the
+one-round `tool_calls` shape; confirm N scripted responses with
+`expected_requests: N` works). Explore in throwaway scratch (e.g. a scratch
+scenario file under `tmp/` inside the sandbox staging — NEVER commit changes
+outside your touch set to explore; if exploration needs a scratch file,
+put it under `/tmp` or your worktree's `tmp/` and delete it after).
+If write/read cannot complete identically in both apps, pivot to another
+file tool (`ls`/`find` — the sandbox dir exists either way) with an itemized
+ruling; if NO non-bash tool call can be scripted to complete in both apps,
+report the s3 half BLOCKED with the exploration evidence (the s2 staging
+half must still land).
+
+=== OUTPUT FORMAT ===
+
+- The `s2_tool_turn.yml` diff, verbatim.
+- The `s3_tool_turn_files.yml`, verbatim (or the BLOCKED evidence trail:
+  the exploration commands + exact failures).
+- The s3 baseline run: command + exit code + `summary.json` (per-app
+  completion, request counts, classes) + the candidates list verbatim (the
+  next work list).
+- The scenario_test pin test names + their rake output tail.
+- PHASE 0: numbered disagreements/deviations with file:line evidence
+  (the write/read feasibility findings go here).
+
+=== TOOL GUIDANCE ===
+
+- Verification: `bundle install --quiet && bundle exec rake` (your pin lands
+  in `test/parity/scenario_test.rb`).
+- Live rig: `bin/pty-tester run parity/scenarios/<s>.yml --out <scratch>`
+  (tmux + pi on PATH, present; exit 0 = parity, 1 = unknown candidates,
+  2 = rig failure). Baseline artifacts from the architect's s2 run (READ
+  ONLY): /Users/eric/architect/spaces/20261009-pi-port/repos/tart/tmp/parity-baseline-s2/.
+- Rig internals (read before authoring): `lib/tart/parity/scenario.rb` (the
+  `env` seam, I16 — app → {VAR => value}, validated at load),
+  `lib/tart/parity/runner.rb` (staging, `staged_env`), `parity/scenarios/*.yml`
+  (all four existing shapes), `test/support/mock_llm_server.rb` (the response
+  vocabulary: :stream/:message/:error, `tool_calls` scripting).
+- pi's tool argument shapes (read-only):
+  /Users/eric/architect/spaces/20261009-pi-port/repos/pi —
+  `packages/coding-agent/src/core/tools/write.ts`, `read.ts`, `ls.ts`
+  (verify what pi's write/read accept — path form, content arg — and that a
+  sandbox-relative write works there).
+- Expected intermediate state: your worktree's s2 run still exits 1 — the
+  render/timing lanes (parallel, in-flight) close the tool-block candidates;
+  the FOOTER candidate is yours and closes with your staging. Record the s2
+  exit + candidates verbatim anyway (it proves the staging half).
+
+=== BOUNDARIES ===
+
+MAY touch: `parity/scenarios/s2_tool_turn.yml`,
+`parity/scenarios/s3_tool_turn_files.yml` (NEW — create),
+`test/parity/scenario_test.rb`. MUST NOT touch: `lib/**`, `bin/**`,
+`parity/registry.yml` (no new sanctioned classes — a divergence is fixed in
+the render, never classified away), `test/**` except
+`test/parity/scenario_test.rb`, README.md, gemspec/Gemfile*. No refactors
+beyond the task; no placeholders; `rg` before implementing.
+
+=== ACCEPTANCE CRITERIA (frozen — verify against them, do not edit or work around) ===
+
+AC4 (rig — pty-tester BRIEF §2, feeds BRIEF §8's next slice). s2 stages
+`TART_MODEL_PROVIDER: mock` (data-only — the footer right segment reads
+`(mock) mock-1`, proven by AC1's exit 0). A third scenario
+`parity/scenarios/s3_tool_turn_files.yml` exercising ≥1 non-bash file tool
+completes in BOTH apps under the rig, is load-pinned in
+`test/parity/scenario_test.rb`, and its baseline candidate list is reported
+verbatim in the lane report as the next work list (evidence-only — no
+exit-0 requirement, no registry change). A documented feasibility blocker
+with exploration evidence is an acceptable outcome for the s3 half only;
+the s2 staging half must land either way.
+
+Gates you can run locally (from your worktree):
+
+    bundle install --quiet && bundle exec rake && echo SUITE_OK   # exit 0
+    grep -q "TART_MODEL_PROVIDER" parity/scenarios/s2_tool_turn.yml && echo S2_STAGED_OK
+    bin/pty-tester run parity/scenarios/s2_tool_turn.yml --out <scratch-dir>
+      # expected: exit 1, the tool-block candidates remaining (render/timing
+      # lanes close them) — the FOOTER candidate must be GONE (your staging)
+
 ## Builder Report
 
 <!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
