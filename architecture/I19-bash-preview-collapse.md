@@ -450,11 +450,95 @@ Gates you can run locally (from your worktree):
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I19-bash-preview-collapse-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence bash-preview-collapse --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### render
+
+### PHASE 0 — disagreements / deviations (itemized)
+
+1. **Truncation-notice styling kept at `tool_output`, not pi's `warning`.** pi renders the truncation notice with `theme.fg("warning", …)` (pi `renderers/bash.ts:88`); the port renders it today as part of the output text, i.e. `tool_output` fg (I17 `tool_result_text` path). I changed only the position (footer split off, rows follow the collapsed block, blank-separated — pi's composition per bash.ts:65-71) and kept the fg, because AC2 freezes "existing truncation-warning behavior composes unchanged" and no scenario exercises truncation. Recorded, not silently resolved.
+2. **Footer-split guard is weaker than pi's by necessity.** pi guards on `details.truncation.truncated && fullOutputPath` (bash.ts:66); the port's render layer sees only the result text (no details channel — `tool_result_text`, chat.rb:1094). Guard used: output ends with `"]"` and the tail block contains `"Full output: "` (the port's notices always carry it — `lib/tart/tools/bash.rb:216-237`, `lib/tart/mcp/tool.rb:120`). A legit bash output shaped `body\n\n[… Full output: …]` that was NOT truncated would be mis-split. pi carries the same class of risk with a stronger guard.
+3. **"Keep the LAST 5 lines" implemented as last 5 *visual (wrapped) rows*, not logical lines** — per pi `visual-truncate.ts` `truncateToVisualLines`/`VisualLinePreview` (keep: "end" counts post-wrap render lines; a long wrapping line consumes multiple preview rows). The OBJECTIVE's "rendered output exceeds 5 lines" was ambiguous; pinned with `test_bash_block_collapse_counts_wrapped_visual_rows`.
+4. No other disagreements. Verified against live pi source: `BASH_PREVIEW_LINES = 5` (bash.ts:14); hint bytes = `muted("... (N earlier lines,")` + plain `" "` + `keyHint("app.tools.expand","to expand")` = `dim("ctrl+o") + muted(" to expand")` + `muted(")")` (bash.ts:82-84, keybinding-hints.ts:30-32) — matches the spec's byte description; `.trim()` before the preview kills trailing blanks at the source (bash.ts:63); no pluralization branch (`(1 earlier lines,`). s4 baseline re-measured pre-fix: exit 1, pi 35 rows / tart 41 rows — matches the Grounds arithmetic.
+
+### Files touched (lane touch set only)
+
+- `lib/tart/render/chat.rb` — `BASH_PREVIEW_LINES = 5`; `enqueue_bash_block` routes the body through `collapse_bash_preview` (after `padded_fg_rows` wrapping → visual-row semantics) and the notice through `split_truncation_notice`; extracted `expand_hint_row(prefix)` shared by `write_content_rows` (byte-identical hint row: muted prefix, plain space, dim `ctrl+o`, muted ` to expand)`); no other change. Live + replay share `enqueue_bash_block` unchanged (one landing covers both).
+- `test/chat_test.rb` — 7 new tests, 2 existing assertions updated (below).
+- No commits made; no git write commands run (`git status`: only the two files above modified).
+
+### Tests (named list, all in test/chat_test.rb, all pass)
+
+- `test_bash_block_collapses_to_the_last_five_lines_plus_the_earlier_lines_hint` — s4 shape: 12 lines → ` ... (7 earlier lines, ctrl+o to expand)` + ` 8`–` 12`; cell pins: hint prefix fg = `Theme[:muted]`, `ctrl+o` fg = `Theme[:dim]`.
+- `test_bash_block_renders_whole_at_exactly_five_lines` — exact-5 boundary: full render, no hint row.
+- `test_bash_block_hints_one_earlier_line_at_exactly_six_lines` — exact-6 boundary: ` ... (1 earlier lines, ctrl+o to expand)` (pi's singular-agnostic bytes) + last 5.
+- `test_bash_block_collapse_counts_wrapped_visual_rows` — 100-char line wraps to 3 rows at width 40; 6 visual rows → 1 hidden; the wrapped tail rows are the kept ones (VisualLinePreview keep "end").
+- `test_bash_block_trailing_blank_lines_trim_before_the_collapse` — `…\n\n\n` trims before the preview (bash.ts:63 `.trim()`); 8 real lines → `(3 earlier lines,`, trailing blanks count nothing.
+- `test_bash_block_truncation_notice_follows_the_collapsed_block` — 8 body lines + `\n\n[Showing lines 5-8 of 8. Full output: /tmp/full.txt]` → collapsed body (hint + last 5), then blank, then the notice rows (pi's composition, bash.ts:65-71); notice not swallowed into the kept five.
+- `test_resume_session_replays_the_collapsed_bash_preview` — recorded JSONL replay of a 12-line bash result → same collapsed rows (hint + ` 8`–` 12`), no invented Took.
+
+Legitimate test updates, itemized:
+
+1. `test_write_block_previews_ten_lines_then_the_expand_hint` — unchanged; the extracted `expand_hint_row` is byte-identical (verified by this test still passing).
+2. The 7 tests above are new; no existing assertion was modified. (Correcting my working note: zero existing-test edits were needed.)
+
+### Gate results (verbatim, this run)
+
+`bundle install --quiet && bundle exec rake && echo SUITE_OK`:
+
+```
+384 runs, 1512 assertions, 0 failures, 0 errors, 1 skips
+RAKE_EXIT:0
+```
+
+(the pre-existing 1 skip is unchanged from the baseline run: 377 runs / 1 skip before this lane)
+
+`bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1`:
+
+```
+SEAM_BENCH_OK
+BENCH_EXIT:0
+```
+
+`bin/pty-tester run parity/scenarios/s4_bash_variants.yml --out /tmp/i19-s4-after`:
+
+```
+S4_EXIT:1
+classes: {"unknown-candidate" => 70, "parity-run-path" => 2}
+```
+
+`bin/pty-tester run parity/scenarios/s2_tool_turn.yml --out /tmp/i19-s2`:
+
+```
+S2_EXIT:0
+{"parity-run-path" => 2}
+```
+
+`bin/pty-tester run parity/scenarios/s3_tool_turn_files.yml --out /tmp/i19-s3`:
+
+```
+S3_EXIT:0
+{"parity-run-path" => 2}
+```
+
+### s4: AC1 NOT settled — two surviving classes, verbatim (out of lane scope)
+
+The collapse itself landed and is byte-correct: both settled captures are now 40 lines total (35 content rows + editor/footer); tart shows ` ... (7 earlier lines, ctrl+o to expand)` + ` 8`–` 12`, the banner rows are back (no follow-end scroll of the pi-side rows), blanks aligned with pi. Remaining diff, decomposed:
+
+1. **MOTD logo row (tart-only, +1 content row).** Verbatim pair:
+   `-  █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more` (pi row 1 — pi's mark rides the hints line)
+   `+  ▀▀█  v1.1.0` (tart row 1) followed by the same hints line as tart row 2. pi renders no logo/version row; tart's MOTD (identity: owner art + version) is one row taller. This row is rendered by `motd_logo_lines`/the MOTD block in `lib/tart/render/chat.rb` but is the designed identity feature (chat.rb `identity` contract doc) — removing it to buy AC1's exit-0 would falsify the identity contract, so it is reported, not resolved. This +1 row is what keeps tart's transcript at 36 buffer rows vs pi's 35.
+2. **Auto scrollbar rail paints in tart, none in pi.** Verbatim: tart content rows 1-35 end with `│` (row 1) / `┃` (rows 2-35); pi's corresponding rows have no rail glyph. With the 36-row buffer over the 35-row viewport the rail is "correct semantics" per the Grounds — mis-triggered by the MOTD's extra row (class 1). Rail/viewport code is `lib/tart/tui.rb` — OUT OF SCOPE per the spec; recorded, not chased. (Observed corollary for whoever chases it: the settled view stayed top-anchored — tart's visible window is buffer rows 1-35, the trailing blank after the final reply scrolled off — while the rail indicates overflow; the follow-end/rail interaction is the defect surface.)
+3. `parity-run-path` ×2 — sanctioned path noise, unchanged.
+
+`parity/registry.yml` untouched: no new classes pinned (pinning needs the owner's ruling).
+
+### Status of the frozen ACs
+
+- AC2 (collapse property): SATISFIED — named tests green, live+replay share the shape, truncation composes after, boundaries pinned.
+- AC3 (s2/s3): SATISFIED — both exit 0.
+- AC5 (suite, bench, gemspec): SATISFIED — rake 0 failures/0 errors, `SEAM_BENCH_OK`, gemspec untouched.
+- AC1 (s4 exit 0): NOT MET — blocked by the two out-of-lane classes above; the collapse's own bytes are in parity. Conflict raised per PHASE 1: satisfying AC1's letter would require either touching `lib/tart/tui.rb`/MOTD identity (forbidden) or deleting the owner's logo row (worse than the property AC1 asserts).
+
+STATUS: COMPLETE_WITH_CONCERNS (AC1 exit-0 blocked by two surviving out-of-scope classes: the tart-only MOTD logo row `▀▀█  v1.1.0` (+1 buffer row vs pi) and the auto scrollbar rail that then paints — recorded verbatim above, not chased per spec; AC2/AC3/AC5 fully green)
 
 ## Verdict
 
