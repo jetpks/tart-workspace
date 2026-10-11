@@ -9,11 +9,19 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section decomp-wave4 grounds --from <file>`. -->
+# Grounds — I24 decomp-wave4
+
+Measured this session (2026-10-11) at base **53ca4b49** (= `project/pi-port` tip after I23):
+
+1. **Wave-program state.** Five waves (I21 Grounds 1, owner decisions 2026-10-11): chat.rb 3330 → 2748 (I21, six pure modules) → 2233 (I22, Editor/Autocomplete/Picker/SlashSource) → 1896 (I23, Viewport/Selection + Text cell utilities). Remaining un-extracted responsibilities of the ten: **user-bash, footer/stats, MOTD/identity** (this wave) and **transcript/expandables + coordinator** (I25, the final-review wave). Every wave so far landed byte-exact under the rig (s1–s6 exit 0 cold) with zero or PHASE-0-ruled test surgery.
+
+2. **The three clusters' measured footprints (premise grep run this session, the standing I21 carry-in):**
+   - **MOTD/identity** (chat.rb:118–184 + 586–727): `pi_hint_spans`, `motd_logo_lines`, `tart_header_lines`, `pi_header_lines`, `pi_mark`, `apple_terminal?`, `motd_sections`, `context_sources`, `motd_skill_names`, `dim_compact_list`; constants `LOGOS_DIR`, `HINTS_LINE`, `PI_HINTS`, `PI_NOTICE_LINE`, `PI_ONBOARDING_LINE`. State read: `@identity`, `@prompts`, `@extensions`, `@settings_root`, `@footer_data` (cwd only), `@autocomplete` (skill names only), `@scrollback` (the `enqueue_motd` append only). Pure content production parameterized by constructor config — wave-1 module-function shape.
+   - **User-bash** (chat.rb:1287–1413): `user_bash_command`, `user_bash`, `finish_user_bash`, `record_user_bash`, `cancel_user_bash`, `user_bash_fields`, `user_bash_record`, `flush_pending_bash_records`. State: `@user_bash_task/@user_bash_slot/@user_bash_excluded/@user_bash_command/@user_bash_cancel_flag`, `@pending_bash_records`. Seams out: `@kernel` (execution), `busy?` (record deferral gate), `@agent&.record_bash_execution` (record sink), the block/warning enqueues (render sinks). Wave-2/3 stateful-class shape (Picker `on_select` / Selection `line_reader` constructor-seam precedent).
+   - **Footer/stats** (chat.rb:1670–1795 + 921–933 + 997–1022): `footer_widget`, `read_branch`, `footer_stats`, `context_used`, `context_segment`, `context_fg`, `cache_hit_rate`, `accumulate_usage`, `reseed_usage`; constant `DEFAULT_BRANCH_READER`. State: `@branch/@branch_fetched/@branch_reader` (cache, invalidated per turn at chat.rb:414), `@usage_totals/@last_usage/@usage_stale` (accumulated at chat.rb:426/928, reseeded at :894, staled at :452 — all from Chat's event layer). Rendering takes `@footer_data` per call — the `footer_data=` writer is Chat public surface (attr_writer chat.rb:293, test seam chat_test.rb:1498) and STAYS.
+3. **Stays-put boundaries (measured):** the editor-border status chrome (`status_title`, `status_line`, `editor_border_color`, `thinking_level` — reads `@frames/@live/@tool/@compaction_reason/@border_status/@busy/@editor`, six-plus coordinator ivars, I25/final-review material); the transcript/scrollback assembly family (`enqueue_*`, `push_expandable`, `skill_panel_rows`, `replay_*`, `flush_reasoning`, `display_lines`, `transcript_widget`, `build_widget` …) — I25; `enqueue_motd` and `enqueue_user_bash_block` stay as Chat compositions (scrollback appends).
+4. **Caller facts (measured):** zero callers of any moving method outside `chat.rb` in lib/bin (grep run this session); `bin/tart` wires only constructor params (identity/prompts/extensions/settings_root/branch_reader/footer_data) — the constructor is UNCHANGED, so `bin/tart` is untouched. Tests drive all three families through Chat's public surface (motd tests via transcript readback; footer tests via `render_frame`/`footer_data=`; user-bash via `submit("!…")` + readback) — one direct touch (`footer_data=` at chat_test.rb:1498), which stays.
+5. **Control (run this session, base 53ca4b49):** suite 445 runs / 1787 assertions / 0 failures (I23's cold gate run); s1–s6 all exit 0 cold (I23's gate run); registry byte-identical to 4d858125 and now to 53ca4b49 (same content). The regression claims below are against this measured baseline, not recall.
 
 ## Specification
 
