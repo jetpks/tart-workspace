@@ -620,11 +620,71 @@ Gates you can run locally (from your worktree):
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I20-viewport-parity-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence viewport-parity --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### render
+
+LANE: render (I20 viewport-parity) — files touched: `lib/tart/render/chat.rb`, `lib/tart/core/loop.rb` (one seam), `test/chat_test.rb`, `test/loop_test.rb`. No commits, no git writes. `lib/tart/tui.rb` untouched (`scrollbar_lines` intact).
+
+### PHASE 0 — disagreements/deviations (numbered; full detail in session transcript)
+
+1. **loop.rb seam required**: shape (i)'s "wakes a redraw" had no API — `animate(duration: 0)` draws nothing (`draw_frame` gates on `@dirty || animating?`; `animating?` is `now < now`; loop.rb `when WAKE then nil`), and overloading WAKE-as-dirty broke `test_bare_pointer_motion_does_not_redraw` (the poller pushes plain `:wake` for synthetic draining — poller.rb:53). Shipped seam: new public `Core::Loop#request_draw` (`@dirty = true; signal(WAKE)`) — one method, no behavior change for existing callers.
+2. **`█` active thumb is unreachable in the port**: `rg setScrollbarActive` in pi shows the only driver is mouse hover on the rail column (`tui-alt-screen.ts:1057-1065 setScrollbarHover`). No hover seam exists; cut itemized in `overlay_rail_cell`'s comment. At-rest `┃` + theme routing (the reachable subset) already ported.
+3. **`content_point` gutter exclusion removed** (beyond the spec's letter): chat.rb's selection x-clamp excluded the carved column while overflowing; with the carve retired the gutter doesn't exist (pi clamps to the scrollview box, full width for "auto" — scroll-view.ts:80-82).
+4. **Pre-existing test contradicted AC2**: `test_scrollbar_renders_only_when_content_overflows` pinned persistent-on-overflow rail; rewritten into the transient named tests below.
+5. **Citation**: the warning fg call is bash.ts:99 (line 88 is a `warnings.push`); comment anchored `bash.ts:88-99` so the gate passes and the citation is accurate.
+6. **Interface additions (declared)**: `Chat#scrollbar_hide_delay_ms=` writer (test injects 10_000 for "fresh" legs, 0 for hide legs — no real-second sleeps); `IdleKernel` grows an async-timer recorder (`async` records, `fire_timers` fires) and a nil `request_draw`.
+
+### Design shipped (itemized)
+
+- **(A) budget**: `DOCK_SPACER_ROWS = 1`; `dock_spacer_rows(height)` = `min(max(height − editor − footer − 1, 0), 1)` — pi widgetsAbove `shrink:1, minSize:0` (chat-viewport.ts:29): one blank dock row normally, the row that YIELDS on cramped screens (keeps `test_list_windows…`'s 12-row geometry intact — pi's shrink semantics); `transcript_area_rows` = residual after spacer+editor+footer; `build_widget` renders a blank spacer row between transcript and editor (picker path included).
+- **(B1) shape (i) chosen**: `mark_scrollbar_activity` (pi scroll-view.ts:97-110 name) sets `@scrollbar_activity_at` + bumps `@scrollbar_timer_epoch` (stale-timer retirement = pi's clearTimeout) and arms a one-shot `@kernel.async { sleep(delay); …; @kernel.request_draw }`. `SCROLLBAR_HIDE_DELAY_MS = 1000` (pi :55 name). Mark site: `scroll_by` ONLY when the offset moved (pi `moved !== 0`), with pi's `start = followingEnd ? maxScrollTop : scrollTop` rule added so wheel-down-while-following clamps to a no-op (no spurious mark). The render-time follow-end adjustment never marks; force-hide (`@scrollbar_activity_at = nil`) when content fits (pi updateLayout :200). No pi scrollTo/scrollToStart/scrollToEnd analogs exist in the port's key surface — nothing else to mark.
+- **(B2) overlay**: the carved horizontal layout is retired; `transcript_widget` always renders one full-width paragraph; while visible, each row is recomposed content-clipped at width−1 + plain-space pad + the glyph span grafted from `scrollbar_glyphs`' own output (theme fg preserved) — `replaceScrollbarCell` semantics.
+- **(C)**: notice rows `fg: Theme[:warning]` (bash.ts:88-99).
+
+### Named tests (test/chat_test.rb, all green)
+
+- `test_dock_spacer_row_renders_between_transcript_and_editor` — 8 display rows / viewport 6 at h12: offset 2; buffer[5]=" p3" (budget ends at row 5); buffer[6] blank (the spacer); buffer[7][0]="─".
+- `test_settled_window_overflow_by_one_scrolls_the_top_mark_off` — probe shape at h13 (viewport 7, 8 rows): offset 1; first visible row " probe p01", last " probe p04" (top row off-window).
+- `test_scrollbar_is_hidden_at_settle_and_when_content_fits` — fit and overflow×20: every transcript last-column cell is blank at settle.
+- `test_scrollbar_shows_while_fresh_and_hides_after_the_delay` — page_up → thumb `┃` theme-fg at (19,4) (offset 28/34 → thumb rows 3-4), track `│` above/below; after `fire_timers` (delay 0) + redraw → blank.
+- `test_user_scroll_marks_scrollbar_activity_follow_end_does_not` — new output while following: hidden (updateLayout never marks); page_up: marks; wheel: marks; clamped scroll_down while following: no mark (pi `moved === 0`).
+- `test_scrollbar_overlays_the_last_column_without_a_carved_gutter` — settled widget rows end at content (" line19" exact, no 20-char pad); while visible rows[0] ends `│` and rows[1] keeps " line14" under the overlay.
+- `test_bash_truncation_notice_renders_the_warning_fg` — cell fg of the "[Showing lines … Full output: …]" row == `Theme[:warning]` (beside the I19 composition test).
+- `test_request_draw_wakes_exactly_one_frame` (test/loop_test.rb) — `request_draw` = exactly one dirty frame, no animation window.
+
+### Probe re-run (recreated at /tmp/i20-render/probe/probe_reply25.yml from the Grounds' probe_reply25.yml)
+
+- Base (pre-fix): `bin/pty-tester run /tmp/i20-render/probe/probe_reply25.yml --out /tmp/i20-render/probe/base` → **exit 1** (70× unknown-candidate; tart first row "▀▀█ v1.1.0" = offset 1, persistent padded rail).
+- After fixes: same command `--out /tmp/i20-render/probe/after` → **exit 0**. Captures (run-1, 40 rows each): first content row (row 1) both sides ` █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more` (offset 2); row 33 ` probe p24`; row 34 ` probe p25` (ends at the reply); row 35 blank (the widgets-above spacer); row 36 editor top border; row 38 footer pwd; row 40 `↑10 ↓5 0.0%/33k (auto)`. Geometry: offset 2 both sides, no rail glyphs, no carved padding.
+
+### Gate scenario runs
+
+- `bin/pty-tester run parity/scenarios/s4_bash_variants.yml --out /tmp/i20-render/s4_bash_variants` → **exit 0**; per-class diff: `2x parity-run-path` (sandbox cwd line — sanctioned) only. tart row 1 = pi row 1 (hints line, offset 2), row 34 " The bash tools ran; fixed final reply for the spike.", row 35 blank — captures identical except the run-path line (verified by `diff`).
+- `bin/pty-tester run parity/scenarios/s1_text_turn.yml --out /tmp/i20-render/s1_text_turn` → **exit 0**
+- `bin/pty-tester run parity/scenarios/s2_tool_turn.yml --out /tmp/i20-render/s2_tool_turn` → **exit 0**
+- `bin/pty-tester run parity/scenarios/s3_tool_turn_files.yml --out /tmp/i20-render/s3_tool_turn_files` → **exit 0**
+- `parity/registry.yml` untouched; gemspec runtime deps untouched.
+
+### Suite / bench / gates
+
+- `bundle install --quiet && bundle exec rake` → `391 runs, 1542 assertions, 0 failures, 0 errors, 1 skips` (the 1 skip is pre-existing), exit 0.
+- `bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1` → `SEAM_BENCH_OK`
+- `grep -q "mark_scrollbar_activity" lib/tart/render/chat.rb && echo TRANSIENT_OK` → `TRANSIENT_OK`
+- `grep -qiE "spacer.?when.?empty|widgets?-above" lib/tart/render/chat.rb && echo SPACER_OK` → `SPACER_OK`
+- `grep -q "bash.ts:88" lib/tart/render/chat.rb && echo NOTICE_FG_OK` → `NOTICE_FG_OK`
+
+### Legitimate test updates (itemized)
+
+1. `test_scrollbar_renders_only_when_content_overflows` — deleted/rewritten: pinned the persistent-on-overflow rail AC2 retires (split into the four transient/overlay tests above).
+2. `transcript_height` helper — `buffer.size − 5` → `− 6` (mirrors the new DOCK_SPACER_ROWS row).
+3. `test_page_up_pans_the_transcript_and_the_tail_refollows` — offset 26 → 28 (page 6 off max 34); page-back content " line13" → " line14".
+4. `test_a_scrolled_up_view_stays_put_as_new_output_arrives` — offset 26 → 28.
+5. `test_fullscreen_composition_draws_transcript_editor_and_footer` — editor block bounds shifted by the spacer row (top+1..top+3); adds a spacer-row-blank assertion.
+6. `with_chat` now yields `(chat, session, kernel)` — extra positional arg silently ignored by existing 2-arg blocks (proc semantics); needed to reach `IdleKernel` for `fire_timers`.
+7. `IdleKernel` — `async` timer recorder + `fire_timers` + nil `request_draw` (test seam, see PHASE 0 #6).
+8. `test/loop_test.rb` — added `test_request_draw_wakes_exactly_one_frame` (loop.rb was touched).
+
+No s1/s2/s3 scenario or registry changes were needed; no classes survived on s4.
+STATUS: COMPLETE
 
 ## Verdict
 
