@@ -750,7 +750,29 @@ project:
   - name: tool-turn-parity
     ordinal: 17
     file: architecture/I17-tool-turn-parity.md
-    freeze_sha:
+    freeze_sha: 5174bdc1039d183678107ed7d94fd10081137354
     verdict: pending
-    lanes: []
+    lanes:
+    - name: timing
+      repo: tart
+      touch_set:
+      - lib/tart/agent/loop.rb
+      - test/agent_loop_test.rb
+    - name: render
+      repo: tart
+      touch_set:
+      - lib/tart/render/chat.rb
+      - lib/tart/theme.rb
+      - test/chat_test.rb
+      - test/theme_test.rb
+      - test/fixtures/**
+    - name: rig
+      repo: tart
+      touch_set:
+      - parity/scenarios/s2_tool_turn.yml
+      - parity/scenarios/s3_tool_turn_files.yml
+      - test/parity/scenario_test.rb
+    rehearsal:
+      gates_digest: 187b55cc8627cbb60db2f902354d8b8fb7a9e4d26380fb891ef17e52c0ef29b4
+      at: '2026-10-10T21:14:11-06:00'
   integration_branch: project/pi-port
