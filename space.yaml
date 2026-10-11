@@ -1048,7 +1048,7 @@ project:
     ordinal: 24
     file: architecture/I24-decomp-wave4.md
     freeze_sha: e6b71172f3bbae6fae289836494ed6266f1befc8
-    verdict: pending
+    verdict: continue
     lanes:
     - name: content
       repo: tart

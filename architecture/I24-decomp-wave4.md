@@ -572,15 +572,36 @@ STATUS: COMPLETE_WITH_CONCERNS (concerns are the PHASE 0 items above, all pre-ra
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section decomp-wave4 verdict --from <file>`. -->
+# Verdict — I24 decomp-wave4
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify decomp-wave4`)?
+Judged in a fresh session (the dispatch session judged nothing). Post-flight
+clean before integration: frozen sections untouched vs freeze e6b71172
+(only Builder Prompt/Report appended); zero builder commits off base 53ca4b49;
+worktree status exactly the declared touch set (chat.rb, test/chat_test.rb
+modified; motd.rb/user_bash.rb/footer.rb new); PHASE 0 raised — 8 items, none
+silent. All 14 gates run cold post-integration (merge 5cc263ec →
+`project/pi-port`): 14/14 PASS.
+
+- **Disagreement rulings (all 8 PHASE-0 items):**
+  1. Test constant re-point (`Render::Chat::{LOGOS_DIR,PI_HINTS,PI_NOTICE_LINE,PI_ONBOARDING_LINE}` → `Render::Motd::…`, chat_test.rb:1098/1152-1159) — **ACCEPT**: forced by AC1's constant move; the diff read is pure namespace re-pointing, names and assertions unchanged, run-count delta 0 verified (134 `def test_` before = after; 445 runs = base). AC6's moves-only covers it.
+  2. `clear_transcript` re-point (chat.rb:749 → `@footer.reset_usage`) — **ACCEPT**: base's body reset `@usage_totals/@last_usage/@usage_stale` (chat.rb:935-938 at 53ca4b49); AC1's zero-ivar rule + behavior preservation (usage reset on /new) leave no legal alternative. AC4's sanctioned re-point enumeration omitted it — a spec authoring defect, properly letter-vs-spirit raised, not a builder defect. Carry-in to I25: enumerate coordinator-state writes in out-of-scope bodies explicitly.
+  3. Escape guard `@user_bash.running?` (chat.rb:952) — **ACCEPT**: mechanical consequence of the ivar move; squarely inside AC4's sanctioned "user-bash routing inside submit/escape handling".
+  4. Footer data view (private `footer_data` reader, chat.rb:1328, overlaying `@thinking_level` into the threaded view) — **ACCEPT**: base `footer_stats` read Chat's runtime `@thinking_level` (chat.rb:1725-1729 at 53ca4b49), which is wave-5 state that stays on Chat; Footer's frozen seams (branch reader at construction, data per call) are kept exactly. The reader is `private` (below l.478), so the public `footer_data=` writer surface (attr_writer l.232, chat_test.rb:1498) is unchanged — AC2 holds.
+  5. Renames (`UserBash.parse`, `#finish`, `#record`, `#fields`, `#build_record`; Footer `#widget`/`#stats`; ops `invalidate_branch`/`mark_usage_stale`/`reset_usage`; `running?`) — **ACCEPT**: spec-delegated naming (the assignment table + shape rule f); the `user_bash_` prefix-drop inside UserBash is the house rule against stutter.
+  6. `require "open3"` → footer.rb — **ACCEPT**: `DEFAULT_BRANCH_READER` was chat.rb's only Open3 user; mechanical.
+  7. `Motd.sections` param shape — **ACCEPT**: matches the spec's "width + the gathered context/skills/prompts/extensions data"; verified at the enqueue_motd call site (chat.rb:536-540).
+  8. s1_tart exit=1 at base — **ACCEPT**: not one of the six frozen gates (the s1 gate is s1_text_turn.yml, exit 0 cold); the builder ran the base-archive control itself (satisfying the control discipline); the identity-header divergence is the registry's designed known-divergence surface.
+
+- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify decomp-wave4`: (a)-(d) all PASS; `git diff e6b71172 HEAD -- architecture/I24-decomp-wave4.md` touches only post-freeze sections). BRIEF §8 (byte-exact settled-screen parity) is the contract this wave serves.
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | moved-methods-gone/constants-gone/state-leak/new-classes-present PASS cold; report move table: 26 defs + 5 constants + 12 ivars moved, 0 residual refs | §8 | PASS |
+| AC2 | grep over the three new files: zero Chat-state refs beyond injected seams (`@kernel` in UserBash is constructor-injected); all Footer ops called inside the same `@mutex.synchronize` event-layer block as the base ivar writes; constructor/footer_data= unchanged; bin/tart untouched | §8 | PASS |
+| AC3 | s1–s6 exit 0 cold from the integrated tree; registry byte-identical to 53ca4b49 | §8 | PASS |
+| AC4 | wave5-intact 25/25 defs present; sealed wave-1/2/3 files + bin/tart untouched; 47 added non-comment lines in chat.rb, all requires/construction/re-points; clear_transcript re-point ruled legal above (ruling 2) | §8 | PASS |
+| AC5 | suite 445 runs / 1787 assertions / 0 failures / 1 pre-existing skip; bench SEAM_BENCH_OK — both PASS cold | §8 | PASS |
+| AC6 | test diff is pure `Render::Chat::`→`Render::Motd::` namespace re-point (6 line pairs); 134→134 tests, delta 0; footer_data= sites unchanged | §8 | PASS |
+| AC7 | Idiom read vs waves 1–3: Motd module-function pure (zero ivars, params threaded); UserBash/Footer constructor-injected seams per Picker/Selection precedent, doc comments carry the pi citations (interactive-mode.ts / footer.ts / footer-data-provider.ts / bash-execution.ts / keybinding-hints.ts); Footer#widget's double `read_branch` call is base's own idiom moved verbatim (53ca4b49 chat.rb:1674); no delegator shims, no abstraction beyond the assignment table | §8 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+- **Iteration** — **CONTINUE**: a clean wave — the three remaining non-transcript clusters moved with 14/14 gates green cold, byte-exact under the rig (BRIEF §8 holds), zero silent surgery, and chat.rb 1896 → 1436 lines; only the final wave (I25: transcript/expandables + coordinator) remains.
