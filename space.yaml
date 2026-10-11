@@ -917,12 +917,22 @@ project:
       - test/parity/scenario_test.rb
       base_sha: 206af8de4f93f69ca1481f837029380e63dedbf0
       worktree: build/I20-viewport-parity-rig/wt
-      integration_branch:
+      integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
       variant: false
       dispatched_at: '2026-10-10T23:10:46-06:00'
       effort: medium
+      integrate_sha: ab7d81198d6cd69172d9dfac6e3a8971ca2137e7
+      bounds_override_reason: 'Spec defect, not lane defect: the Specification''s
+        prose granted registry.yml conditionally (''UNLESS a baseline run proves a
+        path-class gap — evidence required'') but the frozen machine lanes block cannot
+        express a conditional touch. The rig''s report carries the demanded evidence
+        (s5 baseline: both apps'' spill files land in OS tmpdir with random segments
+        — port output_accumulator.rb Dir.tmpdir, pi output-files.ts tmpdir() — so
+        parity-run-path run-\d+/ cannot match), verified this session against both
+        sources. The pin is path-shaped noise, matching the seed philosophy; the seed
+        guard test covers it.'
     rehearsal:
       gates_digest: 3843f7f3dd88185e626ed42b2a22c17809b2e2af48da91b10d2572331ddb06b1
       at: '2026-10-10T23:07:58-06:00'
