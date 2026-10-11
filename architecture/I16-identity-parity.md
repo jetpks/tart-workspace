@@ -532,6 +532,153 @@ Frozen gates you self-verify (the architect re-runs them cold):
 - s1-tart-mode: `bin/pty-tester run parity/scenarios/s1_tart.yml --app tart --out tmp/parity-gate-tart && grep -q "tart v" tmp/parity-gate-tart/run-1/tart.capture && ! grep -q "Pi can explain" tmp/parity-gate-tart/run-1/tart.capture && echo TART_MODE_OK` → TART_MODE_OK
 - identity-seam-tripwire: `grep -q "TART_IDENTITY" bin/tart && grep -q "identity" lib/tart/settings.rb && echo IDENTITY_SEAM_OK` → IDENTITY_SEAM_OK
 
+### uuid
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo. Silent compliance
+is a failure. Silent scope additions are a failure. If you have no
+disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed in BOUNDARIES. You
+are one of two parallel lane agents working in isolated worktrees; files
+outside your lane belong to the other agent — touching them fails your lane.
+No placeholder implementations — search the codebase before implementing;
+full implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive collection/enumerable
+forms); well-factored and DRY-ish; terse but clear; pragmatic, not clever — the
+smallest change that does the job, no abstraction it doesn't need. Consistency
+with the surrounding code is part of correctness here: a change that works but
+fights the house style (or introduces an inconsistency a careful reader of this
+repo would never write) is not done. Tests stay simple and terse, exercising
+public behavior, no mock/stub of the class under test. Verify your work by
+running the acceptance criteria's gate commands and record the verbatim output.
+Do NOT commit and do NOT run any git write command (commit/add/branch/reset/
+checkout) — the architect commits and merges after verification, and verifies
+you made no commits. Do NOT delete lock files or escalate privileges if a
+command fails; record the exact error and continue. Do NOT background your own
+work (shell `&`); run long commands serially in the foreground with an explicit
+timeout (`bundle exec rake` takes ~25s; timeout 300 covers it). When done,
+write your report to the scratch file given below (an absolute path OUTSIDE
+your worktree), with RAW results only — tables, numbers, command output — no
+interpretation, no "promising". Every status claim must be backed by a command
+result from this run. Keep the report compact. Do not title the report; keep
+any headings inside it at `###` or deeper. End it with exactly one status line:
+STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them) | BLOCKED (exact blocker
++ what you tried). Verdicts belong to the architect and the human. Persist
+until your lane is fully handled end-to-end; do not stop at analysis or partial
+fixes.
+
+=== OBJECTIVE (and why) ===
+
+Owner-directed dependency adoption (unrelated to the parity program running in
+the parallel identity lane): the port hand-rolls `Session.uuidv7`
+(lib/tart/agent/session.rb:53-62) because no good uuid gem existed at port
+time. The owner has since written and published **fast-uuid 0.1.0** (RFC
+9562-compliant, pure Ruby, no dependencies). Adopt it as a runtime dependency
+and use it for uuid generation (and parsing/validation, if any exists) — the
+hand-rolled implementation goes away, the public contract stays.
+
+=== FAST-UUID DESIGN (the contract) ===
+
+- gemspec: `spec.add_dependency "fast-uuid", "~> 0.1.0"` (pre-1.0 API may
+  move — the tight pin is deliberate; itemize if you disagree). Gemfile.lock
+  updates via `bundle install` (it is a committed file — your lane may touch
+  it; the Gemfile itself only if needed).
+- `Session.uuidv7` generation delegates to `Fast::UUID.uuid_v7` (String form,
+  drop-in for SecureRandom-style calls). KEEP the public surface
+  (`Session.uuidv7(time:)` — injectable time, used by tests) and the
+  session-id format contract (lowercase hyphenated v7 string): existing
+  session-id tests must pass **unmodified**.
+- `generate_id`'s full-uuid fallback (`SecureRandom.uuid`, session.rb:68) →
+  `Fast::UUID.uuid_v4`. The 8-hex entry ids are NOT uuids — leave them
+  (`SecureRandom.hex(4)`).
+- If any uuid parsing/validation exists today beyond generation (grep first —
+  the architect found none), route it through `Fast::UUID.parse`/`valid?`;
+  if none exists, generation-only adoption is the complete answer — say so,
+  don't invent parsing.
+
+=== OUTPUT FORMAT ===
+
+- The gemspec dependency line + the Gemfile.lock delta (the fast-uuid
+  dependency block, verbatim).
+- Session-id format before/after: 10 sample ids from the old implementation
+  (quoted from git: `git show HEAD:lib/tart/agent/session.rb` — read-only git
+  is fine) and 10 from the new, plus one `Fast::UUID.valid?` check on each
+  new id.
+- Burst evidence for PHASE 0: same-millisecond uniqueness — generate 10_000
+  ids inside one tight loop (monotonic clock evidence that they share
+  millisecond timestamps where they do), assert uniqueness, report the count
+  and any collisions.
+- Test output: the tail of `bundle exec rake` (runs/assertions/failures) +
+  the SEAM_BENCH_OK line.
+
+=== TOOL GUIDANCE (verification commands; verify-against-reality list) ===
+
+- `bundle install --quiet && bundle exec rake` (minitest, test/**/*_test.rb)
+- `bundle exec ruby bench/seam_bench.rb` → prints SEAM_BENCH_OK
+- Verify BEFORE planning, against the LIVE GEM (install it first):
+  `gem install fast-uuid` or bundle, then in irb/ruby: `require "fast/uuid"`;
+  `Fast::UUID.uuid_v7` (String form, format + case + hyphenation);
+  `Fast::UUID.v7(time:)` object form (`.to_s`, `.timestamp`, Comparable);
+  `Fast::UUID.uuid_v4`; `Fast::UUID.parse("…")` / `parse?` / `valid?`
+  (`Fast::UUID::ParseError` on garbage); same-millisecond burst behavior of
+  `uuid_v7` (uniqueness across a burst — this is the one behavioral risk vs
+  the hand-rolled version; measure it, rule on it in PHASE 0).
+
+=== BOUNDARIES (may touch / must not touch / out of scope) ===
+
+MAY TOUCH (exhaustive — nothing else):
+- tart.gemspec
+- Gemfile
+- Gemfile.lock
+- lib/tart/agent/session.rb
+- test/session_test.rb
+
+MUST NOT TOUCH (owned by the parallel identity lane or frozen):
+- bin/tart, lib/tart.rb, lib/tart/render/**, lib/tart/theme.rb, lib/tart/tui.rb,
+  lib/tart/settings.rb, lib/tart/parity/**, parity/**, README.md (identity lane)
+- Everything not listed above (all of test/ except test/session_test.rb,
+  bench/**, lib/tart/core/**, lib/tart/commands.rb, …).
+
+OUT OF SCOPE: any refactor of session persistence beyond the uuid swap; entry
+ids (not uuids); any change to recorded-session formats; the identity/parity
+work (parallel lane).
+
+Your scratch report (RAW results only): /Users/eric/architect/spaces/20261009-pi-port/build/I16-identity-parity-uuid/report.md
+
+=== ACCEPTANCE CRITERIA (frozen — the architect re-runs these to judge; verify
+against them, do not edit or work around) ===
+
+- **AC5 (fast-uuid adoption — YOUR criterion).** Session-id generation runs
+  through `Fast::UUID` (String-form v7; the `SecureRandom.uuid` fallback →
+  `Fast::UUID.uuid_v4`); the existing session-id tests (format, ordering,
+  uniqueness, injectable time) pass **unmodified**. PHASE 0 rules on
+  `Fast::UUID.uuid_v7` burst/same-millisecond behavior vs the hand-rolled
+  implementation with measured evidence — no silent swap.
+- **AC4 (shared).** `bundle exec rake` green (0 failures, 0 errors);
+  `bench/seam_bench.rb` prints SEAM_BENCH_OK; gemspec runtime dependency set
+  = today's plus exactly `fast-uuid`.
+
+Frozen gates you self-verify (the architect re-runs them cold):
+- suite: `bundle install --quiet && bundle exec rake && echo SUITE_OK` → exit 0
+- bench: `bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1` → SEAM_BENCH_OK
+- fast-uuid-tripwire: `grep -q "fast-uuid" tart.gemspec && grep -q "Fast::UUID" lib/tart/agent/session.rb && echo FAST_UUID_OK` → FAST_UUID_OK
+
 ## Builder Report
 
 <!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
