@@ -680,6 +680,15 @@ project:
       - test/tui_test.rb
       - test/loop_test.rb
       - test/launcher_smoke_test.rb
+      base_sha: 89417777ef4c90734d4afc3bfd68dc75f5ad7226
+      worktree: build/I15-fourth-run-parity-core/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-10T17:49:35-06:00'
+      effort: high
+      integrate_sha: b7d82c6bebc34abf59b4c81704c5006bce0714e9
     rehearsal:
       gates_digest: d8dfed2c0a644e03432eb0b1440b61612e225355c4c36efbc1bca21d7002804c
       at: '2026-10-10T17:45:35-06:00'
