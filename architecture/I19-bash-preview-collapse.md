@@ -326,6 +326,128 @@ Gates you can run locally (from your worktree):
     bin/pty-tester run parity/scenarios/s2_tool_turn.yml --out <scratch-dir>   # exit 0
     bin/pty-tester run parity/scenarios/s3_tool_turn_files.yml --out <scratch-dir>  # exit 0
 
+### rig
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo. Silent compliance
+is a failure. Silent scope additions are a failure. If you have no
+disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed in BOUNDARIES. You
+are one of several parallel lane agents working in isolated worktrees; files
+outside your lane belong to other agents — touching them fails your lane.
+No placeholder implementations — search the codebase before implementing;
+full implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive forms); well-factored and
+DRY-ish; terse but clear; pragmatic, not clever — the smallest change that does
+the job, no abstraction it doesn't need. Tests stay simple and terse, exercising
+public behavior, no mock/stub of the class under test. Verify your work by
+running the acceptance criteria's gate commands and record the verbatim output.
+Do NOT commit and do NOT run any git write command (commit/add/branch/reset/
+checkout) — the architect commits and merges after verification, and verifies
+you made no commits. Do NOT delete lock files or escalate privileges if a
+command fails; record the exact error and continue. Do NOT use run_in_background
+(or shell `&`) for your own work — run long commands serially in the foreground
+with explicit timeouts instead. When done, write your report to the scratch
+file given below (an absolute path OUTSIDE your worktree), with RAW results
+only — tables, numbers, command output — no interpretation. Every status claim
+must be backed by a command result from this run. Keep the report compact.
+Do not title the report; keep any headings at `###` or deeper. End with exactly
+one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them) |
+BLOCKED (exact blocker + what you tried). Verdicts belong to the architect and
+the human.
+
+=== LANE: rig (I19 bash-preview-collapse) ===
+
+Report file: /Users/eric/architect/spaces/20261009-pi-port/build/I19-bash-preview-collapse-rig/report.md
+
+=== OBJECTIVE (and why) ===
+
+The I18 rig-test placement follow-up (I18 Verdict, rig PHASE-0 ruling 1):
+`test_an_empty_tcp_connection_consumes_no_scripted_response` — the empty-TCP
+mock-robustness test that proved AC4 in I18 — landed in
+`test/parity/scenario_test.rb` only because the I18 boundary forbade its
+natural home `test/parity/mock_llm_extension_test.rb` (which already carries
+the mock's rig-extension tests — `test_rearm_serves_the_same_script_to_a_fresh_app`,
+`test_request_logs_capture_method_path_headers_and_parsed_body`,
+`test_captured_requests_still_yields_parsed_bodies` — and the
+`with_server`/`fetch_content` private helpers the empty-TCP test uses).
+
+Your lane moves the test home: lift it (with the `require "net/http"` /
+`require "socket"` lines it needs) into `mock_llm_extension_test.rb`, delete it
+(and its now-orphaned helpers from `scenario_test.rb` if the move orphans them
+— `with_server`/`fetch_content` are duplicated privately in BOTH files today),
+and keep the suite green. The test's behavior, assertions, and intent are
+unchanged — this is a placement move, not a rewrite.
+
+A parallel render lane is landing the bash preview collapse in
+`lib/tart/render/chat.rb` + `test/chat_test.rb` in its own worktree — stay out
+of those files entirely.
+
+=== OUTPUT FORMAT ===
+
+- The moved test's name + destination file.
+- The exact move diff, verbatim (deletions from `scenario_test.rb`, additions
+  to `mock_llm_extension_test.rb`, any helper dedup — state what was orphaned
+  and removed, if anything).
+- The suite tail after the move (full `bundle exec rake`), verbatim.
+- PHASE 0: numbered disagreements/deviations with file:line evidence.
+
+=== TOOL GUIDANCE ===
+
+- Verification: `bundle install --quiet && bundle exec rake` (minitest).
+- Read `test/parity/scenario_test.rb` and `test/parity/mock_llm_extension_test.rb`
+  IN FULL before moving — the helpers' ownership and any other scenario_test
+  usages of them decide what moves and what stays.
+- No live rig runs needed for this lane (no behavior change) — but if the suite
+  is green and you want belt-and-braces, `bin/pty-tester run
+  parity/scenarios/s4_bash_variants.yml --out <scratch-dir>` is expected to
+  exit 1 on YOUR base (the render lane's collapse is not on it) — record, do
+  not chase.
+
+=== BOUNDARIES ===
+
+MAY touch: `test/parity/mock_llm_extension_test.rb`,
+`test/parity/scenario_test.rb` — nothing else.
+MUST NOT touch: `lib/**`, `bin/**`, `parity/**`, `test/support/**`,
+`test/chat_test.rb` (the render lane's), any other test file,
+`tart.gemspec`/`Gemfile*`. No refactors beyond the move; no placeholders;
+`rg` before moving (check every usage of the helpers).
+
+=== ACCEPTANCE CRITERIA (frozen — verify against them, do not edit or work around) ===
+
+AC4 (rig test home — I18 Verdict D'). `test_an_empty_tcp_connection_consumes_no_scripted_response`
+lives in `test/parity/mock_llm_extension_test.rb` (its natural home, beside the
+mock's other rig-extension tests and helpers) and no longer in
+`test/parity/scenario_test.rb`; the suite stays green; no helper duplication
+remains that the move orphans.
+
+AC5 (suite, bench — standing). `bundle exec rake` green (0 failures, 0
+errors); `bench/seam_bench.rb` prints `SEAM_BENCH_OK`; the gemspec runtime
+dependency set is unchanged.
+
+Gates you can run locally (from your worktree):
+
+    bundle install --quiet && bundle exec rake && echo SUITE_OK   # exit 0
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1            # SEAM_BENCH_OK
+    grep -q "test_an_empty_tcp_connection_consumes_no_scripted_response" \
+      test/parity/mock_llm_extension_test.rb && echo RIG_HOME_OK  # RIG_HOME_OK
+
 ## Builder Report
 
 <!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
