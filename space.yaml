@@ -1099,7 +1099,22 @@ project:
   - name: editor-kill-ring
     ordinal: 26
     file: architecture/I26-editor-kill-ring.md
-    freeze_sha:
+    freeze_sha: 757049756dfb66137aeba94dfbb62133c2c9599c
     verdict: pending
-    lanes: []
+    lanes:
+    - name: editor
+      repo: tart
+      touch_set:
+      - lib/tart/render/kill_ring.rb
+      - lib/tart/render/editor.rb
+      - lib/tart/render/chat.rb
+      - test/chat_test.rb
+      - test/render/**
+    - name: rig
+      repo: tart
+      touch_set:
+      - gems/tui-split-rig/**
+    rehearsal:
+      gates_digest: f3705936f875ac91d59d29db8fb7b9da590fe2acb893afe236423a0c352f000b
+      at: '2026-10-11T17:48:18-06:00'
   integration_branch: project/pi-port
