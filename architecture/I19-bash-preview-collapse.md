@@ -25,35 +25,56 @@
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section bash-preview-collapse specification --from <file>`. -->
+### Objective
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+Close the s4 slice of **BRIEF §8** — `bin/pty-tester run parity/scenarios/s4_bash_variants.yml` exits **0** — by porting pi's bash **preview collapse** (the one defect the s4 baseline measures; per Grounds' row arithmetic, the banner/rail/blank classes all derive from it), plus the I18 rig-test placement follow-up (D': the empty-TCP test moves to its natural home). Two disjoint seams in one repo: the **render** seam (bash output blocks collapse to pi's last-5 + hint, live and replay paths) and the **rig** seam (test placement only — the scenario and registry are already correct).
+
+The collapse is a RENDER-layer property (pi's `VisualLinePreview` is presentation-only): the full output still flows to the model and the truncation/spill machinery unchanged; only the transcript block renders collapsed. The duration/timing seam (I17/I18) and the write/read renderers (I18) are landed and frozen — the collapse lands in the bash branch of the same block machinery.
+
+**Exit-0 mechanism, restated:** with the collapse, tart's s4 transcript = 35 rows = pi's → fits the viewport → no follow-end scroll → banner visible, scrollbar hidden, blanks aligned — the four s4 candidate classes all close with the one fix. If a class survives after the collapse lands, that class is a REAL defect of its own — record it in the report; do not chase it inside this lane's touch set.
+
+### Output format (raw evidence, no interpretation)
+
+- render: the named test list (collapsed shape, exact-5/no-hint boundary, exact-6/`1 earlier lines` boundary, trailing-blank handling per pi's `VisualLinePreview`, hint byte/style pins incl. the muted/dim span family, live + replay rows, truncation-warning composition when both fire) with the per-row byte assertions they pin; the s4 live run command + exit code + `summary.json` classes + candidates verbatim (expect ZERO unknown-candidate); the s2 + s3 regression runs' exit codes; any legitimate test updates, itemized.
+- rig: the moved test's name + file; the exact diff of the move (deletions from `scenario_test.rb`, additions to `mock_llm_extension_test.rb`, any helper dedup); suite tail.
+- PHASE 0: numbered disagreements/deviations with file:line evidence, as ever.
+
+### Tool guidance (verify against live sources BEFORE writing code)
+
+- Verification: `bundle install --quiet && bundle exec rake` (minitest); `bundle exec ruby bench/seam_bench.rb` → `SEAM_BENCH_OK`.
+- Parity instrument: `bin/pty-tester run parity/scenarios/<s>.yml --out DIR` — exit 0 = parity, 1 = unknown candidates, 2 = rig failure. Live runs need tmux + `pi` on PATH (present). Control baseline (READ ONLY, architect's run this session): `tmp/s4-probe/` in `repos/tart` (exit 1; the four-class candidate decomposition + the row arithmetic are in Grounds).
+- pi oracle (read-only, `repos/pi`): `packages/coding-agent/src/core/tools/renderers/bash.ts:14` (`BASH_PREVIEW_LINES = 5`), `:60-90` (the collapsed vs expanded paths, the hint bytes/styles), `packages/coding-agent/src/modes/interactive/components/visual-truncate.ts` (`VisualLinePreview`: `keep: "end"`, the exact boundary semantics, trailing-blank/`\r` handling — read it IN FULL before building), `packages/tui/src/layout.ts:285,309-330` (scrollbar `"auto"` visibility — context for why the rail vanishes once the transcript fits; no port change needed there).
+- Existing seams to build on: `lib/tart/render/chat.rb` `enqueue_bash_block` (I17 — the collapse slots into the bash block's output rows; it is shared by the live and replay paths, so one landing covers both), the I18 write-block's expand-hint row (`write_content_rows`) for the hint span-family idiom, `Theme` token table. Follow the I16–I18 idioms: pi-source anchor comments, factored helpers, test-pinned rows.
+- Mock test home: `test/parity/mock_llm_extension_test.rb` — it already carries `with_server`/`fetch_content` (its own private helpers, :44-60) and the mock's rig-extension tests; move `test_an_empty_tcp_connection_consumes_no_scripted_response` (I18, currently in `test/parity/scenario_test.rb`:112-123) there, deleting the duplicated private helpers from `scenario_test.rb` if the move orphans them.
+
+### Boundaries
+
+- **render lane may touch:** `lib/tart/render/chat.rb`, `test/chat_test.rb`. **Must not:** `lib/tart/tools/**` (the tool and truncation/spill machinery are untouched — the collapse is presentation-only), `lib/tart/agent/**`, `lib/tart/tui.rb` (scrollbar/viewport code — no change needed; if a class survives post-collapse it is recorded, not chased), `parity/**`, `tart.gemspec`/`Gemfile*`, any other test file.
+- **rig lane may touch:** `test/parity/mock_llm_extension_test.rb`, `test/parity/scenario_test.rb`. **Must not:** `lib/**`, `bin/**`, `parity/**`, any other test file, `test/support/**`.
+- All lanes: no refactors beyond the task; no placeholder code; search before implementing (`rg` the whole repo before adding any helper); builders never commit; report raw evidence to `build/I19-<lane>/report.md` with a final `STATUS:` line (`COMPLETE` / `BLOCKED: <why>`).
+- PHASE 0 (mandatory, before any code): re-read this spec against the repo; raise every disagreement with file:line evidence. Silent compliance is a defect. In particular: verify the pi anchors above actually say what this spec claims (preview lines, keep-end, the hint bytes, the `"auto"` visibility), verify `VisualLinePreview`'s exact boundary semantics (5 lines → no hint? 6 → how many hidden? trailing blanks?) against its source before planning, and read the full current `enqueue_bash_block` + the I18 write-block hint idiom before writing the helper.
+
+### Lane plan (disjoint, same repo)
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision bash-preview-collapse`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: render
+  repo: tart
+  touch:
+    - lib/tart/render/chat.rb
+    - test/chat_test.rb
+- name: rig
+  repo: tart
+  touch:
+    - test/parity/mock_llm_extension_test.rb
+    - test/parity/scenario_test.rb
 ```
+
+The two touch sets are disjoint by construction (lib+chat test vs parity-test placement). A conflict at integration is a spec defect to kill-and-respec, never hand-resolved.
+
+### Effort call
+
+- **render: high** — byte-parity render archaeology (boundary semantics, trailing blanks, span styles, live+replay, truncation composition) against a live rig; tightly bounded file set.
+- **rig: medium** — a test move between two files, with helper dedup judgment.
 
 ## Acceptance Criteria
 
