@@ -421,11 +421,112 @@ Your scratch report (write RAW results here, never inside the worktree):
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I25-transcript-expandables-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence transcript-expandables --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### transcript
+
+### PHASE 0 disagreements / spec-vs-code findings
+
+| # | Finding | Evidence | Resolution |
+|---|---|---|---|
+| 1 | `enqueue_message` touches live-region state not covered by the sanctioned seams: base chat.rb read `has_reasoning = !@reasoning.empty?` and called `flush_reasoning` (both in the Grounds-2 stays list) | `git show HEAD:lib/tart/render/chat.rb` lines 495–508: `flush_reasoning` had exactly ONE caller at base — `enqueue_message` (grep: lines 508, 1073 only) | Reasoning threads in as data: `Transcript#enqueue_message(content, reasoning:)`; Chat's `:message_end` passes `@reasoning` and clears it after (`lib/tart/render/chat.rb:360-361`). Row order preserved byte-for-byte (blank → reasoning rows → blank → markdown). Event-layer call site re-shaped beyond a mechanical receiver re-point — raised, done openly |
+| 2 | Two `@scrollback` sites forced by the AC1 state-leak gate sit outside the five enumerated re-points: the `:compaction` blank (`@scrollback << [Panel.blank_line]`, base line 391) and `flush_reasoning`'s push (base line 1078 — item 5 names only the trio call, not the push) | base chat.rb:391, 1078 | New public op `Transcript#enqueue_region(lines)` — raw pre-built-region push, no container gate, exactly the semantics of all three gate-less base sites (MOTD block, compaction blank, flushed reasoning); `enqueue_motd`'s item-1 re-point rides it (chat.rb:513) |
+| 3 | Spec Boundaries item 3 claims `clear_transcript` writes `tool_output_expanded` at chat.rb:742–748 — it does not | base chat.rb:740–753: writes `@transcript`, `@scrollback`, `@expandable_blocks`, `@chat_started`; never `@tool_output_expanded` | Base behavior preserved: `Transcript#reset` touches only the four actually written at base; the ctrl+o toggle state survives `/new`/resume as before |
+| 4 | `BASH_TOOL`/`WRITE_TOOL`/`READ_TOOL` + `MarkedRegion` had zero references outside chat.rb | repo grep incl. tests: only chat.rb defs + consumers `enqueue_tool_block`, `push_expandable`/`flush_scrollback` | Moved with their only consumers into transcript.rb. Sealed-file doc drift (cannot touch): user_bash.rb:15 references `{Chat#enqueue_user_bash_block}`, motd.rb:8 references `{Chat#enqueue_motd}` — comments only |
+| 5 | Component handle in Chat cannot be named `@transcript` (AC1 state-leak gate would trip on the component reference itself) | gate regex `@(transcript\|...)\b`; `@transcript_state` does not match (no word boundary before `_`) | Named `@transcript_state`, following the existing `@selection_state`-for-`Selection` precedent in the same constructor |
+| 6 | `module_function` is module-shaped; on a stateful class the shared trio is `def self.` | gate regex explicitly accepts `def (self[.])?(...)` | Trio = class functions on `Transcript`; `panel_markdown_row` gains threaded `width` (its only caller is `markdown_lines`, which already threads width) |
+
+### method-move table (call sites in chat.rb, non-def non-comment occurrences)
+
+| Method | Class/form | before | after |
+|---|---|---|---|
+| enqueue_message | Transcript (stateful) | 1 | 1 |
+| enqueue_scrollback | Transcript (stateful) | 8 | 8 |
+| enqueue_user_echo | Transcript (private) | 2 | 0 |
+| enqueue_user_submission | Transcript (stateful) | 2 | 1 |
+| enqueue_markdown | Transcript (private) | 3 | 0 |
+| enqueue_bash_block | Transcript (private) | 1 | 0 |
+| push_expandable | Transcript (private) | 5 | 0 |
+| enqueue_user_bash_block | Transcript (stateful) | 2 | 1 |
+| enqueue_tool_block | Transcript (stateful) | 2 | 1 |
+| enqueue_write_block | Transcript (private) | 1 | 0 |
+| enqueue_read_block | Transcript (private) | 1 | 0 |
+| flush_scrollback | Transcript (stateful) | 1 | 1 |
+| skill_panel_rows | Transcript (private) | 1 | 0 |
+| replay_entries | Transcript (stateful) | 1 | 1 |
+| replay_entry | Transcript (private) | 1 | 0 |
+| replay_user | Transcript (private) | 1 | 0 |
+| replay_user_bash | Transcript (private) | 1 | 0 |
+| replay_assistant | Transcript (private) | 1 | 0 |
+| markdown_lines | Transcript (class fn) | 3 | 1 |
+| panel_markdown_row | Transcript (class fn) | 1 | 0 |
+| reasoning_lines | Transcript (class fn) | 3 | 2 |
+
+After-column nonzeros are the coordinator-side receiver re-points + the sanctioned pure-trio module-function calls in `flush_reasoning` (chat.rb:712) and `live_lines` (chat.rb:983, 985). `set_tool_output_expanded` stays a Chat public op (chat.rb:1026) delegating to `Transcript#set_tool_output_expanded` (state half, returns changed-boolean; border report + `request_draw` stay coordinator-side). Chat state seams: `width_reader: -> { viewport_width }`, `history_sink: ->(text) { @editor.add_to_history(text) }`, `reseed_sink: ->(message) { @footer.reseed_usage(message) }` (chat.rb:164-168). No busy reader (no deferral gate in the family). No new locking.
+
+### wc -l
+
+```
+chat.rb      1436 (base 5cc263e)  ->  1035  (git diff: 1 file, 56 insertions, 454 deletions)
+transcript.rb  new file              ->   524
+```
+
+### state-leak grep over chat.rb (moved ivars)
+
+```
+$ grep -nE '@(transcript|scrollback|expandable_blocks|tool_output_expanded|chat_started)\b' lib/tart/render/chat.rb
+(no output) -> NO_STATE_LEAK_OK
+```
+
+Gate commands moved-methods-gone (MOVED_OK), new-class-present (CLASS_OK), stays-intact (STAYS_INTACT_OK) — all exit 0, run from this worktree this session.
+
+### suite (gate form)
+
+```
+$ bundle install --quiet && bundle exec rake && echo SUITE_OK
+445 runs, 1787 assertions, 0 failures, 0 errors, 1 skips
+SUITE_OK
+```
+baseline (pre-change, this worktree): `445 runs, 1787 assertions, 0 failures, 0 errors, 1 skips` — run-count delta 0. `git diff --exit-code test/chat_test.rb` → CHAT_TEST_BYTE_UNCHANGED (no direct-class tests added — coordinator surface covers the moved behavior; the s-rigs prove bytes).
+
+### s1–s6 rig runs (this worktree, integrated tree, cold)
+
+```
+s1_text_turn        --out tmp/pg-s1  exit=0
+s2_tool_turn        --out tmp/pg-s2  exit=0
+s3_tool_turn_files  --out tmp/pg-s3  exit=0
+s4_bash_variants    --out tmp/pg-s4  exit=0
+s5_bash_truncation  --out tmp/pg-s5  exit=0
+s6_long_calls       --out tmp/pg-s6  exit=0
+```
+
+### registry diff
+
+```
+$ git show 5cc263ec:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml
+(no output) -> REGISTRY_UNCHANGED_OK
+```
+
+### bench
+
+```
+$ bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+SEAM_BENCH_OK   (exit 0)
+```
+
+### rig gate `--out` path-length artifact (environmental, pre-existing — not routed silently)
+
+The literal gate form `--out tmp/parity-gate-s<N>` exits 1 in THIS worktree. Mechanism: the captures' footer pwd line embeds the absolute sandbox path; this worktree root is 92 chars, and the clip truncates the `run-1/` token the registry's `parity-run-path` pattern (`run-\d+/`, registry.yml:18-19) needs → 2x unknown-candidate → exit 1. Proof it is pre-existing, not the extraction:
+
+- base 5cc263e via `git archive` into `/tmp/i25-base` (short root): s1 `--out tmp/parity-gate-s1` → exit 0
+- base 5cc263e into a root of EXACTLY the worktree's length (92 chars): s1 `--out tmp/parity-gate-s1` → **exit 1**, same 2x unknown-candidate on the pwd-path lines
+- integrated tree, only the out-dir name varies: `tmp/seq-a` (short) → exit 0; `tmp/parity-gate-s1` → exit 1; `diff` of the two tart/pi captures shows the ONLY differing bytes are the footer pwd path line (line 39 both captures)
+
+### other notes
+
+- `Chat#flush_reasoning` (gate-required stay) has zero remaining callers — its only base caller was the moved `enqueue_message`; retained + doc-noted (chat.rb:699-710). Flagged for the architect.
+- No commits, no git write commands; worktree diff touches exactly `lib/tart/render/chat.rb` (M) + `lib/tart/render/transcript.rb` (new). No lock-file or permission changes. No background execution.
+- Gate-form suite + bench + all six rigs re-verified after the final edit.
+
+STATUS: COMPLETE_WITH_CONCERNS — (1) literal `tmp/parity-gate-s<N>` gate out-path exits 1 in this worktree from absolute-path-length truncation noise, proven present at base 5cc263e with an equal-length root; six rigs verified exit 0 with short `--out`; (2) `Chat#flush_reasoning` is now caller-less but gate-required, retained with doc note; (3) PHASE-0 items 1–2 reshaped `enqueue_message`'s signature and re-pointed two `@scrollback` sites beyond the five enumerated re-points (byte order preserved, s-rigs exit 0).
 
 ## Verdict
 
