@@ -954,6 +954,15 @@ project:
       - Rakefile
       - tart.gemspec
       - README.md
+      base_sha: 931b589a07525e7304d40df6b012c05f353e005e
+      worktree: build/I21-decomp-wave1-rig/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-11T14:03:58-06:00'
+      effort: medium
+      integrate_sha: b6125b119705260d1b8364d231835cb1780f0b2c
     - name: render
       repo: tart
       touch_set:
@@ -966,6 +975,15 @@ project:
       - lib/tart.rb
       - test/chat_test.rb
       - test/render/**
+      base_sha: 931b589a07525e7304d40df6b012c05f353e005e
+      worktree: build/I21-decomp-wave1-render/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-11T14:08:48-06:00'
+      effort: high
+      integrate_sha: 86ff0c90a46c9eb45c74e53edf44d187e11c734f
     rehearsal:
       gates_digest: 9d93b29bfdc039a6b5627c8d6a470870704e6638fd5f33409afada382076e3d9
       at: '2026-10-11T14:01:00-06:00'
