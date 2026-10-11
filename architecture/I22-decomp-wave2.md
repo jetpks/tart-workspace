@@ -216,10 +216,280 @@ Measured this session (2026-10-11) at base **a7b72f9f** (= `project/pi-port` tip
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I22-decomp-wave2-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section decomp-wave2 prompt --append --lane <lane> --from build/I22-decomp-wave2-<lane>/prompt.md`. -->
+### input-line
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo. Silent compliance
+is a failure. Silent scope additions are a failure. If you have no
+disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed in BOUNDARIES. You
+are one of several parallel lane agents working in isolated worktrees; files
+outside your lane belong to other agents — touching them fails your lane.
+No placeholder implementations — search the codebase before implementing;
+full implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive collection/enumerable
+forms); well-factored and DRY-ish; terse but clear; pragmatic, not clever — the
+smallest change that does the job, no abstraction it doesn't need. Consistency
+with the surrounding code is part of correctness here: a change that works but
+fights the house style (or introduces an inconsistency a careful reader of this
+repo would never write) is not done. Tests stay simple and terse, exercising
+public behavior, no mock/stub of the class under test. Verify your work by
+running the acceptance criteria's gate commands and record the verbatim output.
+Do NOT commit and do NOT run any git write command (commit/add/branch/reset/
+checkout) — the architect commits and merges after verification, and verifies
+you made no commits. Do NOT delete lock files or escalate privileges if a
+command fails; record the exact error and continue. Do NOT use
+`run_in_background` (or shell `&`) for your own work — this process terminates
+when you end your turn and reaps its own children, so backgrounded work is
+SIGTERMed and its output lost while the run still exits 0; run long commands
+serially in the foreground instead. Give every potentially long command an
+explicit timeout (the live rig runs below take tens of seconds each — allow
+120s+ each). If a runtime will not start unattended (interactive prompt, server
+with no timeout), record the exact failure in your report and route around it —
+never busy-wait or retry in a loop. When done, write your report to the
+scratch file given to you below (an absolute path OUTSIDE your worktree), with
+RAW results only — tables, numbers, command output — no interpretation, no
+"promising". Every status claim must be backed by a command result from this
+run. Keep the report compact — tables and numbers, not prose. Do not title
+the report; keep any headings inside the report at `###` or deeper. End it
+with exactly one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list
+them) | BLOCKED (exact blocker + what you tried). Verdicts belong to the
+architect and the human. Persist until your lane is fully handled end-to-end;
+do not stop at analysis or partial fixes.
+
+Your scratch report (write RAW results here, never inside the worktree):
+/Users/eric/architect/spaces/20261009-pi-port/build/I22-decomp-wave2-input-line/report.md
+
+=== OBJECTIVE (and why) ===
+
+LANE `input-line` of I22 decomp-wave2 — the second wave of the sanctioned
+five-wave chat-surface decomposition. `lib/tart/render/chat.rb` is a 2,748-line
+god object; wave 1 moved the stateless clusters to pure modules (Text, Panel,
+BashBlock, FileBlocks, ToolBlock). THIS wave moves the input-line cluster —
+STATEFUL this time, pi's component shape — into three stateful classes + the
+SlashSource rename + one pure-helper completion, with Chat surviving as the
+coordinator (pi's interactive-mode.ts role: key dispatch, submit, locks, render
+composition). PURE REFACTOR — ZERO behavior change, proven byte-exact by the
+rig (s1–s6 all exit 0).
+
+THE MOVE — target class assignment (the decomposition shape IS the deliverable;
+every line range verified at base a7b72f9f; every method body read and verified
+to touch ONLY its own family's state):
+
+| Class (new file) | Owns (state) | Methods (from Chat; chat.rb l. at base) |
+|---|---|---|
+| `Tart::Render::Editor` (`lib/tart/render/editor.rb`) | `@input`, `@cursor`, `@history`, `@history_index`, `@history_draft`; `HISTORY_LIMIT` | `insert` (2343), `insert_printable` (2421), `delete_backward` (2349), `delete_forward` (2357), `delete_word_backward` (2396), `delete_word_forward` (2405), `move_left` (2364), `move_right` (2369), `move_start` (2374), `move_end` (2379), `move_word_backward` (2384), `move_word_forward` (2389), `exit_history_browsing` (2413), `history_previous` (2009), `history_next` (2011), `navigate_history` (2013), `add_to_history` (1620), `input_spans` (2434), `bash_mode?` (2167), `slash_token` (1635), + class helpers `find_word_backward` (605), `find_word_forward` (625) |
+| `Tart::Render::Autocomplete` (`lib/tart/render/autocomplete.rb`) | `@suggestions`, `@selected`, the injected source; `AUTOCOMPLETE_MAX` | `update_autocomplete` (1649), `filter_suggestions` (1658), `best_match_index` (1666), `cancel_autocomplete` (1678), `navigate_suggestions` (1684), `apply_suggestion` (1692), `autocomplete_rows` (2559), `autocomplete_lines` (2574), `autocomplete_column_width` (2590), `autocomplete_row` (2595), `autocomplete_description` (2608), + class helpers `fuzzy_match` (648), `fuzzy_subsequence_score` (659), `fuzzy_filter` (691) |
+| `Tart::Render::Picker` (`lib/tart/render/picker.rb`) | `@items`, `@selected`, `@on_select`; `PICKER_MAX` | `picker_input` (2623), `navigate_picker` (2636), `picker_widget` (2644), `picker_lines` (2658), `picker_widget_rows` (2672), + `items`/`selected` readbacks |
+| `Tart::Render::SlashSource` (`lib/tart/render/slash_source.rb`) | — | moves wholesale out of Chat (715–729); body unchanged; namespace `Tart::Render::SlashSource` |
+| `Tart::Render::Text` (existing module) gains | — | `clip_spans` (2439 region) — pure span utility; the four callers (2123, 2151, 2228, 2288) become `Text.clip_spans` |
+
+SHAPE RULES (frozen — deviations are PHASE 0, never silent):
+- (a) The classes are NOT thread-safe by design — Chat owns `@mutex` exactly as
+  today: the same methods synchronize as at base (`render_frame`, the readbacks
+  `suggestions`/`suggestions_index`/`picker_items`/`picker_index`/`scroll_offset`,
+  the public setters); event handling (`edit_input` path) runs on the kernel
+  task unsynchronized, exactly as today. Do not add locks to the classes.
+- (b) Cross-object flow follows data ownership: `Autocomplete#update(editor)`
+  computes the token via `editor.slash_token`; `Autocomplete#apply(editor)`
+  performs pi's applyCompletion slice surgery through an editor write surface —
+  attr accessors vs a small mutator method is YOUR judgment, pick one form and
+  stay consistent, PHASE 0 if it misfits. `slash_token` reads only input/cursor
+  state → it is a query on the Editor (pi homes isInSlashCommandContext in
+  custom-editor.ts).
+- (c) `Picker` gets the select callback at construction (pi onSelect): Chat's
+  `open_session_picker` public seam is UNCHANGED (bin/tart:262 calls it),
+  constructs the Picker with `on_select: ->(item) { @on_resume&.call(item[:path]) }`;
+  the `on_resume=` attr_accessor seam stays on Chat (bin/tart:267 wires it).
+- (d) Width threading: `Picker#lines`/`#widget` take `width` (house style — the
+  I21-established pattern `markdown_lines(text, width, …)`; `picker_lines`
+  reads `viewport_width` today — thread it at the call sites in Chat:
+  `editor_area_rows`, `build_widget`).
+- (e) Chat's key dispatch (`edit_input`) calls the objects: `@editor.insert`,
+  `@autocomplete.update(@editor)`, `return @picker.handle(event) if @picker`
+  (or your equivalent — picker_input's body moves INTO the Picker; Chat keeps
+  only the routing). Chat's esc/ctrl+c input-clearing branches call an editor
+  op, not raw ivar writes — add the smallest editor op covering both call sites
+  (esc bash-mode clear; ctrl+c clear — `@input.clear; @cursor = 0` today).
+- (f) Chat keeps: `edit_input` (dispatch), `submit`, `@last_ctrl_c`,
+  `editor_widget`, `editor_border_color` (calls `@editor.bash_mode?`),
+  `status_title`/`status_line`, `editor_area_rows`, `build_widget`,
+  `open_session_picker`, the readbacks (`input`/`suggestions`/
+  `suggestions_index`/`picker_items`/`picker_index` — mutex-synchronized
+  delegation to the objects; these are Chat's public surface, NOT delegator
+  shims), `MIN_EDITOR_ROWS`. The `submit` body reads the input via the editor
+  (`@editor.input`).
+- (g) Chat's constructor param list is FROZEN (`autocomplete:` param stays —
+  bin/tart:209 passes the source); internally Chat constructs the Autocomplete
+  with the source. Holder ivars: `@editor`, `@autocomplete`, `@picker` (the
+  picker holder stays on Chat; `@picker` is nil when closed).
+
+If any assignment proves wrong at the code (a method secretly reads
+kernel/scrollback state, two classes share state better homed once), raise it
+PHASE 0 with the line evidence — do NOT silently reshape.
+
+TEST SURGERY (moves, not rewrites — keep test names and assertions; adapt call
+sites):
+- Move to `test/render/editor_test.rb`: editor-state behavior — input
+  edits/cursor readback/history recall (order, editable recall, duplicate
+  skip)/word boundaries (`find_word_backward/forward` probes)/alt+b/f jumps/
+  insert-printable — driving `Editor.new` directly (cursor readback may read
+  `editor.cursor` — add the reader; it is a legitimate public readback).
+- Move to `test/render/autocomplete_test.rb`: `fuzzy_filter` rank,
+  `filter_suggestions`/`best_match_index` behavior, list navigation wrap,
+  `apply_suggestion` token replacement (drive Autocomplete + a real Editor),
+  SlashSource listing (its home or `test/render/slash_source_test.rb` — your
+  judgment).
+- Move to `test/render/picker_test.rb`: navigate wrap, enter fires `on_select`,
+  esc cancels, `lines`/`widget_rows` budget — driving Picker directly.
+- STAY in `chat_test.rb` (coordinator behavior — testing through Chat's public
+  surface): key dispatch/routing (list-wins up/down, esc routing, ctrl+c
+  double-press, ctrl+d exit, paste-cancels-list, tab/typing triggers),
+  `/resume` wiring (`open_session_picker` + `on_resume`), editor_widget
+  composition, and every test that asserts on transcript/footer rendering.
+- Driving a moved class through Chat's surface in a MOVED test file is a
+  defect — test the seam that owns the behavior.
+
+=== OUTPUT FORMAT ===
+
+RAW results only, in the scratch report:
+1. The method-move table: each moved method/class-helper → its class, plus
+   each moved state ivar → its class.
+2. `wc -l lib/tart/render/chat.rb` before/after + `wc -l` of each new class
+   file + `test/chat_test.rb` before/after + new test files.
+3. The ivar-leak proof: `grep -nE '@(input|cursor|history|history_index|history_draft|suggestions|selected)\b' lib/tart/render/chat.rb`
+   → no matches (comment lines included — move the prose to the classes).
+4. `bundle install --quiet && bundle exec rake` tail — last lines with the
+   run/assertion counts (fully green; net test delta expected ≈ 0 — a pure
+   move keeps the count; report any delta with the reason).
+5. s1–s6 runs via `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml --out <scratch>/<s>` —
+   all six RAW exit codes, each 0 (each takes tens of seconds; serial,
+   foreground, explicit timeout 120s+).
+6. PHASE 0 disagreements (mandatory) + STATUS line.
+
+=== TOOL GUIDANCE (verification commands) ===
+
+- Suite: `bundle install --quiet && bundle exec rake` (from the repo root).
+- Byte-exact oracle: the six rig runs in output format 5. Exit 0 on all six =
+  byte-identical settled screens vs pi — the proof your refactor changed
+  nothing. A single unknown-candidate line is a FAIL you must root-cause and
+  report, never paper over.
+- pi citations to carry forward in the moved bodies (most already ride the
+  code — move them with it): editor.ts (navigateHistory :454-484, :766-771,
+  :790-816, autocompleteState block :1228-1251, getBestAutocompleteMatchIndex
+  :2207-2232, applyAutocompleteSuggestions :2432-2442, SLASH_COMMAND_SELECT_LIST_LAYOUT
+  :248-251), word-navigation.ts:17-70, autocomplete.ts
+  (CombinedAutocompleteProvider :336-365, no-space rule :340-341, applyCompletion
+  :419-436), select-list.ts (handleInput wrap :146-155, getVisibleRange,
+  getPrimaryColumnWidth, descriptions :189-210), custom-editor.ts:2202-2204,
+  session-selector.ts (header :147, tree rows :459-460).
+- `bin/tart` line 209 changes `Render::Chat::SlashSource` → `Render::SlashSource`
+  (the ONLY external call-site change; `open_session_picker`/`on_resume=`/
+  `autocomplete:` seams unchanged).
+- `lib/tart.rb` must NOT be touched — chat.rb requires its own collaborators
+  (`require_relative "editor"` etc., the I21-established style, matching
+  print.rb).
+
+=== BOUNDARIES (may touch / must not touch / out of scope) ===
+
+MAY TOUCH (exactly): `lib/tart/render/chat.rb`, the four new files
+`lib/tart/render/editor.rb`, `lib/tart/render/autocomplete.rb`,
+`lib/tart/render/picker.rb`, `lib/tart/render/slash_source.rb`,
+`lib/tart/render/text.rb` (the `clip_spans` addition ONLY),
+`bin/tart` (the ONE line-209 namespace change only), `test/chat_test.rb`,
+`test/render/**` (new).
+
+MUST NOT TOUCH: any other lib file (`markdown.rb`, `panel.rb`, `bash_block.rb`,
+`file_blocks.rb`, `tool_block.rb`, `theme.rb`, `tui.rb`, `commands.rb`,
+`identity.rb`, `lib/tart.rb`), `tart.gemspec`, `Rakefile` (globs already cover
+`test/**`), `gems/tui-split-rig/**`, `parity/**`, `bench/**`,
+`test/support/**`, `Gemfile`, `Gemfile.lock`, `bin/pty-tester`. If a
+call-site change seems needed outside the set, PHASE 0 it, do not touch.
+
+OUT OF SCOPE — wave 3+ families that STAY in chat.rb UNTOUCHED this wave:
+scroll/scrollbar (`scroll_by`, `scroll_page`, `mark_scrollbar_activity`,
+`scrollbar_glyphs`, `overlay_rail_cell`, `transcript_widget`,
+`transcript_area_rows`, `display_lines`, `viewport_width`), mouse selection
+(`selection_*`, `word_range`, `word_char?`, `next_click_count`, `highlight_row`,
+`selection_columns`, cell helpers), footer/stats (`footer_*`, `read_branch`,
+`context_*`, `cache_hit_rate`), MOTD/identity (`enqueue_motd`,
+`pi_header_lines`, `motd_sections`, `pi_hint_spans`), transcript/scrollback/
+expandables/replay (`enqueue_*`, `push_expandable`, `flush_scrollback`,
+`set_tool_output_expanded`, `complete`, `live_lines`), widget layout
+(`build_widget`, `dock_spacer_*`), user-bash execution, `submit`, `edit_input`,
+`status_*`, `set/cycle_thinking_level`. Also out of scope: any behavior change
+(a defect found on the way is REPORTED, never fixed), any API redesign beyond
+the assignment table, publishing/gemspec changes.
+
+=== DISAGREEMENT RULINGS (from last session) ===
+
+None — first dispatch of this iteration.
+
+=== ACCEPTANCE CRITERIA (frozen; verify against these) ===
+
+**AC1 (extraction shape).** The target class assignment holds — every
+enumerated method and class helper defined in its assigned class (`Editor`,
+`Autocomplete`, `Picker`), `SlashSource` at `Tart::Render::SlashSource` with
+bin/tart's call site updated (its only change), `clip_spans` on `Text`; none of
+the moved methods still defined in `chat.rb`; the moved state ivars (`@input`,
+`@cursor`, `@history`, `@history_index`, `@history_draft`, `@suggestions`,
+`@selected`) live on their classes and no reference to them remains anywhere in
+`chat.rb`, comments included. A PHASE-0-raised, architect-ruled re-assignment
+is legal; a silent one is a defect.
+
+**AC2 (state + threading discipline).** The classes own ONLY their state — no
+reference to Chat's kernel/scrollback/transcript/mutex state inside
+`editor.rb`/`autocomplete.rb`/`picker.rb`/`slash_source.rb`; the cross-object
+flow follows data ownership (`Autocomplete#update(editor)` reads the token via
+the editor; `apply` mutates through an editor write surface; `Picker` fires its
+select callback, wired by Chat's unchanged `open_session_picker`/`on_resume=`
+seams); Chat's mutex boundaries are unchanged — the same methods synchronize as
+at base, the classes are unsynchronized by design; Chat's public surface is
+unchanged (constructor params, `edit_input`, `submit`, the readbacks) except
+the sanctioned SlashSource namespace.
+
+**AC3 (byte-exact parity).** s1–s6 all exit 0 via
+`gems/tui-split-rig/bin/tui-split-rig` with zero unknown candidates, and
+`gems/tui-split-rig/registry.yml` is byte-identical to base a7b72f9f's — the
+refactor altered no content, and no registry class was added to make a gate
+pass.
+
+**AC4 (scope discipline).** The wave-3+ families remain defined in `chat.rb`
+and untouched (probed at `scroll_by`, `selection_drag`, `word_range`,
+`footer_stats`, `enqueue_motd`, `display_lines`, `editor_widget`,
+`transcript_widget`, `submit`, `edit_input`, `open_session_picker`); your diff
+carries no change outside the declared touch set.
+
+**AC5 (suite + bench).** Default rake fully green; the seam bench prints
+`SEAM_BENCH_OK` (`bundle exec ruby bench/seam_bench.rb` — run it and record
+the tail).
+
+**AC6 (test surgery).** Moved tests keep their names and assertions (moves,
+adapted call sites); editor/autocomplete/picker state tests drive their classes
+directly; coordinator-behavior tests stay in `chat_test.rb`; the suite's run
+count changes only by a PHASE-0-raised, reported reason (a pure move keeps the
+count).
+
+**AC7 (idiomaticity — architect-read).** Class doc comments carrying their pi
+citations forward, the state-and-seams idioms of the repo's existing classes,
+no abstraction beyond the assignment table, no delegator shims for internal
+helpers. Judged on your diff; defects flagged with file:line in the Verdict.
 
 ## Builder Report
 
