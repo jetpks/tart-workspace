@@ -800,7 +800,29 @@ project:
   - name: tool-render-parity
     ordinal: 18
     file: architecture/I18-tool-render-parity.md
-    freeze_sha:
+    freeze_sha: 3376abd15469e421671f803b474acf6b9b6d4648
     verdict: pending
-    lanes: []
+    lanes:
+    - name: bash-cure
+      repo: tart
+      touch_set:
+      - lib/tart/tools/bash.rb
+      - test/bash_tool_test.rb
+    - name: file-render
+      repo: tart
+      touch_set:
+      - lib/tart/render/chat.rb
+      - lib/tart/theme.rb
+      - test/chat_test.rb
+      - test/theme_test.rb
+      - test/fixtures/**
+    - name: rig
+      repo: tart
+      touch_set:
+      - test/support/mock_llm_server.rb
+      - parity/scenarios/s4_bash_variants.yml
+      - test/parity/scenario_test.rb
+    rehearsal:
+      gates_digest: cc068859dd14e45d7ba9b75cfba7ee475aa164deb75210109c5c2c7c482f58ef
+      at: '2026-10-10T21:40:51-06:00'
   integration_branch: project/pi-port
