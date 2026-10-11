@@ -222,7 +222,8 @@ AC2/AC5 assert properties (floors, not snapshots); the two grep gates below are 
 - **AC3 (rig env seam + tart-mode scenario — pty-tester BRIEF §2).** Scenario YAML carries
   per-app env overrides applied by the runner (the designed branding-toggle seam); a pinned
   `parity/scenarios/s1_tart.yml` boots tart with identity=tart and its settled capture shows
-  the tart header (tart version line present) and no pi half-block logo bytes.
+  the tart header (tart version line present, pi's onboarding line absent — the absence check
+  deliberately avoids half-block bytes, which the owner's own art pieces can contain).
 - **AC4 (suite, bench, pins).** `bundle exec rake` green (0 failures, 0 errors) including the
   new identity/env-seam tests; `bench/seam_bench.rb` prints SEAM_BENCH_OK; gemspec runtime
   dependency set = today's plus exactly `fast-uuid`.
@@ -263,7 +264,7 @@ AC2/AC5 assert properties (floors, not snapshots); the two grep gates below are 
   ac: AC3
   cwd: repos/tart
   cmd: |-
-    bin/pty-tester run parity/scenarios/s1_tart.yml --app tart --out tmp/parity-gate-tart && grep -q "tart v" tmp/parity-gate-tart/run-1/tart.capture && ! grep -q "▀▀█" tmp/parity-gate-tart/run-1/tart.capture && echo TART_MODE_OK
+    bin/pty-tester run parity/scenarios/s1_tart.yml --app tart --out tmp/parity-gate-tart && grep -q "tart v" tmp/parity-gate-tart/run-1/tart.capture && ! grep -q "Pi can explain" tmp/parity-gate-tart/run-1/tart.capture && echo TART_MODE_OK
   expect:
     exit_code: 0
     stdout_match: TART_MODE_OK
