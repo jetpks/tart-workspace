@@ -887,6 +887,149 @@ summary.json `classes`: `{"unknown-candidate": 6, "parity-run-path": 2}` — ver
 
 STATUS: COMPLETE_WITH_CONCERNS (concern 1: the live s2 exit remains 1 with exactly the Took-line candidate until the timing lane lands `duration:` — frozen contract, post-integration cold gate is the exit-0 proof. Concern 2: the Took/output rows render `Theme[:tool_output]` rather than the port's `muted` `:gray` analog — pi's muted token's truecolor value, ruling itemized in disagreement 2. Concern 3: the 5-line bash preview truncation, expand hints, truncation warnings, exit-code statuses, Elapsed live-progress line, empty-command `...` and pi's null-arg invalid text remain CUT/unmeasured, itemized for the s3 slice with pi anchors bash.ts:14, :65-101, :36-38.)
 
+### rig
+
+### PHASE 0 — disagreements / deviations
+
+1. **No disagreements with the spec's letter.** Verified before authoring:
+   - pi `write.ts` / `read.ts` schemas: `{path (relative or absolute), content}` and `{path, offset?, limit?}`, both resolved via `resolveToCwd(path, cwd)` — repos/pi/packages/coding-agent/src/core/tools/write.ts:7-11,49-55; read.ts:7-11. Port mirrors: `lib/tart/tools/write.rb` (`PathUtils.resolve_to_cwd`, `FileUtils.mkdir_p`), `lib/tart/tools/read.rb` (`PathUtils.resolve_read_path`). Relative-to-sandbox-cwd write/read works in BOTH apps.
+   - Tool availability: pi `DEFAULT_TOOL_NAMES = ["read","bash","edit","write"]` (settings-manager.ts:82); port identical (`lib/tart/agent/system_prompt.rb:20`, gated via `lib/tart/tools/registry.rb`).
+   - Sandbox starts empty: `lib/tart/parity/runner.rb` `run_app` only `FileUtils.mkdir_p`; tmux `-c sandbox` sets both apps' cwd.
+   - Multi-round scripting: `test/support/mock_llm_server.rb` `serve` shifts one spec per request; `rearm!` restores per app. N=3 works (proven live below).
+2. **Deviation (own-file scope): s3 also stages `TART_MODEL_PROVIDER: mock`.** Spec's staging half names only s2, but the first s3 run (before staging) showed the same footer candidate (`(mock) mock-1` vs `(openai) mock-1`), which is already-closed-by-s2 noise polluting the s3 baseline work list. s3 is a MAY-touch file; staged it with the I16 seam like s1/s2. Flagged here, not silent.
+3. **Risk pre-checked, no pivot needed:** rig issues one post-prompt settle (HARD_CAP 30s); 3 local filesystem tool rounds fit comfortably (reply_settle_ms ~1100 in baseline).
+
+### s2_tool_turn.yml diff (verbatim)
+
+```diff
+diff --git a/parity/scenarios/s2_tool_turn.yml b/parity/scenarios/s2_tool_turn.yml
+@@ -1,6 +1,9 @@
+ # S2 — bash tool turn (I01 spike): the mock scripts a bash tool call
+ # (echo pty-tester in the app's sandbox) plus a fixed final reply.
+ # Two mock requests per app (tool round-trip + follow-up).
++#
++# Footer staging (I16, same seam as s1): TART_MODEL_PROVIDER=mock so the
++# footer right segment renders `(mock) mock-1` in both apps.
+ name: s2_tool_turn
+ prompt: "run the echo"
+ expected_requests: 2
+@@ -14,3 +17,6 @@ responses:
+           command: "echo pty-tester"
+   - type: stream
+     content: "The bash tool ran; fixed final reply for the spike."
++env:
++  tart:
++    TART_MODEL_PROVIDER: mock
+```
+
+### s3_tool_turn_files.yml (verbatim)
+
+```yaml
+# S3 — non-bash file tool turn (I17): the mock scripts a write tool call
+# (a small file into the app's sandbox cwd), then a read of that same file,
+# then a fixed final reply. Three mock requests per app.
+#
+# The sandbox starts empty (the rig only mkdir_p's it) and both apps resolve
+# tool paths relative to their cwd — the tmux pane's staged sandbox — so the
+# sandbox-relative write/read completes identically in pi and the port.
+#
+# Footer staging (I16, same seam as s1/s2): TART_MODEL_PROVIDER=mock.
+name: s3_tool_turn_files
+prompt: "write then read the file"
+expected_requests: 3
+responses:
+  - type: stream
+    content: ""
+    tool_calls:
+      - id: call_s3_1
+        name: write
+        arguments:
+          path: "s3-tool-turn-note.txt"
+          content: "parity s3 sandbox note"
+  - type: stream
+    content: ""
+    tool_calls:
+      - id: call_s3_2
+        name: read
+        arguments:
+          path: "s3-tool-turn-note.txt"
+  - type: stream
+    content: "The file tools ran; fixed final reply for the spike."
+env:
+  tart:
+    TART_MODEL_PROVIDER: mock
+```
+
+### Feasibility exploration (pre-authoring, scratch scenario in worktree tmp/, deleted after)
+
+- Command: `bin/pty-tester run tmp/s3_scratch.yml --out tmp/s3-scratch-out` → `EXIT=1` (candidates, no rig failure)
+- `pi completed=True requests=3 expected=3`; `tart completed=True requests=3 expected=3`
+- Sandbox check: `s3-scratch-note.txt` present in BOTH `run-1/sandbox/pi/` and `run-1/sandbox/tart/`
+
+### s3 baseline run (official, worktree base, render lanes unlanded)
+
+- Command: `bin/pty-tester run parity/scenarios/s3_tool_turn_files.yml --out tmp/parity-s3-lane-1`
+- Exit code: **1** (unknown candidates — expected; no exit-0 requirement)
+- summary.json:
+  - `pi: completed=True requests=3 expected=3`
+  - `tart: completed=True requests=3 expected=3`
+  - `rig_failure=None`, `exit_code=1`
+- Candidates verbatim (next work list):
+```
+  +  ⎿ write: Successfully wrote to s3-tool-turn-note.txt
+  - write s3-tool-turn-note.txt
+  +  ⎿ read: parity s3 sandbox note
+  - parity s3 sandbox note
+  + The file tools ran; fixed final reply for the spike.
+  - read s3-tool-turn-note.txt
+  - The file tools ran; fixed final reply for the spike.
+  +
+```
+- Per-class shapes, raw: pi renders `  ⎿ write: Successfully wrote to …` / `  ⎿ read: <content>`; tart renders the tool name + path line (`write s3-tool-turn-note.txt`) and bare content; plus a blank-line class. All unknown-candidate — sanctioned by nobody (registry untouched, per spec).
+- Baseline artifact left for inspection (gitignored): `tmp/parity-s3-lane-1/`
+
+### s2 staging half (gate evidence)
+
+- Command: `bin/pty-tester run parity/scenarios/s2_tool_turn.yml --out tmp/parity-s2-lane` → `EXIT=1` (expected: tool-block candidates remain for render/timing lanes)
+- `pi: completed=True requests=2/2`; `tart: completed=True requests=2/2`; `rig_failure=None`
+- Candidates verbatim:
+```
+  +  ⎿ bash: pty-tester
+  - $ echo pty-tester
+  + The bash tool ran; fixed final reply for the spike.
+  - pty-tester
+  - Took 0.0s
+  - The bash tool ran; fixed final reply for the spike.
+  +
+  +
+```
+- **Footer candidate (`(mock) mock-1` vs `(openai) mock-1`) is GONE** vs the architect's baseline (`/Users/eric/architect/spaces/20261009-pi-port/repos/tart/tmp/parity-baseline-s2/summary.json`, which ended with the two footer lines).
+- `grep -q "TART_MODEL_PROVIDER" parity/scenarios/s2_tool_turn.yml && echo S2_STAGED_OK` → `S2_STAGED_OK`
+
+### Pin tests + rake
+
+- Pins added in `test/parity/scenario_test.rb` (existing s1/s2 pin pattern):
+  - `Tart::ParityScenarioTest#test_s2_stages_the_footer_provider_env`
+  - `Tart::ParityScenarioTest#test_loads_the_shipped_s3_tool_turn_files_scenario`
+- `bundle install --quiet && bundle exec rake` → exit 0:
+```
+Finished in 19.495492s, 18.2606 runs/s, 72.4270 assertions/s.
+356 runs, 1412 assertions, 0 failures, 0 errors, 1 skips
+SUITE_OK
+```
+- Verbose tail for the two pins:
+```
+Tart::ParityScenarioTest#test_loads_the_shipped_s3_tool_turn_files_scenario = 0.00 s = .
+Tart::ParityScenarioTest#test_s2_stages_the_footer_provider_env = 0.00 s = .
+```
+
+### Flake observation (evidence, not worked around)
+
+- One s3 rig run (the first post-staging run, `tmp/parity-s3-lane`) failed: `tart completed=False requests=4 expected=3`, `rig_failure="not all apps completed"`, exit 2. `tart-requests.jsonl` entry 0 was `method=None path=None body=None` — a stray empty TCP connection consumed one scripted spec, shifting the script by one. Three consecutive re-runs (lane-1/2/3) were all clean 3/3; scratch run pre-staging was also clean 3/3. Not staging-correlated on the evidence; pre-existing rig/mock robustness gap (an empty connection should be ignored, not shift the script). Left unowned — rig internals are out of this lane's boundaries (`lib/**` MUST NOT touch).
+- No git write commands run; `git status --porcelain` at end: only `parity/scenarios/s2_tool_turn.yml` (M), `test/parity/scenario_test.rb` (M), `parity/scenarios/s3_tool_turn_files.yml` (??).
+
+STATUS: COMPLETE_WITH_CONCERNS — (1) observed one-off mock-server flake where an empty TCP connection consumes a scripted response (4-request rig failure, 1-in-4 runs this session); (2) s3 stages the footer env too (deviation #2 above).
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
