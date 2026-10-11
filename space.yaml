@@ -1020,7 +1020,19 @@ project:
   - name: decomp-wave3
     ordinal: 23
     file: architecture/I23-decomp-wave3.md
-    freeze_sha:
+    freeze_sha: a6e8e4c58afb881ac5700cd014b70958b21c1a95
     verdict: pending
-    lanes: []
+    lanes:
+    - name: viewport
+      repo: tart
+      touch_set:
+      - lib/tart/render/chat.rb
+      - lib/tart/render/viewport.rb
+      - lib/tart/render/selection.rb
+      - lib/tart/render/text.rb
+      - test/chat_test.rb
+      - test/render/**
+    rehearsal:
+      gates_digest: 6e9c364c63b12e5d8fd5e7f8374b8ac0063f755cbe5fd77b79d50903b200b448
+      at: '2026-10-11T15:21:27-06:00'
   integration_branch: project/pi-port
