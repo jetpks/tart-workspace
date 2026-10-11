@@ -33,34 +33,40 @@ Measured this session (2026-10-11) at base **16f20fd** (= `project/pi-port` tip 
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section editor-kill-ring specification --from <file>`. -->
+# Specification — I26 editor-kill-ring
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+- **Objective.** Two disjoint deliverables. (1) **The emacs editor slice** (the owner's daily-driver blocker, BRIEF §3): port pi's kill ring + the four unbound bindings — ctrl+u (delete-to-line-start), ctrl+k (delete-to-line-end), ctrl+y (yank), alt+y (yank-pop) — with pi's exact kill semantics (Grounds 2), and bind the remaining `keybindings.ts` editor defaults the port misses (Grounds 3: alt+backspace, alt+d; verify the full table, bind what's in it). ctrl+a/ctrl+e already work (Grounds 3) — they get regression tests, not rework. (2) **Rig expansion** (the amended directive — rig work is in-loop and integral): author `s7_compaction` + the tool-pending-state probe, pin both apps' baselines, and deliver the candidate list for the panel-port slice (Grounds 5). Why now: the owner cannot use tart daily without the emacs bindings; the rig's two unmeasured surfaces are the only §8 gaps without an instrument.
+
+- **Lane `editor` (high effort — the owner's blocker; subtle semantics).**
+  - Deliver: `lib/tart/render/kill_ring.rb` — `Tart::Render::KillRing`, a 1:1 port of pi kill-ring.ts (`push(text, prepend:, accumulate:)`, `peek`, `rotate`, `length`; nil/empty pushes are no-ops per kill-ring.ts:24). Editor ops `delete_to_line_start`/`delete_to_line_end` (kill + delete, directional prepend/append, accumulate iff the previous action was a kill — the `lastAction` discipline, editor.ts:1635-1767), `yank` (insert peek, set last-action yank), `yank_pop` (guard: last-action yank AND ring.size > 1 — else no-op; delete the previously yanked span, rotate, insert the new peek — editor.ts:2013-2029). The single-line editor's line-merge branches are N/A — itemize the cut, never silent. `lastAction` tracking must cover the interactions pi's does (a cursor move or insert resets it — verify against editor.ts which actions reset; the accumulate window is kills CONSECUTIVE in pi's sense).
+  - Wiring: `chat.rb edit_input` gains `"u"`/`"k"`/`"y"` ctrl cases + the `alt+y` yank-pop route + any missing word-delete defaults (alt+backspace, alt+d — Grounds 3). A kill must also exit history browsing (pi's ops call `exitHistoryBrowsing()` first — editor.ts:1627; the port has `exit_history_browsing`).
+  - Tests: new direct-class file for KillRing + the Editor kill/yank ops (test/render/** — the markdown_test.rb precedent; drive public behavior, no stubs); binding-level tests through `test/chat_test.rb`'s existing edit_input pattern for ctrl+u/ctrl+k/ctrl+y/alt+y + ctrl+a/ctrl+e regression pins. Model the assertions on pi's editor.test.ts kill/yank cases where they exist.
+  - Touch: `lib/tart/render/kill_ring.rb` (new), `lib/tart/render/editor.rb`, `lib/tart/render/chat.rb`, `test/chat_test.rb`, `test/render/**` (new files). Must not: everything else — `lib/tart.rb`, gems/**, bin/tart, theme.rb, tui.rb, all wave-sealed component files (transcript.rb included), any other test file.
+
+- **Lane `rig` (high effort — pi-side compaction trigger needs care).**
+  - Deliver: `gems/tui-split-rig/scenarios/s7_compaction.yml` — drives BOTH pi and tart through a compaction (verify `/compact` works against the rig's mock-LLM/session machinery FIRST; if the slash command can't ride the existing scenario runner, fall back to threshold-triggering via each app's context-window env and document what you found). Registry classes for the new capture families; baseline captures from BOTH apps; s7 exits 1 at baseline EXPECTED — the report itemizes the candidate list (expected head: the missing customMessageBg compaction panel). Plus the **pending-state probe**: a mid-flight capture method (the I19/I20 probe precedent) documenting pi's `toolPendingBg` bytes vs the port's completion-only enqueue — evidence to scratch, not a scenario gate.
+  - Hard constraint: s1–s6 stay exit 0 (the editor lane's bindings must not shift settled bytes — and won't, but the rig PROVES it); registry changes are ADDITIONS ONLY (no line removed — the existing sanctioned classes are frozen).
+  - Touch: `gems/tui-split-rig/**` (scenarios, registry, lib, bin — the whole rig is this lane's). Must not: anything outside gems/tui-split-rig/, esp. lib/tart/**, test/**, bin/tart.
+
+- **Output format (both lanes).** Raw evidence to scratch: file list + wc; for editor — the binding table (pi default → port binding, before/after) + verbatim test-run tails + suite counts; for rig — the s7/probe command lines + exit codes + the candidate-list table + the registry diff. PHASE 0 disagreements mandatory (the Grounds-2/3 premises are checkable). STATUS line last.
+
+- **Tool guidance.** Verification (tart): `bundle install --quiet && bundle exec rake`, `bundle exec ruby bench/seam_bench.rb`; rigs: `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml --out tmp/<out>` (s1–s6 exit 0; `s1_tart.yml` exits 1 at base by design). pi sources live at `repos/pi/packages/tui/src/` (keybindings.ts, kill-ring.ts, components/editor.ts, editor.test.ts) — read them before coding; the port cites them. The rig's runner mechanics: I21's extraction shape (`TuiSplitRig`, `TUI_SPLIT_RIG_LIVE`, cross-tree MockLLMServer dev require).
+
+- **Boundaries.** Sanctioned scope is exactly the two lanes above. Out of scope: the compaction-summary-panel port (s7's candidate list is ITS spec), the toolPendingBg port, undo-stack (ctrl+-), jumpForward/jumpBackward (ctrl+]), multi-line editor support, the header startup-help flip. No placeholders; search before implementing.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision editor-kill-ring`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: editor
+  repo: tart
+  touch:
+    - lib/tart/render/kill_ring.rb
+    - lib/tart/render/editor.rb
+    - lib/tart/render/chat.rb
+    - test/chat_test.rb
+    - test/render/**
+- name: rig
+  repo: tart
+  touch:
+    - gems/tui-split-rig/**
 ```
 
 ## Acceptance Criteria
