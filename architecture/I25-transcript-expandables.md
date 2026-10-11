@@ -28,34 +28,42 @@ Measured this session (2026-10-11) at base **5cc263ec** (= `project/pi-port` tip
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section transcript-expandables specification --from <file>`. -->
+# Specification — I25 transcript-expandables
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+- **Objective.** The fifth and final extraction wave of the sanctioned five-wave chat-surface decomposition (Grounds 1; I21 Grounds 1, owner decisions 2026-10-11): a **pure refactor — zero behavior change, proven byte-exact by the rig** (BRIEF §8: s1–s6 stay exit 0; no new registry classes, no candidate lines). Extract the transcript/scrollback-assembly family + the replay family out of `Render::Chat` into a stateful `Tart::Render::Transcript`, leaving chat.rb the coordinator (Grounds 1: wiring + event layer + input routing + live region + view assembly + status chrome — pi's interactive-mode.ts holds this same assembly inline). Why: the parity program reached its §8 bar; this is the last move with the byte-exact oracle that later feature work will not have.
+
+- **Target class assignment (the decomposition shape — the deliverable).** Grounds 2 measured the family's state footprint this session. New file `lib/tart/render/transcript.rb`:
+
+  | Class (file) | Shape | Methods + constants (from Chat) | State owned |
+  |---|---|---|---|
+  | `Tart::Render::Transcript` (`transcript.rb`) | stateful class (wave-2/4 style) + module-function purity for the shared composition trio | `enqueue_message`, `enqueue_scrollback`, `enqueue_user_echo`, `enqueue_user_submission`, `enqueue_markdown`, `enqueue_bash_block`, `push_expandable`, `enqueue_user_bash_block`, `enqueue_tool_block`, `enqueue_write_block`, `enqueue_read_block`, `flush_scrollback`, `skill_panel_rows`, `replay_entries`, `replay_entry`, `replay_user`, `replay_user_bash`, `replay_assistant`, `set_tool_output_expanded`'s state half; module-function: `markdown_lines`, `panel_markdown_row`, `reasoning_lines` (shared with Chat's live region — Grounds 2) | `@transcript`, `@scrollback`, `@expandable_blocks`, `@tool_output_expanded`, `@chat_started` |
+
+  **Stays on Chat (measured, Grounds 2):** `enqueue_motd` (the I24 ruling — constructor gather + `@motd_pending` frame timing; composes through the new class's surface), `flush_reasoning`/`live_lines`/`display_lines`/`reasoning`+`live` state (the live streaming region), `transcript_lines` (the mutex readback — may delegate), `clear_transcript` (the coordinator reset — calls component resets, the I24 `@footer.reset_usage` precedent), the widget-assembly + status-chrome families, `edit_input`/`submit`/`handle_mouse`/`wheel`/`mark_scrollbar_activity`, the event layer, the session ops and readbacks. `set_tool_output_expanded` STAYS as Chat's public op (frozen surface, test-driven) delegating to the state half.
+
+  **Seam rules (the wave-2/4 discipline):** (a) the new class owns ONLY its state — no reference to Chat's kernel/session/mutex/editor/autocomplete/picker/viewport/selection/footer/agent/live/reasoning state inside `transcript.rb` beyond the constructor-injected seams; (b) constructor-injected seams per the `UserBash` precedent: a width reader (the enqueue family calls `viewport_width` internally at base — thread it per-call or inject a reader proc, one or the other, not both), a busy-style reader IF the family's deferral gates need one, and the late-bound completion sinks — the editor-history sink (`replay_user`'s `add_to_history`) and the footer-reseed sink (`replay_assistant`'s `reseed_usage`) stay coordinator-side as lambdas; (c) the class is called from exactly the fibers/threads that touched the ivars at base — NO new locking (Grounds 4); (d) `enqueue_motd` (stays) composes through the new class's public surface — the passthrough shape (dedicated op vs accessor) is the builder's house-idiom choice; if the assignment proves wrong at the code, raise it PHASE 0 with line evidence — do not silently reshape.
+
+- **Output format.** Raw evidence only, to the scratch report: (a) the method-move table (each moved method → the class, with the call-site count per moved name in chat.rb before/after); (b) chat.rb `wc -l` before/after + transcript.rb's `wc -l`; (c) the state-leak grep over chat.rb for every moved ivar name (raw command + output); (d) `bundle exec rake` tail with run/assertion counts; (e) s1–s6 rig runs from this worktree (raw exit codes); (f) `git show 5cc263ec:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml` raw; (g) `bundle exec ruby bench/seam_bench.rb` tail; (h) PHASE 0 disagreements (mandatory — Grounds 2's footprint is checkable; silent compliance = defect); STATUS line (`STATUS: COMPLETE` or `STATUS: BLOCKED <reason>`).
+
+- **Tool guidance.**
+  - Verification (tart repo): `bundle install --quiet && bundle exec rake` (default task = minitest), `bundle exec ruby bench/seam_bench.rb` (prints `SEAM_BENCH_OK`).
+  - Rig: `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml --out tmp/<out>` — exit 0 = all difference lines sanctioned. The six gate scenarios are s1_text_turn/s2_tool_turn/s3_tool_turn_files/s4_bash_variants/s5_bash_truncation/s6_long_calls; `s1_tart.yml` exits 1 at base by design (the identity-header drift, I23/I24 control-confirmed) — do not chase it.
+  - The suite stays at the coordinator level: the transcript tests keep driving Chat's public surface (`submit`, `transcript_lines`, `set_tool_output_expanded`, readbacks) and MUST keep their names and assertions — this wave is moves-only for them (expected run-count delta **0** AND an expected byte-unchanged `test/chat_test.rb`; a PHASE-0-raised direct-class coverage addition is the only sanctioned change, reported with the reason).
+  - The new file is required from `chat.rb` (`require_relative`, the I24 pattern — `lib/tart.rb` needs no change).
+  - Frozen surfaces that MUST NOT change: Chat's public surface (constructor params, `footer_data=` writer, `submit`, `edit_input`, `set_tool_output_expanded`, the readbacks), `bin/tart`, the wave-1/2/3/4 sealed files (`text.rb`, `panel.rb`, `bash_block.rb`, `file_blocks.rb`, `tool_block.rb`, `editor.rb`, `autocomplete.rb`, `picker.rb`, `slash_source.rb`, `viewport.rb`, `selection.rb`, `motd.rb`, `user_bash.rb`, `footer.rb`), everything under `gems/tui-split-rig/`, `theme.rb`, `tui.rb`.
+
+- **Boundaries.**
+  - **Lane `transcript` may touch:** `lib/tart/render/chat.rb`, `lib/tart/render/transcript.rb` (new), `test/chat_test.rb` (moves-only; PHASE-0 additions sanctioned), `test/render/**` (new direct-class tests only if PHASE-0-raised). **Must not:** everything else — `lib/tart.rb`, any other `lib/tart/**` file (incl. all wave-1/2/3/4 sealed files), `bin/tart`, `gems/**`, `bench/**`, `theme.rb`, `tui.rb`, any other test file. If a call-site change seems needed outside the set, PHASE 0 it, do not touch.
+  - **Sanctioned call-site re-points (ENUMERATED EXPLICITLY per the I24 carry-in — anything outside this list that the ACs force is PHASE-0 material, not silent work):** (1) `enqueue_motd`'s direct `@scrollback` appends (chat.rb:536–548) re-point through the new class's surface; (2) `edit_input`'s `@tool_output_expanded` read (chat.rb:976) re-points to a component op or the delegator; (3) `clear_transcript`'s transcript/scrollback/expandable/tool_output_expanded/chat_started writes (chat.rb:742–748) re-point to a component reset op; (4) the I24-wired `UserBash` sinks (`block_sink` chat.rb:176, `line_sink` chat.rb:178) re-point to the new class's ops; (5) the pure-trio call sites in `flush_reasoning` (1078) and `live_lines` (1360/1362) re-point to the module-function forms. NOTHING else in the stay-put families may change beyond the mechanical receiver re-pointing those five items force.
+  - Out of scope: the live region, the widget-assembly and status-chrome families, the event layer, the session ops (they stay defined in chat.rb and untouched except as enumerated above). No refactors beyond the move. No placeholders; search before implementing.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision transcript-expandables`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: transcript
+  repo: tart
+  touch:
+    - lib/tart/render/chat.rb
+    - lib/tart/render/transcript.rb
+    - test/chat_test.rb
+    - test/render/**
 ```
 
 ## Acceptance Criteria
