@@ -681,11 +681,187 @@ Frozen gates you self-verify (the architect re-runs them cold):
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I16-identity-parity-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence identity-parity --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### identity
+
+### Frozen gates (self-verified, this worktree, this run)
+
+```
+$ bundle install --quiet && bundle exec rake && echo SUITE_OK
+SUITE_OK                      (exit 0)
+
+$ bundle exec rake            # tail
+354 runs, 1402 assertions, 0 failures, 0 errors, 1 skips
+                              (skip = PTY_TESTER_LIVE opt-in live-rig test)
+
+$ bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+SEAM_BENCH_OK
+
+$ bin/pty-tester run parity/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+out dir: .../wt/tmp/parity-gate-s1
+EXIT=0
+(rerun cold: tmp/parity-gate-s1-2 → exit 0)
+
+$ bin/pty-tester run parity/scenarios/s1_tart.yml --app tart --out tmp/parity-gate-tart \
+  && grep -q "tart v" tmp/parity-gate-tart/run-1/tart.capture \
+  && ! grep -q "Pi can explain" tmp/parity-gate-tart/run-1/tart.capture && echo TART_MODE_OK
+TART_MODE_OK
+(rerun cold: tmp/parity-gate-tart-2 → TART_MODE_OK, exit 0)
+
+$ grep -q "TART_IDENTITY" bin/tart && grep -q "identity" lib/tart/settings.rb && echo IDENTITY_SEAM_OK
+IDENTITY_SEAM_OK
+```
+
+### s1 parity run (tmp/parity-gate-s1-2/summary.json, verbatim extract)
+
+```json
+{"exit_code": 0, "candidates": [], "classes": {"parity-run-path": 2}}
+```
+
+Per-app completion (both s1 runs identical): pi completed=true requests=1/1,
+tart completed=true requests=1/1; boot_settle 1108/1398 ms, reply_settle
+1124/1135 ms (run 1); rig_failure null.
+
+Settled capture, first 12 rows — pi.capture and tart.capture now byte-identical
+(both, from tmp/parity-gate-s1-2/run-1/):
+
+```
+ 1  (blank)
+ 2  " ▀▀█  v1.1.0"
+ 3  " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more"
+ 4  " Press ctrl+o to show full startup help and loaded resources."
+ 5  (blank)
+ 6  " Pi can explain its own features and look up its docs. Ask it how to use or extend Pi."
+ 7  (blank)
+ 8  (blank)
+ 9  " hello"
+10  (blank)
+11  (blank)
+12  " The mock reply is fixed and short for the spike."
+```
+
+Footer line (both): `↑10 ↓5 0.0%/33k (auto)` + right-aligned `(mock) mock-1`
+(no `•` suffix — the mock model is not reasoning-capable).
+
+Baseline → gate: 18 unknown-candidate lines → 0; classes {unknown-candidate:
+18, parity-run-path: 2} → {parity-run-path: 2}.
+
+### tart-mode capture (tmp/parity-gate-tart-2/run-1/tart.capture)
+
+```
+ 1  (blank)                      <- header-container Spacer(1), both modes
+ 2-9  " " + owner's art piece (random; this run drew the block-art piece)
+10  " tart v0.1.0"
+11  " ctrl+c interrupt/quit · ctrl+d exit (empty) · / commands · pgup/pgdn scroll"
+```
+
+grep checks: `tart v` present (line 10), `Pi can explain` absent. Footer:
+`↑10 ↓5 0.0%/33k (auto)  …  (mock) mock-1` — the structural footer format
+holds in tart-mode too. No [Context]/[Skills] (staged sandbox has no settings
+files or skills — sections gate on entries, as before).
+
+### Identity seam: resolution-order table + headless proofs
+
+| Row (precedence) | Inputs | Resolved | Proof (test) |
+|---|---|---|---|
+| CLI | `cli: "pi"` over env=tart, settings=tart | `"pi"` | `Tart::SettingsTest#test_identity_resolves_cli_over_env_over_settings_over_default` |
+| `TART_IDENTITY` env | env=tart over settings=pi | `"tart"` | same test |
+| settings `identity` | settings=tart, no env/cli | `"tart"` | same test |
+| default | nothing set | `"pi"` (`Identity::DEFAULT`) | same test |
+| invalid value | cli `"nope"` / settings `"bogus"` | raises `Tart::Identity::Error` naming `pi`/`tart` | `Tart::SettingsTest#test_invalid_identity_errors_naming_the_valid_values` |
+| settings layer | no files → `identity: "pi"` in settings, no unknown-key warning | — | `Tart::SettingsTest#test_settings_layer_defaults_the_identity_key` |
+
+Per-mode MOTD bytes, headless-pinned (test/chat_test.rb):
+- `test_motd_renders_pi_header_bytes_in_pi_mode` — rows 1-7 exactly:
+  `" ▀▀█  v1.1.0"` / `" █▀ █ <pi hints>"` / `" Press ctrl+o …"` / `""` /
+  `" Pi can explain …"` / trailing spacer; no [Context]/[Skills]; cell
+  readback: logoCoral fg + logoBlue bg on the top pixel, logoYellow on the
+  bottom mark's pixel, dim version.
+- `test_motd_renders_logo_version_hints_context_and_skills` (tart-mode) —
+  leading spacer, padded art piece, `" tart v#{Tart::VERSION}"`, tart hints,
+  [Context]/[Skills] sections.
+- `test_motd_is_omitted_sections_when_nothing_loaded` (tart-mode).
+
+Footer model segment (test/chat_test.rb): `test_footer_renders_the_thinking_level_right_aligned`
+(`• <level>` only with `reasoning: true`), `test_footer_renders_the_provider_label`
+(`(mock) m` right-aligned); launcher wiring proven in
+test/launcher_smoke_test.rb (`footer_data` carries `provider: "openai"` and
+`reasoning: false` for an assumed model); resolution in
+test/settings_test.rb (`test_model_provider_label_and_reasoning_resolve_staged_over_model`,
+`…_read_the_registry_model` — registry model via `RubyLLM.models.find("gpt-5.6")`
+→ provider `openai`, capability passthrough).
+
+Resume hint per identity (test/launcher_smoke_test.rb
+`test_resume_hint_shape_and_not_persisted_branch`): `"…tart --resume abc123"`
+for identity tart, `"…pi --resume abc123"` for pi; nil when unpersisted/no
+recorder.
+
+### Rig env seam: mechanism itemized
+
+- `Tart::Parity::Scenario` (lib/tart/parity/scenario.rb): optional `env:`
+  mapping app → `{ENV_VAR => value}`, stringified; validated at load —
+  unknown app names and non-mapping shapes are `Parity::Error`s
+  (test/parity/scenario_test.rb: valid load, s1_tart pin, optional-absent,
+  unknown-app error, non-mapping error, value stringification).
+- `Tart::Parity::Runner` (lib/tart/parity/runner.rb): new `staged_env(app, env)`
+  layers `scenario.env[app]` over the runner's staged env in BOTH
+  `pi_command` and `tart_command` (both apps stageable; overrides win).
+- `parity/scenarios/s1_text_turn.yml`: stages `tart: TART_MODEL_PROVIDER:
+  mock` (data-only — pi's footer label comes from its staged models.json +
+  multi-provider catalog; the port's analog staging renders `(mock) mock-1`).
+- `parity/scenarios/s1_tart.yml` (new): s1 + `TART_IDENTITY: tart`.
+- `parity/registry.yml`: untouched (0 new classes).
+
+### Files touched (all within BOUNDARIES; no commits made)
+
+- New: `lib/tart/identity.rb`, `parity/scenarios/s1_tart.yml`
+- Modified: `bin/tart`, `lib/tart.rb`, `lib/tart/render/chat.rb`,
+  `lib/tart/theme.rb`, `lib/tart/settings.rb`, `lib/tart/parity/scenario.rb`,
+  `lib/tart/parity/runner.rb`, `parity/scenarios/s1_text_turn.yml`,
+  `test/chat_test.rb`, `test/settings_test.rb`, `test/theme_test.rb`,
+  `test/launcher_smoke_test.rb`, `test/parity/scenario_test.rb`, `README.md`
+- Untouched: gemspec/Gemfile(.lock) (0-line diff), parity/registry.yml,
+  lib/tart/agent/**, bench/**, docs/**, fixtures.
+
+### Deviations itemized (each also raised at PHASE 0)
+
+1. Echo/reply blank structure implemented per pi's real mechanism, not the
+   spec's "component leading spacers" phrasing: user echo Markdown
+   paddingY=1 (user-message.ts:23 — blank above AND below), assistant
+   component's internal leading Spacer (assistant-message.ts:103-105), and
+   the leading Spacer gated on chat-container non-emptiness
+   (interactive-mode.ts:3930-3931). pi source verified: chat container is
+   separate from the header container (interactive-mode.ts:633-639), so the
+   fresh-boot first echo has NO container spacer. Port tracks this with a
+   `@chat_started` flag reset in `clear_transcript` (/new, resume).
+2. Footer provider label: pi gates `(<provider>) <model>` on
+   >1 unique available provider (footer.ts:246-258,
+   interactive-mode.ts:5252-5258). The port has no model catalog — the gate
+   is unimplementable — so the label renders whenever it resolves (staged
+   `TART_MODEL_PROVIDER` > RubyLLM registry provider > resolved
+   `defaultProvider`). s1 bytes unaffected.
+3. Markdown/reasoning/echo wrap width = width − paddingX·2 (pi
+   markdown.ts:289 subtracts paddingX from both sides); the port renders
+   the left pad only (the right margin is capture-invisible — tmux trims
+   trailing whitespace).
+4. Abort prefix: pi prints `Error: <message>` with no app-name prefix
+   (cli.ts:333, main.ts:102-103) — no comparable prefix, so `tart: ` stays
+   in both modes (the spec's escape hatch).
+5. `TART_IDENTITY` appears in bin/tart as the documented seam (usage line +
+   comment at the resolution call site); the env READ lives only in
+   `Tart::Identity` (one resolution point).
+6. Out-of-scope cuts kept, itemized: ctrl+o expand machinery and `!` bash
+   bindings unbuilt (pi-mode header renders their hint text for byte
+   parity); tool lines ("  ⎿ …"), command/status lines, compaction and
+   error lines remain unpadded — not in the s1 work list, measured in s2+;
+   CLI `--help` stays tart-branded (only the new `--identity` flag and
+   `TART_IDENTITY` env documented); `--print` mode never renders an
+   identity surface, so identity resolution is interactive-only.
+7. The prior "frozen cross-lane contract" (`footer_data[:thinking_level]` →
+   unconditional `model • <level>`) is superseded by work item 9's
+   reasoning gate; both sides of the seam (bin/tart, chat.rb) are this
+   lane's files; the old pin is updated, not weakened.
+
+STATUS: COMPLETE
 
 ## Verdict
 
