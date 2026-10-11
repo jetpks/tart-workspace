@@ -551,15 +551,31 @@ STATUS: COMPLETE_WITH_CONCERNS (s1_tart exits 1 at base AND at this diff — env
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section decomp-wave3 verdict --from <file>`. -->
+# Verdict — I23 decomp-wave3
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify decomp-wave3`)?
+Judged in a fresh session (2026-10-11) that dispatched nothing. Post-flight: `architect verify` 4/4 PASS; frozen region untouched vs freeze a6e8e4c5 (the only iteration-file diff is the legal Builder Prompt/Report appends); worktree clean of builder commits off base 4d858125; diff exactly the declared touch set (M chat.rb, M text.rb, ?? viewport.rb, ?? selection.rb — bin/tart and wave-2 sealed files untouched). All 14 gates PASS cold on the integrated tree (53ca4b49). Every load-bearing builder claim was independently audited: state-leak/constants/moved-method greps re-run by hand (clean), class purity greps re-run (no kernel/session/mutex/scrollback refs in either new class), and the s1_tart base-red control re-run from the archived base tree (exit 1, 18x unknown-candidate — every one an identity-header/MOTD line or the two sanctioned run-path/footer classes; zero viewport/selection-family candidates).
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+## PHASE-0 rulings (6 raised, none silent)
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+1. **`Viewport#wheel` added beyond the assignment table — ACCEPT.** AC1 forbids any WHEEL_* reference in chat.rb while shape rule (c) keeps `wheel`'s event routing in Chat; the wheel math's only compliant home is Viewport. PHASE-0-raised re-assignment — explicitly legal per AC1's final clause.
+2. **Epoch return-threading (`scroll_by`/`scroll_page`/`wheel` return the mark epoch; Chat arms only non-nil) — ACCEPT.** AC2's closed seam list sanctions no Viewport constructor callback; return-threading is the minimal data-ownership-compliant shape (Viewport owns the epoch, Chat owns the timer). Verified in the code: `mark_scrollbar_activity(epoch)` arms the kernel one-shot only on a moved scroll (chat.rb:1206,1210,1492) — semantics identical to base (one timer per moved scroll, stale epochs no-op).
+3. **`Selection::Point.new(...)` remains in chat.rb's `content_point` — ACCEPT; the defect is AC1's authoring, not the lane.** Rule (c) keeps `content_point` in Chat (it needs viewport offset + geometry); Point's home is Selection; the construction site is the coordinator composing the collaborator's public data type — the same idiom as Selection carrying `Editor::WORD_CHAR`. AC1's prose "no reference to Point anywhere in chat.rb" contradicts rule (c) and could only hold by making `content_point` worse. Letter-vs-spirit conflict raised with evidence per the lane-prompt clause; lane not penalized. The constants-gone gate (which greps the definition, not references) is correctly calibrated; no gate correction to carry — wave 4+ moves don't touch Point.
+4. **Dead `WORD_CHAR = Editor::WORD_CHAR` alias left chat.rb, alias now on Selection — ACCEPT.** The alias went dead when `word_range`/`word_char?` moved; carrying it to its consumer with its comment is part of the move, not scope creep.
+5. **Eager `content_point` in drag/up (base computed lazily after the nil-check) — ACCEPT.** Pure display reads, observationally equivalent, perf-only; threading the point from Chat is the shape AC2's per-call threading sanctions.
+6. **Holder ivar `@selection_state` (base `@selection` was the state, now the Selection collaborator) — ACCEPT.** A collaborator named `@selection` would trip the state-leak gate's `@(selection)\b` letter spuriously; the rename is PHASE-0-raised and reads correctly (the Selection object *is* the selection state machine). Same family as wave 2's `@editor`/`@autocomplete`/`@picker` collaborators.
+
+## Per-AC
+
+- **AC1 PASS** — assignment table holds (both new classes verified by hand + gate); moved state/constants gone from chat.rb; the two sanctioned keeps are the only survivors; every beyond-table shape is PHASE-0-raised and ruled above.
+- **AC2 PASS** — purity proven (my grep: no kernel/session/scrollback/mutex/transcript refs in either class); seams exactly the sanctioned set (per-call threading, injected line reader, TUI/Theme/Text, `TUI.osc52_copy` in release); kernel arm stays in Chat; mutex boundaries unchanged; public surface + `bin/tart` untouched.
+- **AC3 PASS** — s1–s6 all exit 0 cold; registry byte-identical to 4d858125. `s1_tart` is NOT an AC3 instrument (the frozen gates enumerate `s1_text_turn`–`s6`); its exit 1 is pre-existing at base — independently reproduced by this session's control run — environmental drift between the installed pi binary's tart-mode header bytes and the checked-in registry, zero viewport-family candidates, out of this lane's blast radius. Logged to the backlog (belongs to the identity-header/mode-aware-token slice already queued there).
+- **AC4 PASS** — wave-4/5 families intact (gate green), bin/tart + wave-2 sealed files untouched, diff in-bounds (verify PASS).
+- **AC5 PASS** — suite 445 runs / 1787 assertions / 0 failures cold; `SEAM_BENCH_OK`.
+- **AC6 PASS** — `chat_test.rb` byte-unchanged (git status clean of test files); run count identical to base (445) — net delta 0 as specified; both test seams (`scrollbar_hide_delay_ms=`, `scroll_offset`) work through delegation.
+- **AC7 PASS** — architect-read on the integrated diff: both classes carry the wave-2 house idioms — class doc comments with their pi citations forward (scroll-view.ts / layout.ts / tui-alt-screen.ts), constants with citation comments, `attr_reader`/nil-fallback `hide_delay_ms`, clean private sections, no delegator shims, no abstraction beyond the table. Chat survives as the coordinator exactly as the spec's shape rules draw it.
+
+## Call
+
+**CONTINUE** — wave 3 landed byte-exact under the rig with zero test surgery and every beyond-table shape PHASE-0-raised and ruled; the decomposition program proceeds to I24 (content cluster).
+
+Carry-ins to I24: (a) standing — grep-verify purity premises BEFORE freezing the assignment table; (b) s1_tart environmental drift logged to the backlog alongside the identity-header/mode-aware-token slice.

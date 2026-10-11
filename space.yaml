@@ -1021,7 +1021,7 @@ project:
     ordinal: 23
     file: architecture/I23-decomp-wave3.md
     freeze_sha: a6e8e4c58afb881ac5700cd014b70958b21c1a95
-    verdict: pending
+    verdict: continue
     lanes:
     - name: viewport
       repo: tart
