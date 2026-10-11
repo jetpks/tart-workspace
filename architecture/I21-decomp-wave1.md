@@ -675,11 +675,140 @@ defects flagged with file:line in the Verdict.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I21-decomp-wave1-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence decomp-wave1 --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### rig
+
+### 1. Move inventory — `git status --short`
+
+```
+ M README.md
+ M Rakefile
+ D bin/pty-tester
+ D lib/tart/parity.rb
+ D lib/tart/parity/differ.rb
+ D lib/tart/parity/registry.rb
+ D lib/tart/parity/report.rb
+ D lib/tart/parity/runner.rb
+ D lib/tart/parity/scenario.rb
+ D parity/registry.yml
+ D parity/scenarios/s1_tart.yml
+ D parity/scenarios/s1_text_turn.yml
+ D parity/scenarios/s2_tool_turn.yml
+ D parity/scenarios/s3_tool_turn_files.yml
+ D parity/scenarios/s4_bash_variants.yml
+ D parity/scenarios/s5_bash_truncation.yml
+ D parity/scenarios/s6_long_calls.yml
+ D test/parity/cli_test.rb
+ D test/parity/differ_test.rb
+ D test/parity/fixtures/covered-a.capture
+ D test/parity/fixtures/covered-b.capture
+ D test/parity/fixtures/gapped-a.capture
+ D test/parity/fixtures/gapped-b.capture
+ D test/parity/fixtures/registry-covers.yml
+ D test/parity/fixtures/registry-gaps.yml
+ D test/parity/live_run_test.rb
+ D test/parity/mock_llm_extension_test.rb
+ D test/parity/registry_test.rb
+ D test/parity/scenario_test.rb
+?? gems/
+```
+
+Plain `mv` (no git write commands). Exec bit preserved: `-rwxr-xr-x gems/tui-split-rig/bin/tui-split-rig`. New tree:
+`gems/tui-split-rig/{lib/tui_split_rig/{scenario,registry,differ,runner,report}.rb, lib/tui_split_rig.rb, bin/tui-split-rig, registry.yml, scenarios/*.yml (7), test/*_test.rb (6), test/fixtures/* (6)}`.
+
+Byte-identity of moved data files vs base 931b589 (`git show 931b589:<old> | cmp - <new>`): all 14 OK
+(registry.yml, s1_tart, s1_text_turn, s2_tool_turn, s3_tool_turn_files, s4_bash_variants, s5_bash_truncation, s6_long_calls, 6 fixtures).
+
+### 2. Namespace-rename diffstat
+
+Tracked-side (`git diff --stat`, summary): `29 files changed, 13 insertions(+), 1692 deletions(-)` — README +22/−, Rakefile 2 +/−, rest deletions of the moved files. New files are untracked (plain mv; renames recover at integration).
+
+Per-file rename diffstat vs base 931b589 (`git diff --no-index --stat` old→new; counts inflated by the one-level dedent the namespace flattening requires — every body line shifts 2 spaces left):
+
+```
+lib/tart/parity/scenario.rb -> gems/tui-split-rig/lib/tui_split_rig/scenario.rb   67 insertions(+), 69 deletions(-)
+lib/tart/parity/runner.rb   -> gems/tui-split-rig/lib/tui_split_rig/runner.rb    347 insertions(+), 348 deletions(-)
+lib/tart/parity/differ.rb   -> gems/tui-split-rig/lib/tui_split_rig/differ.rb    180 insertions(+), 182 deletions(-)
+lib/tart/parity/registry.rb -> gems/tui-split-rig/lib/tui_split_rig/registry.rb   52 insertions(+),  54 deletions(-)
+lib/tart/parity/report.rb   -> gems/tui-split-rig/lib/tui_split_rig/report.rb     43 insertions(+),  45 deletions(-)
+lib/tart/parity.rb          -> gems/tui-split-rig/lib/tui_split_rig.rb            14 insertions(+),  15 deletions(-)
+```
+
+Semantic deltas are small: `Tart::Parity` → `TuiSplitRig`, dedent, mock require path, `tui-split-rig-` session prefix + grep, `default_registry` → `repo_root/gems/tui-split-rig/registry.yml`, `repo_root` up-4.
+
+### 3. Packaging proof
+
+```
+$ ruby -e 'puts Gem::Specification.load("tart.gemspec").files.grep(/parity|gems/)'
+(no output)
+packaging_grep_exit=0
+```
+EMPTY. gemspec itself unchanged (`Dir["lib/**/*.rb", "lib/tart/render/logos/*.txt", "bin/*", "README.md"]` no longer matches the rig; `executables = ["tart"]` untouched).
+
+### 4. Residue proof
+
+```
+$ git grep --untracked -nE 'PTY_TESTER|Tart::Parity|pty-tester-'
+(no output)
+residue_exit=1
+```
+
+Notes on bare `pty-tester` (no trailing dash — passes the frozen grep, sanctioned or frozen-file):
+- `gems/tui-split-rig/registry.yml:1` — `# pty-tester difference registry (SEED, I02).` — byte-identical gate wins, untouched.
+- `test/support/mock_llm_server.rb:11,244` — comments naming `bin/pty-tester` — MUST-NOT-TOUCH file (8 other test files require it), untouched.
+- `test/bash_tool_test.rb`, `test/chat_test.rb`, `gems/tui-split-rig/scenarios/s2_tool_turn.yml` — `echo pty-tester` command strings — explicitly sanctioned by AC1.
+
+### 5. Rakefile + default-suite counts
+
+Rakefile: `t.test_files = FileList["test/**/*_test.rb", "gems/tui-split-rig/test/**/*_test.rb"]`.
+
+```
+$ bundle exec rake
+Finished in 20.675177s, 21.3299 runs/s, 85.2230 assertions/s.
+441 runs, 1762 assertions, 0 failures, 0 errors, 1 skips
+```
+
+Split proof (rig tests counted in the default suite): repo tests alone `411 runs, 1645 assertions, 0 failures, 0 errors, 0 skips`; rig tests alone `30 runs, 117 assertions, 0 failures, 0 errors, 1 skips`. 411+30 = 441, 1645+117 = 1762, 1 skip = the live gate. Baseline before the move was also `441 runs, 1762 assertions, 0 failures, 0 errors, 1 skips` (old `test/parity` paths) — identical totals, new home.
+
+### 6. Standalone moved test
+
+```
+$ bundle exec ruby gems/tui-split-rig/test/differ_test.rb
+3 runs, 22 assertions, 0 failures, 0 errors, 0 skips
+exit=0
+```
+Other rig files standalone (all green): cli_test 4/8, registry_test 5/16, scenario_test 13/58, mock_llm_extension_test 4/13.
+
+### 7. Live s1 run from the new path
+
+```
+$ gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml \
+    --out /Users/eric/architect/spaces/20261009-pi-port/build/I21-decomp-wave1-rig/s1-out
+out dir: /Users/eric/architect/spaces/20261009-pi-port/build/I21-decomp-wave1-rig/s1-out
+cli_exit=0
+summary.json: exit_code=0 rig_failure=nil; pi completed=true requests=1/1; tart completed=true requests=1/1
+```
+Teardown discipline held (assert_clean_sessions! passed inside the run; no `tui-split-rig-*` sessions remain).
+
+Frozen CLI surface smoke: bare invocation prints the two-verb usage, exit 2; `diff` covered fixtures exit 0; gapped fixtures exit 1; unknown verb exit 2. Live runner path resolution (verified, not on paper):
+
+```
+out_dir=<worktree>/tmp/parity/20261011-201718
+tart_dir=<worktree>            (repo root)
+registry=<worktree>/gems/tui-split-rig/registry.yml
+```
+
+### 8. PHASE 0 disagreements
+
+1. **Spec arithmetic error, implemented per stated intent:** the spec says repo-root derivation "currently up 3 from `lib/tart/parity` must still resolve to the TART REPO ROOT from `gems/tui-split-rig/lib/tui_split_rig` (up 3)". From `lib/tart/parity` up 3 is root; from `gems/tui-split-rig/lib/tui_split_rig` (4 components below root) up 3 lands in `<root>/gems/` — up **4** is root. Implementing "up 3" literally would break `@tart_dir`, the `--out` default, and `default_registry`. Implemented up 4; live resolution proof in §7. Spec's "up 3" is a count typo.
+2. **Reported, not fixed (frozen/blocked):** `gems/tui-split-rig/registry.yml:1` retains the string `pty-tester` in its header comment because the byte-identical gate outranks the rename; and `test/support/mock_llm_server.rb` (MUST-NOT-TOUCH, required by 8 other tart tests) keeps `bin/pty-tester` in two comments. Neither matches the frozen residue pattern `PTY_TESTER|Tart::Parity|pty-tester-` (bare name, no trailing dash), so AC1's letter holds.
+3. **Judgment calls within spec:** moved tests are `module TuiSplitRig` with `class ... < Tart::Test` — the shared base lives in the frozen `test/test_helper.rb`, reached via the cross-tree relative require the spec endorses; requires resolve up 3 from `gems/tui-split-rig/test/` (spec didn't state the count). `--registry` help text now reads "(default registry.yml)" — the path it names moved; usage line is byte-identical modulo the binary name.
+
+### Environmental notes
+
+- A stale `pty-tester-pi-s4_bash_variants-r1-8f6a` tmux session (old-name prefix, s4 scenario — not this lane's run) sat on this machine's tmux server during verification; created by a concurrent lane's live run. Left untouched; it does not match the rig's `tui-split-rig-` cleanliness grep and my live run's teardown asserted clean regardless.
+- Suite re-run twice (before/after all edits): identical totals, no source edits between proof runs.
+
+STATUS: COMPLETE
 
 ## Verdict
 
