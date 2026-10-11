@@ -893,7 +893,7 @@ project:
     ordinal: 20
     file: architecture/I20-viewport-parity.md
     freeze_sha: bfb40c0604ad9937ac2e2a85bec4d2298323a126
-    verdict: pending
+    verdict: continue
     lanes:
     - name: render
       repo: tart
