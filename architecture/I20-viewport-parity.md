@@ -453,6 +453,171 @@ Gates you can run locally (from your worktree):
     grep -qiE "spacer.?when.?empty|widgets?-above" lib/tart/render/chat.rb && echo SPACER_OK
     grep -q "bash.ts:88" lib/tart/render/chat.rb && echo NOTICE_FG_OK
 
+### rig
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo. Silent compliance
+is a failure. Silent scope additions are a failure. If you have no
+disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed in BOUNDARIES. You
+are one of several parallel lane agents working in isolated worktrees; files
+outside your lane belong to other agents — touching them fails your lane.
+No placeholder implementations — search the codebase before implementing;
+full implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive forms); well-factored and
+DRY-ish; terse but clear; pragmatic, not clever — the smallest change that does
+the job, no abstraction it doesn't need. Tests stay simple and terse, exercising
+public behavior, no mock/stub of the class under test. Verify your work by
+running the acceptance criteria's gate commands and record the verbatim output.
+Do NOT commit and do NOT run any git write command (commit/add/branch/reset/
+checkout) — the architect commits and merges after verification, and verifies
+you made no commits. Do NOT delete lock files or escalate privileges if a
+command fails; record the exact error and continue. Do NOT use run_in_background
+(or shell `&`) for your own work — run long commands serially in the foreground
+with explicit timeouts instead. When done, write your report to the scratch
+file given below (an absolute path OUTSIDE your worktree), with RAW results
+only — tables, numbers, command output — no interpretation. Every status claim
+must be backed by a command result from this run. Keep the report compact.
+Do not title the report; keep any headings at `###` or deeper. End with exactly
+one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them) |
+BLOCKED (exact blocker + what you tried). Verdicts belong to the architect and
+the human.
+
+=== LANE: rig (I20 viewport-parity) ===
+
+Report file: /Users/eric/architect/spaces/20261009-pi-port/build/I20-viewport-parity-rig/report.md
+
+=== OBJECTIVE (and why) ===
+
+BRIEF §8 exact-parity program: the parity rig's next two measured slices, as
+scenarios + baselines — the instrument's work list for the NEXT iteration.
+No exit-0 is frozen for them (their baselines are the deliverable); a
+parallel render lane is fixing the s4 viewport defects in
+lib/tart/render/chat.rb + test files in its own worktree — stay out of
+lib/** and test/chat_test.rb entirely.
+
+Author two scenarios (the s2-s4 authoring pattern — house comment header
+naming what each scenario measures, shell-neutral commands, fixed mock
+replies):
+
+1. **s5_bash_truncation** — one bash tool call whose output exceeds the
+   model-facing tail cap (2000 lines — e.g. `seq 1 2100`), then a short final
+   reply; 3 mock requests. Measures: the collapsed preview (last-5 + the
+   earlier-lines hint) over a 2000-line output; the truncation notice
+   (`[Showing lines … of N. Full output: <path>]`) composing AFTER the
+   collapsed block (I19's landing); the spill-file path (expect the
+   `parity-run-path` class (`run-\d+/`) to cover it if the spill lands under
+   the per-run staging root — VERIFY with the baseline run, do not assume);
+   and the notice fg pair (pi renders the notice `warning` fg, the port's is
+   `tool_output` — the parallel render lane is fixing it; on YOUR base it
+   WILL appear as a candidate; record it verbatim, expected).
+
+2. **s6_long_calls** — one bash tool call with a >120-char command (the
+   `$ <command>` call row), one write tool call with a long (>100-char)
+   staged path, then a short final reply; 3-4 mock requests. Measures the
+   I18 no-wrap CUT: pi's Text wraps call rows to the viewport; the port
+   renders them un-wrapped (clipped). Long paths must stay under the staged
+   sandbox so the path classes cover them. The write's content: short
+   (the write renderer's preview is I18-landed; only the CALL row's wrap is
+   the target).
+
+Pin both scenarios' loads in `test/parity/scenario_test.rb` per the existing
+s1-s4 pin pattern (name, prompt, expected_requests, responses, env), then
+baseline each live: both apps complete the expected requests and settle; the
+EXPECTED outcome is **exit 1** with the candidate lists recorded verbatim —
+the candidates ARE the deliverable. Do NOT pin new registry classes for render
+defects (candidates are the work list; the registry stays owner-ruled minimal);
+pin a class ONLY if a baseline proves a path-shaped candidate the existing
+classes fail to cover, with the evidence in the report.
+
+=== EXPECTED STATE (read twice) ===
+
+Your worktree provisions off the merged base where I19 landed (the bash
+preview collapse; s4 exits 1 on base with two viewport classes — the render
+lane's work, not yours). Your baselines run against THAT base: s5's candidate
+list should show the truncation-shape candidates (notice fg pair + any
+path/padding noise); s6's should show the call-row wrap candidates. If a
+baseline instead shows rig failure (exit 2) or app boot failure — that is a
+BLOCKER to record, not a scenario defect to chase.
+
+=== OUTPUT FORMAT ===
+
+- The two scenario files, verbatim.
+- The load-pin tests (names + the assertions they pin).
+- Each baseline run: command + exit code + classes + candidates verbatim.
+- Any registry decision, evidenced (or "registry untouched" + why).
+- PHASE 0: numbered disagreements/deviations with file:line evidence.
+
+=== TOOL GUIDANCE ===
+
+- Verification: `bundle install --quiet && bundle exec rake` (minitest).
+- Live rig: `bin/pty-tester run parity/scenarios/<s>.yml --out <scratch-dir>`
+  (tmux + pi on PATH, present; exit 0 = parity, 1 = unknown candidates,
+  2 = rig failure).
+- Read `parity/scenarios/s2_tool_turn.yml`, `s3_tool_turn_files.yml`,
+  `s4_bash_variants.yml` IN FULL (the authoring pattern, the env staging) and
+  `test/parity/scenario_test.rb` IN FULL (the pin pattern) before writing.
+- The mock's tool_calls scripting shape: id/name/arguments (s4's `seq 1 12`
+  is the worked example for bash). For the WRITE tool call, s3 has the worked
+  example (path/content arguments).
+- The truncation seam (for the comment headers, read-only context):
+  the port's tail cap + notice live in `lib/tart/tools/bash.rb` (≈:216-237);
+  pi's in `packages/coding-agent/src/core/tools/bash.ts` + the renderers
+  (`renderers/bash.ts:88` — the notice's warning fg). Do NOT touch those
+  files — they are context for the scenario comments only.
+
+=== BOUNDARIES ===
+
+MAY touch: `parity/scenarios/s5_bash_truncation.yml` (new),
+`parity/scenarios/s6_long_calls.yml` (new), `test/parity/scenario_test.rb`
+(load pins). MUST NOT touch: `lib/**`, `bin/**`, any other scenario file,
+`parity/registry.yml` (unless a baseline proves a path-class gap — evidence
+required), `test/chat_test.rb` (the render lane's), any other test file,
+`test/support/**`, `tart.gemspec`/`Gemfile*`. No refactors beyond the
+authoring; no placeholders; `rg` before writing (check every pin pattern).
+
+=== ACCEPTANCE CRITERIA (frozen — verify against them, do not edit or work around) ===
+
+AC4 (rig scenarios — the next measured work list). `parity/scenarios/
+s5_bash_truncation.yml` and `parity/scenarios/s6_long_calls.yml` exist, load
+(pinned in `test/parity/scenario_test.rb` per the s1-s4 pattern), and each
+baselines live: both apps complete the expected requests and settle, exit
+**1**, classes + candidates recorded verbatim in the report (expected
+classes: the truncation-notice fg pair on base, spill/long-path noise if the
+path classes don't cover it). No registry pin without a baseline-proven
+path-class gap, evidenced in the report.
+
+AC5 (suite, bench — standing). `bundle exec rake` green (0 failures, 0
+errors); `bench/seam_bench.rb` prints `SEAM_BENCH_OK`; the gemspec runtime
+dependency set is unchanged.
+
+Gates you can run locally (from your worktree):
+
+    bundle install --quiet && bundle exec rake && echo SUITE_OK   # exit 0
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1            # SEAM_BENCH_OK
+    test -f parity/scenarios/s5_bash_truncation.yml && \
+      test -f parity/scenarios/s6_long_calls.yml && echo SCENARIOS_OK
+    bin/pty-tester run parity/scenarios/s5_bash_truncation.yml --out <scratch-dir>
+      # EXPECTED on your base: exit 1 (the baseline — candidates recorded)
+    bin/pty-tester run parity/scenarios/s6_long_calls.yml --out <scratch-dir>
+      # EXPECTED on your base: exit 1 (the baseline — candidates recorded)
+
 ## Builder Report
 
 <!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
