@@ -1075,7 +1075,7 @@ project:
     ordinal: 25
     file: architecture/I25-transcript-expandables.md
     freeze_sha: 16b988db3fa97725544aa91b056321e58a7515f8
-    verdict: pending
+    verdict: continue
     lanes:
     - name: transcript
       repo: tart

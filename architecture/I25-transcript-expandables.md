@@ -530,15 +530,69 @@ STATUS: COMPLETE_WITH_CONCERNS — (1) literal `tmp/parity-gate-s<N>` gate out-p
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section transcript-expandables verdict --from <file>`. -->
+# Verdict — I25 transcript-expandables
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify transcript-expandables`)?
+Judged 2026-10-11, fresh session (did not dispatch). Gates run cold from the integrated tree
+(`project/pi-port` @ 4c9d9881, merge of lane `transcript` off base 5cc263ec).
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+## Per-AC
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+| AC | Result | Evidence |
+|---|---|---|
+| AC1 extraction shape | **PASS** | `moved-methods-gone` MOVED_OK, `state-leak` NO_STATE_LEAK_OK, `new-class-present` CLASS_OK — all cold; all moved methods read in transcript.rb; `set_tool_output_expanded` stays a Chat public op delegating to the state half (chat.rb:1026 — sanctioned frozen-surface delegator); `@transcript_state` is the component handle, a distinct ivar (PHASE-0 #5, ruled ACCEPT) |
+| AC2 state + seam discipline | **PASS** | transcript.rb owns only the five moved ivars + three constructor seams (`width_reader`, `history_sink`, `reseed_sink` — chat.rb:164-168, the exact sanctioned set); no foreign state, no locking; Chat's `@mutex.synchronize` boundaries unchanged at every call site in the diff; public surface + `bin/tart` untouched |
+| AC3 byte-exact parity | **PASS** | run cold this session from the integration tree: s1–s6 all exit 0 via the literal frozen gate commands, `registry-unchanged` REGISTRY_UNCHANGED_OK (byte-identical to 5cc263ec). The builder's worktree path-length concern does not reproduce at the integration tree — mooted by the cold run |
+| AC4 scope discipline | **PASS** | integrated diff = chat.rb (M) + transcript.rb (A) only; `stays-intact` STAYS_INTACT_OK; bin/tart + wave-1/2/3/4 sealed files untouched; test/chat_test.rb byte-unchanged. Re-points: the five enumerated + PHASE-0-ruled `enqueue_region` sites + gate-forced `@transcript` reads (see process note) |
+| AC5 suite + bench | **PASS** | cold: 445 runs / 1787 assertions / 0 failures / 0 errors / 1 pre-existing skip, SUITE_OK; bench SEAM_BENCH_OK |
+| AC6 test surgery | **PASS** | `git diff 5cc263ec 4c9d9881 -- test/chat_test.rb` empty; run-count delta 0 |
+| AC7 idiomaticity | **PASS with defects flagged** | doc comments carry pi citations forward; wave-2/4 seam idioms honored; no shims for internal helpers. Defects: dead constant originals left in chat.rb (below); caller-less `flush_reasoning` retained (below) |
+
+## PHASE 0 rulings
+
+1. **`enqueue_message` reasoning threading — ACCEPT.** Verified at base: `flush_reasoning`'s sole
+   caller was the moved `enqueue_message` (5cc263ec:508; def at 1073). Threading reasoning as data
+   preserves row order (blank → reasoning rows → blank → markdown) and buffer-reset semantics
+   exactly (base flush clears `@reasoning` unconditionally, as does the new `:message_end` tail);
+   the s-rigs prove the bytes. Raised openly, as required.
+2. **`Transcript#enqueue_region` for two extra `@scrollback` sites — ACCEPT.** Both verified at
+   base (:391 compaction blank, :1078 reasoning push); the AC1 state-leak gate forced their
+   re-point. The five-item enumeration was MY authoring gap, not builder scope creep. The op is a
+   real surface op with documented three-site semantics, not a delegator shim.
+3. **`clear_transcript` does not write `@tool_output_expanded` — ACCEPT (spec defect mine).**
+   Base 740–753 verified: no such write. Builder preserved base behavior (reset touches the four
+   written ivars; the ctrl+o toggle state survives /new as before). Correct.
+4. **Constants + MarkedRegion move — MODIFY.** Moving them was right; the move left dead originals:
+   chat.rb:71,76,77 still define `BASH_TOOL`/`WRITE_TOOL`/`READ_TOOL` with zero usages
+   (`MarkedRegion` was cut properly). AC7 defect — flagged below.
+5. **`@transcript_state` naming — ACCEPT.** The gate's `\b` regex forces it (underscore is a word
+   char); follows the real `@selection_state` precedent in the same constructor.
+6. **`def self.` for the shared trio — ACCEPT.** `module_function` is module-shaped; class
+   functions are the correct form on a stateful class; the frozen gate regex sanctions it.
+
+## AC7 defects flagged (file:line, owner-directed follow-ups — not gating)
+
+- **Dead constant originals**: chat.rb:71,76,77 — `BASH_TOOL`/`WRITE_TOOL`/`READ_TOOL` defined
+  with zero usages, duplicated at transcript.rb:36,41,42. Trivial inline deletion.
+- **Caller-less `flush_reasoning`**: chat.rb:699-710 — zero remaining callers in lib/bin/test
+  (grep verified this session), retained because the frozen `stays-intact` gate demands it; doc
+  note explains. Delete when the gate retires — the wave program is complete, so that is now.
+
+## Process note (logged, no artifact effect)
+
+The builder under-itemized gate-forced re-points: `transcript_lines`'s and `display_lines`'s
+`@transcript` reads were re-pointed without PHASE-0 listing (its item 2 raised the class of
+problem for two `@scrollback` instances only). Mitigations: `transcript_lines` delegation was
+explicitly sanctioned in the spec ("may delegate"), and `display_lines`' re-point is forced
+mechanically by the frozen state-leak gate. Both are mechanical receiver re-points, open in the
+diff, byte-proven. Defect in reporting, not in the artifact.
+
+## Call
+
+**CONTINUE** — the fifth and final extraction wave lands: chat.rb 1436 → 1035 lines, the
+transcript/scrollback + replay families extracted stateful behind three sanctioned seams,
+byte-exact parity proven cold against the §8 oracle. The five-wave chat-surface decomposition
+program (I21–I25) is COMPLETE; chat.rb is now the coordinator proper, pi-shaped. The dead-code
+follow-ups above are the only residue.
+
+Frozen-region integrity: `git diff 16b988db HEAD` touches only the appended Builder
+Prompt/Builder Report sections (architect verify (a) PASS).
