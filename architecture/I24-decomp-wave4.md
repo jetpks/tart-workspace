@@ -455,11 +455,120 @@ MOVED_OK / CONSTANTS_MOVED_OK / NO_STATE_LEAK_OK), new-files-present
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I24-decomp-wave4-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence decomp-wave4 --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### content
+
+### 1. Method/constant/ivar move table
+
+Call-site counts are raw `grep -c "\b<name>\b"` over the base `53ca4b4:lib/tart/render/chat.rb` (includes the `def` line and comment mentions) and over the new chat.rb re-points.
+
+| Moved | → Class | base chat.rb greps | chat.rb after (re-points) |
+|---|---|---|---|
+| `pi_hint_spans` | Motd | 2 | 0 |
+| `motd_logo_lines` | Motd | 2 | 0 |
+| `tart_header_lines` | Motd | 2 | 1 (`Motd.tart_header_lines`) |
+| `pi_header_lines` | Motd | 2 | 1 (`Motd.pi_header_lines`) |
+| `pi_mark` | Motd | 3 | 0 |
+| `apple_terminal?` | Motd | 2 | 0 |
+| `motd_sections` | Motd (→ `sections(width, context:, skills:, prompts:, extensions:)`) | 2 | 1 (`Motd.sections`) |
+| `context_sources` | Motd (+params `settings_root, cwd`) | 2 | 1 (`Motd.context_sources`) |
+| `motd_skill_names` | Motd (+param `source`) | 2 | 1 (`Motd.motd_skill_names`) |
+| `dim_compact_list` | Motd | 5 | 0 |
+| `LOGOS_DIR`, `HINTS_LINE`, `PI_HINTS`, `PI_NOTICE_LINE`, `PI_ONBOARDING_LINE` | Motd | — | 0 definitions in chat.rb |
+| `user_bash_command` | UserBash (class method `UserBash.parse`) | 8 | 1 (`UserBash.parse`) |
+| `user_bash` | UserBash#run | 2 | 1 (`@user_bash.run`) |
+| `finish_user_bash` | UserBash#finish (private) | 2 | 0 |
+| `record_user_bash` | UserBash#record (private) | 3 | 0 |
+| `cancel_user_bash` | UserBash#cancel | 2 | 1 (`@user_bash.cancel`) |
+| `user_bash_fields` | UserBash#fields (private) | 4 | 0 |
+| `user_bash_record` | UserBash#build_record (private) | 3 | 0 |
+| `flush_pending_bash_records` | UserBash#flush_pending | 2 | 1 (`@user_bash.flush_pending`) |
+| `footer_widget` | Footer#widget | 2 | 1 (`@footer.widget`) |
+| `footer_stats` | Footer#stats (private) | 2 | 0 |
+| `read_branch` | Footer (private) | 2 | 0 |
+| `context_used` | Footer (private) | 3 | 0 |
+| `context_segment` | Footer (private) | 2 | 0 |
+| `context_fg` | Footer (private, +param `data`) | 2 | 0 |
+| `cache_hit_rate` | Footer (private) | 2 | 0 |
+| `accumulate_usage` | Footer | 3 | 1 (`@footer.accumulate_usage`) |
+| `reseed_usage` | Footer | 2 | 1 (`@footer.reseed_usage`) |
+| `DEFAULT_BRANCH_READER` | Footer | — | 1 legal bare-constant re-point: `branch_reader: Footer::DEFAULT_BRANCH_READER` constructor default |
+| `@user_bash_task/@user_bash_slot/@user_bash_command/@user_bash_excluded/@user_bash_cancel_flag/@pending_bash_records` | UserBash ivars `@task/@slot/@command/@excluded/@cancel_flag/@pending` | — | 0 refs in chat.rb |
+| `@branch/@branch_fetched/@branch_reader/@usage_totals/@last_usage/@usage_stale` | Footer ivars (names verbatim) | — | 0 refs in chat.rb |
+
+New Footer ops (spec-delegated naming): `invalidate_branch` (2 call sites: :agent_start, submit), `mark_usage_stale` (1: :compaction), `reset_usage` (1: clear_transcript). New UserBash op: `running?` (1: escape guard).
+
+### 2. Line counts
+
+| File | before | after |
+|---|---|---|
+| lib/tart/render/chat.rb | 1896 | 1436 |
+| lib/tart/render/motd.rb | — | 182 |
+| lib/tart/render/user_bash.rb | — | 184 |
+| lib/tart/render/footer.rb | — | 230 |
+| test/chat_test.rb | 3053 | 3053 |
+
+### 3. State-leak proof
+
+```
+$ grep -nE '@(user_bash_task|user_bash_slot|user_bash_excluded|user_bash_command|user_bash_cancel_flag|pending_bash_records|branch|branch_fetched|branch_reader|usage_totals|last_usage|usage_stale)\b' lib/tart/render/chat.rb
+(no output, exit 1)
+```
+NO_STATE_LEAK_OK. Also: no moved `def` remains (`MOVED_OK`), no moved constant definitions remain (`CONSTANTS_MOVED_OK`), `test -f` the three new files (`CLASSES_OK`), 25/25 wave-5 probes present (`WAVE5_INTACT_OK`).
+
+### 4. Suite
+
+```
+$ bundle install --quiet && bundle exec rake
+Finished in 20.884544s, 21.3076 runs/s, 85.5657 assertions/s.
+445 runs, 1787 assertions, 0 failures, 0 errors, 1 skips
+```
+Same 445/1787/1-skip on a second run. 134 `def test_` before = 134 after (net delta 0). The 1 skip and the `Async::Task ... Terminal is not initialized` warn log (escape-cancel teardown race) are pre-existing base noise. `git diff` of test/chat_test.rb vs base is exactly 4 lines: `Render::Chat::{LOGOS_DIR,PI_HINTS,PI_NOTICE_LINE,PI_ONBOARDING_LINE}` → `Render::Motd::…` (constant namespace re-point; names/assertions unchanged).
+
+### 5. Rig runs
+
+```
+s1_text_turn  exit=0
+s2_tool_turn  exit=0
+s3_tool_turn_files  exit=0
+s4_bash_variants  exit=0
+s5_bash_truncation  exit=0
+s6_long_calls  exit=0
+```
+Zero unknown candidates on all six.
+
+Additional run: `s1_tart.yml` exit=1 — PRE-EXISTING at base: verified by extracting base 53ca4b4 via `git archive` and running it there (`base s1_tart exit=1`, same unknown-candidate structure: the scenario's staged-pi-vs-tart-identity header divergence is unsanctioned by the minimal registry by design — registry.yml header comment: "known divergences (MOTD art, …) must surface as unknown-candidate lines"). The two runs' reports differ only in the random logo piece sampled per run and per-run sandbox paths.
+
+### 6. Registry
+
+```
+$ git show 53ca4b49:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml
+(empty) → REGISTRY_UNCHANGED_OK
+```
+
+### 7. Bench
+
+```
+$ bundle exec ruby bench/seam_bench.rb
+  "synthetic_events": 200, ...
+}
+SEAM_BENCH_OK
+bench exit=0
+```
+
+### 8. PHASE 0 items (all raised pre-code; none silent)
+
+1. Test constant re-point: chat_test.rb:1098,1152-1159 read `Render::Chat::{LOGOS_DIR,PI_HINTS,PI_NOTICE_LINE,PI_ONBOARDING_LINE}`; AC1 moves the constants to Motd, so the four references re-pointed to `Render::Motd::…` (moves-only; assertions unchanged; delta 0).
+2. `clear_transcript` (out-of-scope body) reset the three usage ivars at base (chat.rb:935-938); AC1's zero-ivar rule forced a re-point to a new Footer op `reset_usage` — one call replacing three ivar writes, comment carried.
+3. Escape guard at base read `@user_bash_task` (chat.rb:1165) before `cancel_user_bash` (1166); the ivar moved, so Chat routes `@user_bash.running?` → `@user_bash.cancel`.
+4. Runtime thinking level: base `footer_stats` read Chat's `thinking_level` (`@thinking_level || @footer_data[:thinking_level]`, chat.rb:1725-1729) — `@thinking_level` is wave-5 material and stays on Chat. Footer's frozen seams (branch reader at construction, data per call) are kept exactly: `build_widget`'s sanctioned footer composition threads a data view overlaying the runtime level when set (`def footer_data` — nil-safe, equivalent to base's `@footer_data || {}` + the level fallback).
+5. Renames (shape rule f): `user_bash_command` → `UserBash.parse` (class-level, stateless); `finish_user_bash`→`finish`, `record_user_bash`→`record`, `user_bash_fields`→`fields`, `user_bash_record`→`build_record` inside UserBash (UserBash ivars shortened to `@task @slot @command @excluded @cancel_flag @pending` — the `user_bash_` prefix stutters inside the class; Footer keeps base ivar names verbatim); `footer_widget`→`widget`, `footer_stats`→`stats` (private); new ops `invalidate_branch`/`mark_usage_stale`/`reset_usage`.
+6. `require "open3"` moved to footer.rb (DEFAULT_BRANCH_READER was chat.rb's only Open3 user).
+7. `Motd.sections(width, context:, skills:, prompts:, extensions:)` param shape: `context` = raw candidate paths (File.file? filter stays inside), `skills` = sorted names via `Motd.motd_skill_names(source)`, `prompts` = templates (the `/name` mapping stays inside), `extensions` = raw names.
+8. s1 has two scenario files; both run — s1_text_turn is the passing sixth gate, s1_tart fails identically at base (see §5).
+
+No commits made; no git write commands run. Files touched: `lib/tart/render/chat.rb`, `lib/tart/render/motd.rb`, `lib/tart/render/user_bash.rb`, `lib/tart/render/footer.rb`, `test/chat_test.rb` — exactly the MAY-TOUCH set.
+
+STATUS: COMPLETE_WITH_CONCERNS (concerns are the PHASE 0 items above, all pre-raised: #2 clear_transcript re-point and #4 footer data view are re-points forced by AC1/behavior outside AC4's literal sanctioned list; s1_tart exits 1 identically at base and is not one of the six frozen gates)
 
 ## Verdict
 
