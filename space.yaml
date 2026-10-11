@@ -892,7 +892,23 @@ project:
   - name: viewport-parity
     ordinal: 20
     file: architecture/I20-viewport-parity.md
-    freeze_sha:
+    freeze_sha: bfb40c0604ad9937ac2e2a85bec4d2298323a126
     verdict: pending
-    lanes: []
+    lanes:
+    - name: render
+      repo: tart
+      touch_set:
+      - lib/tart/render/chat.rb
+      - lib/tart/core/loop.rb
+      - test/chat_test.rb
+      - test/loop_test.rb
+    - name: rig
+      repo: tart
+      touch_set:
+      - parity/scenarios/s5_bash_truncation.yml
+      - parity/scenarios/s6_long_calls.yml
+      - test/parity/scenario_test.rb
+    rehearsal:
+      gates_digest: 3843f7f3dd88185e626ed42b2a22c17809b2e2af48da91b10d2572331ddb06b1
+      at: '2026-10-10T23:07:58-06:00'
   integration_branch: project/pi-port
