@@ -723,15 +723,41 @@ STATUS: COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section fourth-run-parity verdict --from <file>`. -->
+# Verdict
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify fourth-run-parity`)?
+Judged in a fresh session (not the dispatcher) 2026-10-11. Mechanical post-flight: `architect verify` PASS all four (frozen sections untouched — diff vs freeze 4f02be64 shows only the Builder Prompt append; no builder commits off 89417777; scratch report present; in-bounds — worktree diff exactly the 14-file touch set). Evidence transcribed verbatim (ff837ec9, STATUS: COMPLETE); merged `--no-ff` to `project/pi-port` (01857e7a). All 19 frozen gates PASS cold on the integration tree (suite 322 runs / 1275 assertions, 0 failures; the 5 RED-on-base tripwires — resume-hint / resume-command / replay / truecolor / user-echo — all flipped GREEN).
+
+## Disagreement rulings (PHASE 0 findings — all confirm-vs-spec, no rejections raised)
+
+The builder verified rather than disagreed; the load-bearing judgment calls each carry pi file:line evidence and are ACCEPTED:
+
+1. **Recorded entries carry no `thinking` key** (strip_thinking_replay nils it pre-record) → replay renders no reasoning block — ACCEPT: a recorded gap, never inventing unrecorded state. Correct fidelity stance.
+2. **Gem emits truecolor unconditionally, no capability probe exists** — ACCEPT: port matches the gem's only expressible form; off-truecolor degradation is the terminal's business, itemized.
+3. **`interrupt_work!` split from `interrupt!`** (`interrupt! = flag + interrupt_work! || stop!`) — ACCEPT: preserves the I02 ctrl+c quit-on-idle contract (loop_test green unmodified) while giving escape a non-quitting path through the same Task#stop mechanism. Correct factoring.
+4. **`persisted?` = `@flushed`** (session file exists only after first flush) — ACCEPT: matches pi's isPersisted semantics (setup-only sessions leave no file → no hint).
+5. **Picker reductions** (no search input, no Tab scope toggle, no rename/delete, no cwd-mismatch prompt, no hint rows) — ACCEPT: all itemized in the deviation table with the pi source they reduce; consistent with the surface's seams at this scope.
+6. **`resume_path` resolved before TUI.run** (moved from inside the block) — ACCEPT: resolution failure now surfaces before the terminal takes over; behavior-equivalent, cleaner boot ordering.
+7. **Usage reseed skips all-nil token entries** — ACCEPT: interrupted turns record no usage; the boot "0.0%" footer must not be clobbered — a recorded-gap guard, not a dodge.
+
+No silent compliance: 15 findings, each with file:line evidence, gaps itemized in the deviation table (BRIEF §5 discipline intact).
+
+## Acceptance Criteria integrity
+
+Frozen sections unchanged since freeze 4f02be64 (verified mechanically + by direct diff read).
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 exit resume hint | PTY E2E: dim-label `To resume this session:` + `tart --resume <id>` after restore; nothing in `-p`; not-persisted branch test-pinned (exact escape-sequence assertion); single print site after `TUI.run` covering all three exit paths | §3 | **PASS** |
+| AC2 /resume picker | dispatch never falls to model; `Session.list` fixture-rooted newest-first; picker replaces the editor area, arrows wrap, enter→`on_resume`→shared resume lambda (same landing as CLI `--resume`), escape cancels; reductions itemized | §3 | **PASS** |
+| AC3 resume replay | fixture dump is the contract — user echoes, assistant markdown, tool_calls joined to recorded `role:"tool"` results, compaction summaries, "Session compacted N times" then "Resumed session"; no MOTD on resume; seeding tests green unmodified | §3 | **PASS** |
+| AC4 body colors | hex constants with provenance comments (`#dee0e1` text, `#213b49` blueBg, `#9da5a9` toolOutput, `#96a0a4` thinkingText) computed with pi's own converter live; gem fg+bg readback pinned (`cell_bg` seam addition); `❯ ` gone (grep gate); non-content tokens stay 16-color, itemized | §3 | **PASS** |
+| AC5 region padding | leading blank before user echo (gated on non-empty container, pi :3930-3931), every tool block (:85), compaction, assistant visible content (spacer rides visible content — tool-call-only entries get the tool block's blank, not a second) | §3 | **PASS** |
+| AC6 escape interrupts | `interrupt_work!` through the ctrl+c Task#stop mechanism (no second path); autocomplete-open cancels list only; idle = no-op; loop_test proves the loop outlives the interrupt; double-escape cut itemized | §3 | **PASS** |
+| AC7 deviation discipline | PHASE 0 table 15/15 with file:line; fixture JSONL dump included; hex/truecolor seam verified live pre-implementation; deviation table itemizes every reduction incl. the spec-mandated cuts | §5 | **PASS** |
+| AC8 regressions | suite 322/1275 green ×3; tui-seam, gem-pins, env-tripwire, bench-seam, stderr, launcher smoke all PASS cold; goldens byte-identical | §2 | **PASS** |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+## Architect read (gate-pass necessary, not sufficient)
+
+Diff read in full against the Specification watch list — every flagged concern landed: the hint's flag-shape deviation itemized (not silently `--session`); `Session.list`/`session_files` collapse removes the bin/tart duplication (find_session_by_id and resolve_resume both consume it — the DRY shape, no parallel discovery code left); the picker rides the existing editor-area layout slot rather than a new surface; `enqueue_user_echo` is the one user-echo path shared by live submit and replay (single source); `clear_transcript` extracted for /new + resume (the reset is one code path, not copy-paste); `accumulate_usage` takes an assistant message or bare Tokens — minimal polymorphism for the reseed. House idioms hold: mutex-synchronized state, attr readbacks for tests, evidence-cited comments in the repo's established voice, no speculative abstraction. Two natural-Ruby subtleties checked: the `current_recorder` outer-local assignment inside the lambda updates the enclosing binding (correct — and the `nil` boot-recorder branch is tested); `picker_input` owns every key while open (pi's focus swap).
+
+**CONTINUE** — all 8 AC PASS, 19/19 gates PASS cold, the owner's fourth-run five items each delivered against pi source with every reduction itemized; nothing outstanding blocks the fifth live run.

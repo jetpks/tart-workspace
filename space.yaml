@@ -661,7 +661,7 @@ project:
     ordinal: 15
     file: architecture/I15-fourth-run-parity.md
     freeze_sha: 4f02be641e0aeeba00bdd14ee09672dffee7434c
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
