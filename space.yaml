@@ -758,6 +758,13 @@ project:
       touch_set:
       - lib/tart/agent/loop.rb
       - test/agent_loop_test.rb
+      base_sha: 0fccfc74399a28b5128b2ee61d5ab4d9e1adf792
+      worktree: build/I17-tool-turn-parity-timing/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      integrate_sha: 01b22a2dd03918be6b7c22771188a60651e2d33b
     - name: render
       repo: tart
       touch_set:
@@ -766,12 +773,27 @@ project:
       - test/chat_test.rb
       - test/theme_test.rb
       - test/fixtures/**
+      base_sha: 0fccfc74399a28b5128b2ee61d5ab4d9e1adf792
+      worktree: build/I17-tool-turn-parity-render/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-10T21:16:57-06:00'
+      integrate_sha: b3076d7b1e99f2f45b7d8bd080349c1bea50e678
     - name: rig
       repo: tart
       touch_set:
       - parity/scenarios/s2_tool_turn.yml
       - parity/scenarios/s3_tool_turn_files.yml
       - test/parity/scenario_test.rb
+      base_sha: 0fccfc74399a28b5128b2ee61d5ab4d9e1adf792
+      worktree: build/I17-tool-turn-parity-rig/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      integrate_sha: 27f1901586679550b8dbba214464f2837e444c86
     rehearsal:
       gates_digest: 187b55cc8627cbb60db2f902354d8b8fb7a9e4d26380fb891ef17e52c0ef29b4
       at: '2026-10-10T21:14:11-06:00'
