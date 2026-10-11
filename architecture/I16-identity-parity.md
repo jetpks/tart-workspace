@@ -9,11 +9,47 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section identity-parity grounds --from <file>`. -->
+**Why this iteration: BRIEF §8 (owner course change, 2026-10-10).** The done bar moved from
+"port the used parts" to full settled-screen parity — pi in one tab, tart in another,
+indistinguishable — with tart's identity restored through a settings/env/CLI seam pi does not
+have. This is the first iteration of that program: it closes every divergence the parity
+instrument can measure on the plain-text-turn scenario.
+
+**Instrument (merged this session, df0ece9).** pty-tester (space 20261010-pty-tester, tart main
+a3ab813): staged/sandboxed side-by-side runs of pi 1.1.0 and tart, settled `tmux capture-pane`
+captures, diffed against a minimal registry (per-run path normalization only). Post-merge
+verification: 342 runs / 1342 assertions, 0 failures + SEAM_BENCH_OK.
+
+**Measured baseline (this session, `bin/pty-tester run parity/scenarios/s1_text_turn.yml`,
+scenario "hello" → one fixed mock reply): exit 1, 18 unknown-candidate lines.** The work list,
+verbatim from `summary.json` attribution:
+
+| # | pi (oracle) settled bytes | tart today | Root cause class |
+|---|---|---|---|
+| 1 | leading blank line before the header block | none | header spacer |
+| 2 | ` ▀▀█  v1.1.0` — half-block logo, version on the logo's first line | 4-line random art piece | identity (pi-logo.ts; I14 owner-art ruling now superseded by §8) |
+| 3 | ` █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more` | `ctrl+c interrupt/quit · ctrl+d exit (empty) · / commands · pgup/pgdn scroll` | hints line (port's own reduced text) |
+| 4 | `Press ctrl+o to show full startup help and loaded resources.` | cut | ctrl+o notice (I14 item 12 cut) |
+| 5 | `Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.` | cut | onboarding line |
+| 6 | ` hello` — one leading space on the user echo | `hello` | transcript container padding |
+| 7 | ` The mock reply…` — one leading space on the assistant line | `The mock reply…` | same |
+| 8 | blank-line structure between user echo and assistant reply (pi: two) | one | component leading spacers |
+| 9 | footer right segment `(mock) mock-1` | `mock-1 • medium` | footer model segment: pi renders `(provider) model`, and the `• <level>` suffix only for reasoning-capable models (footer.ts:226-244; the mock model declares `reasoning: false`, so pi omits it — the port appends it unconditionally since I14) |
+
+pi source anchors (verified readable in `repos/pi`): `packages/coding-agent/src/modes/interactive/components/pi-logo.ts` (half-block mark, brand colors coral/blue/yellow, Apple-Terminal wordmark fallback), `packages/coding-agent/src/modes/interactive/interactive-mode.ts:1004-1080` (built-in header construction: logo + hints + ctrl+o notice + onboarding).
+
+**Second owner direction (unrelated to parity, same iteration, disjoint lane): fast-uuid.** The
+port hand-rolls `Session.uuidv7` (session.rb:53-62) because no good uuid gem existed at port
+time; the owner has since written and published `fast-uuid` 0.1.0 (space 20261009-fast-uuid;
+RFC 9562-compliant, `Fast::UUID.uuid_v7`/`uuid_v4` drop-in String forms, `parse`/`valid?`).
+Adopt it as a dependency and use it for uuid generation/parsing wherever the port generates or
+validates uuids.
+
+**Scenario env seam gap (rig contract vs implementation).** pty-tester BRIEF §2 specifies
+per-app env overrides in scenario YAML ("the seam for the future branding toggle"); the merged
+implementation hard-codes the tart env in `Runner#tart_command` (runner.rb:159-171) — the seam
+does not exist yet. The identity toggle cannot be exercised by the rig until it lands; it is
+part of this iteration's identity lane.
 
 ## Specification
 
