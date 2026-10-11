@@ -484,11 +484,70 @@ with file:line in the Verdict.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I23-decomp-wave3-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence decomp-wave3 --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### viewport
+
+### 1. Method-move table
+
+→ `Tart::Render::Viewport` (lib/tart/render/viewport.rb, new): `scroll_page` → `scroll_page(direction, content_size, rows)`; `scroll_by` → `scroll_by(lines, content_size, rows)` (private; returns `mark`'s epoch when moved, nil on no-op); `mark_scrollbar_activity`'s stamp+epoch state machine → private `mark` (returns epoch) + `stale?(epoch)` + `hide_scrollbar`; `scrollbar_hide_delay_ms` reader → `hide_delay_ms` (nil-fallback to constant); the attr_writer test seam (345) → `hide_delay_ms=` on Viewport + delegating public `Chat#scrollbar_hide_delay_ms=`; the transcript_widget render-time maintenance (1827-1831) → `window(lines, rows)` (clamp + re-arm follow + force-hide + window slice) + `offset` reader; `scrollbar_visible?(lines, rows)`; `overlay_rail_cell(line, glyph, width)`; `scrollbar_glyphs(total, rows)`; reset op (clear_transcript 982-983) → `reset`. NEW (not in table, PHASE 0 #1): `wheel(event, content_size, rows)` — the WHEEL_* math + routing into scroll_by. Constants: `SCROLLBAR_HIDE_DELAY_MS`, `WHEEL_LINES_PER_EVENT`, `ALT_WHEEL_MULTIPLIER`, `WHEEL_DIRECTION`. State: `@offset` (was `@scroll_offset`), `@follow`, `@scrollbar_activity_at`, `@scrollbar_timer_epoch`, `@hide_delay_ms`.
+
+→ `Tart::Render::Selection` (lib/tart/render/selection.rb, new): `selection_press` → `press(point)`; `selection_drag` → `drag(point)`; `selection_release` → `release(point)` (TUI.osc52_copy rides inside); `update_selection_focus` → `update_focus` (private); `selection_bounds` → `bounds` (private); `before?` (private); `selection_text` (private); `word_range` (private); `word_char?` (private); `line_range` (private); `next_click_count` (private); `highlight_row(line, row)`; `selection_columns` → `columns` (private); `reverse_cells` (private); `span_pieces` (private); reset op (984-985) → `reset`. Constructor seam: `Selection.new(line_reader: ->(row) { plain_content_line(row) })`. Constants: `DOUBLE_CLICK_SECONDS`, `WORD_JOINERS`, `WORD_CHAR = Editor::WORD_CHAR` (alias carried from chat.rb:176), `Point = Struct.new(:row, :col, :boundary)`. State: `@selection`, `@last_click`, `@line_reader`.
+
+→ `Tart::Render::Text` (existing module, +3 module_function): `char_index_at_cell`, `take_cells`, `slice_cells` — bodies verbatim.
+
+Chat keeps (coordinator, per shape rules b/c/d): `mark_scrollbar_activity(epoch)` (the kernel arm — signature now takes the epoch), `scrollbar_hide_delay_ms=` (manual delegating writer), `handle_mouse`, `wheel` (routing), `content_point` (reads `@viewport.offset`, builds `Selection::Point`), `plain_content_line`, `transcript_widget` (composes `@viewport.window` + `@selection_state.highlight_row` + rail ops), `edit_input` page branches (route through `@viewport.scroll_page` + arm), `clear_transcript` (`@viewport.reset` + `@selection_state.reset`), `scroll_offset` readback (`@mutex.synchronize { @viewport.offset }`).
+
+### 2. Line counts
+
+| file | before | after |
+|---|---|---|
+| lib/tart/render/chat.rb | 2233 | 1896 |
+| lib/tart/render/viewport.rb | — | 195 |
+| lib/tart/render/selection.rb | — | 271 |
+| lib/tart/render/text.rb | 165 | 194 |
+| test/chat_test.rb | 3053 | 3053 (unchanged, git diff empty) |
+
+### 3. State-leak proof
+
+`grep -nE '@(scroll_offset|follow|scrollbar_activity_at|scrollbar_timer_epoch|scrollbar_hide_delay_ms|selection|last_click)\b' lib/tart/render/chat.rb` → no matches (exit 1). Constant grep `SCROLLBAR_HIDE_DELAY_MS|WHEEL_LINES_PER_EVENT|ALT_WHEEL_MULTIPLIER|WHEEL_DIRECTION|DOUBLE_CLICK_SECONDS|WORD_JOINERS|\bPoint\b|WORD_CHAR\b` in chat.rb → one match: `Selection::Point.new(row, x.clamp(0, viewport_width - 1))` at content_point (PHASE 0 #3 — rule (c) keeps content_point in Chat; Point's home is Selection). Moved-method grep in chat.rb → only the two sanctioned keeps.
+
+### 4. Suite
+
+`bundle install --quiet && bundle exec rake` tail:
+```
+445 runs, 1787 assertions, 0 failures, 0 errors, 1 skips
+```
+Base control (git archive of 4d858125 → /tmp/i23-base, rake there): `445 runs, 1787 assertions, 1 failures, 0 errors, 1 skips` — the base failure is `test_resize_repaints_the_full_surface_at_the_new_geometry` asserting the home-contracted `~` pwd, impossible from /tmp (env artifact of the control location, not a code failure). Run/assertion counts identical: net test delta 0, zero test-file changes. One pre-existing `Async::Task ... unhandled exception` warn line ("Terminal is not initialized", test_escape_cancels_the_running_user_bash teardown) — present at base control too (count=1 both trees), 0 test errors.
+
+### 5. Rig runs (serial, foreground)
+
+```
+s1_text_turn      exit 0
+s2_tool_turn      exit 0
+s3_tool_turn_files exit 0
+s4_bash_variants  exit 0
+s5_bash_truncation exit 0
+s6_long_calls     exit 0
+s1_tart           exit 1   (see concern below)
+```
+`git show 4d858125:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml` → empty diff (REGISTRY_BYTE_IDENTICAL). `git status gems/tui-split-rig/` clean after runs.
+
+s1_tart concern: scenarios/ contains SEVEN files — s1_tart.yml AND s1_text_turn.yml; the canonical six (s1_text_turn, s2–s6) all exit 0. s1_tart exits 1 in this environment AT BASE TOO (control run from the archived base tree: exit 1, 16x unknown-candidate; wt run: 18x unknown-candidate). Every unknown-candidate line is the boot identity header block (pi header "▀▀█ v1.1.0 / escape interrupt…" vs tart-mode art + "tart v0.1.0" hints) plus trailing blank-run lines — zero scroll/selection/content lines; the counts differ between runs (random MOTD art piece: control drew the "tart" wordmark, wt drew the ASCII art). Read: the installed pi binary's header bytes vs the checked-in registry are out of sync for the tart-mode variant, pre-existing, not touched by this lane's diff. The other 5 scenarios + s1_text_turn show zero unknown candidates.
+
+### 6. Bench
+
+`bundle exec ruby bench/seam_bench.rb` → prints `SEAM_BENCH_OK`, exit 0.
+
+### PHASE 0 disagreements / deviations (all flagged pre-build, none architect-ruled)
+
+1. `Viewport#wheel(event, content_size, rows)` — missing from the assignment table. AC1 forbids any WHEEL_* reference left in chat.rb while rule (c) keeps `wheel` in Chat; the only compliant shape is the math living on Viewport. Added as a Viewport op (constants + alt-multiplier + direction fetch, routing into scroll_by, returning the epoch).
+2. Epoch return-threading: with the kernel arm in Chat and AC2's closed seam list (no constructor callback sanctioned for Viewport), `scroll_by`/`scroll_page` return `mark`'s epoch (nil on no-op) and Chat's kept `mark_scrollbar_activity(epoch)` arms only a non-nil epoch. Semantics identical (one timer per moved scroll; stale epoch no-ops).
+3. `Selection::Point.new(...)` remains in chat.rb's `content_point` — rule (c) keeps content_point in Chat, Point's home is Selection; AC1's "no reference to Point anywhere in chat.rb" letter cannot hold at that one construction site without making content_point worse. Flagged, not silently resolved.
+4. `WORD_CHAR = Editor::WORD_CHAR` alias (base chat.rb:176) became dead when `word_range`/`word_char?` moved; Selection now carries the alias (comment moved with it) and the dead alias left chat.rb. AC1 does not list WORD_CHAR; removal is part of the move.
+5. Eager `content_point` in `handle_mouse` drag/up: base computed the point lazily inside selection_drag/release after the `@selection` nil-check; threading the point from Chat computes it eagerly even with no active selection. Pure reads (display_lines), observationally equivalent — perf-only. Test-surgery adaptations: none (test file byte-unchanged; both test seams `scrollbar_hide_delay_ms=` and `scroll_offset` keep working through delegation). Rename list (rule g): selection_press/drag/release → press/drag(point); update_selection_focus → update_focus; selection_bounds → bounds; selection_text kept; selection_columns → columns; scrollbar_hide_delay_ms → hide_delay_ms; scrollbar_visible? KEPT (renaming to visible? would read as the viewport's own visibility); @scrollbar holder ivar named `@selection_state` (rule g's alternative) so the state-leak proof grep stays clean.
+
+No commits made; git status: `M lib/tart/render/chat.rb`, `M lib/tart/render/text.rb`, `?? lib/tart/render/selection.rb`, `?? lib/tart/render/viewport.rb` — nothing else.
+
+STATUS: COMPLETE_WITH_CONCERNS (s1_tart exits 1 at base AND at this diff — environmental registry/pi-binary drift on the identity header block, zero viewport-family candidates, canonical six all exit 0; Selection::Point residual reference in chat.rb per rule (c) — AC1 letter conflict flagged; Viewport#wheel addition + epoch return-threading are rule-(b)/(c)-implied shapes not in the assignment table — architect ruling welcome)
 
 ## Verdict
 
