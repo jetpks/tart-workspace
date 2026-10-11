@@ -856,7 +856,7 @@ project:
     ordinal: 19
     file: architecture/I19-bash-preview-collapse.md
     freeze_sha: 9148edc7ad420b3e7567d08acbc09fc07b5d417b
-    verdict: pending
+    verdict: continue
     lanes:
     - name: render
       repo: tart

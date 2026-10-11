@@ -679,15 +679,28 @@ STATUS: COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section bash-preview-collapse verdict --from <file>`. -->
+- **Disagreement rulings** (BRIEF §8 in tension where noted):
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify bash-preview-collapse`)?
+  *render* —
+  1. **Truncation-notice fg kept `tool_output`, not pi's `warning` (bash.ts:88) — ACCEPT.** AC2 froze "existing truncation-warning behavior composes unchanged"; changing the fg would have been an unrequested behavior change outside the frozen property, and no scenario exercises truncation. Carried forward as a recorded parity gap for the slice that first exercises truncation visibly.
+  2. **Footer-split guard (`\n\n[` + ends `]` + "Full output: ") weaker than pi's details-channel guard — ACCEPT.** The render layer genuinely has no details channel (`tool_result_text`, chat.rb:1094-area); the shape guard is the pragmatic port-side equivalent, the false-split risk is documented, and pi carries the same risk class with a stronger guard. If a details channel ever lands, the guard should follow it.
+  3. **Collapse counts wrapped VISUAL rows, not logical lines — ACCEPT.** This is exactly pi's `VisualLinePreview`/`truncateToVisualLines` semantics (visual-truncate.ts counts post-wrap rows); the spec's "output exceeds 5 lines" was the ambiguity, the builder resolved it against the oracle source and pinned it with a test. Correct call.
+  4. *(architect finding, supersedes the builder's decomposition)* **The report's surviving-class reading is MODIFY.** The verbatim evidence was accurate; the interpretation was not. This session's capture forensics (tmp/parity-gate-s4 cold run + rail-glyph math) disprove both theories: (a) the `▀▀█  v1.1.0` row is **pi's own top mark line**, present in BOTH buffers (visible in the s1–s3 settled captures, which exit 0) — not tart-only chrome, not a scenario-env gap (s4 correctly stages no `TART_IDENTITY`; default `pi` matches the oracle side); (b) tart **did** follow-end scroll — thumb = 34 rows at rows 2–35, track row 1 proves `content_length 36, max_scroll_top 1, position 1`, i.e. offset 1 = its buffer's end; it never stayed top-anchored. What actually differs, with evidence: **pi's transcript buffer is 37 rows (offset 2, window rows 3–37: hints-line first, reply+trailing-blank last); tart's is 36 (offset 1, window rows 2–36: top-mark first, reply last) — byte-identical rows 1–36; pi carries ONE extra row, a trailing blank after the final reply.** Defect A = the missing trailing row (render layer, reply-block trailing spacer). Defect B = tart's rail paints persistently on overflow while pi's "auto" rail is **transient** (scroll-view.ts:55,74–78: `isScrollbarVisible` requires `transientScrollbarVisible`, set only by scroll activity, auto-hidden after `scrollbarHideDelayMs` 1000 — a settled screen never shows it). The port's comment at chat.rb:~1925 ("hidden when the view fits") mis-states pi's settled semantics. Both defects are the next measured slice.
+
+  *rig* —
+  1. **Only `require "socket"` added (net/http already present) — ACCEPT.** No dead requires; the spec's lift list was overly literal.
+  2. **Orphaned requires also removed from scenario_test.rb — ACCEPT.** Same orphanage class as AC4's "no helper duplication remains that the move orphans"; `rg`-verified, flagged per the no-silent-scope rule. Correct judgment.
+
+- **Acceptance Criteria integrity** — frozen sections unchanged since freeze 9148edc7 (`architect verify` PASS ×8 lanes; `git diff 9148edc7..HEAD` on the iteration file shows only the legal Builder Prompt/Report appends).
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | s4 gate exit 1 (cold, this session); convo rows byte-identical between the two settled windows — collapse itself in parity | §8 | **FAIL** |
+| AC2 | 7 named tests green (384 runs, 0 failures); boundaries + trailing-blank + visual-row + replay + truncation-composition pinned; hint bytes match pi bash.ts:82–84 | §8 | **PASS** |
+| AC3 | s2 exit 0, s3 exit 0 (cold) | §8 | **PASS** |
+| AC4 | test lives in mock_llm_extension_test.rb, gone from scenario_test.rb, helpers deduped, suite green | I18 D' | **PASS** |
+| AC5 | 384 runs, 1512 assertions, 0 failures/0 errors; SEAM_BENCH_OK; gemspec untouched | standing | **PASS** |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+  **AC1 FAIL, root cause = criterion authoring, lane not penalized.** The instrument (the exit code) measured exactly what the AC asserts — settled-screen parity — and the answer was wrong. But the AC's embedded mechanism premise ("collapsed → 35 rows → fits → no scroll, no rail") was mis-authored: the Grounds' probe arithmetic counted pi's settled *window* (35 rows) as its *transcript*; the real buffer is 37 rows over a 35-row viewport and never fit — pi itself scrolls 2 rows at settle. The lane built the AC's actual property (the collapse, byte-correct against pi source) and raised the letter-versus-spirit conflict with verbatim evidence instead of degrading the artifact (deleting the identity mark or chasing out-of-bound viewport files) — per the lane-prompt clause, it did its job. The remaining distance to exit 0 is the two real defects this session root-caused (A: trailing blank after the final reply; B: transient rail semantics), which were invisible behind the probe's miscount and are the natural next slice of BRIEF §8. The corrected exit-0 mechanism carries into the next iteration's Grounds.
+
+- **Iteration — CONTINUE.** The deliverable slice (bash preview collapse + rig home) landed byte-correct, gate-green (6/7 cold; the 7th measures the next slice's work, not this one's), idiomatic and DRY (`expand_hint_row` deduplicates the I18 write-hint row; pi-anchor comments; terse public-interface tests) — diff vs BRIEF §8 faithful.
