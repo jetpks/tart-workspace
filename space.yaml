@@ -904,10 +904,11 @@ project:
       - test/loop_test.rb
       base_sha: 206af8de4f93f69ca1481f837029380e63dedbf0
       worktree: build/I20-viewport-parity-render/wt
-      integration_branch:
+      integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
       variant: false
+      integrate_sha: '09112810c2bd1c86bd92211203c0cb090a2c38b7'
     - name: rig
       repo: tart
       touch_set:
