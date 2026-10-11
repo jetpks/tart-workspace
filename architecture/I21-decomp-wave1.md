@@ -9,11 +9,15 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section decomp-wave1 grounds --from <file>`. -->
+# Grounds — I21 decomp-wave1
+
+Owner decisions this session (2026-10-11), logged in ARCHITECT.md at freeze:
+
+1. **Chat-surface decomposition program — five waves, all-ten outcome.** `lib/tart/render/chat.rb` is a 3,330-line god object (~200 methods, ~30 ivar clusters) carrying ~10 responsibilities (measured this session: text utils, editor, tool-block renderers, user-bash, scroll/scrollbar, mouse selection, autocomplete/picker, footer/stats, MOTD/identity, transcript/expandables + coordinator), mirrored by `test/chat_test.rb` (3,259 lines, 151 tests in one class). Every UI iteration collides in it; the decomposition runs as five sequential pure-refactor waves (I21–I25), each ending byte-exact under the rig, finishing with all ten factored and `Chat` surviving as the coordinator (pi's `interactive-mode` analog). Wave order is stateless-first (I21 pure functions → I22 input-line cluster → I23 viewport cluster → I24 content clusters → I25 transcript/expandables + final review).
+2. **Rig disposition — in-repo `gems/`, not a published gem.** The rig is NOT too coupled to extract later (~100 lines of pi/tart app adapters over ~700 lines of app-agnostic machinery: tmux boot/settle/capture, exec-wrap + kill-tree teardown, SGR differ, registry, report), but no second consumer exists — publishing now is ceremony. It moves to a new repo-root `gems/tui-split-rig/` (owner-named: split-testing TUIs — "pty-tester" misdescribes it; tmux owns the ptys, the instrument compares settled screens), which stops the gem shipping it and makes future extraction a rename, not a refactor.
+3. **Placement defects being cured (measured this session):** `lib/tart/parity/runner.rb:9` requires `test/support/mock_llm_server` — shipped lib depends on the test tree; `tart.gemspec` packages `Dir["lib/**/*.rb"] + bin/*`, shipping the whole rig (incl. `bin/pty-tester`, 949 lib lines + CLI) with that require pointing at an unpackaged file.
+4. **Extraction-boundary facts (measured this session):** every tool-block row-builder family body is ivar-free (zero `@`/`viewport_width` hits per family); the wrap width is already threaded at Chat call sites (`viewport_width` callers are the enqueue paths, l.913–1563). `Chat`'s class-method helpers (`wrap`, `fuzzy_*`, `find_word_*`, `fit`, `clip_text`, `format_*`) have no callers outside `chat.rb` + `chat_test.rb`. `find_word_backward/forward` + `pi_hint_spans` are editor/autocomplete-only — wave-2 material, deliberately NOT in this wave.
+5. **Control (run this session, base 931b589 = project/pi-port tip):** the rig's own suite of scenarios s1–s6 all **exit 0** on the base tree (`bin/pty-tester run parity/scenarios/<s>.yml --out tmp/parity-base-<s>`). The regression claim in AC5 is against this measured baseline, not recall. Full minitest suite green on base (441 runs, established at commits 0be919f/931b589).
 
 ## Specification
 
