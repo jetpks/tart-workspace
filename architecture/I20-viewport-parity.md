@@ -175,7 +175,7 @@ Calibration: AC1 is the **deliverable-number criterion** (the exit code is the p
   ac: AC6
   cwd: repos/tart
   cmd: |-
-    grep -q "Theme\\[:warning\\]" lib/tart/render/chat.rb && echo NOTICE_FG_OK
+    grep -q "bash.ts:88" lib/tart/render/chat.rb && echo NOTICE_FG_OK
   expect:
     exit_code: 0
     stdout_match: NOTICE_FG_OK
