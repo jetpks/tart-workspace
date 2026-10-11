@@ -25,34 +25,41 @@ Measured this session (2026-10-11) at base **53ca4b49** (= `project/pi-port` tip
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section decomp-wave4 specification --from <file>`. -->
+- **Objective.** Wave 4 of the five-wave chat-surface decomposition (Grounds 1; I21 Grounds 1, owner decisions 2026-10-11): a **pure refactor — zero behavior change, proven byte-exact by the rig** (BRIEF §8: s1–s6 stay exit 0; no new registry classes, no candidate lines). Extract the three remaining non-transcript clusters out of `Render::Chat` — **MOTD/identity** (stateless, module-function), **user-bash** (stateful class), **footer/stats** (stateful class) — leaving chat.rb the coordinator + the I25 transcript/expandables family. Why (Grounds 1–2): the parity program reached its §8 bar; this is the fourth of five planned moves with the byte-exact oracle that later feature work will not have.
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+- **Target class assignment (the decomposition shape — the deliverable).** Grounds 2 measured every family's state footprint this session. New files under `lib/tart/render/`:
+
+  | Class/Module (file) | Shape | Methods + constants (from Chat) | State owned |
+  |---|---|---|---|
+  | `Tart::Render::Motd` (`motd.rb`) | module-function (wave-1 style: zero ivars, params threaded) | `pi_hint_spans`, `motd_logo_lines`, `tart_header_lines`, `pi_header_lines`, `pi_mark`, `apple_terminal?`, `motd_sections` (params: width + the gathered context/skills/prompts/extensions data), `context_sources` (params: settings_root, cwd), `motd_skill_names` (param: the autocomplete source), `dim_compact_list`; constants `LOGOS_DIR`, `HINTS_LINE`, `PI_HINTS`, `PI_NOTICE_LINE`, `PI_ONBOARDING_LINE` | none |
+  | `Tart::Render::UserBash` (`user_bash.rb`) | stateful class (wave-2/3 style) | `user_bash_command` (parse — class/module level), `user_bash` → `run(command, excluded)`, `finish_user_bash` (private, the completion path), `cancel_user_bash` → `cancel`, `record_user_bash` (private, deferral gate), `user_bash_fields`, `user_bash_record`, `flush_pending_bash_records` → `flush_pending` | `@task`, `@slot`, `@command`, `@excluded`, `@cancel_flag`, `@pending_records` |
+  | `Tart::Render::Footer` (`footer.rb`) | stateful class | `footer_widget` → `widget(data, width)`, `footer_stats` → `stats(data, width)` (private unless a test seam demands otherwise), `read_branch(cwd)`, `context_used`/`context_segment`/`context_fg`/`cache_hit_rate` (private family), `accumulate_usage(message)`, `reseed_usage(message)`, the per-turn branch invalidation + usage-stale ops (the event-layer call sites at chat.rb:414/452 drive them); constant `DEFAULT_BRANCH_READER` | `@branch`, `@branch_fetched`, `@branch_reader`, `@usage_totals`, `@last_usage`, `@usage_stale` |
+
+  **Seam rules (the wave-2/3 discipline, restated for this wave):** (a) the new classes/modules own ONLY their state — no reference to Chat's kernel/scrollback/session/mutex/footer_data/agent state inside `motd.rb`/`user_bash.rb`/`footer.rb` beyond the constructor-injected seams; (b) UserBash's seams are constructor-injected (the `Picker#on_select` / `Selection#line_reader` precedent): the kernel (execution), a busy reader (record deferral), and the completion sinks — the block-render sink, the record sink (`agent.record_bash_execution`), the warning/error-line sink, the `request_draw` arm; Chat's `submit` routes `!`/`!!` into `@user_bash`, escape-cancel into `@user_bash.cancel`, agent_end into `@user_bash.flush_pending`; (c) Footer renders from data threaded per call — `@footer_data` STAYS on Chat (the public `footer_data=` writer is frozen surface, chat_test.rb:1498 drives it); the event layer calls the Footer ops (`accumulate_usage`, `reseed_usage`, branch invalidate, usage-stale); (d) Motd is stateless — Chat's `enqueue_motd` (which STAYS, the scrollback append) gathers from its own constructor state (`@identity/@prompts/@extensions/@settings_root`, cwd from `@footer_data`, skill names from `@autocomplete.source`) and composes `Motd`'s output; `@motd_pending` stays on Chat (frame timing). If any assignment proves wrong at the code, raise it PHASE 0 with the line evidence — do not silently reshape.
+
+- **Output format.** Raw evidence only, to the scratch report: (a) the method-move table (each moved method/constant → its class, with the call-site count per moved name in chat.rb); (b) chat.rb `wc -l` before/after + the three new files' `wc -l`; (c) the state-leak grep over chat.rb for every moved ivar name (raw command + output); (d) `bundle exec rake` tail with run/assertion counts; (e) s1–s6 rig runs from this worktree (raw exit codes); (f) `git show 53ca4b49:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml` raw; (g) `bundle exec ruby bench/seam_bench.rb` tail; (h) PHASE 0 disagreements (mandatory — Grounds 2's footprints are checkable; silent compliance = defect); STATUS line (`STATUS: COMPLETE` or `STATUS: BLOCKED <reason>`).
+
+- **Tool guidance.**
+  - Verification (tart repo): `bundle install --quiet && bundle exec rake` (default task = minitest), `bundle exec ruby bench/seam_bench.rb` (prints `SEAM_BENCH_OK`).
+  - Rig: `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml --out tmp/<out>` — exit 0 = all difference lines sanctioned.
+  - The suite stays at the coordinator level: the motd/footer/user-bash tests keep driving Chat's public surface (`submit`, `render_frame`, `footer_data=`, transcript readbacks) and MUST keep their names and assertions — this wave is moves-only for them (expected run-count delta **0**; a PHASE-0-raised direct-class coverage addition is the only sanctioned change, reported with the reason).
+  - New files are required from `chat.rb` (`require_relative`, the I23 pattern — `lib/tart.rb` needs no change).
+  - Frozen surfaces that MUST NOT change: Chat's public surface (constructor params, `footer_data=` writer, `submit`, `edit_input`, the readbacks), `bin/tart`, the wave-1/2/3 sealed files (`text.rb`, `panel.rb`, `bash_block.rb`, `file_blocks.rb`, `tool_block.rb`, `editor.rb`, `autocomplete.rb`, `picker.rb`, `slash_source.rb`, `viewport.rb`, `selection.rb`), everything under `gems/tui-split-rig/`, `theme.rb`, `tui.rb`.
+
+- **Boundaries.**
+  - **Lane `content` may touch:** `lib/tart/render/chat.rb`, `lib/tart/render/motd.rb` (new), `lib/tart/render/user_bash.rb` (new), `lib/tart/render/footer.rb` (new), `test/chat_test.rb` (moves-only; PHASE-0 additions sanctioned), `test/render/**` (new direct-class tests only if PHASE-0-raised). **Must not:** everything else — `lib/tart.rb`, any other `lib/tart/**` file (incl. all wave-1/2/3 sealed files and `markdown.rb`), `bin/tart`, `gems/**`, `bench/**`, `theme.rb`, `tui.rb`, any other test file. If a call-site change seems needed outside the set, PHASE 0 it, do not touch.
+  - Out of scope: the I25 families (transcript/expandables assembly, `enqueue_*` scrollback appends, `replay_*`, `skill_panel_rows`, `flush_reasoning`, `display_lines`, `transcript_widget`, `build_widget`, status chrome `status_line`/`status_title`/`editor_border_color`/`thinking_level`) — they stay defined in chat.rb and untouched by this wave except the sanctioned call-site re-pointing of `accumulate_usage`/`reseed_usage` (chat.rb:426/894/928) and the user-bash routing inside `submit`/escape handling. No refactors beyond the move. No placeholders; search before implementing.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision decomp-wave4`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: content
+  repo: tart
+  touch:
+    - lib/tart/render/chat.rb
+    - lib/tart/render/motd.rb
+    - lib/tart/render/user_bash.rb
+    - lib/tart/render/footer.rb
+    - test/chat_test.rb
+    - test/render/**
 ```
 
 ## Acceptance Criteria
