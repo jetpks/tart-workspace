@@ -323,6 +323,202 @@ Gates you can run locally (from your worktree):
     bin/pty-tester run parity/scenarios/s2_tool_turn.yml --out <scratch-dir>
       # expected: exit 1, Took-line candidates remaining (render lane's)
 
+### render
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo. Silent compliance
+is a failure. Silent scope additions are a failure. If you have no
+disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed in BOUNDARIES. You
+are one of several parallel lane agents working in isolated worktrees; files
+outside your lane belong to other agents — touching them fails your lane.
+No placeholder implementations — search the codebase before implementing;
+full implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive forms); well-factored and
+DRY-ish; terse but clear; pragmatic, not clever — the smallest change that does
+the job, no abstraction it doesn't need. Tests stay simple and terse, exercising
+public behavior, no mock/stub of the class under test. Verify your work by
+running the acceptance criteria's gate commands and record the verbatim output.
+Do NOT commit and do NOT run any git write command (commit/add/branch/reset/
+checkout) — the architect commits and merges after verification, and verifies
+you made no commits. Do NOT delete lock files or escalate privileges if a
+command fails; record the exact error and continue. Do NOT use run_in_background
+(or shell `&`) for your own work — run long commands serially in the foreground
+with explicit timeouts instead. When done, write your report to the scratch
+file given below (an absolute path OUTSIDE your worktree), with RAW results
+only — tables, numbers, command output — no interpretation. Every status claim
+must be backed by a command result from this run. Keep the report compact.
+Do not title the report; keep any headings at `###` or deeper. End with exactly
+one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them) |
+BLOCKED (exact blocker + what you tried). Verdicts belong to the architect and
+the human.
+
+=== LANE: render (I17 tool-turn-parity) ===
+
+Report file: /Users/eric/architect/spaces/20261009-pi-port/build/I17-tool-turn-parity-render/report.md
+
+=== OBJECTIVE (and why) ===
+
+BRIEF §8 exact-parity program, I17's main seam. The bash tool turn's settled
+screen diverges from pi 1.1.0 because the port renders every tool through one
+invented `  ⎿ name: preview` shape (chat.rb `tool_line`, :1070-1078). pi's bash
+renderer (verified anchors below) renders: a `$ <command>` header (bold,
+`bashMode` color), muted output lines, and a muted ` Took <duration>` line.
+Your lane ports the bash tool block to pi's shapes, live and replay paths.
+
+The frozen cross-lane contract (the timing lane lands the other side — you
+CONSUME it, never widen it, never touch `lib/tart/agent/**`):
+`:tool_execution_end` carries `duration:` — Float seconds (monotonic, `0.0`
+legitimate), always present on live executions; **nil/absent duration → no
+`Took` line** (the replay path — the port's recorded entries carry no duration;
+that recorded gap is itemized, never invented: do NOT record duration, do NOT
+fake a source).
+
+THE CAPTURE IS THE CONTRACT — pi's settled s2 rows (the tool-turn region,
+verbatim from the architect's baseline run at
+/Users/eric/architect/spaces/20261009-pi-port/repos/tart/tmp/parity-baseline-s2/run-1/pi.capture —
+read it, do not re-run to confirm the baseline):
+
+```
+ row  9   " run the echo"                                  <- user echo (already parity)
+ row 10   (blank)                                          <- echo paddingY bottom
+ row 11   (blank)                                          <- tool block opening spacer
+ row 12   (blank)                                          <- derive from pi source (PHASE 0)
+ row 13   " $ echo pty-tester"                             <- command header (bold, bashMode color)
+ row 14   (blank)
+ row 15   " pty-tester"                                    <- tool output (muted)
+ row 16   (blank)
+ row 17   " Took 0.0s"                                     <- duration line (muted)
+ row 18   (blank)
+ row 19   (blank)
+ row 20   " The bash tool ran; fixed final reply for the spike."   <- assistant reply (already parity)
+```
+
+tart today renders the region as: blank, `  ⎿ bash: pty-tester`, blank, reply.
+
+Design contract (mechanism-level where it must be):
+
+1. **Command header:** ` $ <command>` — the bash tool's `arguments["command"]`,
+   bold, pi's `bashMode` color. The port's Theme gains the token mapped to pi's
+   DARK-theme `bashMode` value (pi's system theme says "green" — verify the
+   dark theme's actual value in PHASE 0; the port's Theme is the dark one).
+   pi uses `dim` for context-excluded calls — check whether the port has an
+   equivalent state; if not, itemize the ruling.
+2. **Output lines:** each a ` <line>` muted row (pi `muted`; verify the port's
+   `tool_output` token == pi's dark `muted` value in PHASE 0), blank-separated
+   from the header (pi's "\n"-prefixed Text children).
+3. **Duration line:** ` Took <formatDuration(duration)>` muted; port pi's
+   `formatDuration` exactly (bash.ts:20-28): seconds `< 60` → `%.1fs`;
+   `< 60m` → `Xm Ys`; else `Xh Ym Zs`. Nil/absent duration → no line.
+4. **Blank structure:** the capture rows above settle it — derive the
+   mechanism from pi source (bash-execution.ts Spacer/Text children,
+   tool-execution.ts:85 constructor Spacer), the bytes are the contract.
+5. **Replay:** bash tool blocks replay through the same shapes — command from
+   the recorded assistant `tool_calls` arguments, output from the recorded
+   tool result content, NO `Took` (recorded gap, itemized per the I15 replay
+   contract). If golden fixtures pin the old replay shape, update the ones
+   your change legitimately alters (you author those updates — keep them
+   minimal and itemize each).
+6. **Non-bash tools:** keep the existing `⎿ name: preview` shape untouched,
+   itemized as unmeasured (the s3 scenario measures them next iteration).
+   Select the bash render by tool name (`bash`), mirroring pi's
+   `createShellRenderers` dispatch.
+7. **CUT, itemized (unmeasured by s2):** the 5-line preview truncation
+   (`BASH_PREVIEW_LINES`), expand hints, truncation warnings, exit-code
+   statuses, `Elapsed` live-progress line. Cite pi source for each so the
+   next slice can port them.
+
+=== EXPECTED INTERMEDIATE STATE (read twice) ===
+
+In your isolated worktree the live s2 run
+(`bin/pty-tester run parity/scenarios/s2_tool_turn.yml --out <scratch>`)
+WILL still exit **1** — the `Took`-duration candidate(s) remain until the
+timing lane lands (frozen contract). Do NOT touch `lib/tart/agent/**` to
+chase exit 0; do NOT fake a duration source. Your lane's proof: headless
+byte/style-pinned tests using hand-built events (your own doubles carrying
+`duration:`), plus the live s2 run showing every OTHER candidate closed.
+The post-integration cold gate is the exit-0 proof.
+
+=== OUTPUT FORMAT ===
+
+- Named test list (live block + replay block + formatDuration cases) with the
+  per-row byte assertions they pin (e.g. rows 11-19 above, test-quoted).
+- formatDuration table: inputs `0`, `549`, `59_960`, `61_500`, `3_725_400`
+  (ms) → pi's expected strings (derive from bash.ts:20-28 in PHASE 0, show
+  the derivation) beside your port's outputs.
+- The live s2 run: command + exit code + `summary.json` candidates verbatim
+  (expect exactly the Took-line candidates remaining).
+- Any golden fixture updates, itemized.
+- PHASE 0: numbered disagreements/deviations with file:line evidence.
+
+=== TOOL GUIDANCE ===
+
+- Verification: `bundle install --quiet && bundle exec rake`;
+  `bundle exec ruby bench/seam_bench.rb` → `SEAM_BENCH_OK`.
+- Live rig: `bin/pty-tester run parity/scenarios/s2_tool_turn.yml --out <scratch>`
+  (tmux + pi on PATH, present). Baseline artifacts (READ ONLY — architect's
+  run): /Users/eric/architect/spaces/20261009-pi-port/repos/tart/tmp/parity-baseline-s2/
+  (pi.capture, tart.capture, summary.json).
+- pi oracle (read-only, do not edit):
+  /Users/eric/architect/spaces/20261009-pi-port/repos/pi —
+  `packages/coding-agent/src/modes/interactive/components/bash-execution.ts:32-38,141`
+  (colorKey dim|bashMode; `$ ${command}` bold header),
+  `core/tools/renderers/bash.ts:20-28` (formatDuration), `:105-109`
+  (Took/Elapsed muted; recorded duration wins), `:141-149` (output children),
+  `:115+` (createShellRenderers), `modes/interactive/components/tool-execution.ts:61,137`
+  (durationMs on result), `modes/interactive/theme/theme-tokens.ts:100` +
+  the dark theme's `bashMode` value (find it in repos/pi's theme files).
+- Existing port seams to build on: chat.rb `tool_line` (:1070-1078 — the
+  shape you replace for bash), the `:tool_execution_end` handler (:366-376),
+  `replay_entries`/`replay_entry` (:909-985), `OUTPUT_PAD` (I16), the
+  `@chat_started` spacer-gate flag (I16). Follow the I16 idioms: pi-source
+  anchor comments, per-mode/piece factored helpers, test-pinned rows.
+
+=== BOUNDARIES ===
+
+MAY touch: `lib/tart/render/chat.rb`, `lib/tart/theme.rb`,
+`test/chat_test.rb`, `test/theme_test.rb`, `test/fixtures/**` (additions/
+updates you author yourself only). MUST NOT touch: `lib/tart/agent/**`
+(the frozen duration contract is consumed, never widened), `parity/**`,
+`tart.gemspec`/`Gemfile*`, `bin/tart`, any other test file. No refactors
+beyond the task; no placeholders; `rg` before implementing.
+
+=== ACCEPTANCE CRITERIA (frozen — verify against them, do not edit or work around) ===
+
+AC3 (bash render — BRIEF §8). The live bash tool block renders pi's shapes:
+leading spacer structure, ` $ <command>` (bold, pi's `bashMode` color — port
+Theme token mapped to the dark-theme value), muted output lines
+blank-separated, ` Took <formatDuration>` muted with pi's exact formatDuration
+(`<60s` → `%.1fs`; `<60m` → `Xm Ys`; else `Xh Ym Zs`), no `Took` when duration
+is nil; blank structure per the frozen capture rows; style pinned by headless
+cell-level tests. Non-bash tools keep the existing shape, itemized
+unmeasured. Replay renders bash blocks through the same shapes (command from
+recorded arguments, output from recorded results, no `Took`). Proven by named
+tests in `test/chat_test.rb` / `test/theme_test.rb`.
+
+Gates you can run locally (from your worktree):
+
+    bundle install --quiet && bundle exec rake && echo SUITE_OK   # exit 0
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1            # SEAM_BENCH_OK
+    bin/pty-tester run parity/scenarios/s2_tool_turn.yml --out <scratch-dir>
+      # expected: exit 1, exactly the Took-line candidates remaining
+
 ## Builder Report
 
 <!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
