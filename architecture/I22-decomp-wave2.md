@@ -493,11 +493,91 @@ helpers. Judged on your diff; defects flagged with file:line in the Verdict.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I22-decomp-wave2-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence decomp-wave2 --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### input-line
+
+### 1. Method-move table (base a7b72f9f line refs)
+
+| Method/class-helper (chat.rb l. at base) | New home |
+|---|---|
+| `insert` (2343), `insert_printable` (2421), `delete_backward` (2349), `delete_forward` (2357), `delete_word_backward` (2396), `delete_word_forward` (2405), `move_left` (2364), `move_right` (2369), `move_start` (2374), `move_end` (2379), `move_word_backward` (2384), `move_word_forward` (2389), `exit_history_browsing` (2413), `history_previous` (2009), `history_next` (2011), `navigate_history` (2013), `add_to_history` (1620), `input_spans` (2434), `bash_mode?` (2167), `slash_token` (1635) | `Tart::Render::Editor` (lib/tart/render/editor.rb) |
+| class helpers `find_word_backward` (605), `find_word_forward` (625); constants `PUNCTUATION`/`WORD_CHAR`/`WHITESPACE` | `Editor` (`class << self` / class constants) |
+| NEW: `clear` (esc/ctrl+c/submit — `@input.clear; @cursor = 0` verbatim), `replace_token(lead, text, cursor)` (apply's write surface), readers `input`/`cursor` | `Editor` |
+| `update_autocomplete` (1649) → `update(editor)`, `filter_suggestions` (1658), `best_match_index` (1666), `cancel_autocomplete` (1678) → `cancel`, `navigate_suggestions` (1684) → `navigate`, `apply_suggestion` (1692) → `apply(editor)`, `autocomplete_rows` (2559) → `rows`, `autocomplete_lines` (2574) → `lines(width)`, `autocomplete_column_width` (2590) → `column_width`, `autocomplete_row` (2595) → `row`, `autocomplete_description` (2608) → `description` | `Tart::Render::Autocomplete` (lib/tart/render/autocomplete.rb) |
+| class helpers `fuzzy_match` (648), `fuzzy_subsequence_score` (659), `fuzzy_filter` (691); constant `AUTOCOMPLETE_MAX` | `Autocomplete` (`class << self` / constant) |
+| `picker_input` (2623) → `handle(event)` (returns open-flag; closed picker no-ops), `navigate_picker` (2636) → private `navigate`, `picker_widget` (2644) → `widget(width)`, `picker_lines` (2658) → `lines(width)`, `picker_widget_rows` (2672) → `widget_rows` | `Tart::Render::Picker` (lib/tart/render/picker.rb) |
+| constant `PICKER_MAX` | `Picker` |
+| `SlashSource` (715–729) body unchanged | `Tart::Render::SlashSource` (lib/tart/render/slash_source.rb) |
+| `clip_spans` (2439 region) | `Tart::Render::Text.clip_spans` (module_function; 4 callers at base 2123/2151/2228/2288 → `Text.clip_spans`) |
+
+Moved state ivars: `@input`, `@cursor`, `@history`, `@history_index`, `@history_draft` → `Editor`; `@suggestions`, `@selected` → `Autocomplete`; source held as `Autocomplete#@source`; picker holder `@picker` stays on Chat (holds a `Picker`, nil = closed); `HISTORY_LIMIT` → `Editor`. Chat holder ivars: `@editor`, `@autocomplete`, `@picker`. `Picker` constructed in `open_session_picker` with `on_select: ->(item) { @on_resume&.call(item[:path]) }`; `on_resume=`/`open_session_picker` seams unchanged; `edit_input` keeps only routing (`@picker = nil unless @picker.handle(event)`).
+
+### 2. wc -l
+
+| File | Before | After |
+|---|---|---|
+| lib/tart/render/chat.rb | 2748 | 2233 |
+| lib/tart/render/editor.rb | — | 269 |
+| lib/tart/render/autocomplete.rb | — | 223 |
+| lib/tart/render/picker.rb | — | 103 |
+| lib/tart/render/slash_source.rb | — | 28 |
+| lib/tart/render/text.rb | 140 | 165 (+25, clip_spans only) |
+| test/chat_test.rb | 3218 | 3053 |
+| test/render/editor_test.rb | — | 127 |
+| test/render/autocomplete_test.rb | — | 86 |
+| test/render/picker_test.rb | — | 47 |
+
+Diff set (`git status --short`): `M bin/tart`, `M lib/tart/render/chat.rb`, `M lib/tart/render/text.rb`, `M test/chat_test.rb`, `??` the 4 new lib files + 3 new test files. Nothing else touched; `lib/tart.rb`, `registry.yml`, `gems/**` untouched; zero commits.
+
+bin/tart:209: `Render::Chat::SlashSource.new(` → `Render::SlashSource.new(` (its only change).
+
+### 3. Ivar-leak proof
+
+```
+$ grep -nE '@(input|cursor|history|history_index|history_draft|suggestions|selected)\b' lib/tart/render/chat.rb
+NO MATCHES (grep exit 1)
+```
+
+### 4. Suite + bench
+
+```
+$ bundle install --quiet && bundle exec rake
+Finished in 20.750050s, 21.4457 runs/s, 86.1203 assertions/s.
+445 runs, 1787 assertions, 0 failures, 0 errors, 1 skips
+```
+The 1 skip is pre-existing (`gems/tui-split-rig/test/live_run_test.rb:21`, skipped without `TUI_SPLIT_RIG_LIVE=1`).
+
+Test delta: base `def test_` in chat_test.rb 147 → 134 (13 moved out); new files 17 (8 editor + 6 autocomplete + 3 picker). Net +4 runs (441 unique base + 4 new = 445). Reason: the spec's move lists demand direct-class coverage that has no existing Chat-surface counterpart to move — `filter_suggestions`/`best_match_index` behavior, `apply_suggestion` token replacement driving Autocomplete + real Editor, `Picker` enter-fires-on_select, `Picker` lines/widget_rows budget — while the STAY list pins the existing Chat-surface tests (list-wins up/down, tab/typing triggers, picker enter-fires-resume-seam). Satisfying both letters = 4 new tests.
+
+```
+$ bundle exec ruby bench/seam_bench.rb
+SEAM_BENCH_OK
+(exit 0)
+```
+
+### 5. Rig runs (serial, foreground)
+
+| Scenario | Exit |
+|---|---|
+| s1_text_turn | 0 |
+| s1_tart | **1** |
+| s2_tool_turn | 0 |
+| s3_tool_turn_files | 0 |
+| s4_bash_variants | 0 |
+| s5_bash_truncation | 0 |
+| s6_long_calls | 0 |
+
+`s1_tart` root-cause: pre-existing red at base a7b72f9f, NOT caused by this lane. Proof: cloned HEAD to /tmp/i22-base-check, ran the same rig command there — base exit 1 with an IDENTICAL failure signature: same per-class counts (12x unknown-candidate, 2x parity-run-path, 2x footer-provider-prefix), same classified diff (pi header bytes vs tart art header + footer path/provider-prefix noise; only run-path truncation differs). The registry deliberately carries no MOTD/logo/version classes ("There are NO sanctioned MOTD/logo/version/glyph classes" — registry.yml header), so a staged-tart-identity scenario cannot exit 0 without a registry edit (forbidden: must stay byte-identical) or an MOTD change (out of scope). The s1 gate is s1_text_turn (exit 0). All six non-identity-staged scenarios green with zero unknown candidates; registry.yml byte-identical to base.
+
+### 6. PHASE 0 disagreements + letter-conflict reports
+
+1. `Chat#input` sync letter-conflict: shape rule (a) freezes "the same methods synchronize as at base" — at base `input` is a bare `attr_reader` (chat.rb:302), NOT synchronized; output item (f) lists `input` among "mutex-synchronized delegation" readbacks. Followed (f) (synchronized delegation). Verified safe: no mutex-held Chat method calls `input` internally (grep of render_frame→build_widget→editor_widget chain), so the non-reentrant Mutex cannot deadlock.
+2. `motd_skill_names` (chat.rb:884, out-of-scope MOTD family) reads `@autocomplete.items` — after (g) re-homes the source inside Autocomplete, that ivar is the list. Changed to `@autocomplete.source.items` with `Autocomplete#attr_reader :source` (one line of an out-of-scope method; unavoidable given (g)).
+3. `WORD_CHAR`/`PUNCTUATION`/`WHITESPACE` are shared by the moving word-navigation helpers AND the AC4-probed-staying selection family (`word_range`, `word_char?`). Constants moved to `Editor` with their pi citation; chat.rb keeps a one-line bridge `WORD_CHAR = Editor::WORD_CHAR` — the selection methods themselves are byte-unchanged.
+4. Net test delta +4 (reason in section 4). Also: `test_recalled_history_entry_is_editable_and_sends_as_edited` STAYED in chat_test.rb (its assertions span submit→echo→agent — coordinator behavior); "editable recall" therefore keeps its Chat-surface home rather than a direct-Editor one. The two drawn fake-cursor tests (`test_cursor_reads_back_*`) also stayed — they assert editor_widget composition through the drawn screen. Moved editor tests gained `editor.cursor` assertions (additions only; no assertion removed).
+5. `Picker#handle` returns an open-flag (true = open, false = closed, closed picker no-ops thereafter) — the sanctioned "or your equivalent" of shape rule (e); needed so the moved `test_picker_navigates_and_escapes_cancel` keeps its "a cancelled picker never resumes" assertion when driving Picker directly. Chat routes `@picker = nil unless @picker.handle(event)`.
+6. Autocomplete/Picker method renames inside the new classes (prefix drop: `autocomplete_lines` → `lines(width)`, `picker_widget` → `widget(width)`, etc.) — per shape rules (d)/(e); `update(editor)` reads the token via `editor.slash_token` and `apply(editor)` mutates via the `Editor#replace_token` write surface (chose the small-mutator form; no attr-writer exposure).
+
+STATUS: COMPLETE_WITH_CONCERNS — (a) s1_tart exits 1 at base AND in this lane with an identical signature (pre-existing; unfixable within frozen registry + scope); (b) net test delta +4 (direct-class tests the move list demands, reported above); (c) `Chat#input` readback made mutex-synchronized per item (f), in tension with rule (a)'s letter; (d) one line changed in out-of-scope `motd_skill_names` (`@autocomplete.source.items`).
 
 ## Verdict
 
