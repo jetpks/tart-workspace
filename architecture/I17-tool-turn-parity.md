@@ -1032,15 +1032,34 @@ STATUS: COMPLETE_WITH_CONCERNS — (1) observed one-off mock-server flake where 
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section tool-turn-parity verdict --from <file>`. -->
+- **Disagreement rulings** (PHASE 0, all lanes — none silent):
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify tool-turn-parity`)?
+| # | Lane | Disagreement | Ruling | Why |
+|---|------|--------------|--------|-----|
+| 1 | timing | Spec's `handle_item` premise wrong: the `:tool_execution_end` branch is the live path, not a recorded-replay re-emission; forwards `item[:duration]` | ACCEPT | `rg` evidence is conclusive — the only producers are the two `@sink&.call` sites (loop.rb:437,440); `work_callable` pushes only :chunk/:step. Spec-authoring error; no code deviation. Replay gap stays exactly as itemized (BRIEF §7.1 shape untouched). |
+| 2 | render | Header anchor: `bash-execution.ts` is the `!`-mode component; the tool-turn header comes from `bash.ts` `formatShellCall` via `createShellRenderers` | ACCEPT | Rendered bytes identical (`$ ${command}`, bold, colorKey); spec's citation was wrong, the contract bytes were right. |
+| 3 | render | Took/output rows render `Theme[:tool_output]` (truecolor `#9da5a9`), not the port's 16-color `muted` `:gray` analog | ACCEPT | Builder computed pi's dark `muted` okhsl(229 6% 67%) → `#9da5a9` with pi's own converter, live — byte-equal to `tool_output`. The spec said "verify the values match pi's dark muted"; they do, and `:gray` would regress bytes vs the capture. This is the correct ruling, not a workaround. |
+| 4 | render | Existing chat tests pinned the old bash shape under the `bash` name; renamed to `read` | ACCEPT | Minimal, itemized, keeps the non-bash `⎿` shape pinned where it still applies — the honest test move. |
+| 5 | render | Empty/nil command → `...`; `dim` context-excluded variant unreachable (port carries no exclusion state); row 12 = Box(1,1) paddingY | ACCEPT | Each itemized with pi anchors; row-12 derivation matches the frozen capture exactly. |
+| 6 | rig | s3 also stages `TART_MODEL_PROVIDER: mock` (spec named only s2) | ACCEPT | s3 is a may-touch file; the footer pair was already-closed-by-s2 noise polluting the s3 baseline work list. Flagged, not silent. |
+| 7 | rig | Mock-server flake: an empty TCP connection consumes a scripted response (1-in-4 runs this session) | ACCEPT as evidence, defect LOGGED to backlog | Out of the lane's frozen boundaries (`lib/**` untouchable). Pre-existing rig robustness gap — an empty connection should be ignored, not shift the script. Threatens gate reproducibility; queued as rig-internal follow-up. |
+
+- **Acceptance Criteria integrity** — `architect verify tool-turn-parity`: all 12 checks PASS (frozen sections untouched, no builder commits, reports present, all lanes in-bounds); independently confirmed this session (`git diff 5174bdc1 HEAD -- architecture/I17-tool-turn-parity.md` shows only the Builder Prompt/Report/Verdict region; worktree `git status` shows exactly the declared touch sets; `git log project/pi-port..` empty per lane).
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | s2-parity gate: exit 1, exactly one unknown-candidate pair `- Took 0.0s` / `+ Took 0.1s` (plus 2 parity-run-path, sanctioned) | §8 | **FAIL** |
+| AC2 | Duration on `:tool_execution_end` (Float seconds, monotonic, always present), test-pinned in agent_loop_test round-trip; recording shape untouched | §8 | PASS |
+| AC3 | Bash block byte/style-pinned live + replay (rows 11–18 verbatim, bashMode `#5eb286` bold header, muted output, formatDuration 5-case table incl. the `59_960ms → "60.0s"` toFixed-rounding case, no-Took replay); non-bash `⎿` shape untouched, itemized | §8 | PASS |
+| AC4 | s2 footer staged (footer candidate GONE from the gate run vs baseline); s3 authored + load-pinned, both apps complete 3/3 rounds, baseline 7 candidates reported verbatim | §8 | PASS |
+| AC5 | 361 runs / 1434 assertions, 0 failures 0 errors; SEAM_BENCH_OK; gemspec deps unchanged | §8 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+- **AC1 FAIL mechanism (root-caused this session, FAIL not INVALID — the instrument measured exactly what the gate says; the answer was wrong).** The render, timing, and rig seams all landed their frozen contracts: the render lane's expected intermediate state (6 candidates) collapsed to exactly the Took pair post-integration, and the shapes around it are byte-parity. The surviving divergence is the **measured value**: tart's bash execution genuinely takes ~54–67 ms (10-sample probe this session, `tmp/dur_probe2.rb` in repos/tart) where pi's takes <50 ms, crossing the `%.1f` boundary that separates `Took 0.0s` from `Took 0.1s`. Root cause: `lib/tart/tools/bash.rb` `spawn_and_stream`'s reaper polls `waitpid2(WNOHANG)` in a loop with `sleep 0.05` (:129) — every fast command pays at least one full poll quantum before its exit is noticed. pi's bash.ts uses Node's evented `child_process.spawn` (exit detected immediately, no polling). The defect is I03-era bash machinery, invisible until I17's timing seam made duration screen-visible — outside every lane's frozen touch set this iteration, so no lane could legally fix it. The timing lane's 10-sample table was honest but its `ls` tool never spawns a process (sub-ms in-process file tool), which is why the quantum never showed in lane evidence.
+- **Diff read vs Specification and BRIEF §8:** chat.rb gains a well-factored bash family (`BASH_TOOL` dispatch on both live and replay paths, `tool_result_text` shared with the legacy `tool_line`, `format_duration` with the toFixed-rounding case documented, `enqueue_bash_block`, generic `padded_fg_rows`) with pi-source anchor comments per the I16 idiom; theme.rb's `bashMode` carries the converter-verified truecolor value with the 16-color-fallback note; loop.rb is the minimal +4-line seam; scenario ymls are data-only. No fights with house style; no unneeded abstraction; no placeholder code. Frozen contracts respected on both sides (render consumed `duration:` without touching agent/**; timing never widened).
+- **Iteration — CONTINUE.** The single decisive reason: all three frozen seams landed faithfully and the one failing candidate is a root-caused pre-existing bash-tool performance defect that this iteration's own instrument surfaced for the first time — it is the head of the next iteration's work list, not a defect of this iteration's work.
+
+**Next iteration's measured work list (I18):**
+1. bash poll-quantum cure (blocking/evented reap so fast commands measure like pi's evented exit) — closes s2 exit 0 (AC1's carry-forward).
+2. s3 file-tool renders — the 7-candidate baseline list (verbatim in rig report): pi renders `  ⎿ write: Successfully wrote to …` / `  ⎿ read: <content>` shapes vs the port's `write <path>` / bare content rows + blank class.
+3. Carried CUTs (pi anchors in render report): bash 5-line preview truncation (BASH_PREVIEW_LINES, bash.ts:14/78-89), expand hints, truncation warnings, exit-code statuses, Elapsed live line, null-arg invalid text (bash.ts:36-38, :65-101).
+4. Rig robustness: mock-server must ignore empty TCP connections (the 1-in-4 script-shift flake) — rig internals, needs a lane with `test/support/**` authority.

@@ -751,7 +751,7 @@ project:
     ordinal: 17
     file: architecture/I17-tool-turn-parity.md
     freeze_sha: 5174bdc1039d183678107ed7d94fd10081137354
-    verdict: pending
+    verdict: continue
     lanes:
     - name: timing
       repo: tart
