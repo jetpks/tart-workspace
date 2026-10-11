@@ -69,51 +69,140 @@ Measured this session (2026-10-11) at base **4d858125** (= `project/pi-port` tip
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse decomp-wave3` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze decomp-wave3` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+**AC1 (extraction shape).** The Specification's target class assignment holds — every enumerated method, class helper, and constant defined in its assigned class (`Viewport`, `Selection`), the three cell utilities on `Text`; none of the moved methods still defined in `chat.rb` except the two sanctioned coordinator keeps (the `mark_scrollbar_activity` kernel arm, the `scrollbar_hide_delay_ms=` test seam — both per shape rules (b)/(d)); the moved state ivars (`@scroll_offset`, `@follow`, `@scrollbar_activity_at`, `@scrollbar_timer_epoch`, `@scrollbar_hide_delay_ms`, `@selection`, `@last_click`) and constants (`SCROLLBAR_HIDE_DELAY_MS`, `WHEEL_*`, `DOUBLE_CLICK_SECONDS`, `WORD_JOINERS`, `Point`) live on their classes and no reference to them remains anywhere in `chat.rb`, comments included. A PHASE-0-raised, architect-ruled re-assignment is legal; a silent one is a defect.
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC2 (state + threading discipline).** The classes own ONLY their state — no reference to Chat's kernel/scrollback/transcript/mutex/session state inside `viewport.rb`/`selection.rb`; the external seams are exactly the sanctioned ones: per-call threaded content/geometry params, Selection's construction-injected content reader, `TUI`/`Theme`/`Text` utilities, and the copy seam (`TUI.osc52_copy` inside the release op); the kernel async arm stays in Chat; the cross-object flow follows data ownership (Chat's `content_point` reads the viewport's offset; `transcript_widget` composes the Viewport ops + Selection highlight); Chat's mutex boundaries are unchanged — the same methods synchronize as at base, the classes are unsynchronized by design; Chat's public surface is unchanged (constructor params, `edit_input`, `submit`, the readbacks including `scroll_offset`, the `scrollbar_hide_delay_ms=` test seam) and `bin/tart` is untouched.
 
-**AC1.** ...
+**AC3 (byte-exact parity).** Post-integration, cold from the integrated tree: s1–s6 all exit 0 via `gems/tui-split-rig/bin/tui-split-rig` with zero unknown candidates, and `gems/tui-split-rig/registry.yml` is byte-identical to base **4d858125**'s `gems/tui-split-rig/registry.yml`.
+
+**AC4 (scope discipline).** The wave-4/5 families enumerated out-of-scope in the Specification remain defined in `chat.rb` and untouched by this wave (probed at `enqueue_motd`, `display_lines`, `transcript_widget`, `plain_content_line`, `submit`, `edit_input`, `handle_mouse`, `wheel`, `content_point`, `footer_stats`, `build_widget`, `viewport_width`, `transcript_area_rows`, `clear_transcript`); `bin/tart` and wave 2's sealed files (`editor.rb`, `autocomplete.rb`, `picker.rb`, `slash_source.rb`) are untouched; the lane's diff carries no change outside its declared touch set.
+
+**AC5 (suite + bench).** The default rake task fully green, and the seam bench prints `SEAM_BENCH_OK`.
+
+**AC6 (test surgery).** The coordinator tests stay in `chat_test.rb` with their names and assertions (the scroll and mouse tests drive Chat's public event surface — this wave is moves-only for them: zero expected); the `scrollbar_hide_delay_ms=` call sites keep working unchanged; the suite's run count changes only by a PHASE-0-raised, reported reason (the expected delta is 0).
+
+**AC7 (idiomaticity — architect-read, not gate-held).** The decomposition reads like the surrounding house style: class doc comments carrying their pi citations forward (scroll-view.ts / layout.ts / tui-alt-screen.ts / chat-viewport.ts), the state-and-seams idioms of wave 2's classes (Editor/Autocomplete/Picker), no abstraction beyond the assignment table, no delegator shims for internal helpers. Judged on the integrated diff; defects flagged with file:line in the Verdict.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse decomp-wave3` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/parity-gate-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/parity-gate-s6
+  expect:
+    exit_code: 0
+
+- id: moved-methods-gone
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    if grep -nE '^[[:space:]]*def (self[.])?(scroll_page|scroll_by|scrollbar_visible\?|overlay_rail_cell|scrollbar_glyphs|selection_press|selection_drag|selection_release|update_selection_focus|selection_bounds|before\?|selection_text|word_range|word_char\?|line_range|next_click_count|highlight_row|selection_columns|reverse_cells|span_pieces|char_index_at_cell|take_cells|slice_cells)([[:space:](=]|$)' lib/tart/render/chat.rb; then exit 1; else echo MOVED_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: MOVED_OK
+
+- id: constants-gone
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    if grep -nE '^[[:space:]]*(SCROLLBAR_HIDE_DELAY_MS|WHEEL_LINES_PER_EVENT|ALT_WHEEL_MULTIPLIER|WHEEL_DIRECTION|DOUBLE_CLICK_SECONDS|WORD_JOINERS|Point =)' lib/tart/render/chat.rb; then exit 1; else echo CONSTANTS_MOVED_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: CONSTANTS_MOVED_OK
+
+- id: state-leak
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    if grep -nE '@(scroll_offset|follow|scrollbar_activity_at|scrollbar_timer_epoch|scrollbar_hide_delay_ms|selection|last_click)\b' lib/tart/render/chat.rb; then exit 1; else echo NO_STATE_LEAK_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: NO_STATE_LEAK_OK
+
+- id: new-classes-present
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    test -f lib/tart/render/viewport.rb && test -f lib/tart/render/selection.rb && echo CLASSES_OK
+  expect:
+    exit_code: 0
+    stdout_match: CLASSES_OK
+
+- id: wave4-intact
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'def enqueue_motd' lib/tart/render/chat.rb && grep -q 'def display_lines' lib/tart/render/chat.rb && grep -q 'def transcript_widget' lib/tart/render/chat.rb && grep -q 'def plain_content_line' lib/tart/render/chat.rb && grep -q 'def submit' lib/tart/render/chat.rb && grep -q 'def edit_input' lib/tart/render/chat.rb && grep -q 'def handle_mouse' lib/tart/render/chat.rb && grep -q 'def wheel' lib/tart/render/chat.rb && grep -q 'def content_point' lib/tart/render/chat.rb && grep -q 'def footer_stats' lib/tart/render/chat.rb && grep -q 'def build_widget' lib/tart/render/chat.rb && grep -q 'def viewport_width' lib/tart/render/chat.rb && grep -q 'def transcript_area_rows' lib/tart/render/chat.rb && grep -q 'def clear_transcript' lib/tart/render/chat.rb && echo WAVE4_INTACT_OK
+  expect:
+    exit_code: 0
+    stdout_match: WAVE4_INTACT_OK
+
+- id: registry-unchanged
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    git show 4d858125:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml && echo REGISTRY_UNCHANGED_OK
+  expect:
+    exit_code: 0
+    stdout_match: REGISTRY_UNCHANGED_OK
 ```
 
 ## Builder Prompt
