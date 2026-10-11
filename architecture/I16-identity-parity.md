@@ -290,10 +290,247 @@ AC2/AC5 assert properties (floors, not snapshots); the two grep gates below are 
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I16-identity-parity-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section identity-parity prompt --append --lane <lane> --from build/I16-identity-parity-<lane>/prompt.md`. -->
+### identity
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo. Silent compliance
+is a failure. Silent scope additions are a failure. If you have no
+disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed in BOUNDARIES. You
+are one of two parallel lane agents working in isolated worktrees; files
+outside your lane belong to the other agent — touching them fails your lane.
+No placeholder implementations — search the codebase before implementing;
+full implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive collection/enumerable
+forms); well-factored and DRY-ish; terse but clear; pragmatic, not clever — the
+smallest change that does the job, no abstraction it doesn't need. Consistency
+with the surrounding code is part of correctness here: a change that works but
+fights the house style (or introduces an inconsistency a careful reader of this
+repo would never write) is not done. Tests stay simple and terse, exercising
+public behavior, no mock/stub of the class under test. Verify your work by
+running the acceptance criteria's gate commands and record the verbatim output.
+Do NOT commit and do NOT run any git write command (commit/add/branch/reset/
+checkout) — the architect commits and merges after verification, and verifies
+you made no commits. Do NOT delete lock files or escalate privileges if a
+command fails; record the exact error and continue. Do NOT background your own
+work (shell `&`) — this process reaps its children when your turn ends; run
+long commands serially in the foreground with an explicit timeout (the s1
+parity run takes ~2–4 minutes; give it timeout 600). When done, write your
+report to the scratch file given below (an absolute path OUTSIDE your
+worktree), with RAW results only — tables, numbers, command output — no
+interpretation, no "promising". Every status claim must be backed by a command
+result from this run. Keep the report compact. Do not title the report; keep
+any headings inside it at `###` or deeper. End it with exactly one status line:
+STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them) | BLOCKED (exact blocker
++ what you tried). Verdicts belong to the architect and the human. Persist
+until your lane is fully handled end-to-end; do not stop at analysis or partial
+fixes.
+
+=== OBJECTIVE (and why) ===
+
+Close the first measured slice of the exact-parity program (project BRIEF §8):
+`tart` in default identity must be settled-screen-indistinguishable from
+pi 1.1.0 on the parity rig's plain-text-turn scenario — `bin/pty-tester run
+parity/scenarios/s1_text_turn.yml` exits 0 — while tart's own identity returns
+through a settings/env/CLI seam. The parity instrument (pty-tester) was merged
+into this repo at the tip; you run it from your worktree.
+
+THE MEASURED WORK LIST (baseline run, 18 unknown-candidate lines — your scope
+is exactly this, nothing else; the s2 tool-turn glyphs are NEXT iteration, do
+not chase them):
+
+1. leading blank line before the header block (pi has one, tart none)
+2. logo block: pi's 2-line half-block mark with the version on the logo's
+   first line (` ▀▀█  v1.1.0` / ` █▀ █ <hints>`) vs tart's 4-line random art
+3. hints line: pi's `escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more`
+4. `Press ctrl+o to show full startup help and loaded resources.` notice line
+5. `Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.` onboarding line
+6/7. one leading space on transcript lines (user echo AND assistant reply)
+8. blank-line structure between user echo and assistant reply (pi has two
+   blanks, tart one — component leading spacers)
+9. footer right segment: pi renders `(<provider>) <model-id>` (the mock
+   scenario shows `(mock) mock-1`) with the `• <level>` suffix only for
+   reasoning-capable models; the port appends `• medium` unconditionally
+
+BASELINE ARTIFACTS (read these; do NOT re-run to "confirm" the baseline —
+absolute paths, they live outside your worktree):
+- /Users/eric/architect/spaces/20261009-pi-port/tmp/parity-baseline-I16/run-1/pi.capture
+- /Users/eric/architect/spaces/20261009-pi-port/tmp/parity-baseline-I16/run-1/tart.capture
+- /Users/eric/architect/spaces/20261009-pi-port/tmp/parity-baseline-I16/run-1/summary.json (attribution has every candidate line)
+The pi CAPTURE is the contract: match its settled bytes, citing pi source for
+every line's mechanism.
+
+PI ORACLE SOURCES (readable, absolute — the spec's `repos/pi` relative path is
+this checkout):
+- /Users/eric/architect/spaces/20261009-pi-port/repos/pi/packages/coding-agent/src/modes/interactive/components/pi-logo.ts
+  (half-block mark, brand colors CORAL rgb(228,138,122) / BLUE rgb(79,142,179) / YELLOW rgb(234,182,93), Apple-Terminal wordmark fallback via isAppleTerminalSession)
+- /Users/eric/architect/spaces/20261009-pi-port/repos/pi/packages/coding-agent/src/modes/interactive/interactive-mode.ts:1004-1080 (built-in header: logo + hints + ctrl+o notice + onboarding)
+- footer model segment: find pi's footer source under
+  /Users/eric/architect/spaces/20261009-pi-port/repos/pi/packages/coding-agent/src/modes/interactive/ (footer.ts — `(provider) model` and the reasoning-only `• <level>` suffix; the staged mock model declares `reasoning: false`, so pi omits the suffix)
+Grep the pi checkout freely; PHASE 0 must verify these anchors actually say
+what this spec claims.
+
+=== IDENTITY DESIGN (the contract) ===
+
+1. Resolution: CLI flag > `TART_IDENTITY` env > settings key `identity` >
+   default `"pi"`. Values `"pi"` | `"tart"`; anything else errors with a clear
+   message naming the valid values. One resolution point (e.g. a new
+   `Tart::Identity` module), consumed by the launcher; no scattered reads.
+2. pi-mode renders pi's bytes: the 2-line half-block logo (brand colors;
+   Apple-Terminal wordmark fallback), version on the logo's first line reading
+   the oracle's version — a tracked constant, today `v1.1.0` — pi's hints
+   line, the ctrl+o notice, the onboarding line, and pi's blank-line/spacer
+   structure (leading header blank, per-line one-space transcript padding,
+   component spacers between user echo and reply).
+3. tart-mode keeps tart's text on the same structural engine: the owner's art
+   collection (one random piece, as today — lib/tart/render/logos/*.txt),
+   `tart v0.1.0`, the port's hints line, the [Context]/[Skills] sections (as
+   today); the ctrl+o notice and onboarding line are pi-header text and stay
+   cut in tart-mode. Structural parity items (padding, spacers, footer
+   format) hold in BOTH modes — the toggle is identity-only.
+4. Footer model segment: pi's format — `(<provider>) <model-id>` right-aligned,
+   `• <level>` only when the model is reasoning-capable. The port must resolve
+   a provider label and a reasoning-capability predicate for arbitrary
+   `TART_MODEL` values; design the seam against pi's mechanism and make it
+   stageable by the rig (env/settings), so the mock scenario renders
+   `(mock) mock-1` exactly. Itemize the mechanism you chose.
+5. Identity follows on every user-visible surface: MOTD header, the exit
+   resume-hint line (`tart --resume <id>` ↔ `pi --resume <id>`), and the abort
+   prefix (`tart:` ↔ pi's — check what pi actually prints on abort; if pi has
+   no comparable prefix, itemize and keep tart's). CLI `--help` text stays
+   tart-branded (out of scope, itemized).
+
+=== RIG ENV SEAM (also yours — pty-tester BRIEF §2 contract) ===
+
+Scenario YAML must carry per-app env overrides applied by the runner (the
+designed branding-toggle seam; today `Runner#tart_command` hard-codes the tart
+env, runner.rb:159-171). Land the seam (data-driven, validated keys, both apps
+stageable), then pin `parity/scenarios/s1_tart.yml`: the s1 scenario with tart
+staged `TART_IDENTITY=tart`. s1_text_turn.yml itself may gain whatever staged
+env makes the two settled screens equal (e.g. the provider-label /
+reasoning-capability staging for the footer) — data only, itemized. Do NOT
+touch parity/registry.yml — no new sanctioned classes, ever; a divergence is
+fixed in the render, never classified away.
+
+=== OUTPUT FORMAT ===
+
+- pty-tester runs: exact command lines + exit codes, and each run's
+  summary.json verbatim (per-app completion, request counts, class counts,
+  candidate lists).
+- Test output: the tail of `bundle exec rake` (runs/assertions/failures) +
+  the SEAM_BENCH_OK line.
+- Identity seam: the resolution-order table (CLI/env/settings/default) with
+  the headless test names proving each precedence row, and the exact
+  MOTD/footer bytes per mode (test-pinned).
+- PHASE 0: numbered disagreements/deviations with file:line evidence.
+
+=== TOOL GUIDANCE (verification commands; verify-against-reality list) ===
+
+- `bundle install --quiet && bundle exec rake` (minitest, test/**/*_test.rb)
+- `bundle exec ruby bench/seam_bench.rb` → prints SEAM_BENCH_OK
+- `bin/pty-tester run parity/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1`
+  — exit 0 = parity, 1 = unknown candidates (your work list), 2 = rig failure.
+  tmux + pi 1.1.0 are on PATH in this environment; runs are staged/sandboxed
+  (fresh HOMEs, mock LLM, no real dotfiles touched). Give each run
+  timeout 600. The rig runs tart from YOUR worktree by default.
+- `bin/pty-tester run parity/scenarios/s1_tart.yml --app tart --out tmp/parity-gate-tart`
+  for the tart-mode scenario.
+- Verify before planning: pi-logo.ts bytes and colors; the header construction
+  at interactive-mode.ts:1004-1080; pi's footer model-segment format and its
+  reasoning-only level suffix; pi's abort-message prefix (if any); the rig's
+  env insertion point in runner.rb; that `TART_IDENTITY`-style env reaches
+  bin/tart through the rig's staged env (exec env wrapper).
+
+=== BOUNDARIES (may touch / must not touch / out of scope) ===
+
+MAY TOUCH (exhaustive — nothing else; `lib/tart/identity.rb`,
+`parity/scenarios/s1_tart.yml` and genuinely new test fixtures are NEW files
+this list authorizes creating):
+- bin/tart
+- lib/tart.rb
+- lib/tart/identity.rb (new)
+- lib/tart/render/chat.rb
+- lib/tart/theme.rb
+- lib/tart/tui.rb
+- lib/tart/settings.rb
+- lib/tart/parity/scenario.rb
+- lib/tart/parity/runner.rb
+- parity/scenarios/s1_text_turn.yml
+- parity/scenarios/s1_tart.yml (new)
+- test/chat_test.rb
+- test/settings_test.rb
+- test/theme_test.rb
+- test/tui_test.rb
+- test/launcher_smoke_test.rb
+- test/parity/scenario_test.rb
+- test/parity/live_run_test.rb
+- README.md
+
+MUST NOT TOUCH (owned by the parallel uuid lane or frozen):
+- lib/tart/agent/** (uuid lane)
+- tart.gemspec, Gemfile, Gemfile.lock (uuid lane)
+- parity/registry.yml (frozen — no new sanctioned classes)
+- test/fixtures/** except new files you author yourself
+- bench/**, docs/**, golden parity payloads
+- Everything not listed above.
+
+OUT OF SCOPE: s2 tool-turn glyph parity (next iteration); ctrl+o expand
+machinery and `!` bash mode (backlog — the pi-mode header SHOWS their hint
+text for byte parity, the bindings stay unbuilt, itemized); CLI --help
+rebranding; any refactor beyond the task.
+
+Your scratch report (RAW results only): /Users/eric/architect/spaces/20261009-pi-port/build/I16-identity-parity-identity/report.md
+
+=== ACCEPTANCE CRITERIA (frozen — the architect re-runs these to judge; verify
+against them, do not edit or work around) ===
+
+- **AC1 (s1 settled-screen parity).** `bin/pty-tester run parity/scenarios/s1_text_turn.yml`
+  exits **0**: every settled-screen difference line between pi 1.1.0 and
+  default-identity tart is covered by the existing registry (path
+  normalization only). `parity/registry.yml` gains no new classes — a
+  divergence is fixed in the render, never classified away.
+- **AC2 (identity seam).** Identity resolves CLI > `TART_IDENTITY` env >
+  settings `identity` > default `"pi"`; invalid values error naming the valid
+  ones. Default (no config) boots pi's header bytes; identity=tart restores
+  the owner's art collection, `tart v0.1.0`, and the tart hints line; the exit
+  resume-hint line and abort prefix follow identity. The structural parity
+  items (transcript padding, spacers, footer model-segment format) hold in
+  BOTH modes. Proven headlessly by named tests in test/chat_test.rb /
+  test/settings_test.rb (resolution precedence table + per-mode MOTD bytes).
+- **AC3 (rig env seam + tart-mode scenario).** Scenario YAML carries per-app
+  env overrides applied by the runner; a pinned
+  `parity/scenarios/s1_tart.yml` boots tart with identity=tart and its
+  settled capture shows the tart header (tart version line present, pi's
+  onboarding line absent — the absence check deliberately avoids half-block
+  bytes, which the owner's own art pieces can contain).
+- **AC4 (suite, bench, pins).** `bundle exec rake` green (0 failures, 0
+  errors) including the new identity/env-seam tests; `bench/seam_bench.rb`
+  prints SEAM_BENCH_OK; gemspec runtime dependency set unchanged by YOUR lane.
+- **AC5** is the uuid lane's criterion — not yours; your lane must simply not
+  touch its files.
+
+Frozen gates you self-verify (the architect re-runs them cold):
+- suite: `bundle install --quiet && bundle exec rake && echo SUITE_OK` → exit 0
+- bench: `bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1` → SEAM_BENCH_OK
+- s1-parity: `bin/pty-tester run parity/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1` → exit 0
+- s1-tart-mode: `bin/pty-tester run parity/scenarios/s1_tart.yml --app tart --out tmp/parity-gate-tart && grep -q "tart v" tmp/parity-gate-tart/run-1/tart.capture && ! grep -q "Pi can explain" tmp/parity-gate-tart/run-1/tart.capture && echo TART_MODE_OK` → TART_MODE_OK
+- identity-seam-tripwire: `grep -q "TART_IDENTITY" bin/tart && grep -q "identity" lib/tart/settings.rb && echo IDENTITY_SEAM_OK` → IDENTITY_SEAM_OK
 
 ## Builder Report
 
