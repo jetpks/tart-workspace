@@ -855,7 +855,20 @@ project:
   - name: bash-preview-collapse
     ordinal: 19
     file: architecture/I19-bash-preview-collapse.md
-    freeze_sha:
+    freeze_sha: 9148edc7ad420b3e7567d08acbc09fc07b5d417b
     verdict: pending
-    lanes: []
+    lanes:
+    - name: render
+      repo: tart
+      touch_set:
+      - lib/tart/render/chat.rb
+      - test/chat_test.rb
+    - name: rig
+      repo: tart
+      touch_set:
+      - test/parity/mock_llm_extension_test.rb
+      - test/parity/scenario_test.rb
+    rehearsal:
+      gates_digest: e69e94b83df39871386734abc59486ab8b1ab5368406f418a904df4f0f76d695
+      at: '2026-10-10T22:20:30-06:00'
   integration_branch: project/pi-port
