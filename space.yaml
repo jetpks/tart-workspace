@@ -1060,7 +1060,7 @@ project:
       - test/chat_test.rb
       - test/render/**
       base_sha: 53ca4b493ec6909c155913898b290764072db952
-      worktree: build/I24-decomp-wave4-content/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
