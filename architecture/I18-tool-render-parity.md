@@ -176,10 +176,169 @@ Calibration: AC1/AC2 are **deliverable-number criteria** (the exit codes ARE the
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I18-tool-render-parity-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section tool-render-parity prompt --append --lane <lane> --from build/I18-tool-render-parity-<lane>/prompt.md`. -->
+### bash-cure
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo. Silent compliance
+is a failure. Silent scope additions are a failure. If you have no
+disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed in BOUNDARIES. You
+are one of several parallel lane agents working in isolated worktrees; files
+outside your lane belong to other agents — touching them fails your lane.
+No placeholder implementations — search the codebase before implementing;
+full implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive forms); well-factored and
+DRY-ish; terse but clear; pragmatic, not clever — the smallest change that does
+the job, no abstraction it doesn't need. Tests stay simple and terse, exercising
+public behavior, no mock/stub of the class under test. Verify your work by
+running the acceptance criteria's gate commands and record the verbatim output.
+Do NOT commit and do NOT run any git write command (commit/add/branch/reset/
+checkout) — the architect commits and merges after verification, and verifies
+you made no commits. Do NOT delete lock files or escalate privileges if a
+command fails; record the exact error and continue. Do NOT use run_in_background
+(or shell `&`) for your own work — run long commands serially in the foreground
+with explicit timeouts instead. When done, write your report to the scratch
+file given below (an absolute path OUTSIDE your worktree), with RAW results
+only — tables, numbers, command output — no interpretation. Every status claim
+must be backed by a command result from this run. Keep the report compact.
+Do not title the report; keep any headings at `###` or deeper. End with exactly
+one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them) |
+BLOCKED (exact blocker + what you tried). Verdicts belong to the architect and
+the human.
+
+=== LANE: bash-cure (I18 tool-render-parity) ===
+
+Report file: /Users/eric/architect/spaces/20261009-pi-port/build/I18-tool-render-parity-bash-cure/report.md
+
+=== OBJECTIVE (and why) ===
+
+BRIEF §8 exact-parity program, the I17 AC1 carry. The s2 bash tool turn's
+settled screen diverges on exactly one pair — pi renders ` Took 0.0s`, tart
+renders ` Took 0.1s` — because the port's bash reaper polls `waitpid2(WNOHANG)`
+in a loop with `sleep 0.05` (lib/tart/tools/bash.rb:129): every fast command
+pays at least one full poll quantum. Measured this session (architect probe,
+10 samples of `echo pty-tester` through the tool): 0.0547 0.0613 0.0617 0.0669
+0.0603 0.0637 0.0617 0.0293 0.064 0.0662 seconds — median ~62 ms, past the
+`%.1f` 0.05 s boundary. pi spawns evented (`child_process.spawn`,
+core/tools/bash.ts:5,112 — exit detected via event, no polling) and measures
+<50 ms.
+
+Your lane cures the reaper: process-exit detection becomes IMMEDIATE (no
+fixed-interval poll as the primary mechanism) while the observable contract is
+preserved EXACTLY:
+
+- pgroup spawn (`pgroup: true`), stdin `/dev/null`, both pipes drained by
+  reader threads;
+- two-phase timeout kill: -TERM exactly once at the deadline, then a single
+  -KILL once TERM_GRACE_SECONDS elapses (kill_process_group, negative-pid);
+- cancellation checkpoints (`RubyLLM::Support::Cancellation.check` between
+  events — an interrupted turn kills the group immediately and re-raises);
+- output truncation (last 2000 lines / 50KB, spill to temp file);
+- the result's `wall_time_seconds` (rounded 0.1) and `details` fields, and
+  the tool's model-facing text shape.
+
+The WHAT is frozen (immediacy + preserved contract); the HOW is yours. Ruby
+has no evented child-exit; the idiomatic analog is a dedicated reaper thread
+doing a BLOCKING `Process.waitpid2` and signaling completion (Queue/condvar)
+to a coordinator that keeps the deadline/cancellation checks. Verify
+`Process.waitpid2`'s blocking semantics (no timeout arg; interruption behavior)
+in PHASE 0 before planning. Keep the code terse — this is a mechanism swap in
+`spawn_and_stream`, not a rewrite of the tool.
+
+The duration VALUE must stay honest: no clamping, no flooring, no faking. The
+`:tool_execution_end` `duration:` seam (lib/tart/agent/loop.rb, I17) is landed
+and FROZEN — do not touch it. A clamped duration that passes s2 while the
+reaper still polls is a letter-versus-spirit violation: build the property,
+report the conflict.
+
+OUT OF SCOPE: the render (landed, I17), the timing seam (landed, I17),
+session recording, parity/**, everything outside your touch set.
+
+=== EXPECTED STATE (read twice) ===
+
+Your worktree provisions off the merged base where the I17 render/timing/rig
+all landed: your s2 live run must exit 0 ALONE once your cure removes the
+quantum. If it still exits 1 on the Took pair, your cure did not remove the
+quantum — investigate your reaper; do NOT touch render files.
+
+=== OUTPUT FORMAT ===
+
+- The reaper-mechanism description (one paragraph: what replaced the poll
+  loop), with the code's pi-anchor/Ruby-doc comments.
+- A 10-sample duration table for `echo pty-tester` through the tool (raw
+  Floats + the median), and the script that produced it, verbatim.
+- The s2 live run: command + exit code + summary.json classes + candidates
+  verbatim (expect ZERO unknown-candidate).
+- The kill/timeout/cancellation/output-truncation test list with pass/fail
+  output; any legitimate test updates, itemized.
+- PHASE 0: numbered disagreements/deviations with file:line evidence.
+
+=== TOOL GUIDANCE ===
+
+- Verification: `bundle install --quiet && bundle exec rake` (your tests live
+  in test/bash_tool_test.rb — extend it; keep tests terse, public-behavior
+  only, no mock/stub of the class under test).
+- Live rig: `bin/pty-tester run parity/scenarios/s2_tool_turn.yml --out <scratch-dir>`
+  (tmux + pi on PATH, present; exit 0 = parity). Architect control baseline
+  (READ ONLY): /Users/eric/architect/spaces/20261009-pi-port/repos/tart/tmp/parity-gate-s2/
+  (exit 1, exactly the Took pair).
+- pi oracle (read-only):
+  /Users/eric/architect/spaces/20261009-pi-port/repos/pi —
+  core/tools/bash.ts:5,112 (evented spawn).
+- Existing machinery to preserve: read lib/tart/tools/bash.rb IN FULL before
+  planning; also read lib/tart/tools/output_accumulator.rb and
+  lib/tart/tools/safe_execute.rb (the surrounding contract).
+
+=== BOUNDARIES ===
+
+MAY touch: `lib/tart/tools/bash.rb`, `test/bash_tool_test.rb` — nothing else.
+MUST NOT touch: `lib/tart/agent/**` (the duration seam is landed and frozen),
+`lib/tart/render/**`, `parity/**`, `tart.gemspec`/`Gemfile*`, `bin/tart`,
+any other test file, `test/support/**`. No refactors beyond the mechanism
+swap; no placeholders; `rg` before implementing.
+
+=== ACCEPTANCE CRITERIA (frozen — verify against them, do not edit or work around) ===
+
+AC1 (s2 settled-screen parity — BRIEF §8, the I17 AC1 carry). `bin/pty-tester
+run parity/scenarios/s2_tool_turn.yml` exits **0**: the bash tool turn's
+settled screen is byte-indistinguishable, the `Took` pair closed by honest
+sub-boundary durations (the cure), not by clamping, faking, or dropping the
+line. `parity/registry.yml` gains no new classes.
+
+AC3 (bash reaper immediacy — BRIEF §8). Fast commands no longer pay a fixed
+poll quantum: a named test in `test/bash_tool_test.rb` runs N=10 real `echo`
+executions through the tool and asserts the **median** wall duration < 0.05 s
+(the `%.1f` rounding boundary pi's `Took 0.0s` sits under). The observable
+kill/timeout/cancellation/output-truncation contract is preserved — the
+existing tests for it stay green, with any legitimate test updates itemized
+in the report. No duration clamping or faking anywhere.
+
+AC6 (suite, bench — standing). `bundle exec rake` green (0 failures, 0
+errors) including the new cure tests; `bench/seam_bench.rb` prints
+`SEAM_BENCH_OK`; the gemspec runtime dependency set is unchanged.
+
+Gates you can run locally (from your worktree):
+
+    bundle install --quiet && bundle exec rake && echo SUITE_OK   # exit 0
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1            # SEAM_BENCH_OK
+    bin/pty-tester run parity/scenarios/s2_tool_turn.yml --out <scratch-dir>
+      # expected AFTER your cure: exit 0
 
 ## Builder Report
 
