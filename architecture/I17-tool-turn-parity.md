@@ -130,51 +130,67 @@ The three touch sets are disjoint by construction; a conflict at integration is 
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse tool-turn-parity` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze tool-turn-parity` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+Calibration: AC1 is a **deliverable-number criterion** (the exit code IS the point — exact); AC2/AC3/AC4/AC5 assert properties (floors, not snapshots); the two grep gates below are **tripwires** (keyword-landed, not proof — substance is architect-read from the named tests and the rig run).
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
-
-**AC1.** ...
+- **AC1 (s2 settled-screen parity — BRIEF §8).** `bin/pty-tester run parity/scenarios/s2_tool_turn.yml` exits **0**: every settled-screen difference line between pi 1.1.0 and default-identity tart on the bash tool turn is covered by the existing registry (path normalization only). `parity/registry.yml` gains no new classes — a divergence is fixed in the render, never classified away.
+- **AC2 (timing seam — BRIEF §8).** Live tool executions carry `duration:` (Float seconds, monotonic, `0.0` legitimate) on `:tool_execution_end`, always present; proven headlessly by a named test in `test/agent_loop_test.rb` asserting the event's duration field from a real tool round-trip. The session recording shape is untouched (no duration recorded — the replay gap stays itemized).
+- **AC3 (bash render — BRIEF §8).** The live bash tool block renders pi's shapes: leading spacer structure, ` $ <command>` (bold, pi's `bashMode` color — port Theme token mapped to the dark-theme value), muted output lines blank-separated, ` Took <formatDuration>` muted with pi's exact formatDuration (`<60s` → `%.1fs`; `<60m` → `Xm Ys`; else `Xh Ym Zs`), no `Took` when duration is nil; blank structure per the frozen capture rows; style pinned by headless cell-level tests. Non-bash tools keep the existing shape, itemized unmeasured. Replay renders bash blocks through the same shapes (command from recorded arguments, output from recorded results, no `Took`). Proven by named tests in `test/chat_test.rb` / `test/theme_test.rb`.
+- **AC4 (rig — pty-tester BRIEF §2, feeds BRIEF §8's next slice).** s2 stages `TART_MODEL_PROVIDER: mock` (data-only — the footer right segment reads `(mock) mock-1`, proven by AC1's exit 0). A third scenario `parity/scenarios/s3_tool_turn_files.yml` exercising ≥1 non-bash file tool completes in BOTH apps under the rig, is load-pinned in `test/parity/scenario_test.rb`, and its baseline candidate list is reported verbatim in the lane report as the next work list (evidence-only — no exit-0 requirement, no registry change). A documented feasibility blocker with exploration evidence is an acceptable outcome for the s3 half only; the s2 staging half must land either way.
+- **AC5 (suite, bench).** `bundle exec rake` green (0 failures, 0 errors) including the new timing/render/rig tests; `bench/seam_bench.rb` prints `SEAM_BENCH_OK`; the gemspec runtime dependency set is unchanged.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse tool-turn-parity` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC2, AC3, AC4, AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s2-parity
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    bin/pty-tester run parity/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: duration-seam-tripwire
+  ac: AC2, AC3
+  cwd: repos/tart
+  cmd: |-
+    grep -q "duration" lib/tart/agent/loop.rb && grep -q "Took" lib/tart/render/chat.rb && echo DURATION_SEAM_OK
+  expect:
+    exit_code: 0
+    stdout_match: DURATION_SEAM_OK
+
+- id: s2-staging-tripwire
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    grep -q "TART_MODEL_PROVIDER" parity/scenarios/s2_tool_turn.yml && echo S2_STAGED_OK
+  expect:
+    exit_code: 0
+    stdout_match: S2_STAGED_OK
+
+- id: s3-pin-tripwire
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    test -f parity/scenarios/s3_tool_turn_files.yml && grep -q "s3_tool_turn_files" test/parity/scenario_test.rb && echo S3_PINNED_OK
+  expect:
+    exit_code: 0
+    stdout_match: S3_PINNED_OK
 ```
 
 ## Builder Prompt
