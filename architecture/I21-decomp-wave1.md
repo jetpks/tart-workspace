@@ -462,6 +462,217 @@ green; s1–s6 via `gems/tui-split-rig/bin/tui-split-rig` all exit 0;
 file list contains no parity/gems entry; `gems/tui-split-rig/registry.yml`
 byte-identical to base `931b589`'s `parity/registry.yml`.
 
+### render
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo. Silent compliance
+is a failure. Silent scope additions are a failure. If you have no
+disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed in BOUNDARIES. You
+are one of several parallel lane agents working in isolated worktrees; files
+outside your lane belong to other agents — touching them fails your lane.
+No placeholder implementations — search the codebase before implementing;
+full implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive collection/enumerable
+forms); well-factored and DRY-ish; terse but clear; pragmatic, not clever — the
+smallest change that does the job, no abstraction it doesn't need. Consistency
+with the surrounding code is part of correctness here: a change that works but
+fights the house style (or introduces an inconsistency a careful reader of this
+repo would never write) is not done. Tests stay simple and terse, exercising
+public behavior, no mock/stub of the class under test. Verify your work by
+running the acceptance criteria's gate commands and record the verbatim output.
+Do NOT commit and do NOT run any git write command (commit/add/branch/reset/
+checkout) — the architect commits and merges after verification, and verifies
+you made no commits. Do NOT delete lock files or escalate privileges if a
+command fails; record the exact error and continue. Do NOT use
+`run_in_background` (or shell `&`) for your own work — this process terminates
+when you end your turn and reaps its own children, so backgrounded work is
+SIGTERMed and its output lost while the run still exits 0; run long commands
+serially in the foreground instead. Give every potentially long command an
+explicit timeout (the live rig runs below take tens of seconds each — allow
+120s+ each). If a runtime will not start unattended (interactive prompt, server
+with no timeout), record the exact failure in your report and route around it —
+never busy-wait or retry in a loop. When done, write your report to the
+scratch file given to you below (an absolute path OUTSIDE your worktree), with
+RAW results only — tables, numbers, command output — no interpretation, no
+"promising". Every status claim must be backed by a command result from this
+run. Keep the report compact — tables and numbers, not prose. Do not title
+the report; keep any headings inside the report at `###` or deeper. End it
+with exactly one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list
+them) | BLOCKED (exact blocker + what you tried). Verdicts belong to the
+architect and the human. Persist until your lane is fully handled end-to-end;
+do not stop at analysis or partial fixes.
+
+Your scratch report (write RAW results here, never inside the worktree):
+/Users/eric/architect/spaces/20261009-pi-port/build/I21-decomp-wave1-render/report.md
+
+=== OBJECTIVE (and why) ===
+
+LANE `render` of I21 decomp-wave1 — the first wave of the sanctioned
+five-wave chat-surface decomposition. `lib/tart/render/chat.rb` is a 3,330-line
+god object (~200 methods, ~30 ivar clusters, ~10 responsibilities) mirrored by
+`test/chat_test.rb` (3,259 lines, 151 tests in one class). This wave is a PURE
+REFACTOR — ZERO behavior change — moving the TWO STATELESS clusters out of
+`Render::Chat` into pure modules under `lib/tart/render/`, with the moved
+families' tests moving alongside. Everything stateful stays in `Chat` for
+wave 2+. Byte-exactness is proven by the parity rig (s1–s6 scenarios, exit 0).
+
+THE MOVE — target module assignment (the decomposition shape IS the
+deliverable; every method below is verified ivar-free in chat.rb as of base
+931b589 — the wrap width is already threaded at Chat's call sites):
+
+| Module (new file) | Methods (from Chat; chat.rb line range at base) |
+|---|---|
+| `Tart::Render::Text` (`lib/tart/render/text.rb`) | `wrap` (630), `wrap_line` (636), `wrap_row` (651), `styled_row` (666), `clip_text` (717), `fit` (794), `format_tokens` (816), `format_cwd` (827), `self.parse_skill_block` (195), `cwd_relative_path` (1850) |
+| `Tart::Render::Panel` (`lib/tart/render/panel.rb`) | `padded_fg_rows` (1562), `panel_tail` (1574), `panel_blank_line` (1579), `tool_panel_bg` (1587), `padded_row` (1329), `padded_spans_row` (1147) — plus `blank_line` (899) IF a moved family calls it |
+| `Tart::Render::BashBlock` (`lib/tart/render/bash_block.rb`) | `format_duration` (1359), `bash_block_rows` (1395), `collapse_bash_preview` (1481), `display_truncation_notice` (1446), `split_truncation_notice` (1466), `user_bash_block_rows` (1515), `user_bash_status_rows` (1540) |
+| `Tart::Render::FileBlocks` (`lib/tart/render/file_blocks.rb`) | `write_block_rows` (1639), `write_call_rows` (1710), `wrapped_call_rows` (1722), `write_content_rows` (1740), `read_block_rows` (1677), `read_content_rows` (1699), `read_call_rows` (1776), `expand_hint_row` (1757), `tool_title_span` (1799), `tool_path_display` (1808), `line_range_spans` (1819), `compact_read_classification` (1836) |
+| `Tart::Render::ToolBlock` (`lib/tart/render/tool_block.rb`) | `tool_result_text` (1353), `tool_line` (1859), `generic_panel_rows` (1875) |
+
+Rules for the move:
+- Module-function style (`module_function` or `def self.` house-consistent
+  choice — check how `Compaction`, `Settings`, `Skills` do pure modules and
+  match). PURE: no ivar access, no `Chat.` dependency. They may call `TUI`,
+  `Theme`, `Render::Markdown`, `Identity`, and each other.
+- Chat call sites update to the new modules — **no delegator shims**: `Chat.wrap(...)`
+  becomes `Text.wrap(...)` etc. Stateful callers (`enqueue_bash_block`,
+  `enqueue_tool_block`, `enqueue_write_block`, `enqueue_read_block`,
+  `enqueue_user_bash_block`, `push_expandable`, MOTD/replay callers of
+  `wrap`/`format_cwd`) stay in Chat and now call the modules.
+- If an assignment misfits at the code (a "pure" method secretly reads state,
+  two families share a private helper better homed once), raise it PHASE 0 with
+  the line evidence — do NOT silently reshape.
+- Tests: the moved families' tests move to `test/render/` — suggested homes:
+  `test/render/text_test.rb`, `test/render/panel_test.rb` (or fold panel
+  coverage into the family test files), `test/render/bash_block_test.rb`,
+  `test/render/file_blocks_test.rb`, `test/render/tool_block_test.rb`. Moves,
+  not rewrites: keep test names and assertions; update call sites
+  (`Chat.wrap` → `Text.wrap`, `chat.send(...)` probes of moved methods become
+  direct module calls). `chat_test.rb` keeps only stateful-surface tests and
+  shrinks accordingly.
+- The `class << self` block in Chat (l.626–846) loses the moved helpers
+  (`wrap`, `wrap_line`, `wrap_row`, `styled_row`, `clip_text`, `fit`,
+  `format_tokens`, `format_cwd`, `self.parse_skill_block` at l.195, and
+  `cwd_relative_path` l.1850) — the fuzzy trio and word-motion helpers below
+  STAY.
+- Module doc comments carry their pi citations forward (e.g. BashBlock keeps
+  the renderers/bash.ts citations in the moved bodies' comments).
+
+DO NOT MOVE (wave 2+ families — they STAY in chat.rb untouched this wave):
+`fuzzy_match`, `fuzzy_subsequence_score`, `fuzzy_filter` (autocomplete wave),
+`find_word_backward`, `find_word_forward` (editor wave), the editor cluster
+(`edit_input`, `submit`, `insert`, `delete_*`, `move_*`, `navigate_history`,
+`input_spans`, `display_lines`, `highlight_row`, ...), autocomplete/picker/
+`SlashSource`, mouse selection (`selection_*`, `word_range`, `slice_cells`,
+...), scroll/scrollbar (`scroll_by`, `mark_scrollbar_activity`,
+`scrollbar_glyphs`, `overlay_rail_cell`, `transcript_widget`, ...), user-bash
+EXECUTION (`user_bash`, `user_bash_command`, `finish_user_bash`,
+`cancel_user_bash`, `record_user_bash`, `user_bash_fields`, `user_bash_record`,
+`flush_pending_bash_records` — ONLY the two display builders
+`user_bash_block_rows`/`user_bash_status_rows` move), footer/stats
+(`footer_stats`, `context_*`, `cache_hit_rate`, `read_branch`), MOTD/identity
+(`enqueue_motd`, `pi_header_lines`, `motd_sections`, `pi_hint_spans`, ...),
+transcript/scrollback/expandable/replay machinery, widget layout.
+
+=== OUTPUT FORMAT ===
+
+RAW results only, in the scratch report:
+1. The method-move table: each moved method → its module (all 36+ names from
+   the assignment table).
+2. `wc -l lib/tart/render/chat.rb` before/after, and `wc -l` of each new module.
+3. Call-site counts per moved method (grep counts before/after).
+4. `bundle install --quiet && bundle exec rake` tail — last lines with the
+   run/assertion counts (must be fully green; the count may shift as tests
+   move, ZERO failures).
+5. s1–s6 runs with the rig AS IT STANDS IN THIS WORKTREE (a parallel lane is
+   moving the rig to `gems/tui-split-rig/` — you do NOT have that move; the
+   rig is at its OLD path in your worktree and you must not touch it):
+   `bin/pty-tester run parity/scenarios/s1_text_turn.yml --out <scratch-out>/s1`
+   (likewise s2_tool_turn, s3_tool_turn_files, s4_bash_variants,
+   s5_bash_truncation, s6_long_calls) — all six RAW exit codes, each 0.
+   Each takes tens of seconds; run serially in the foreground with explicit
+   timeouts.
+6. PHASE 0 disagreements (mandatory) + STATUS line.
+
+=== TOOL GUIDANCE (verification commands) ===
+
+- Suite: `bundle install --quiet && bundle exec rake` (from the repo root).
+- Byte-exact oracle: the six rig runs in output format 5. Exit 0 on all six =
+  byte-identical settled screens vs pi. This is the proof your refactor
+  changed nothing — a single unknown-candidate line is a FAIL you must
+  root-cause (and report), not paper over.
+- `lib/tart.rb` currently requires `tart/render/chat` + `tart/render/markdown`
+  only — add requires for the new modules there ONLY IF chat.rb does not
+  require them itself (prefer chat.rb requiring its own collaborators, house-
+  style check: how does `print.rb`/`commands.rb` get loaded?).
+
+=== BOUNDARIES (may touch / must not touch / out of scope) ===
+
+MAY TOUCH (exactly): `lib/tart/render/chat.rb`, the five new files
+`lib/tart/render/text.rb`, `lib/tart/render/panel.rb`,
+`lib/tart/render/bash_block.rb`, `lib/tart/render/file_blocks.rb`,
+`lib/tart/render/tool_block.rb`, `lib/tart.rb` (require seam only if needed),
+`test/chat_test.rb`, `test/render/**` (new).
+
+MUST NOT TOUCH: `lib/tart/render/markdown.rb` (already well-factored — zero
+changes to it), `lib/tart/theme.rb`, `lib/tart/tui.rb`, `bin/tart`,
+`lib/tart/parity*`, `bin/pty-tester`, `parity/**`, `Rakefile`, `tart.gemspec`,
+`test/support/**`, any other test file — the Rakefile already globs
+`test/**/*_test.rb` so your new `test/render/` files run without wiring. If a
+call-site change seems needed outside the set, PHASE 0 it, do not touch.
+
+OUT OF SCOPE: any behavior change (pure refactor — a defect found on the way is
+REPORTED, never fixed); markdown.rb; the rig; wave-2+ families (fenced above);
+new features; renaming beyond the module extraction.
+
+=== DISAGREEMENT RULINGS (from last session) ===
+
+None — first dispatch of this iteration.
+
+=== ACCEPTANCE CRITERIA (frozen; verify against these) ===
+
+**AC3 (wave-1 extraction).** The target-module assignment holds — every
+enumerated method defined in its assigned pure module, none still defined in
+`chat.rb`, the moved modules reference no Chat ivars and no `Chat.` helper,
+Chat's call sites and every test call site use the new modules directly (no
+delegator shims), and the moved families' tests live under `test/render/`. A
+PHASE-0-raised re-assignment is legal; a silent one is a defect.
+
+**AC4 (scope discipline).** The wave-2+ families remain defined in `chat.rb`
+and untouched by this wave (probed at `fuzzy_filter`, `find_word_backward`,
+`edit_input`, `submit`, `scroll_by`, `selection_drag`, `footer_stats`,
+`enqueue_motd`); your diff carries no change outside the declared touch set.
+
+**AC5 (byte-exact parity) — your in-worktree form.** s1–s6 all exit 0 via
+`bin/pty-tester run parity/scenarios/<s>.yml` (the rig at its old path in YOUR
+worktree) with zero unknown candidates. Post-integration the judge re-runs all
+six from the NEW path — your six exit-0 runs are the lane-side evidence.
+
+**AC6 (suite + bench).** Default rake fully green; the seam bench prints
+`SEAM_BENCH_OK` (`bundle exec ruby bench/seam_bench.rb` — run it and record the
+tail).
+
+**AC7 (idiomaticity — architect-read).** Module-function pure modules, doc
+comments carrying pi citations forward, no abstraction beyond the five named
+modules, moved tests keep their names and assertions. Judged on your diff;
+defects flagged with file:line in the Verdict.
+
 ## Builder Report
 
 <!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
