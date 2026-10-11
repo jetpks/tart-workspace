@@ -566,11 +566,160 @@ DESIGN — they must be GREEN in YOUR worktree when you are done.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I15-fourth-run-parity-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence fourth-run-parity --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+### Files touched (14, all in-lane)
+
+```
+bin/tart  lib/tart/agent/session.rb  lib/tart/commands.rb  lib/tart/core/loop.rb
+lib/tart/render/chat.rb  lib/tart/theme.rb  lib/tart/tui.rb
+test/chat_test.rb  test/commands_test.rb  test/launcher_smoke_test.rb
+test/loop_test.rb  test/session_test.rb  test/theme_test.rb  test/tui_test.rb
+```
+
+`git status --short` shows exactly these 14; no goldens, Gemfile*, bench/, or read-only lib files touched. No git write commands run.
+
+### PHASE 0 findings
+
+| # | item | spec | reality | verdict |
+|---|------|------|---------|---------|
+| 1 | exit hint | interactive-mode.ts:4324-4327, formatResumeCommand :339-355 | confirmed: dim label + command; gates = stdout TTY + isPersisted() + file exists. Call sites: :4324 (shutdown) + :2202 (cache-miss warning) only — print-mode.ts never calls it | sound |
+| 2 | port exit paths | ctrl+d empty / ctrl+c quit / /quit funnel | all funnel kernel.stop!→run returns→TUI.run ensure restores→one print site after TUI.run in bin/tart#interactive | sound |
+| 3 | /resume | slash-commands.ts:41, interactive-mode.ts:3335-3338, :5708-5735 | confirmed; exact match `text === "/resume"` | sound |
+| 4 | picker scope | PHASE 0 read | session-selector.ts is ~900 lines: search Input (fuzzy/regex/exact :147-190), threaded tree (parentSessionPath :234-290), named filter, Tab scope toggle, delete+confirm (:393-460), rename, path/cwd toggles, hint rows | reductions itemized below |
+| 5 | recorded entries | fixture dump is the contract | dump below; assistant entries carry `tool_calls {id→{id,name,arguments}}` + `finish_reason` + `input_tokens/output_tokens/cache_write_tokens`; tool results are separate `role:"tool"` entries with `tool_call_id`. **No `thinking` key anywhere** — strip_thinking_replay (agent/loop.rb:506-510) nils thinking BEFORE record. Empty `tool_calls:{}` on plain assistants | thinking = recorded gap |
+| 6 | replay switch | :3900-3975, :2210-2218, :4208-4234 | confirmed: user Spacer gated on container non-empty (:3930-3931); tool Spacer unconditional (tool-execution.ts:85, constructor); compaction Spacer (:3903-3904); assistant visible-content Spacer (assistant-message.ts:103-105); "Session compacted N times" (:4226-4232); "Resumed session" (:5756) | sound |
+| 7 | hex constants | precomputed okhsl→hex | computed with pi's own converter (pi-tui colors.ts parseColor/colorToHex run live on node 24.18): text `#dee0e1`, muted `#9da5a9`, thinkingText `#96a0a4`, blueBg `#213b49` | sound |
+| 8 | gem hex fg+bg | style/color.rb, style/style.rb:101-105 | confirmed: `Style.new(fg:, bg:)` (style.rb:100-104); ext style.rs:20-33 parses `#RRGGBB`→`Color::Rgb` (truecolor SGR, no capability probe in gem). Port seam did NOT pass `bg:` before — seam extended | sound |
+| 9 | truecolor | verify | gem emits Color::Rgb→SGR 38;2/48;2 unconditionally; no fallback probe exists — off-truecolor terminals degrade per their own mapping (itemized). Test terminal readback = verbatim hex strings | noted |
+| 10 | escape | keybindings.ts:26, custom-editor.ts:103-110, interactive-mode.ts:3070-3090 | confirmed: app.interrupt=escape; editor consumes first only when autocomplete showing; else onEscape → streaming abort. pi's ctrl+c = "clear editor", escape = interrupt; the port's ctrl+c-interrupt binding is the recorded port binding — escape joins the same Task#stop mechanism | sound |
+| 11 | kernel interrupt | ctrl+c precedent core/loop.rb | `interrupt!` = flag + task stops + **stop! fallback when idle**. Escape must not quit when idle → extracted `interrupt_work!` (task stops only, no flag, no fallback); `interrupt! = flag + interrupt_work! || stop!` — ctrl+c semantics preserved (loop_test ctrl+c test green unmodified) | sound |
+| 12 | Session.list | generalize find_most_recent | session.rb:210-231 pattern → shared `session_files(dir)` + `list(cwd:, root:)`; bin/tart find_session_by_id collapses onto list | sound |
+| 13 | usage reseed | entries carry tokens | Tokens#to_h keys: input_tokens/output_tokens/cache_read_tokens/cache_write_tokens (ruby_llm tokens.rb:137-145); interrupted turns may carry none — all-nil skipped | gap noted |
+| 14 | pins | ruby_llm 2.1.0 / ratatui_ruby 1.5.0 | Gemfile.lock pins confirmed, untouched | sound |
+| 15 | goldens | untouched | golden_parity_test green; no fixture file modified | sound |
+
+### Recorded-entry JSONL dump (the replay contract)
+
+MockLLMServer + real ruby_llm client + real `read` tool, recorder on (throwaway harness script, not committed):
+
+```
+{"type":"session","version":3,"id":"01a1283d-...","timestamp":"2026-10-10T23:54:21.437Z","cwd":"/var/.../tart-fix-..."}
+{"type":"message","id":"01343d9c","parentId":null,"timestamp":"...","message":{"role":"user","content":"what is in notes.txt?"}}
+{"type":"message","id":"a9ccb267","parentId":"01343d9c","timestamp":"...","message":{"role":"assistant","content":"Let me look.","tool_calls":{"call_1":{"id":"call_1","name":"read","arguments":{"path":"notes.txt"}}},"finish_reason":"tool_calls","input_tokens":10,"output_tokens":5,"cache_write_tokens":0}}
+{"type":"message","id":"36a71f79","parentId":"a9ccb267","timestamp":"...","message":{"role":"tool","content":"hello","tool_call_id":"call_1"}}
+{"type":"message","id":"100aa6b9","parentId":"36a71f79","timestamp":"...","message":{"role":"assistant","content":"The file contains: hello","tool_calls":{},"finish_reason":"stop","input_tokens":10,"output_tokens":5,"cache_write_tokens":0}}
+```
+
+`reasoning_content` deltas on the tool-call turn did NOT reach the record (thinking stripped pre-record) — replay renders no reasoning block; itemized gap.
+
+### Hex/truecolor seam verification (driven headlessly BEFORE implementing)
+
+Gem-level (throwaway script):
+```
+cell 0: {symbol: "A", fg: "#dee0e1", bg: "#213b49", underline_color: nil, modifiers: []}
+cell 1: {symbol: "B", fg: "#dee0e1", bg: "#213b49", underline_color: nil, modifiers: []}
+```
+Through the port's seam post-change (`TUI.span`/`TUI.line`, headless test terminal):
+```
+TUI.cell_fg(0,0)="#dee0e1"  TUI.cell_bg(0,0)="#213b49"
+```
+Pinned as test_tui_test#test_hex_fg_and_bg_render_and_read_back (green).
+
+### Test suite (verbatim)
+
+Before (per lane brief, base 8941777): 303 runs, green (not re-run in this worktree — no git write commands allowed).
+After — `bundle install --quiet && timeout 600 bundle exec rake 2>&1 | tail -2`:
+
+```
+322 runs, 1275 assertions, 0 failures, 0 errors, 0 skips
+SUITE_OK
+```
+
+Three consecutive green runs (322/1275 each). One transient first-run artifact ("Tasks: TOP => default => test" line with the suite still 0-failure and exit 0) did not reproduce in three subsequent runs.
+
+Single files (`bundle exec ruby -Itest test/<f>`):
+```
+chat:            92 runs, 410 assertions, 0 failures, 0 errors, 0 skips
+commands:        13 runs,  52 assertions, 0 failures, 0 errors, 0 skips
+session:         13 runs,  81 assertions, 0 failures, 0 errors, 0 skips
+theme:            6 runs,  21 assertions, 0 failures, 0 errors, 0 skips
+tui:             19 runs,  62 assertions, 0 failures, 0 errors, 0 skips
+loop:            12 runs,  19 assertions, 0 failures, 0 errors, 0 skips
+launcher_smoke:   4 runs,  11 assertions, 0 failures, 0 errors, 0 skips
+```
+
+### Gate commands (verbatim)
+
+```
+$ grep -q 'To resume this session' bin/tart && echo HINT_OK
+HINT_OK
+$ grep -q '"resume"' lib/tart/commands.rb && grep -rq 'def list' lib/tart/agent/session.rb && echo RESUME_OK
+RESUME_OK
+$ grep -q 'Resumed session' lib/tart/render/chat.rb bin/tart && echo REPLAY_OK
+REPLAY_OK
+$ grep -qE '#[0-9a-fA-F]{6}' lib/tart/theme.rb && ! grep -q 'user_message_text: :light_blue' lib/tart/theme.rb && echo COLOR_OK
+COLOR_OK
+$ ! grep -q '❯ ' lib/tart/render/chat.rb && echo ECHO_OK
+ECHO_OK
+$ grep -rn "RatatuiRuby" lib --include="*.rb" | grep -v "^lib/tart/tui.rb" | grep -v "^\S*:.*#"
+(no output — tui-seam gate clean)
+```
+
+Gemfile.lock / gemspec pins unchanged (`git status` clean outside the 14 lane files). Env tripwire: all new tests inject `root:`/`cwd:` tmp dirs; `~/.tart` and `~/.claude` untouched. Mock server: no changes (its tool-call scripting already existed). Goldens byte-identical.
+
+### Real-terminal (PTY) E2E — extra evidence, throwaway script
+
+`bin/tart` booted in a fresh 80×24 PTY against MockLLMServer:
+```
+boot1 turn recorded: yes
+HINT: [2mTo resume this session:[0m tart --resume 01a12862-...   (dim label, plain command)
+MOTD on resume: absent (correct)
+replay user echo: yes
+replay assistant: yes
+Resumed session line: yes
+boot3 (/resume picker) title: yes
+boot3 replay: yes
+boot3 status: yes
+```
+`bin/tart -p "hi"` stdout: `"print answer"` — no resume hint in --print (correct).
+
+### Judgment calls (each vs pi source)
+
+| call | pi source |
+|------|-----------|
+| resume-hint id = recorder.id via `tart --resume <id>` | formatResumeCommand uses getSessionId (:354); the port's `--resume [ID]` resolves ids (find_session_by_id) — flag-shape deviation itemized |
+| hint printed once after TUI.run restore, no isTTY gate | pi gates on stdout.isTTY (:340) — the port's interactive exit only runs on a terminal; --print never reaches the site. Itemized |
+| picker-resume and CLI --resume share one lambda (start_session + Chat#resume_session) | pi: handleResumeSession → switchSession + showStatus (:5741-5780) — same landing state, single wiring |
+| replay renders "Session compacted N times" BEFORE "Resumed session" | pi: renderInitialMessages' count (:4226-4232) then showStatus from handleResumeSession — same order |
+| assistant entries with only tool_calls render no leading blank of their own (their tool block brings one) | pi adds AssistantMessageComponent unconditionally (:3971-3975) but the Spacer rides visible content (assistant-message.ts:103-105) |
+| replay into editor history (add_to_history) | pi renderInitialMessages populateHistory: true (:4212-4214) |
+| usage reseed skips all-nil token entries | interrupted turns record no usage — boot "0.0%" state must not be clobbered |
+
+### Parity-deviation table
+
+| deviation | why |
+|-----------|-----|
+| hint flag shape `tart --resume <id>` (pi: `--session <id>`) | spec-mandated: the port's `--resume [ID]` IS the specific-id flag |
+| no isTTY gate on the hint | port's interactive exit only runs on a terminal (pi :340 gate unreachable here) |
+| MOTD-on-resume cut | spec-mandated: pi's chat container gets session entries only (renderCurrentSessionState :2210-2218 renders entries, never the header) |
+| horizontal `outputPad` indent cut | spec-mandated (not flagged by owner) |
+| non-content tokens stay 16-color (dim/muted/border/accent/md_*/scrollbar*) | spec-mandated reduction; only text, user_message_text, user_message_bg, tool_output, thinkingText went truecolor |
+| truecolor unconditional (no terminal-capability fallback) | the gem has no capability probe; off-truecolor terminals degrade on their own |
+| picker reductions: no search input (fuzzy/regex/exact), no all-sessions scope toggle (Tab), no threaded/recent/fuzzy sort modes, no named filter, no rename, no delete+confirm, no path/cwd display toggles, no hint rows, no cwd-mismatch prompt ("Resumed session in current cwd" path) | don't fit the surface's seams at this scope; spec mandates itemizing |
+| replay renders no thinking/reasoning block | recorded gap: strip_thinking_replay (agent/loop.rb:506-510) nils thinking before record; never invented |
+| replay skips non-string (multimodal) user/assistant content | recorded entries carry String content only in the port's tool loop |
+| usage reseed absent on interrupted/usage-less turns | recorded entries may carry no token fields |
+| double-escape (/tree //fork) cut; idle escape = no-op | no session branching in the port (spec-mandated cut) |
+| pi's bash-mode escape branch cut | port has no bash mode |
+| user echo = plain wrapped text with bg on text rows only | pi pads a full-width Markdown block (user-message.ts:40-51); smallest expressible form through the seams |
+| editor history seeded by replay capped/ordered per port rules | pi addToHistory same semantics |
+
+### Status of standing guards
+
+tui-seam clean (grep above); gem pins untouched; env tripwire green (fixture roots only); bench/ untouched (TUI helper changes are additive kwargs); stderr gates green (mock-server EPIPE suppression unchanged); launcher smoke green; goldens byte-identical.
+
+STATUS: COMPLETE
 
 ## Verdict
 
