@@ -44,35 +44,89 @@ pi source anchors (verified readable in `repos/pi` this session): `modes/interac
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section tool-turn-parity specification --from <file>`. -->
+### Objective
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+Close the second measured slice of **BRIEF §8 (exact-parity program)**: `bin/pty-tester run parity/scenarios/s2_tool_turn.yml` exits **0** — tart's settled screen on the bash tool turn is byte-indistinguishable from pi 1.1.0's — via two disjoint seams: the **timing seam** (duration measured in the agent loop, carried on `:tool_execution_end`) and the **bash tool render** (pi's `$ command` / output / `Took` shapes in the chat surface). Plus the **rig lane**: stage s2's footer (data-only) and author a third scenario exercising a non-bash file tool — its baseline candidate list is the NEXT iteration's work list (evidence-only, no exit-0 requirement).
+
+The measured work list is Grounds' 5-item table (10 candidates); every item there is in scope and nothing else is. Non-bash tool renders (read/edit/write/…), the bash preview truncation (`BASH_PREVIEW_LINES`), expand hints, truncation warnings and exit-code statuses are **out of scope** — unmeasured by s2; the s3 scenario measures the file-tool family for the next slice.
+
+### The frozen cross-lane contract (timing ↔ render)
+
+`Tart::Agent::Loop`'s `:tool_execution_end` event gains **`duration:`** — the tool execution's wall duration as **Float seconds** (monotonic clock, e.g. `Process.clock_gettime(Process::CLOCK_MONOTONIC)` delta; `0.0` is legitimate — pi renders `Took 0.0s` for instant commands, no clamping). Always present on live executions. The render formats `Took <dur>` from it and renders **no `Took` line when duration is nil/absent** (the replay path — recorded entries carry no duration, a recorded gap itemized, never invented; do NOT record duration into session entries this iteration).
+
+Both lanes code against this contract from the shared base; neither widens it. The end-to-end proof is the post-integration cold gate, not a single lane's worktree run (see Boundaries note on the expected intermediate state).
+
+### Output format (raw evidence, no interpretation)
+
+- pty-tester runs: exact command lines + exit codes + each run's `summary.json` verbatim (per-app completion, request counts, classes, candidate lists).
+- Timing: the agent-loop event-vocabulary test output tail (the `:tool_execution_end` row carrying `duration:`) + a 10-sample duration table from a live tool round-trip (raw Float values, e.g. `0.0`, `0.012`, …).
+- Render: the named test list (live block + replay block + formatDuration cases) with the per-row byte assertions they pin; the formatDuration table: inputs `0ms`, `549ms`, `59_960ms`, `61_500ms`, `3_725_400ms` → expected strings per pi `formatDuration` (bash.ts:20-28), each with the port's output beside it.
+- Rig: the `s2_tool_turn.yml` diff verbatim; the `s3_tool_turn_files.yml` verbatim; the s3 baseline `summary.json` candidates verbatim (the next work list).
+- PHASE 0: numbered disagreements/deviations with file:line evidence, as ever.
+
+### Tool guidance (verify against live sources BEFORE writing code)
+
+- Verification: `bundle install --quiet && bundle exec rake` (minitest, test/**/*_test.rb); `bundle exec ruby bench/seam_bench.rb` → `SEAM_BENCH_OK`.
+- Parity instrument: `bin/pty-tester run parity/scenarios/s2_tool_turn.yml [--app both|pi|tart] [--out DIR]` — exit 0 = parity, 1 = unknown candidates, 2 = rig failure. Live runs need tmux + `pi` on PATH (present). Baseline artifacts from the architect's run (read them, do not re-run to "confirm"): `tmp/parity-baseline-s2/{pi,tart}.capture` + `summary.json` in the space's repos/tart. **The CAPTURE is the contract** — pi rows 9–20 settle the tool-turn region.
+- pi oracle sources (readable in the worktree's sibling checkout `repos/pi` — ask in PHASE 0 if unreachable; the architect will quote): `modes/interactive/components/bash-execution.ts:32-38,141` (colorKey dim|bashMode; `$ ${command}` header, bold), `core/tools/renderers/bash.ts` (formatDuration:20-28, `Took`/`Elapsed`:105-109, output children "\n"-prefixed:141-149, createShellRenderers), `modes/interactive/components/tool-execution.ts:61,137` (durationMs on result), `modes/interactive/theme/theme-tokens.ts:100` + the dark theme's `bashMode` value (the port's Theme token maps it), `core/agent-session.ts:1358` (pi records durationMs — the port does not, itemized).
+- Mock server vocabulary: `test/support/mock_llm_server.rb` (s2's yml shows the `tool_calls` scripting shape; s3 needs consecutive tool rounds — verify the mock supports N scripted responses with `expected_requests: N` before authoring).
+- s3 tool-choice verification (rig lane, BEFORE authoring): verify the chosen tool call's argument shape completes in BOTH apps in the rig's staged sandbox (e.g. write's path requirements — relative-to-cwd vs absolute — in both pi's and the port's tool implementations; explore in throwaway scratch, never the worktree).
+
+### Identity design for the bash render (the contract, mechanism-level where it must be)
+
+1. **Command header:** ` $ <command>` — the bash tool's `arguments["command"]`, bold, pi's `bashMode` color (the port's Theme gains the token mapped to pi's dark-theme value; pi uses `dim` when the call is context-excluded — verify whether the port's equivalent state exists, itemize the ruling).
+2. **Output lines:** each a ` <line>` muted row (pi `muted`; the port's `tool_output` token is its analog — verify the values match pi's dark `muted`), blank-separated from the header (pi's "\n"-prefixed Text children).
+3. **Duration line:** ` Took <formatDuration(duration)>` muted; ported `formatDuration`: seconds `< 60` → `%.1fs`; `< 60m` → `Xm Ys`; else `Xh Ym Zs` (pi bash.ts:20-28 exact). Nil/absent duration → no line (replay).
+4. **Blank structure:** the frozen capture rows settle it — tool block opening spacer(s), command, blank, output, blank, timing, closing blank(s) before the reply region. Derive the mechanism from pi source; the bytes are the contract.
+5. **Replay:** bash tool blocks replay through the same shapes (command from the recorded assistant `tool_calls` arguments, output from the recorded tool result content, **no `Took`** — recorded gap, itemized as I15 established).
+6. **Non-bash tools:** keep the existing `⎿ name: preview` shape untouched, itemized as unmeasured (s3 measures them next). The bash render is selected by tool name (`bash`), mirroring pi's shell-renderer dispatch (bash.ts `createShellRenderers`).
+
+### Rig design (the contract)
+
+1. **s2 staging (data-only):** `parity/scenarios/s2_tool_turn.yml` gains the same env block s1 has (`tart: TART_MODEL_PROVIDER: mock`) so the footer's right segment reads `(mock) mock-1`.
+2. **s3 (new file `parity/scenarios/s3_tool_turn_files.yml`):** a tool turn exercising ≥1 **non-bash file tool** (write, then read of the written file, preferred; pivot to another file tool — ls/find — with an itemized ruling if the arg shapes can't complete in both apps) + a fixed final reply. Both apps must complete the scripted rounds (`expected_requests` matches). Pin its load in `test/parity/scenario_test.rb` (the s2/s1 pattern).
+3. **s3 baseline (evidence-only):** run it once against the merged base — report the candidates verbatim as the next work list. NO exit-0 requirement, NO registry changes. A documented feasibility blocker (with the exploration evidence) is an acceptable outcome for the s3 half — the s2 staging half must still land.
+
+### Boundaries
+
+- **timing lane may touch:** its `touch` set only. **Must not:** `lib/tart/render/**`, `parity/**`, `lib/tart/agent/session.rb` (no recording-shape change — the replay gap is itemized, not closed), gemspec/Gemfile*, `bin/tart`, `test/chat_test.rb`.
+- **render lane may touch:** its `touch` set only (test/fixtures/** limited to additions/updates it authors itself). **Must not:** `lib/tart/agent/**` (the frozen contract is consumed, never widened — hand-built events with `duration:` in its own tests), `parity/**`, `tart.gemspec`/`Gemfile*`, `bin/tart`.
+- **rig lane may touch:** its `touch` set only. **Must not:** `lib/**`, `bin/**`, `parity/registry.yml` (no new sanctioned classes — a divergence is fixed in the render, never classified away), `test/**` except `test/parity/scenario_test.rb`.
+- All lanes: no refactors beyond the task; no placeholder code; search before implementing (`rg` the whole repo before adding any helper); builders never commit; report raw evidence to `build/I17-<lane>/report.md` with a final `STATUS:` line (`COMPLETE` / `BLOCKED: <why>`).
+- **Expected intermediate state (render lane — read this twice):** in your isolated worktree, the live s2 run will still exit **1** with the `Took`-line candidate(s) remaining — the timing lane (frozen contract) closes it; do NOT touch `lib/tart/agent/**` to chase exit 0, do NOT fake a duration source. Your lane's proof is the headless byte/style-pinned tests with hand-built `duration:` events + an s2 live run showing every OTHER candidate closed. The post-integration cold gate is the exit-0 proof.
+- PHASE 0 (mandatory, before any code): re-read this spec against the repo; raise every disagreement with file:line evidence. Silent compliance is a defect. In particular: verify the pi anchors above actually say what this spec claims (bash-execution header/colorKey, formatDuration, durationMs result field, the dark theme's bashMode value), verify the mock server's multi-round tool scripting, and verify the s3 tool argument shapes against BOTH apps' tool implementations.
+
+### Lane plan (disjoint, same repo)
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision tool-turn-parity`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: timing
+  repo: tart
+  touch:
+    - lib/tart/agent/loop.rb
+    - test/agent_loop_test.rb
+- name: render
+  repo: tart
+  touch:
+    - lib/tart/render/chat.rb
+    - lib/tart/theme.rb
+    - test/chat_test.rb
+    - test/theme_test.rb
+    - test/fixtures/**
+- name: rig
+  repo: tart
+  touch:
+    - parity/scenarios/s2_tool_turn.yml
+    - parity/scenarios/s3_tool_turn_files.yml
+    - test/parity/scenario_test.rb
 ```
+
+The three touch sets are disjoint by construction; a conflict at integration is a spec defect to kill-and-respec, never hand-resolved. `parity/scenarios/s3_tool_turn_files.yml` is a NEW file (create; the touch set authorizes creation).
+
+### Effort call
+
+- **timing: medium** — tightly specified one-field seam on an existing event with an existing vocabulary test.
+- **render: high** — byte-parity render archaeology (blank structure, colors, formatDuration) across live + replay paths.
+- **rig: medium** — scenario authoring with live baseline runs + tool-feasibility exploration.
 
 ## Acceptance Criteria
 
