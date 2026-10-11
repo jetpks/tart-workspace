@@ -784,6 +784,109 @@ Candidates (from /tmp/i17-s2/summary.json / report.md): `diff.classes = {"unknow
 
 STATUS: COMPLETE
 
+### render
+
+### PHASE 0 — disagreements / deviations (all verified against live sources)
+
+1. **Header anchor citation corrected.** `bash-execution.ts` is the `!`-mode component (DynamicBorder/loader, bash-execution.ts:39-70), not the tool turn. The tool-turn header comes from `core/tools/renderers/bash.ts` `formatShellCall` (:31-38) via `createShellRenderers.renderCall` (:126-135) inside `ToolExecutionComponent`'s `contentBox`. Rendered bytes identical (`$ ${command}`, bold, colorKey) — no byte impact.
+2. **`Took`/output color token ruling.** pi renders both with the `muted` token (bash.ts:64-67, :106); dark `muted` = okhsl(229 6% 67%) → `#9da5a9` (computed live with pi's own `parseColor`/`colorToHex` over `packages/tui/src/colors.ts`) — byte-identical to the port's `Theme[:tool_output]` (theme.rb:39). The port's `muted` token is the 16-color `:gray` non-content analog (theme.rb:36-38), so the tool-block rows render `Theme[:tool_output]` (the truecolor representative of pi's muted token). Using `:gray` would regress bytes vs the capture.
+3. **Existing chat tests pin the old bash shape under the bash name** (chat_test.rb:165-190, :196-222, :238-266 pre-change). Updated minimally — itemized below.
+4. **Empty/nil `command` arg:** pi renders `...` in the toolOutput token for empty (bash.ts:36); the null invalid-arg text surface is cut (unmeasured by s2). Port: nil/empty → `...`.
+5. **`dim` context-excluded calls** (bash-execution.ts:35 `colorKey: "dim" | "bashMode"`): the port's event surface carries no exclusion state (agent/loop.rb:440-482), so the dim variant is unreachable — always `bashMode`. Itemized.
+6. **Row 12 derivation (spec left it to PHASE 0):** `tool-execution.ts:87` `contentBox = new Box(1, 1, …)` — pi-tui box.ts:22-26 `Box(paddingX=1, paddingY=1)` → one blank row above and below the renderer children (rows 12 and 18), plus the constructor `Spacer(1)` (row 11). Matches the frozen capture.
+
+### Theme verification (PHASE 0, live computation)
+
+- dark.json:71 `"bashMode": "okhsl(159 64% 65%)"` → pi converter → **`#5eb286`** (system-theme.ts:112 `"green"` is the 16-color fallback, not the dark value).
+- dark.json:7 `"muted": "okhsl(229 6% 67%)"` → **`#9da5a9`** == port `tool_output` hex. Confirmed equal.
+
+### formatDuration table (pi bash.ts:20-28; port input = contract Float seconds × 1000)
+
+| ms (spec input) | seconds | branch | derivation | pi expected | port output (test-pinned) |
+|---|---|---|---|---|---|
+| 0 | 0.0 | <60 | `0.0.toFixed(1)` | `0.0s` | `0.0s` |
+| 549 | 0.549 | <60 | `0.549.toFixed(1)` | `0.5s` | `0.5s` |
+| 59_960 | 59.96 | <60 | toFixed(1) rounds | `60.0s` | `60.0s` |
+| 61_500 | 61.5 | <60m | floor 61 → 1m 1s | `1m 1s` | `1m 1s` |
+| 3_725_400 | 3725.4 | else | floor 3725 → 62m 5s → 1h 2m 5s | `1h 2m 5s` | `1h 2m 5s` |
+
+### Named tests (all in test/chat_test.rb unless noted)
+
+Live block:
+
+- `test_bash_tool_block_renders_pis_shell_shapes` — pins the capture's rows 11-18 verbatim:
+  `["", "", " $ echo pty-tester", "", " pty-tester", "", " Took 0.0s", ""]`;
+  cell readback: header fg `Theme[:bashMode]` + `:bold` (bash.ts:36), output fg `Theme[:tool_output]` (dark.json:41), Took fg `Theme[:tool_output]` (bash.ts:106).
+- `test_bash_block_output_renders_one_muted_row_per_line` — pins
+  `["", "", " $ echo one; echo two", "", " one", " two", "", " Took 0.0s", ""]` (bash.ts:78-84 leading-"\n" children).
+- `test_bash_block_without_duration_omits_the_took_line` — pins
+  `["", "", " $ echo pty-tester", "", " pty-tester", ""]` (nil duration → no Took, bash.ts:105).
+- `test_bash_took_line_format_matches_pis_format_duration` — the five table cases above, each via the rendered ` Took <x>` row.
+
+Replay block:
+
+- `test_resume_session_replays_the_bash_block_without_a_took_line` — recorded jsonl (assistant `tool_calls` bash `{"command":"echo pty-tester"}`, tool result `"pty-tester"`); pins
+  `chat.transcript_lines.first(9) == ["", " run the echo", "", "", "", " $ echo pty-tester", "", " pty-tester", ""]`
+  and refutes any `Took` row (recorded gap, never invented).
+
+test/theme_test.rb: `EXPECTED` gains `bashMode: "#5eb286"` (pinned by `test_token_table_carries_the_pi_transcription`).
+
+Altered tests (each itemized; minimal):
+
+- `test_tool_call_lifecycle_is_rendered` — tool renamed bash→`read` (lifecycle/status/input assertions are tool-agnostic; the `⎿` row pins now read `["  ⎿ read: done", "    more"]`).
+- `test_tool_result_preview_is_bounded_multiline` — bash→`read` (bounded preview remains the non-bash shape; the bash 5-line `BASH_PREVIEW_LINES` truncation is CUT this slice, pi bash.ts:14/78-89).
+- `test_user_assistant_tool_and_status_lines_read_back_distinct_fg_colors` — bash→`read` (the `["⎿", Theme[:tool_output]]` lead assertion stands for non-bash).
+- `test_leading_blank_separates_every_scrollback_region` — bash→`read` in the row list (region-padding semantics unchanged for non-bash).
+
+Helper changes: `tool_end(chat, name, result, duration: nil, arguments: {})` (hand-built events carrying the contract's `duration:`); `ToolCallDouble` gains an `arguments` member defaulting `{}`.
+
+### Golden fixture updates
+
+None. `rg '⎿' test/` matches only chat_test.rb; no golden fixture pins the old replay shape (test/parity/fixtures are differ-rig captures, untouched).
+
+### Gates (verbatim, this run)
+
+```
+$ bundle install --quiet && bundle exec rake && echo SUITE_OK
+  359 runs, 1422 assertions, 0 failures, 0 errors, 1 skips
+  You have skipped tests. Run with --verbose for details.
+  SUITE_OK
+```
+(The 1 skip is pre-existing, rig-gated: `test/parity/live_run_test.rb`.)
+
+```
+$ bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+SEAM_BENCH_OK
+```
+
+```
+$ bin/pty-tester run parity/scenarios/s2_tool_turn.yml --out /tmp/i17-render-s2-final
+out dir: /tmp/i17-render-s2-final
+EXIT=1
+```
+
+summary.json `classes`: `{"unknown-candidate": 6, "parity-run-path": 2}` — verbatim `candidates`:
+
+```
+'- Took 0.0s'
+'-'
+'+'
+'+'
+'-↑20 ↓10 0.0%/33k (auto)                                                                                    (mock) mock-1'
+'+↑20 ↓10 0.0%/33k (auto)                                                                                  (openai) mock-1'
+```
+
+`exit_code: 1` — the expected intermediate state: the only tool-region candidate is the Took pair (pi rows 16-17, ` Took 0.0s` + its preceding blank), which requires the timing lane's `duration:` on `:tool_execution_end`. tart capture rows 13-18 now read ` $ echo pty-tester` / blank / ` pty-tester` / blank / blank / reply — removing pi's rows 16-17 from the baseline capture leaves exactly that structure (pi 13-15, 18-20). Footer/path rows are the known parity-run-path class. The remaining blank-row bookkeeping (`-`/`+`/`+`) is the diff engine's alignment of that same Took pair; `@@ -19,1 +18,0` + the two `+` at `@@ -33,0 +34,2` collapse with the timing lane's row.
+
+### Files touched (lane boundaries)
+
+- lib/tart/render/chat.rb — BASH_TOOL const, `tool_result_text`, `format_duration`, `enqueue_bash_block`, `padded_fg_rows`; dispatch in `:tool_execution_end` and `replay_assistant`; `tool_line` refactored onto `tool_result_text` (behavior identical for non-bash).
+- lib/tart/theme.rb — `bashMode` token.
+- test/chat_test.rb, test/theme_test.rb — as itemized above.
+- NOT touched: lib/tart/agent/**, parity/**, tart.gemspec, Gemfile*, bin/*. No commits made (git status: 4 modified files only).
+
+STATUS: COMPLETE_WITH_CONCERNS (concern 1: the live s2 exit remains 1 with exactly the Took-line candidate until the timing lane lands `duration:` — frozen contract, post-integration cold gate is the exit-0 proof. Concern 2: the Took/output rows render `Theme[:tool_output]` rather than the port's `muted` `:gray` analog — pi's muted token's truecolor value, ruling itemized in disagreement 2. Concern 3: the 5-line bash preview truncation, expand hints, truncation warnings, exit-code statuses, Elapsed live-progress line, empty-command `...` and pi's null-arg invalid text remain CUT/unmeasured, itemized for the s3 slice with pi anchors bash.ts:14, :65-101, :36-38.)
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
