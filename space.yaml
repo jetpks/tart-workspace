@@ -681,7 +681,7 @@ project:
       - test/loop_test.rb
       - test/launcher_smoke_test.rb
       base_sha: 89417777ef4c90734d4afc3bfd68dc75f5ad7226
-      worktree: build/I15-fourth-run-parity-core/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
