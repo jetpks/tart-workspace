@@ -9,11 +9,19 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section bash-preview-collapse grounds --from <file>`. -->
+**Why this iteration: BRIEF §8, the s4 slice (I18's measured hand-off) + the I18 rig-test placement follow-up (D').** s4_bash_variants (authored, pinned, baselined in I18) is the exact-parity program's next measured work list; the I18 rig lane's baseline candidates were four classes — banner chrome, bash preview collapse, tart right-rail, blank padding — plus two Took pairs already excluded as I18 in-flight noise (now confirmed closed: this session's probe shows `Took 0.0s` both sides post-I18-merge).
+
+**Measured baseline (this session, post-I18-merge tree `fa7283ba`, `bin/pty-tester run parity/scenarios/s4_bash_variants.yml --out tmp/s4-probe`): exit 1.** The four classes are NOT four defects — the row arithmetic proves three of them derive from one:
+
+- pi's transcript = 35 rows (5 chrome + 30 convo; the 12-line `seq` output collapsed to last-5 + hint = 8 rows for the seq turn) → **fits the ~35-row viewport** → follow-end does not scroll → the banner stays visible (rows 1–5) → the scrollbar stays hidden (pi `layout.ts:285` `includeHiddenAuto`: scrollbar `"auto"` paints only when content overflows — `settings-defaults.ts:63`; hidden when the view fits).
+- tart's transcript = 41 rows (the seq turn renders all 12 lines uncollapsed = 14 rows) → **overflows by 6** → follow-end scrolls 6 rows → the 5 chrome rows + 1 blank scroll off (the "banner chrome" and "blank padding" classes) → the scrollbar paints: track `│` rows 1–6, thumb `┃` rows 7–35 at col ~123 (the "right-rail" class — correct `auto` semantics, correct geometry, only mis-triggered by the taller content).
+- Fix the collapse → 35 rows → fits → no scroll → banner returns, scrollbar hides, blanks re-align: **one fix closes four classes.**
+
+**The defect itself:** pi collapses bash tool output in the render block to the LAST `BASH_PREVIEW_LINES = 5` lines with a `... (N earlier lines, ctrl+o to expand)` hint; the port renders every output line. pi source anchors (verified readable in `repos/pi` this session): `packages/coding-agent/src/core/tools/renderers/bash.ts:14` (`BASH_PREVIEW_LINES = 5`), `:63-77` (the collapsed path: `Spacer(1)` + `VisualLinePreview({text, maxVisualLines: 5, keep: "end", formatHint})` — `renderers/bash.ts:69-76`; the expanded path `options.expanded` :63 is the CUT backlog-C binding, not this slice), the hint bytes `:71-74`: muted `... (${hidden} earlier lines,` + ` ` + `keyHint("app.tools.expand", "to expand")` (dim key + muted description, the I18 write-hint style family) + muted `)`. The capture confirms the settled bytes: `... (7 earlier lines, ctrl+o to expand)`. `VisualLinePreview` semantics (keep-end, boundary at exactly 5/6 lines, trailing-blank handling) live in `modes/interactive/components/visual-truncate.ts` — verify before building.
+
+**Rig-test placement follow-up (I18 Verdict, rig ruling 1):** the empty-TCP mock-robustness test landed in `test/parity/scenario_test.rb` because the I18 boundary forbade its natural home `test/parity/mock_llm_extension_test.rb` — which already carries the mock's rig-extension tests AND the `with_server`/`fetch_content` helpers the test uses. D' moves it home.
+
+**CUTs carried (not this slice):** the ctrl+o expand binding (backlog C — the hint's TEXT renders for byte parity, the binding is follow-up machinery); write/read call-row wrapping (I18 file-render CUT — s4's paths/commands are short, wrap is unexercised by the s4 bytes); `Elapsed` live-progress (live-only, invisible settled). `Took` is closed (I18 bash-cure).
 
 ## Specification
 
