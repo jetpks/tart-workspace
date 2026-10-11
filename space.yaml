@@ -940,7 +940,7 @@ project:
     ordinal: 21
     file: architecture/I21-decomp-wave1.md
     freeze_sha: 2abfac554e2b03f2f0531fcf8b221bc157083b34
-    verdict: pending
+    verdict: continue
     lanes:
     - name: rig
       repo: tart

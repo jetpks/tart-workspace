@@ -812,15 +812,38 @@ STATUS: COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section decomp-wave1 verdict --from <file>`. -->
+# Verdict — I21 decomp-wave1
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify decomp-wave1`)?
+Judged in a fresh session (this session dispatched nothing; post-flight audited by hand: frozen region byte-untouched vs 2abfac55, zero builder commits off base 931b589 in both worktrees, diffs strictly in-bounds, scratch reports raw-only). Lanes merged rig (87c62a98) then render (a7b72f9f) to `project/pi-port`. All 17 frozen gates PASS cold from the integrated tree — suite (441 runs / 1762 assertions green), bench SEAM_BENCH_OK, s1–s6 all exit 0 via the NEW CLI path `gems/tui-split-rig/bin/tui-split-rig` (s1 re-audited by hand this session: exit 0), rig-moved / no-residue / gemspec-clean / rakefile-rig / rig-test-home tripwires green, moved-methods-gone (all 38 names), wave2-intact fence green, registry.yml byte-identical to base 931b589.
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+## PHASE-0 rulings (render lane — 7 items)
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+1. **Width-threading signature change — ACCEPT.** The spec's premise ("wrap width already threaded at Chat call sites") was false for the moved builders: they were ivar-free only transitively, calling the stateful `viewport_width` internally (7 call sites cited at base). Threading a positional `width` is the only shape compatible with AC3's purity demand (no ivars, no `Chat.` helper); it matches the house style (`markdown_lines(text, width, …)`), and the drain-time read timing is preserved — `viewport_width` is evaluated inside the `push_expandable` lambdas at builder-invocation time, exactly as before (chat.rb:1216, 1289 verified on the merged tree). Byte-exactness proven by the rig (s1–s6 exit 0 pre- and post-change in the lane worktree, captures byte-identical). The defect was the spec's Grounds, not the builder's work — the lane did its job by raising it with line evidence.
+2. **`expand_hint_row` re-assigned FileBlocks → Panel — ACCEPT.** Shared by both BashBlock (`collapse_bash_preview`, `user_bash_status_rows`) and FileBlocks (`write_content_rows`); the spec's own text sanctions homing a shared helper once, PHASE 0. Hoisting to Panel (alongside OUTPUT_PAD + panel_tail) is the better shape.
+3. **`SkillBlock` Struct moved to Text with `parse_skill_block` — ACCEPT.** The Struct is the method's return type; leaving it in Chat would force a reverse `Chat::` dependency inside Text. No other constant reference existed (builder-verified, spot-checked: zero `Chat.` in the new modules).
+4. **Companion constants + OUTPUT_PAD — ACCEPT.** Constants moved with their sole consumers (BASH/USER_BASH/TOOL/WRITE_PREVIEW_LINES, COMPACT_RESOURCE_FILE_NAMES); OUTPUT_PAD homed in Panel with Chat referencing `Panel::OUTPUT_PAD` (chat.rb:777–938 verified) — one home, no duplication.
+5. **`blank_line` → Panel — ACCEPT.** The table's own conditional (BashBlock + FileBlocks call it).
+6. **Test-move scope — ACCEPT.** Only the wrap/wrap_row/format_tokens/format_cwd quartet were direct pure-function probes in chat_test.rb; the bash/write/read family tests are surface-driven (enqueue → expandable → replay) and stay in chat_test.rb as stateful-surface tests — consistent with the spec's "chat_test.rb keeps only stateful-surface tests." Moved tests keep names and assertions (moves, not rewrites — text_test.rb read this session).
+7. **`lib/tart.rb` untouched — ACCEPT.** chat.rb requires its own collaborators (`require_relative`), matching print.rb's house style.
+
+## PHASE-0 rulings (rig lane — 3 items)
+
+1. **"up 3" spec typo → up 4 — ACCEPT.** From `gems/tui-split-rig/lib/tui_split_rig` up 3 lands in `gems/`, not the repo root; the spec's stated intent (repo-root resolution for `--out` default, `@tart_dir`, `default_registry`) holds only with up 4, which the builder implemented and live-verified (resolution printed in the report). Spec-authoring defect, correctly diagnosed.
+2. **Byte-identity beats the rename (registry.yml:1 header comment retains "pty-tester"; mock_llm_server.rb comments) — ACCEPT.** AC5's byte-identity gate is frozen and outranks cosmetic renaming; neither matches the frozen residue pattern (bare name, no trailing dash); the MUST-NOT-TOUCH file was correctly left alone.
+3. **Judgment calls (cross-tree test requires, "(default registry.yml)" help text) — ACCEPT.** Dev-only requires the spec endorses; the moved path is named, the usage line byte-identical modulo the binary name.
+
+## Per-AC verdicts
+
+- **AC1 (rig placement) — PASS.** rig-moved / no-residue / gemspec-clean / rakefile-rig green; README documents the new path/name/env (packaging grep empty, verified in report + gate).
+- **AC2 (rig behavior preserved) — PASS.** CLI surface smoke-verified by the builder (two-verb usage exit 2, diff covered/gapped 0/1, unknown verb 2); rig tests green standalone (differ_test 3/22 re-run cold this session); live s1 exit 0 from the new path.
+- **AC3 (wave-1 extraction) — PASS.** moved-methods-gone green (all 38 names); purity architect-verified by grep (zero `@ivar`/`Chat.` in the five modules); module-function style matches Compaction/Skills/Settings; no delegator shims (call sites module-qualified, verified chat.rb:1216/1289); moved tests under test/render/. The four re-assignments are all PHASE-0-raised (ruled above) — none silent.
+- **AC4 (scope discipline) — PASS.** wave2-intact green (all 8 probe members still defined in chat.rb); both lane diffs strictly inside declared touch sets (audited by hand from `git status` per worktree).
+- **AC5 (byte-exact parity) — PASS.** s1–s6 all exit 0 cold from the integrated tree via the NEW CLI path, zero unknown candidates; registry.yml byte-identical to base 931b589 (gate green). The move altered no content — the render lane additionally proved baseline-vs-post captures byte-identical in its worktree.
+- **AC6 (suite + bench) — PASS.** 441 runs / 1762 assertions green cold (rig tests counted: 411 repo + 30 rig, identical totals to base); SEAM_BENCH_OK.
+- **AC7 (idiomaticity) — PASS.** Architect-read on the integrated diff: module docs carry their pi citations forward per method (bash_block.rb read this session — bash.ts:14/20-28/41-44/67-70/88-99, bash-execution.ts cited); frozen_string_literal + Tart::Render nesting + module_function house-consistent; no abstraction beyond the six named modules; tests moved not rewritten. No defects to flag.
+
+## KILL/CONTINUE
+
+**CONTINUE.** Both lanes delivered a byte-exact pure refactor — chat.rb 3330 → 2748 lines with six pure modules and the rig safely extracted to `gems/tui-split-rig/` — proven against the strongest available oracle (s1–s6 live settled-screen parity, all exit 0) with zero parity-needle movement. The decomposition program's wave 1 is done; I22 (input-line cluster: editor + autocomplete/picker/SlashSource) is next.
+
+Carry-ins for I22's spec authoring: (a) verify each family's purity premise by grep before freezing the assignment table — the "width already threaded" authoring defect repeated here would repeat there; (b) the class-method helpers remaining in `class << self` (fuzzy trio, find_word_*) will move with their families — their callers inside Chat's instance methods will need the `self.class.`/qualified form checked; (c) the stale `pty-tester-pi-s4_bash_variants` tmux session observed during the rig lane's verification is gone (no tmux server running at judgment).
