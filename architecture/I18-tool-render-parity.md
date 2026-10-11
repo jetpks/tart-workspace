@@ -545,6 +545,173 @@ Gates you can run locally (from your worktree):
     bin/pty-tester run parity/scenarios/s3_tool_turn_files.yml --out <scratch-dir>
       # expected: exit 0
 
+### rig
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo. Silent compliance
+is a failure. Silent scope additions are a failure. If you have no
+disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed in BOUNDARIES. You
+are one of several parallel lane agents working in isolated worktrees; files
+outside your lane belong to other agents — touching them fails your lane.
+No placeholder implementations — search the codebase before implementing;
+full implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive forms); well-factored and
+DRY-ish; terse but clear; pragmatic, not clever — the smallest change that does
+the job, no abstraction it doesn't need. Tests stay simple and terse, exercising
+public behavior, no mock/stub of the class under test. Verify your work by
+running the acceptance criteria's gate commands and record the verbatim output.
+Do NOT commit and do NOT run any git write command (commit/add/branch/reset/
+checkout) — the architect commits and merges after verification, and verifies
+you made no commits. Do NOT delete lock files or escalate privileges if a
+command fails; record the exact error and continue. Do NOT use run_in_background
+(or shell `&`) for your own work — run long commands serially in the foreground
+with explicit timeouts instead. When done, write your report to the scratch
+file given below (an absolute path OUTSIDE your worktree), with RAW results
+only — tables, numbers, command output — no interpretation. Every status claim
+must be backed by a command result from this run. Keep the report compact.
+Do not title the report; keep any headings at `###` or deeper. End with exactly
+one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them) |
+BLOCKED (exact blocker + what you tried). Verdicts belong to the architect and
+the human.
+
+=== LANE: rig (I18 tool-render-parity) ===
+
+Report file: /Users/eric/architect/spaces/20261009-pi-port/build/I18-tool-render-parity-rig/report.md
+
+=== OBJECTIVE (and why) ===
+
+BRIEF §8's instrument lane. Two halves:
+
+**(a) Mock-server robustness (must land).** Observed defect (I17 rig lane,
+1-in-4 runs): `test/support/mock_llm_server.rb` `serve(io)` (:114) shifts
+`@script` unconditionally per accepted connection — a connection that sends
+nothing (empty TCP connect) still consumes a scripted response and logs a
+`method=None` entry, shifting every later response by one (I17 evidence:
+`tart completed=False requests=4 expected=3`, exit 2). The property: a
+connection with no request line is skipped entirely — no `@script` shift, no
+request-log entry, no response; the next real request gets the next spec.
+Prove it with a named test that opens a real TCP connection to the live
+server, sends nothing, closes it, then drives a full scripted session and
+asserts the script stayed aligned (right responses to the right requests,
+request count as scripted). Do NOT weaken the EPIPE teardown path (:137-141,
+I03 carry-in) or the :error spec handling or `rearm!` semantics.
+
+**(b) s4_bash_variants scenario (new, evidence-only — feeds the NEXT
+iteration's work list).** The I17 carried CUTs (bash 5-line preview
+truncation `BASH_PREVIEW_LINES` bash.ts:14/78-89, expand hints, truncation
+warnings, exit-code statuses bash.ts:65-101) are unmeasured. Author
+`parity/scenarios/s4_bash_variants.yml` (the proven s3 N=3 shape):
+- response 1: a bash tool call whose output EXCEEDS pi's preview truncation
+  (`BASH_PREVIEW_LINES` = 5 — verify in pi source and pick a command whose
+  output line count triggers pi's truncated preview + expand hint, e.g. a
+  `seq`-style generator);
+- response 2: a bash tool call that exits NON-ZERO with stderr output
+  (verify the shape renders pi's exit-code status);
+- response 3: the fixed final reply.
+`expected_requests: 3`, env block staging `TART_MODEL_PROVIDER: mock` (the
+s1/s2/s3 seam). Comment in the file that the `Elapsed` live-progress line is
+live-only, invisible to settled captures, and stays unmeasured.
+
+Then run it ONCE against your worktree base and report the candidates
+verbatim — that list IS the next iteration's work list. NO exit-0
+requirement, NO registry change. EXPECTED NOISE: a Took-duration pair
+(`- Took 0.0s` / `+ Took 0.1s`-class) may appear — the bash-cure lane is
+landing in parallel and your base does not have it; if present, itemize it
+as the in-flight bash-cure item and EXCLUDE it from the work list.
+
+**PHASE 0 duty:** read `test/support/mock_llm_server.rb` IN FULL before
+editing; verify the truncation threshold and status-rendering shapes against
+pi source (bash.ts:14, :65-101, :78-89) BEFORE authoring s4; verify both
+apps' bash tools complete the chosen commands under the rig's staged sandbox
+(explore in throwaway scratch under your worktree's `tmp/` or `/tmp`, never
+by committing outside your touch set).
+
+=== OUTPUT FORMAT ===
+
+- The mock-robustness named test + its output, verbatim.
+- The `s4_bash_variants.yml`, verbatim.
+- The s4 baseline run: command + exit code + summary.json (per-app completion,
+  request counts, classes) + candidates verbatim (the next work list, Took
+  pair excluded/itemized if present).
+- The pin test names + rake output tail.
+- PHASE 0: numbered disagreements/deviations with file:line evidence.
+
+=== TOOL GUIDANCE ===
+
+- Verification: `bundle install --quiet && bundle exec rake` (your pin lands
+  in `test/parity/scenario_test.rb`; your mock test lands in the file that
+  already tests the mock server — find it with `rg -l mock_llm_server test/`;
+  if none exists, a new test file under your touch set is NOT authorized —
+  put the test in `test/parity/scenario_test.rb` and flag the placement in
+  PHASE 0).
+- Live rig: `bin/pty-tester run parity/scenarios/<s>.yml --out <scratch>`
+  (tmux + pi on PATH, present; exit 0 = parity, 1 = unknown candidates,
+  2 = rig failure). Architect control baselines (READ ONLY):
+  /Users/eric/architect/spaces/20261009-pi-port/repos/tart/tmp/parity-s3-control/
+  (s3) and tmp/parity-gate-s2/ (s2).
+- Rig internals (read before authoring): `lib/tart/parity/scenario.rb` (the
+  env seam), `lib/tart/parity/runner.rb` (staging, staged_env),
+  `parity/scenarios/*.yml` (all five existing shapes),
+  `test/support/mock_llm_server.rb` (serve/script/rearm/captured_request_logs).
+- pi oracle (read-only):
+  /Users/eric/architect/spaces/20261009-pi-port/repos/pi —
+  core/tools/bash.ts:14 (BASH_PREVIEW_LINES), :78-89 (truncated preview +
+  expand hint), :65-101 (warnings/exit statuses).
+
+=== BOUNDARIES ===
+
+MAY touch: `test/support/mock_llm_server.rb`,
+`parity/scenarios/s4_bash_variants.yml` (NEW — create),
+`test/parity/scenario_test.rb`. MUST NOT touch: `lib/**`, `bin/**`,
+`parity/registry.yml` (no new sanctioned classes), any other test file,
+`parity/scenarios/s[123]*.yml` (already shipped), README.md,
+gemspec/Gemfile*. No refactors beyond the task; no placeholders; `rg` before
+implementing.
+
+=== ACCEPTANCE CRITERIA (frozen — verify against them, do not edit or work around) ===
+
+AC4 (rig robustness — pty-tester BRIEF §2). A connection that sends no
+request consumes no scripted response: proven by a named test that opens a
+real empty TCP connection against the live server, then drives a full
+scripted session and asserts the script stayed aligned. The EPIPE teardown
+path and error-spec behavior are unchanged.
+
+AC5 (s4 baseline — feeds BRIEF §8's next slice, evidence-only).
+`parity/scenarios/s4_bash_variants.yml` (truncated-preview bash call +
+non-zero-exit bash call + final reply) completes in BOTH apps under the rig,
+is load-pinned in `test/parity/scenario_test.rb`, and its baseline candidate
+list is reported verbatim in the lane report as the next work list — with
+the Took pair excluded as the in-flight bash-cure item if present. NO
+exit-0 requirement, NO registry change.
+
+AC6 (suite, bench — standing). `bundle exec rake` green (0 failures, 0
+errors) including the new rig tests; `bench/seam_bench.rb` prints
+`SEAM_BENCH_OK`; the gemspec runtime dependency set is unchanged.
+
+Gates you can run locally (from your worktree):
+
+    bundle install --quiet && bundle exec rake && echo SUITE_OK   # exit 0
+    test -f parity/scenarios/s4_bash_variants.yml && grep -q "s4_bash_variants" test/parity/scenario_test.rb && echo S4_PINNED_OK
+    bin/pty-tester run parity/scenarios/s4_bash_variants.yml --out <scratch-dir>
+      # expected: exit 1 (evidence-only), Took pair itemized if present
+
 ## Builder Report
 
 <!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
