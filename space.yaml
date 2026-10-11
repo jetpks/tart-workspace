@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: decomp-wave2
+  current_iteration: decomp-wave3
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1017,4 +1017,10 @@ project:
     rehearsal:
       gates_digest: 3bd2e5fa6260b7f203d23a528bbbacb4710b587c4ee86e6e9f5cafef526b9c5f
       at: '2026-10-11T14:46:01-06:00'
+  - name: decomp-wave3
+    ordinal: 23
+    file: architecture/I23-decomp-wave3.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
