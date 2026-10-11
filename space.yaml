@@ -903,7 +903,7 @@ project:
       - test/chat_test.rb
       - test/loop_test.rb
       base_sha: 206af8de4f93f69ca1481f837029380e63dedbf0
-      worktree: build/I20-viewport-parity-render/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
@@ -916,7 +916,7 @@ project:
       - parity/scenarios/s6_long_calls.yml
       - test/parity/scenario_test.rb
       base_sha: 206af8de4f93f69ca1481f837029380e63dedbf0
-      worktree: build/I20-viewport-parity-rig/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
