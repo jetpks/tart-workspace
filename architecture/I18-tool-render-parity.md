@@ -714,11 +714,232 @@ Gates you can run locally (from your worktree):
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I18-tool-render-parity-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence tool-render-parity --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### rig
+
+### PHASE 0 — disagreements / deviations
+
+1. **Mock-test placement.** The spec's fallback rule ("put the test in `test/parity/scenario_test.rb`") applied. The file that actually unit-tests the mock server's rig extensions is `test/parity/mock_llm_extension_test.rb` (`test_rearm_serves_the_same_script_to_a_fresh_app`, `test_request_logs_capture_method_path_headers_and_parsed_body` — real TCP, no doubles) and it is the natural home for the empty-connect test, but BOUNDARIES forbid touching it ("MUST NOT touch: ... any other test file"). Test placed in `test/parity/scenario_test.rb` per spec; placement flagged here.
+2. **Oracle path citation imprecise in spec.** `core/tools/bash.ts:14/:78-89` is actually `packages/coding-agent/src/core/tools/renderers/bash.ts` in repos/pi: `BASH_PREVIEW_LINES = 5` at :14, collapsed preview + `... (N earlier lines, to expand)` hint at :78-89, truncation warnings at :91-107. Exit-status rendering lives in `packages/coding-agent/src/core/tools/bash.ts:402` — `Command exited with code ${exitCode}` appended to the tool text. No behavioral impact; s4 was designed against the real shapes.
+3. **Preview command choice rationale (verified, not a conflict).** The expand hint fires on hidden *earlier* lines (`VisualLinePreview`, `keep: "end"` — the LAST 5 lines render). `seq 1 12` (12 lines) hides 7 earlier lines → hint fires, while staying far below pi's model-facing truncation limits (`DEFAULT_MAX_LINES = 2000`, `DEFAULT_MAX_BYTES = 50KB`, truncate.ts:11-12), isolating the preview render from the truncation-footer warning. Commands verified under the sandbox shell: `seq 1 12` → 12 lines, exit 0; `ls /definitely-not-here-s4` → exit 1, stderr `ls: /definitely-not-here-s4: No such file or directory`.
+
+No other disagreements. Pre-edit read of `test/support/mock_llm_server.rb` confirmed the defect: `serve(io)` reached `spec = @script.shift` and `@request_logs << entry` with `request_line = nil` on an empty connect (`method=None` entry, script shifted).
+
+### Mock-robustness fix
+
+`test/support/mock_llm_server.rb`, `serve(io)` — early return before any shift/log/response:
+
+```ruby
+def serve(io)
+  request_line = io.gets
+  # A connection that sends no request line (empty TCP connect, prober,
+  # port scan) consumes nothing: no script shift, no log entry, no response
+  # — the next real request still gets the next spec (I17 rig defect:
+  # method=None entries shifted every later response by one).
+  return if request_line.nil? || request_line.strip.empty?
+  ...
+```
+
+EPIPE teardown (:137-141 + `write_chunk` rescues), `:error` spec handling, and `rearm!` are untouched.
+
+Named test (`test/parity/scenario_test.rb`):
+
+```ruby
+# AC4 (I18 rig robustness): a connection that sends no request line
+# consumes no scripted response — no @script shift, no request-log
+# entry, no response — so the next real request gets the next spec.
+def test_an_empty_tcp_connection_consumes_no_scripted_response
+  with_server([{type: :message, content: "one"}, {type: :message, content: "two"}]) do |server|
+    TCPSocket.new("127.0.0.1", server.port).close
+
+    assert_equal "one", fetch_content(server)
+    assert_equal "two", fetch_content(server)
+    logs = server.captured_request_logs
+    assert_equal 2, logs.size
+    assert logs.all? { |entry| entry[:method] == "POST" && entry[:path] == "/v1/chat/completions" }
+  end
+end
+```
+
+Output (verbose run):
+
+```
+Tart::ParityScenarioTest#test_an_empty_tcp_connection_consumes_no_scripted_response = 0.00 s = .
+13 runs, 49 assertions, 0 failures, 0 errors, 0 skips
+```
+
+### parity/scenarios/s4_bash_variants.yml (verbatim)
+
+```yaml
+# S4 — bash tool render variants (I18, evidence-only): the mock scripts a
+# bash tool call whose output exceeds pi's collapsed preview
+# (BASH_PREVIEW_LINES = 5, pi renderers/bash.ts:14 — the preview keeps the
+# LAST 5 lines and hints "... (N earlier lines, to expand)"), then a
+# non-zero-exit bash call with stderr (pi appends "Command exited with code
+# N" to the tool result, pi bash.ts:402), then a fixed final reply. Three
+# mock requests per app.
+#
+# Both commands are shell-neutral (sh/bash/fish): `seq 1 12` yields 12
+# lines — above the 5-line preview, far below pi's model-facing truncation
+# limits (2000 lines / 50KB) so only the preview-level expand hint fires;
+# `ls /definitely-not-here-s4` exits 1 with a stderr line.
+#
+# Evidence-only baseline: the candidate list from this run feeds the NEXT
+# iteration's work list — no exit-0 requirement, no registry change. The
+# live-progress `Elapsed ...` line only renders while a tool is running and
+# is invisible to settled captures, so it stays unmeasured. A Took-duration
+# candidate pair (e.g. `- Took 0.0s` / `+ Took 0.1s`) is expected noise from
+# the in-flight bash-cure lane and is excluded from the work list.
+name: s4_bash_variants
+prompt: "run the two bash commands"
+expected_requests: 3
+responses:
+  - type: stream
+    content: ""
+    tool_calls:
+      - id: call_s4_1
+        name: bash
+        arguments:
+          command: "seq 1 12"
+  - type: stream
+    content: ""
+    tool_calls:
+      - id: call_s4_2
+        name: bash
+        arguments:
+          command: "ls /definitely-not-here-s4"
+  - type: stream
+    content: "The bash tools ran; fixed final reply for the spike."
+env:
+  tart:
+    TART_MODEL_PROVIDER: mock
+```
+
+### s4 baseline run
+
+Command: `bin/pty-tester run parity/scenarios/s4_bash_variants.yml --out tmp/s4-baseline` → **exit 1** (unknown candidates — expected, evidence-only).
+
+summary.json per-app completion / request counts:
+
+| app | completed | requests | expected | boot_settle_ms | reply_settle_ms |
+|-----|-----------|----------|----------|----------------|-----------------|
+| pi  | true      | 3        | 3        | 1109           | 1128            |
+| tart| true      | 3        | 3        | 1382           | 1139            |
+
+Per-class diff counts: `70x unknown-candidate`, `2x parity-run-path`. `rig_failure: null`.
+
+Candidates verbatim (from summary.json `candidates`):
+
+```
+- █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more
+- Press ctrl+o to show full startup help and loaded resources.
+-
+- Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.
+-
+-
+- run the two bash commands
+-
+-
+-
+- $ seq 1 12
+-
+- ... (7 earlier lines, ctrl+o to expand)
+- 8
+- 9
+- 10
+- 11
+- 12
+-
+- Took 0.0s
+-
+-
+-
+- $ ls /definitely-not-here-s4
+-
+- ls: /definitely-not-here-s4: No such file or directory
+-
+-
+- Command exited with code 1
+-
+- Took 0.0s
+-
+-
+- The bash tools ran; fixed final reply for the spike.
+-
++                                                                                                                       │
++ run the two bash commands                                                                                             │
++                                                                                                                       │
++                                                                                                                       │
++                                                                                                                       │
++ $ seq 1 12                                                                                                            │
++                                                                                                                       ┃
++ 1                                                                                                                     ┃
++ 2                                                                                                                     ┃
++ 3                                                                                                                     ┃
++ 4                                                                                                                     ┃
++ 5                                                                                                                     ┃
++ 6                                                                                                                     ┃
++ 7                                                                                                                     ┃
++ 8                                                                                                                     ┃
++ 9                                                                                                                     ┃
++ 10                                                                                                                    ┃
++ 11                                                                                                                    ┃
++ 12                                                                                                                    ┃
++                                                                                                                       ┃
++ Took 0.1s                                                                                                             ┃
++                                                                                                                       ┃
++                                                                                                                       ┃
++                                                                                                                       ┃
++ $ ls /definitely-not-here-s4                                                                                          ┃
++                                                                                                                       ┃
++ ls: /definitely-not-here-s4: No such file or directory                                                                ┃
++                                                                                                                       ┃
++                                                                                                                       ┃
++ Command exited with code 1                                                                                            ┃
++                                                                                                                       ┃
++ Took 0.1s                                                                                                             ┃
++                                                                                                                       ┃
++                                                                                                                       ┃
++ The bash tools ran; fixed final reply for the spike.                                                                  ┃
+```
+
+Itemized bash-cure in-flight noise (EXCLUDED from the work list): the Took-duration pairs `- Took 0.0s` / `+ Took 0.1s` (two pairs — one per bash call, pi lines 20 and 31 of the diff vs tart lines 21 and 33).
+
+Next-iteration work list (candidates minus the two Took pairs):
+
+- pi-only chrome lines: startup banner (`█▀ █ escape interrupt ...`, `Press ctrl+o to show full startup help ...`, `Pi can explain its own features ...`) and blank-line padding around sections — pi renders 4 leading/banner lines + trailing blanks tart doesn't.
+- Bash preview collapse: pi collapses the 12-line seq output to the last 5 lines + `... (7 earlier lines, ctrl+o to expand)` hint; tart renders all 12 lines uncollapsed.
+- Both `Took` lines carry a right-border/rail difference in tart (`... ┃` column vs bare) — part of the broader tart chat-rail/border rendering (every tart capture line trails `│`/`┃` fill to col 120; pi's pane has no rail) and the footer/run-path line (`parity-run-path`, 2x, sanctioned-class shape).
+- Exit-status line: both render `Command exited with code 1`, but only at col-0 (pi) vs rail-embedded (tart) — same rail item; no textual status-shape candidate beyond that.
+
+### Pins and suite
+
+Pin test names: `Tart::ParityScenarioTest#test_loads_the_shipped_s4_bash_variants_scenario`, `Tart::ParityScenarioTest#test_an_empty_tcp_connection_consumes_no_scripted_response`.
+
+```
+$ test -f parity/scenarios/s4_bash_variants.yml && grep -q "s4_bash_variants" test/parity/scenario_test.rb && echo S4_PINNED_OK
+S4_PINNED_OK
+```
+
+`bundle install --quiet && bundle exec rake` tail (full suite):
+
+```
+Finished in 19.728028s, 18.4002 runs/s, 73.3474 assertions/s.
+
+363 runs, 1447 assertions, 0 failures, 0 errors, 1 skips
+```
+
+(the 1 skip is pre-existing, not in any file this lane touched)
+
+`bundle exec ruby bench/seam_bench.rb` tail:
+
+```
+SEAM_BENCH_OK
+bench-exit=0
+```
+
+Gemspec runtime dependency set: untouched (no gemspec/Gemfile edits in this lane).
+
+STATUS: COMPLETE
 
 ## Verdict
 
