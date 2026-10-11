@@ -207,10 +207,280 @@ Measured this session (2026-10-11) at base **4d858125** (= `project/pi-port` tip
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I23-decomp-wave3-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section decomp-wave3 prompt --append --lane <lane> --from build/I23-decomp-wave3-<lane>/prompt.md`. -->
+### viewport
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo. Silent compliance
+is a failure. Silent scope additions are a failure. If you have no
+disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed in BOUNDARIES. You
+are one of several parallel lane agents working in isolated worktrees; files
+outside your lane belong to other agents — touching them fails your lane.
+No placeholder implementations — search the codebase before implementing;
+full implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive collection/enumerable
+forms); well-factored and DRY-ish; terse but clear; pragmatic, not clever — the
+smallest change that does the job, no abstraction it doesn't need. Consistency
+with the surrounding code is part of correctness here: a change that works but
+fights the house style (or introduces an inconsistency a careful reader of this
+repo would never write) is not done. Tests stay simple and terse, exercising
+public behavior, no mock/stub of the class under test. Verify your work by
+running the acceptance criteria's gate commands and record the verbatim output.
+Do NOT commit and do NOT run any git write command (commit/add/branch/reset/
+checkout) — the architect commits and merges after verification, and verifies
+you made no commits. Do NOT delete lock files or escalate privileges if a
+command fails; record the exact error and continue. Do NOT use
+`run_in_background` (or shell `&`) for your own work — this process terminates
+when you end your turn and reaps its own children, so backgrounded work is
+SIGTERMed and its output lost while the run still exits 0; run long commands
+serially in the foreground instead. Give every potentially long command an
+explicit timeout (the live rig runs below take tens of seconds each — allow
+120s+ each). If a runtime will not start unattended (interactive prompt, server
+with no timeout), record the exact failure in your report and route around it —
+never busy-wait or retry in a loop. When done, write your report to the
+scratch file given to you below (an absolute path OUTSIDE your worktree), with
+RAW results only — tables, numbers, command output — no interpretation, no
+"promising". Every status claim must be backed by a command result from this
+run. Keep the report compact — tables and numbers, not prose. Do not title
+the report; keep any headings inside the report at `###` or deeper. End it
+with exactly one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list
+them) | BLOCKED (exact blocker + what you tried). Verdicts belong to the
+architect and the human. Persist until your lane is fully handled end-to-end;
+do not stop at analysis or partial fixes.
+
+Your scratch report (write RAW results here, never inside the worktree):
+/Users/eric/architect/spaces/20261009-pi-port/build/I23-decomp-wave3-viewport/report.md
+
+=== OBJECTIVE (and why) ===
+
+LANE `viewport` of I23 decomp-wave3 — the third wave of the sanctioned
+five-wave chat-surface decomposition. `lib/tart/render/chat.rb` is a 2,233-line
+god object; wave 1 moved the stateless clusters to pure modules, wave 2 the
+stateful input-line cluster (Editor/Autocomplete/Picker). THIS wave moves the
+viewport cluster — the scroll state machine and the mouse-selection state
+machine — into two stateful classes + three pure cell utilities to `Text`, with
+Chat surviving as the coordinator (pi's interactive-mode.ts role: mouse
+routing, geometry math, render composition, locks, the kernel timer arm).
+PURE REFACTOR — ZERO behavior change, proven byte-exact by the rig
+(s1–s6 all exit 0, registry byte-identical to base 4d858125).
+
+THE MOVE — target class assignment (the decomposition shape IS the deliverable;
+every line range verified at base 4d858125; every family body read and verified
+to touch ONLY its own state plus the named external seams):
+
+| Class (new file) | Owns (state) | Methods (from Chat; chat.rb l. at base) |
+|---|---|---|
+| `Tart::Render::Viewport` (`lib/tart/render/viewport.rb`) | `@scroll_offset`, `@follow`, `@scrollbar_activity_at`, `@scrollbar_timer_epoch`, `@scrollbar_hide_delay_ms`; constants `SCROLLBAR_HIDE_DELAY_MS` (63), `WHEEL_LINES_PER_EVENT` (85), `ALT_WHEEL_MULTIPLIER` (86), `WHEEL_DIRECTION` (90) | `scroll_page` (1476), `scroll_by` (1489), `mark_scrollbar_activity`'s stamp+epoch state machine (1506), `scrollbar_hide_delay_ms` (1518) + the attr_writer test seam (345), the render-time offset maintenance from `transcript_widget` (1827-1831: clamp + re-arm follow + force-hide + the window slice) as a Viewport op, `scrollbar_visible?` (1845), `overlay_rail_cell` (1861), `scrollbar_glyphs` (1872), + a reset op (from `clear_transcript` 982-983) |
+| `Tart::Render::Selection` (`lib/tart/render/selection.rb`) | `@selection`, `@last_click`; constants `DOUBLE_CLICK_SECONDS` (95), `WORD_JOINERS` (99), `Point` (116) | `selection_press` (1566), `selection_drag` (1584), `selection_release` (1595), `update_selection_focus` (1605), `selection_bounds` (1627), `before?` (1634), `selection_text` (1637), `word_range` (1686), `word_char?` (1703), `line_range` (1708), `next_click_count` (1716), `highlight_row` (2087), `selection_columns` (2102), `reverse_cells` (2113), `span_pieces` (2125), + a reset op (from `clear_transcript` 984-985) |
+| `Tart::Render::Text` (existing module) gains | — | `char_index_at_cell` (1695), `take_cells` (1735), `slice_cells` (1744) — pure string/cell utilities, wave 1's text family completion |
+
+SHAPE RULES (frozen — deviations are PHASE 0, never silent):
+- (a) The classes are NOT thread-safe by design — Chat owns `@mutex` exactly
+  as today: the same methods synchronize as at base (`render_frame` via the
+  render path, the `scroll_offset` readback, the public setters); event
+  handling (`handle_mouse` path) runs on the kernel task unsynchronized,
+  exactly as today. Do not add locks to the classes.
+- (b) External seams threaded, not held: the content size/lines and geometry
+  (area rows, width) are passed per call — house style, the wave 1/2 positional
+  threading (`lines(width)`); the content-line access for Selection is a
+  construction-injected reader over Chat's live transcript (exact form — a
+  `plain_line` proc vs. per-call arrays — is YOUR judgment, pick one, stay
+  consistent, PHASE 0 if it misfits); THE KERNEL ASYNC STAYS IN CHAT —
+  `mark_scrollbar_activity` splits at the state machine: Viewport owns the
+  stamp + epoch (mark returns the epoch; an epoch-expired check + a hide op on
+  Viewport), Chat owns the `@kernel.async` arm (the host reactor wiring —
+  pi's timer lives on the host).
+- (c) Chat keeps the coordinator glue: `handle_mouse` (mouse routing),
+  `wheel` (the wheel math routing into `Viewport#scroll_by`), `content_point`
+  (composes viewport state + geometry + content — reads the viewport's
+  offset), `plain_content_line` (the content seam over `display_lines`),
+  `transcript_area_rows`, `viewport_width`, `display_lines`,
+  `transcript_widget` (render composition — calls Viewport ops + the
+  Selection highlight), `build_widget`, `editor_area_rows`,
+  `dock_spacer_rows`/`DOCK_SPACER_ROWS`, `MIN_EDITOR_ROWS`, `edit_input`'s
+  page branches, `clear_transcript` (calls both resets), the `scroll_offset`
+  readback (411 — mutex-synchronized delegation to the viewport; Chat's
+  public surface, NOT a delegator shim).
+- (d) Chat's public surface is UNCHANGED — constructor params, `edit_input`,
+  `submit`, the readbacks (`scroll_offset` included), AND the
+  `scrollbar_hide_delay_ms=` test seam (345 — it stays on Chat's public
+  surface like the readbacks; it may delegate internally to the viewport;
+  the 8 chat_test call sites keep working byte-for-byte).
+- (e) Selection's copy seam: `TUI.osc52_copy` fires inside the Selection
+  release op (it rides the moved body) — Chat passes nothing.
+- (f) `highlight_row`/`selection_columns`/`reverse_cells`/`span_pieces` move
+  as Selection ops (render queries over its own bounds — pi homes
+  applySelection in the selection handler); their callers
+  (`transcript_widget`'s window loop) call the object with the line passed
+  positionally.
+- (g) Method renames inside the new classes are sanctioned where the prefix
+  is stutter (`selection_press` → `press(point, …)`, `scrollbar_visible?` →
+  `visible?` — your judgment, stay consistent, PHASE 0 the list); Chat's
+  public method names are frozen. Holder ivars on Chat: obvious names
+  (`@viewport`, `@selection_state` or `@selection`).
+
+If any assignment proves wrong at the code (a method secretly needs more
+than the named seams, two classes share state better homed once), raise it
+PHASE 0 with the line evidence — do NOT silently reshape.
+
+TEST SURGERY (this wave is moves-only for the test files):
+- The scroll tests (page pan/refollow, stay-put, scrollbar transient
+  visibility, overlay) and the mouse tests (drag-select + copy, double/triple
+  click, plain-click drop, selection-survives-scroll) STAY in chat_test.rb —
+  they drive Chat's public event surface and the `scroll_offset` readback:
+  coordinator tests, names and assertions unchanged, adapted call sites only
+  if a seam shape demands it (report any adaptation).
+- The `scrollbar_hide_delay_ms=` call sites (l.153, 2261-2323) keep working
+  unchanged (shape rule d).
+- A test moves ONLY where its subject is a moved pure function with a 1:1
+  direct-call mapping in the new class; the net run-count delta is expected
+  0 — any delta must be PHASE-0-raised with the reason. New direct-class
+  tests are NOT demanded this wave (the existing coverage is coordinator-level
+  and stays coordinator-level; the rig is the byte-exact oracle).
+
+=== OUTPUT FORMAT ===
+
+RAW results only, in the scratch report:
+1. The method-move table: each moved method/class helper/constant/ivar → its
+   class.
+2. `wc -l lib/tart/render/chat.rb` before/after + `wc -l` of each new class
+   file + `test/chat_test.rb` before/after.
+3. The state-leak proof: `grep -nE '@(scroll_offset|follow|scrollbar_activity_at|scrollbar_timer_epoch|scrollbar_hide_delay_ms|selection|last_click)\b' lib/tart/render/chat.rb`
+   → no matches (comment lines included — move the prose to the classes).
+4. `bundle install --quiet && bundle exec rake` tail — last lines with the
+   run/assertion counts (fully green; net test delta expected 0; report any
+   delta with the reason).
+5. s1–s6 runs via `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml --out <scratch>/<s>` —
+   all six RAW exit codes, each 0 (each takes tens of seconds; serial,
+   foreground, explicit timeout 120s+).
+6. PHASE 0 disagreements (mandatory) + STATUS line.
+
+=== TOOL GUIDANCE (verification commands) ===
+
+- Suite: `bundle install --quiet && bundle exec rake` (from the repo root).
+- Byte-exact oracle: the six rig runs in output format 5. Exit 0 on all six =
+  byte-identical settled screens vs pi — the proof your refactor changed
+  nothing. A single unknown-candidate line is a FAIL you must root-cause and
+  report, never paper over.
+- pi citations to carry forward in the moved bodies (most already ride the
+  code — move them with it): scroll-view.ts (scrollBy :127-135,
+  markScrollbarActivity :97-110, isScrollbarVisible :74-78, updateLayout
+  :180-200 force-hide, getContentWidth :80-82), layout.ts paintScrollbar
+  :307-330, tui-alt-screen.ts (handleSelectionMouseEvent :1322, wheel :710,
+  alt multiplier :79, getScrollSelectionPoint :1133-1155, getWordSelection
+  :1167-1212, getLineSelection :1214-1219, getClickCount :1247-1267,
+  updateSelectionFocus :1226-1244, getSelectionBounds :1403-1426,
+  getActiveSelectionText :1414-1437, getSelectionColumns :1429-1447,
+  applySelection :1589-1638, applySelectionHighlight :1572-1584, copy-on-select
+  default :269), chat-viewport.ts :22-45.
+- `lib/tart.rb` must NOT be touched — chat.rb requires its own collaborators
+  (`require_relative "viewport"` etc., the I21-established style).
+
+=== BOUNDARIES (may touch / must not touch / out of scope) ===
+
+MAY TOUCH (exactly): `lib/tart/render/chat.rb`, the two new files
+`lib/tart/render/viewport.rb`, `lib/tart/render/selection.rb`,
+`lib/tart/render/text.rb` (the three cell utilities ONLY), `test/chat_test.rb`,
+`test/render/**` (new, only per the test-surgery rule above).
+
+MUST NOT TOUCH: `bin/tart` (NO change this wave — no external call sites),
+wave 2's sealed files `lib/tart/render/editor.rb`, `autocomplete.rb`,
+`picker.rb`, `slash_source.rb`, any other lib file (`markdown.rb`,
+`panel.rb`, `bash_block.rb`, `file_blocks.rb`, `tool_block.rb`, `theme.rb`,
+`tui.rb`, `commands.rb`, `identity.rb`, `lib/tart.rb`), `tart.gemspec`,
+`Rakefile` (globs already cover `test/**`), `gems/tui-split-rig/**`,
+`parity/**`, `bench/**`, `test/support/**`, `Gemfile`, `Gemfile.lock`,
+`bin/pty-tester`. If a call-site change seems needed outside the set,
+PHASE 0 it, do not touch.
+
+OUT OF SCOPE — wave 4/5 families that STAY in chat.rb UNTOUCHED this wave:
+content/transcript/scrollback (`enqueue_*`, `push_expandable`,
+`flush_scrollback`, `set_tool_output_expanded`, `complete`, `live_lines`,
+`plain_content_line`, `display_lines`, `transcript_widget`,
+`transcript_area_rows`, `viewport_width`), footer/stats (`footer_*`,
+`read_branch`, `context_*`, `cache_hit_rate`), MOTD/identity (`enqueue_motd`,
+`pi_header_lines`, `motd_sections`, `pi_hint_spans`), widget layout
+(`build_widget`, `dock_spacer_*`, `editor_area_rows`), user-bash execution,
+`submit`, `edit_input`, `status_*`, `set/cycle_thinking_level`,
+`handle_mouse`, `wheel`, `content_point`. Also out of scope: any behavior
+change (a defect found on the way is REPORTED, never fixed), any API redesign
+beyond the assignment table, publishing/gemspec changes.
+
+=== DISAGREEMENT RULINGS (from last session) ===
+
+None — first dispatch of this iteration.
+
+=== ACCEPTANCE CRITERIA (frozen; verify against these) ===
+
+**AC1 (extraction shape).** The target class assignment holds — every
+enumerated method, class helper, and constant defined in its assigned class
+(`Viewport`, `Selection`), the three cell utilities on `Text`; none of the
+moved methods still defined in `chat.rb` except the two sanctioned coordinator
+keeps (the `mark_scrollbar_activity` kernel arm, the `scrollbar_hide_delay_ms=`
+test seam — both per shape rules (b)/(d)); the moved state ivars (`@scroll_offset`,
+`@follow`, `@scrollbar_activity_at`, `@scrollbar_timer_epoch`,
+`@scrollbar_hide_delay_ms`, `@selection`, `@last_click`) and constants
+(`SCROLLBAR_HIDE_DELAY_MS`, `WHEEL_*`, `DOUBLE_CLICK_SECONDS`, `WORD_JOINERS`,
+`Point`) live on their classes and no reference to them remains anywhere in
+`chat.rb`, comments included. A PHASE-0-raised, architect-ruled re-assignment
+is legal; a silent one is a defect.
+
+**AC2 (state + threading discipline).** The classes own ONLY their state — no
+reference to Chat's kernel/scrollback/transcript/mutex/session state inside
+`viewport.rb`/`selection.rb`; the external seams are exactly the sanctioned
+ones: per-call threaded content/geometry params, Selection's
+construction-injected content reader, `TUI`/`Theme`/`Text` utilities, and the
+copy seam (`TUI.osc52_copy` inside the release op); the kernel async arm stays
+in Chat; the cross-object flow follows data ownership (Chat's `content_point`
+reads the viewport's offset; `transcript_widget` composes the Viewport ops +
+Selection highlight); Chat's mutex boundaries are unchanged — the same
+methods synchronize as at base, the classes are unsynchronized by design;
+Chat's public surface is unchanged (constructor params, `edit_input`,
+`submit`, the readbacks including `scroll_offset`, the
+`scrollbar_hide_delay_ms=` test seam) and `bin/tart` is untouched.
+
+**AC3 (byte-exact parity).** s1–s6 all exit 0 via
+`gems/tui-split-rig/bin/tui-split-rig` with zero unknown candidates, and
+`gems/tui-split-rig/registry.yml` is byte-identical to base 4d858125's.
+
+**AC4 (scope discipline).** The wave-4/5 families remain defined in `chat.rb`
+and untouched (probed at `enqueue_motd`, `display_lines`, `transcript_widget`,
+`plain_content_line`, `submit`, `edit_input`, `handle_mouse`, `wheel`,
+`content_point`, `footer_stats`, `build_widget`, `viewport_width`,
+`transcript_area_rows`, `clear_transcript`); `bin/tart` and wave 2's sealed
+files are untouched; your diff carries no change outside the declared touch
+set.
+
+**AC5 (suite + bench).** Default rake fully green; the seam bench prints
+`SEAM_BENCH_OK` (`bundle exec ruby bench/seam_bench.rb` — run it and record
+the tail).
+
+**AC6 (test surgery).** The coordinator tests stay in `chat_test.rb` with
+their names and assertions; the `scrollbar_hide_delay_ms=` call sites keep
+working unchanged; the suite's run count changes only by a PHASE-0-raised,
+reported reason (the expected delta is 0).
+
+**AC7 (idiomaticity — architect-read).** Class doc comments carrying their
+pi citations forward, the state-and-seams idioms of wave 2's classes
+(Editor/Autocomplete/Picker), no abstraction beyond the assignment table, no
+delegator shims for internal helpers. Judged on your diff; defects flagged
+with file:line in the Verdict.
 
 ## Builder Report
 
