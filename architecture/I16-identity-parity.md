@@ -863,6 +863,134 @@ recorder.
 
 STATUS: COMPLETE
 
+### uuid
+
+### Gemspec dependency line
+
+```ruby
+  # RFC 9562 uuid generation (pi createSessionId :264 / generateId :275).
+  spec.add_dependency "fast-uuid", "~> 0.1.0"
+```
+
+Gemfile.lock delta (from `git diff Gemfile.lock`, verbatim):
+
+```diff
++      fast-uuid (~> 0.1.0)
+       ratatui_ruby (= 1.5.0)
+       ruby_llm (~> 2.1)
+ 
+@@ -31,6 +32,7 @@ GEM
+       net-http (~> 0.5)
+     faraday-retry (2.4.0)
+       faraday (~> 2.0)
++    fast-uuid (0.1.0)
+     fiber-annotation (0.2.0)
+       fiber-local (1.1.0)
+@@ -119,6 +121,7 @@ CHECKSUMS
++  fast-uuid (0.1.0) sha256=91745f0af982e03bcad709d9037c6229fa25325df559276f3c743ab86ed09c2c
+```
+
+### Files changed
+
+- tart.gemspec (+2)
+- lib/tart/agent/session.rb (+3 / −6: require "fast/uuid" added; uuidv7 body → `Fast::UUID.uuid_v7(time:)`; `SecureRandom.uuid` → `Fast::UUID.uuid_v4`)
+- Gemfile.lock (+3)
+- test/session_test.rb: NOT modified (unmodified per AC5)
+
+### Session-id format before/after
+
+BEFORE (10 ids from git HEAD's hand-rolled uuidv7, executed verbatim via `git show HEAD:lib/tart/agent/session.rb` extraction):
+
+```
+"01a128d2-9c86-7f54-bfcd-e37c8b5aa4a7"
+"01a128d2-9c86-7054-84a3-25f8276ceb8d"
+"01a128d2-9c86-7364-9c6c-97e3f19787b4"
+"01a128d2-9c86-715b-bad1-0d56b6e38fdd"
+"01a128d2-9c86-7eaa-b66d-33d4692a9e8c"
+"01a128d2-9c86-7dde-a084-6898661483c2"
+"01a128d2-9c86-7ba0-8c13-c85e2ae0b4ed"
+"01a128d2-9c86-7ddb-846a-3bafcaf034db"
+"01a128d2-9c86-7278-a9af-5bbc56209f0b"
+"01a128d2-9c86-7bcd-a7cf-f7b948b15295"
+```
+
+AFTER (10 ids from `Tart::Agent::Session.uuidv7`, each with `Fast::UUID.valid?`):
+
+```
+"01a128d2-9c66-7932-81a6-010d5dc2afe4"  valid?=true
+"01a128d2-9c66-76be-98cd-518d9bd8017b"  valid?=true
+"01a128d2-9c66-79b7-8aac-ba8a50ad4a45"  valid?=true
+"01a128d2-9c66-739b-a9c0-455bd31bdc09"  valid?=true
+"01a128d2-9c66-7d41-81a2-a3fbc3642199"  valid?=true
+"01a128d2-9c66-7916-a167-01ed9b5c1bbd"  valid?=true
+"01a128d2-9c66-7f5e-8401-e584161c55ef"  valid?=true
+"01a128d2-9c66-7847-b4cb-683c7394e402"  valid?=true
+"01a128d2-9c66-727d-9b72-f2ef43352d62"  valid?=true
+"01a128d2-9c66-71bb-9825-a8db00d20c92"  valid?=true
+```
+
+Injectable time (both): `Session.uuidv7(time: Time.at(1_000_000_000))` → `00e8d4a5-1000-7cc2-a8c9-53a7affd38c3` (old code same 48-bit ms prefix `00e8d4a5-1000`).
+
+Same-ms non-monotonicity is identical in both implementations (old sample rand_a: 7f54, 7054, 7364…; new: 7932, 76be, 79b7…) — both stamp random bits into rand_a; the frozen test's ordering contract is across injected times.
+
+### PHASE 0 burst evidence (same-millisecond uniqueness)
+
+Live-gem API checks (fast-uuid 0.1.0, irb-equivalent script):
+
+```
+uuid_v7: 01a128d1-a775-7956-a1b1-0466569037f3
+v7 object: 00e8d4a5-1000-75db-9981-56c70e521d78 timestamp=2001-09-09 01:46:40 UTC to_s=00e8d4a5-1000-75db-9981-56c70e521d78
+v4: 46bfab4c-5284-4e3d-9635-f89509cdc026
+parse: 01a128d1-a775-7956-a1b1-0466569037f3 valid?: true parse?(garbage)=nil
+ParseError: not a valid UUID: not-a-uuid
+Comparable: true
+```
+
+Burst (one tight loop, monotonic clock):
+
+```
+burst: 10_000 ids in 16.12ms spanning 17 distinct ms-prefix buckets; collisions=0
+same-ms sample: 01a128d1-bcab 01a128d1-bcab 01a128d1-bcab   (10_000 ids over 17 ms buckets)
+hand-rolled burst collisions=0 (ms buckets=13)
+hand ms-prefix sample: 01a128d1-bcbd 01a128d1-bcbd 01a128d1-bcbd
+```
+
+Ruling: `Fast::UUID.uuid_v7` — 74 fully random bits per id (rand_a + rand_b, "no counter and no shared state" per the gem source, lib/fast/uuid/uuid.rb `v7_bytes`), same entropy class as the hand-rolled rand(1<<12)+rand(1<<14)+rand(1<<48). Measured 0 collisions in 10_000 for both. Swap safe.
+
+Parsing/validation audit: `grep -rniE "uuid" lib/ test/ bench/ bin/ parity/` — no uuid parsing/validation exists anywhere in the port (only generation in session.rb and `SecureRandom.hex(4)` for a temp filename in lib/tart/tools/output_accumulator.rb:181, not a uuid, outside lane). Generation-only adoption is the complete answer; no parsing invented.
+
+### Frozen gate outputs (this run, this worktree)
+
+suite: `bundle install --quiet && bundle exec rake && echo SUITE_OK`
+
+```
+Finished in 19.637296s, 17.4158 runs/s, 68.3393 assertions/s.
+342 runs, 1342 assertions, 0 failures, 0 errors, 1 skips
+SUITE_OK
+exit=0
+```
+
+bench: `bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1`
+
+```
+SEAM_BENCH_OK
+```
+
+tripwire: `grep -q "fast-uuid" tart.gemspec && grep -q "Fast::UUID" lib/tart/agent/session.rb && echo FAST_UUID_OK`
+
+```
+FAST_UUID_OK
+```
+
+### Notes / observations (raw, no verdicts)
+
+- Spec tool-guidance calls `Fast::UUID.uuid_v4` "drop-in for SecureRandom.uuid_v4"; session.rb's call site is `SecureRandom.uuid` — mapped to `Fast::UUID.uuid_v4` as the spec's dependency block directs.
+- Sub-ms time semantics differ (old: `(time.to_f * 1000).round`; gem: `to_i*1000 + nsec/1e6` floor); format/ordering/injectable-time contracts unaffected, session tests unmodified and passing.
+- Pin `~> 0.1.0` on a pre-1.0 gem resolves >= 0.1.0, < 0.2.0.
+- `git status --short`: ` M Gemfile.lock`, ` M lib/tart/agent/session.rb`, ` M tart.gemspec`. No commits made; `git log --oneline -1` = `df0ece9 Merge origin/main: pty-tester parity rig (a3ab813) into project/pi-port`.
+
+STATUS: COMPLETE
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
