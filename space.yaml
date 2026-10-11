@@ -990,7 +990,22 @@ project:
   - name: decomp-wave2
     ordinal: 22
     file: architecture/I22-decomp-wave2.md
-    freeze_sha:
+    freeze_sha: fee0b6d69aa1b8c787cd687ad8dd2e60111377ce
     verdict: pending
-    lanes: []
+    lanes:
+    - name: input-line
+      repo: tart
+      touch_set:
+      - lib/tart/render/chat.rb
+      - lib/tart/render/editor.rb
+      - lib/tart/render/autocomplete.rb
+      - lib/tart/render/picker.rb
+      - lib/tart/render/slash_source.rb
+      - lib/tart/render/text.rb
+      - bin/tart
+      - test/chat_test.rb
+      - test/render/**
+    rehearsal:
+      gates_digest: 3bd2e5fa6260b7f203d23a528bbbacb4710b587c4ee86e6e9f5cafef526b9c5f
+      at: '2026-10-11T14:46:01-06:00'
   integration_branch: project/pi-port
