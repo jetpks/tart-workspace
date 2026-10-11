@@ -78,51 +78,74 @@ The two touch sets are disjoint by construction (lib+chat test vs parity-test pl
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse bash-preview-collapse` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze bash-preview-collapse` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+Calibration: AC1 is the **deliverable-number criterion** (the exit code is the point — exact); AC2 asserts the collapse **property** (bounded from the defect side — the exact shape follows pi's source, so a better shape pi's source reveals stays legal); AC3's s2/s3 gates are **regression guards** (GREEN on base by design — chat.rb is the landed I17/I18 render surface); the two tripwires are presence-greps (keyword-landed; substance is architect-read from the render evidence).
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
-
-**AC1.** ...
+- **AC1 (s4 settled-screen parity — BRIEF §8, the I18 hand-off).** `bin/pty-tester run parity/scenarios/s4_bash_variants.yml` exits **0**: the settled screens are byte-indistinguishable — the 12-line output collapsed to pi's last-5 + `... (7 earlier lines, ctrl+o to expand)`, the banner rows back (no follow-end scroll), no scrollbar rail, blanks aligned. `parity/registry.yml` gains no new classes.
+- **AC2 (bash preview collapse — BRIEF §8, property).** Bash tool output blocks render pi's collapsed preview when the output exceeds 5 lines: the LAST 5 lines kept, the hint row byte-exact (`... (N earlier lines, ctrl+o to expand)`) with pi's muted/dim span styles, no collapse and no hint at 5 lines or fewer; live and replay paths share the shape; existing truncation-warning behavior composes unchanged. Named tests in `test/chat_test.rb` pin the collapsed shape, the exact-5/exact-6 boundaries, trailing-blank handling (per pi's `VisualLinePreview` source, verified in PHASE 0), and the replay rows.
+- **AC3 (s2/s3 regression — BRIEF §8).** `parity/scenarios/s2_tool_turn.yml` and `parity/scenarios/s3_tool_turn_files.yml` still exit 0 — the collapse changes the bash block's output rows on the landed I17/I18 surface; short outputs (s2's echo) must render identically (under the 5-line boundary) and the write/read shapes (s3) must be untouched.
+- **AC4 (rig test home — I18 Verdict D').** `test_an_empty_tcp_connection_consumes_no_scripted_response` lives in `test/parity/mock_llm_extension_test.rb` (its natural home, beside the mock's other rig-extension tests and helpers) and no longer in `test/parity/scenario_test.rb`; the suite stays green; no helper duplication remains that the move orphans.
+- **AC5 (suite, bench — standing).** `bundle exec rake` green (0 failures, 0 errors) including the new collapse tests; `bench/seam_bench.rb` prints `SEAM_BENCH_OK`; the gemspec runtime dependency set is unchanged.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse bash-preview-collapse` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC2, AC4, AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s4-parity
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    bin/pty-tester run parity/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    bin/pty-tester run parity/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    bin/pty-tester run parity/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
+  expect:
+    exit_code: 0
+
+- id: preview-tripwire
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    grep -q "earlier lines" lib/tart/render/chat.rb && echo PREVIEW_OK
+  expect:
+    exit_code: 0
+    stdout_match: PREVIEW_OK
+
+- id: rig-home-tripwire
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    grep -q "test_an_empty_tcp_connection_consumes_no_scripted_response" test/parity/mock_llm_extension_test.rb && echo RIG_HOME_OK
+  expect:
+    exit_code: 0
+    stdout_match: RIG_HOME_OK
 ```
 
 ## Builder Prompt
