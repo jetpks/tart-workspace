@@ -720,6 +720,13 @@ project:
       - test/parity/scenario_test.rb
       - test/parity/live_run_test.rb
       - README.md
+      base_sha: df0ece976717ae0da8b4b051718dfc5f5c390c14
+      worktree: build/I16-identity-parity-identity/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      integrate_sha: 341ac87f5c520854b66fb208ff5d20a7088a7993
     - name: uuid
       repo: tart
       touch_set:
@@ -728,6 +735,15 @@ project:
       - Gemfile.lock
       - lib/tart/agent/session.rb
       - test/session_test.rb
+      base_sha: df0ece976717ae0da8b4b051718dfc5f5c390c14
+      worktree: build/I16-identity-parity-uuid/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-10T20:36:08-06:00'
+      effort: medium
+      integrate_sha: fbe3e3dc775f2c087763fb529076e7e799e3f1fe
     rehearsal:
       gates_digest: 2a61ecee1fa0763859d45f9fcfa09aa9164511fe637e8e1b81c932c8dccf23d9
       at: '2026-10-10T20:32:09-06:00'
