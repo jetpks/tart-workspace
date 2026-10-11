@@ -9,11 +9,27 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section editor-kill-ring grounds --from <file>`. -->
+# Grounds — I26 editor-kill-ring
+
+Measured this session (2026-10-11) at base **16f20fd** (= `project/pi-port` tip after I25 + the owner-directed dead-code cleanup):
+
+1. **Directive amendment (owner, this session).** The "pty-tester work leaves the loop" directive is RESCINDED: pty-tester/tui-split-rig work happens IN the loop and is a first-class parallel-lane candidate; the rig is integral and should keep expanding (s7, probes, …). Also corrected: the TL;DR "REMAINING: the mode-aware token table" line was STALE — the table landed at **5af076d** (COLORTERM two-mode detection `theme.rb truecolor?` + pi colors.ts:279-297 rgbToAnsi256 downgrade math), and the registry carries no accent color-mode pin (grep clean this session). The mode-aware table is DONE; I26's theme-side work is nothing.
+
+2. **pi's emacs editor slice (measured this session, packages/tui/src):**
+   - `kill-ring.ts` (46 l, its own module): `push(text, {prepend, accumulate})` — accumulate merges with the most recent entry (consecutive kills coalesce), prepend for backward deletions; `peek()` (most recent, non-destructive); `rotate()` (last→front, for yank-pop cycling); `length`.
+   - `components/editor.ts` kill ops: `deleteToStartOfLine` (:1625) — kills `line[0...cursorCol]` with `prepend: true, accumulate: lastAction === "kill"`; at col 0 with a previous line, merges lines killing `"\n"` (the port's editor is single-line — that branch is N/A, itemized cut). `deleteToEndOfLine` (:1660) — mirror image, `prepend: false`. `yank` (:1998) — inserts `peek()`, sets `lastAction = "yank"`. `yankPop` (:2013) — only when `lastAction === "yank" && ring.length > 1`: deletes the previously yanked span, `rotate()`, inserts the new peek.
+   - `keybindings.ts` editor defaults: `cursorLineStart` = home/**ctrl+a**; `cursorLineEnd` = end/**ctrl+e**; `deleteToLineStart` = **ctrl+u**; `deleteToLineEnd` = **ctrl+k**; `yank` = **ctrl+y**; `yankPop` = **alt+y**; `deleteWordBackward` = ctrl+w / alt+backspace; `deleteWordForward` = alt+d / alt+delete; `undo` = ctrl+- (undo-stack.ts — OUT of scope this iteration: the owner asked movements + kill ring); `jumpForward`/`jumpBackward` = ctrl+]/ctrl+alt+] (out of scope).
+   - Owner's priority set (this session): **ctrl+e, ctrl+a, ctrl+u, ctrl+k** "the ones i use the most" + the kill ring working correctly.
+
+3. **The port's editor state (measured this session):** `lib/tart/render/editor.rb` (269 l) — single-line `@input` string + `@cursor` integer; ops: insert/delete_backward/delete_forward/move_left/right/start/end/move_word_backward/forward/delete_word_backward/forward/history_*/bash_mode?/slash_token/input_spans/replace_token/clear/insert_printable/add_to_history. `chat.rb edit_input` (line ~540) already binds: ctrl+a→move_start (:626), ctrl+e→move_end (:627), alt+b/ctrl+b→word-back (:628), alt+f/ctrl+f→word-fwd (:629), ctrl+w→delete_word_backward (:643), alt+delete→delete_word_forward (:621), home/end (:624-625). **The gaps: no `"u"`, `"k"`, `"y"` cases** — ctrl+u/ctrl+k/ctrl+y fall through to the `else @editor.insert_printable(event)` arm and are no-ops (printable excludes ctrl-modified events, :545); alt+y likewise unbound. pi's alt+backspace (deleteWordBackward's second default) — the port's backspace case (:618) is unverified for alt; the lane checks it against keybindings.ts:124 and binds the full default set.
+
+4. **Test surface:** there is NO dedicated editor test file — the editor's I06 behavior is pinned through `test/chat_test.rb` driving `edit_input`. New direct-class tests are sanctioned (the `markdown_test.rb`/`theme_test.rb`/`test/render/**` precedent; pi's own `editor.test.ts`/`editor-history-keybindings.test.ts` drive the Editor class directly). The kill ring is a NEW public class (`lib/tart/render/kill_ring.rb` — pi's file split) and gets direct tests; binding wiring stays coordinator-tested through edit_input.
+
+5. **Rig state + the unmeasured surfaces (the rig lane's deliverable):** s1–s6 all exit 0 cold; the s5/s6 slice closed the truncation-notice and call-row-wrap families (d4e5590). NOT exercised by any scenario: (a) the **compaction summary panel** — pi `CompactionSummaryMessageComponent` (compaction-summary-message.ts), a `customMessageBg` (#3a3055) Box(outputPad,1) with customMessageLabel/customMessageText — the port renders the summary as plain dim markdown (the I08/I12 shape); (b) the **live pending state** — pi's tool blocks carry `toolPendingBg` (#34383a) while a tool runs; the port enqueues blocks at completion only. Deliverable: author `s7_compaction` (the deterministic trigger candidate is the `/compact` slash command — both apps implement it; the lane verifies the mock-LLM/session machinery supports it) + a pending-state probe (the I19/I20 probe precedent: mid-flight capture vs the settled-screen runs), pin BOTH apps' baselines, exit 1 at baseline is EXPECTED (the candidate list = the panel-port work list, exactly the s4/s5/s6 pattern).
+
+6. **Control (this session, base 16f20fd):** suite 445 runs / 1787 assertions / 0 failures / 0 errors / 1 pre-existing skip; SEAM_BENCH_OK; s1+s2 exit 0 cold post-cleanup (16f20fd); registry has no accent/color-mode pin. All regression claims below are against this measured baseline.
+
+**Lane plan:** two parallel lanes, disjoint by construction — `editor` (lib/tart/render/{kill_ring.rb new, editor.rb, chat.rb}, test/**) and `rig` (gems/tui-split-rig/**). No file overlap; chat.rb is editor-only, gems/** is rig-only. The compaction-summary-panel PORT (closing s7) is deliberately NOT in this iteration — s7's baseline IS its spec (next iteration or out-of-loop slice, owner's call after reading the candidate list).
 
 ## Specification
 
