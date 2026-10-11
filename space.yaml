@@ -1047,7 +1047,19 @@ project:
   - name: decomp-wave4
     ordinal: 24
     file: architecture/I24-decomp-wave4.md
-    freeze_sha:
+    freeze_sha: e6b71172f3bbae6fae289836494ed6266f1befc8
     verdict: pending
-    lanes: []
+    lanes:
+    - name: content
+      repo: tart
+      touch_set:
+      - lib/tart/render/chat.rb
+      - lib/tart/render/motd.rb
+      - lib/tart/render/user_bash.rb
+      - lib/tart/render/footer.rb
+      - test/chat_test.rb
+      - test/render/**
+    rehearsal:
+      gates_digest: 3ef30071e1c86b87843934dc2c45cadeacea468f247a146fc9f7a1f855d256de
+      at: '2026-10-11T15:57:01-06:00'
   integration_branch: project/pi-port
