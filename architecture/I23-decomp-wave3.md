@@ -25,35 +25,47 @@ Measured this session (2026-10-11) at base **4d858125** (= `project/pi-port` tip
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section decomp-wave3 specification --from <file>`. -->
+- **Objective.** The third wave of the five-wave chat-surface decomposition (Grounds 1–7; owner decisions in ARCHITECT.md): a **pure refactor — zero behavior change, proven byte-exact by the rig** (BRIEF §8: s1–s6 stay exit 0; registry byte-identical to base 4d858125; no parity-needle movement). Wave 2 moved the stateful input-line cluster; **wave 3 moves the viewport cluster — the scroll state machine and the mouse-selection state machine** (Grounds 6/7): two stateful classes + three pure cell utilities to `Text`, with `Chat` surviving as the coordinator (pi's interactive-mode.ts role: mouse routing, geometry math, render composition, locks, the kernel timer arm). Why: same reason as waves 1–2 — chat.rb is still a 2,233-line god object, the content/transcript waves (4/5) keep colliding in it, and this refactor has the byte-exact oracle (the rig) that feature work will not.
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+- **Target class assignment (the decomposition shape — the deliverable; every line range verified at base 4d858125, Grounds 2; every family body read and verified to touch ONLY its own state plus the named external seams):**
+
+  | Class (new file) | Owns (state) | Methods (from Chat; chat.rb l. at base) |
+  |---|---|---|
+  | `Tart::Render::Viewport` (`lib/tart/render/viewport.rb`) | `@scroll_offset`, `@follow`, `@scrollbar_activity_at`, `@scrollbar_timer_epoch`, `@scrollbar_hide_delay_ms`; constants `SCROLLBAR_HIDE_DELAY_MS` (63), `WHEEL_LINES_PER_EVENT` (85), `ALT_WHEEL_MULTIPLIER` (86), `WHEEL_DIRECTION` (90) | `scroll_page` (1476), `scroll_by` (1489), `mark_scrollbar_activity`'s stamp+epoch state machine (1506), `scrollbar_hide_delay_ms` (1518) + the attr_writer test seam (345), the render-time offset maintenance from `transcript_widget` (1827-1831: clamp + re-arm follow + force-hide + the window slice) as a Viewport op, `scrollbar_visible?` (1845), `overlay_rail_cell` (1861), `scrollbar_glyphs` (1872), + a reset op (from `clear_transcript` 982-983) |
+  | `Tart::Render::Selection` (`lib/tart/render/selection.rb`) | `@selection`, `@last_click`; constants `DOUBLE_CLICK_SECONDS` (95), `WORD_JOINERS` (99), `Point` (116) | `selection_press` (1566), `selection_drag` (1584), `selection_release` (1595), `update_selection_focus` (1605), `selection_bounds` (1627), `before?` (1634), `selection_text` (1637), `word_range` (1686), `word_char?` (1703), `line_range` (1708), `next_click_count` (1716), `highlight_row` (2087), `selection_columns` (2102), `reverse_cells` (2113), `span_pieces` (2125), + a reset op (from `clear_transcript` 984-985) |
+  | `Tart::Render::Text` (existing module) gains | — | `char_index_at_cell` (1695), `take_cells` (1735), `slice_cells` (1744) — pure string/cell utilities, wave 1's text family completion |
+
+  **Shape rules.** (a) The classes are **not thread-safe by design** — `Chat` owns `@mutex` exactly as today: the same methods synchronize as at base (`render_frame` via the render path, the `scroll_offset` readback, the public setters); event handling (`handle_mouse` path) runs on the kernel task unsynchronized, exactly as today. Do not add locks to the classes. (b) **External seams threaded, not held:** the content size/lines and geometry (area rows, width) are passed per call — house style, the wave 1/2-established positional threading (`lines(width)`); the content-line access for Selection is a construction-injected reader over Chat's live transcript (exact form — a `plain_line` proc vs. per-call arrays — is builder judgment, pick one, stay consistent, PHASE 0 if it misfits); **the kernel async stays in Chat** — `mark_scrollbar_activity` splits at the state machine: Viewport owns the stamp + epoch (mark returns the epoch; an epoch-expired check + a hide op on Viewport), Chat owns the `@kernel.async` arm (the host reactor wiring — pi's timer lives on the host; Grounds 2). (c) **Chat keeps the coordinator glue:** `handle_mouse` (mouse routing), `wheel` (the wheel math routing into `Viewport#scroll_by`), `content_point` (composes viewport state + geometry + content — reads `@viewport.offset`), `plain_content_line` (the content seam over `display_lines`), `transcript_area_rows`, `viewport_width`, `display_lines`, `transcript_widget` (render composition — calls Viewport ops + `Selection#highlight`-equivalent), `build_widget`, `editor_area_rows`, `dock_spacer_rows`/`DOCK_SPACER_ROWS`, `MIN_EDITOR_ROWS`, `edit_input`'s page branches, `clear_transcript` (calls both resets), the `scroll_offset` readback (411 — mutex-synchronized delegation to the viewport; Chat's public surface, NOT a delegator shim). (d) **Chat's public surface is UNCHANGED** — constructor params, `edit_input`, `submit`, the readbacks (`scroll_offset` included), AND the `scrollbar_hide_delay_ms=` test seam (345 — it stays on Chat's public surface like the readbacks; it may delegate internally to the viewport; the 8 chat_test call sites keep working byte-for-byte). (e) **Selection's copy seam:** `TUI.osc52_copy` fires inside the Selection release op (it rides the moved body) — Chat passes nothing; the release returns after the copy, exactly as today. (f) `highlight_row`/`selection_columns`/`reverse_cells`/`span_pieces` move as Selection ops (render queries over its own bounds — pi homes applySelection in the selection handler); their callers (`transcript_widget`'s window loop) call the object with the line passed positionally. (g) Method renames inside the new classes are sanctioned where the prefix is stutter (`selection_press` → `press(point, …)`, `scrollbar_visible?` → `visible?` — house judgment, stay consistent, PHASE 0 the list); Chat's public method names are frozen. Naming of the holder ivars is builder judgment — keep it obvious (`@viewport`, `@selection_state` or `@selection`).
+
+  If any assignment proves wrong at the code (a method secretly needs more than the named seams, two classes share state better homed once), raise it PHASE 0 with the line evidence — do not silently reshape.
+
+- **Context.** Grounds 1–7 (all measured this session at base 4d858125): the cluster inventory, the state ownership, the caller facts, the pi citation targets, and the mutex discipline. Base tree: suite 445/1787 green, s1–s6 exit 0 cold, registry byte-identical to a7b72f9f.
+
+- **Output format.** RAW results only, to the scratch report: (a) the method-move table (each moved method/class-helper/constant/ivar → its class); (b) `wc -l lib/tart/render/chat.rb` before/after + `wc -l` of each new class file; (c) the state-leak proof: `grep -nE '@(scroll_offset|follow|scrollbar_activity_at|scrollbar_timer_epoch|scrollbar_hide_delay_ms|selection|last_click)\b' lib/tart/render/chat.rb` → no matches (comment lines included in the check — move the prose to the classes); (d) `bundle exec rake` tail with run/assertion counts (net test delta expected 0 — moves only, no new tests demanded); (e) s1–s6 runs via `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml --out <scratch>/<s>` — all six RAW exit codes, each 0; (f) PHASE 0 disagreements (mandatory) + STATUS line.
+
+- **Tool guidance.**
+  - Verification (tart repo): `bundle install --quiet && bundle exec rake` (default task = minitest, includes the rig's tests), `bundle exec ruby bench/seam_bench.rb` (prints `SEAM_BENCH_OK`).
+  - Byte-exact oracle: the six rig runs above. Exit 0 on all six = byte-identical settled screens vs pi. A single unknown-candidate line is a FAIL to root-cause and report, never paper over.
+  - pi citations to carry forward in the moved bodies (they already ride the code — move them with it): scroll-view.ts (scrollBy :127-135, markScrollbarActivity :97-110, isScrollbarVisible :74-78, updateLayout :180-200 force-hide, getContentWidth :80-82), layout.ts paintScrollbar :307-330, tui-alt-screen.ts (handleSelectionMouseEvent :1322, wheel :710, alt multiplier :79, getScrollSelectionPoint :1133-1155, getWordSelection :1167-1212, getLineSelection :1214-1219, getClickCount :1247-1267, updateSelectionFocus :1226-1244, getSelectionBounds :1403-1426, getActiveSelectionText :1414-1437, getSelectionColumns :1429-1447, applySelection :1589-1638, applySelectionHighlight :1572-1584, copy-on-select :269), chat-viewport.ts :22-45.
+  - Test surgery: **this wave's tests STAY** — the scroll tests (page pan/refollow, stay-put, scrollbar transient visibility, overlay) and the mouse tests (drag-select + copy, double/triple click, plain-click drop, selection-survives-scroll) drive Chat's public event surface and the `scroll_offset` readback: coordinator tests, `chat_test.rb` keeps them. The `scrollbar_hide_delay_ms=` call sites keep working unchanged (shape rule d). A test moves ONLY where its subject is a moved pure function with a 1:1 direct-call mapping in the new class; the net run-count delta is expected 0 — any delta must be PHASE-0-raised with the reason. New direct-class tests are NOT demanded this wave (the existing coverage is coordinator-level and stays coordinator-level; the rig is the byte-exact oracle).
+
+- **Boundaries.**
+  - **May touch:** `lib/tart/render/chat.rb`, `lib/tart/render/viewport.rb` (new), `lib/tart/render/selection.rb` (new), `lib/tart/render/text.rb` (the three cell utilities only), `test/chat_test.rb`, `test/render/**` (new, only if a move per the rule above). **Must not:** `bin/tart` (NO change this wave — no external call sites, Grounds 4), `lib/tart/render/editor.rb`, `autocomplete.rb`, `picker.rb`, `slash_source.rb` (wave 2's sealed classes), any other lib file (`markdown.rb`, `panel.rb`, `bash_block.rb`, `file_blocks.rb`, `tool_block.rb`, `theme.rb`, `tui.rb`, `commands.rb`, `identity.rb`, `lib/tart.rb`), `tart.gemspec`, `Rakefile`, `gems/tui-split-rig/**`, `parity/**`, `bench/**`, `test/support/**`, `Gemfile*`. If a call-site change seems needed outside the set, PHASE 0 it, do not touch.
+  - **Out of scope — wave 4/5 families that MUST remain in `chat.rb` untouched:** content/transcript/scrollback (`enqueue_*`, `push_expandable`, `flush_scrollback`, `set_tool_output_expanded`, `complete`, `live_lines`, `plain_content_line`, `display_lines`, `transcript_widget`, `transcript_area_rows`, `viewport_width`), footer/stats (`footer_*`, `read_branch`, `context_*`, `cache_hit_rate`), MOTD/identity (`enqueue_motd`, `pi_header_lines`, `motd_sections`, `pi_hint_spans`), widget layout (`build_widget`, `dock_spacer_*`, `editor_area_rows`), user-bash execution, `submit`, `edit_input`, `status_*`, `set/cycle_thinking_level`, `handle_mouse`, `wheel`, `content_point`. Also out of scope: any behavior change, any API redesign beyond the assignment table, publishing/gemspec changes.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision decomp-wave3`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: viewport
+  repo: tart
+  touch:
+    - lib/tart/render/chat.rb
+    - lib/tart/render/viewport.rb
+    - lib/tart/render/selection.rb
+    - lib/tart/render/text.rb
+    - test/chat_test.rb
+    - test/render/**
 ```
+
+- **Effort.** **High** — a ~500-line stateful extraction from a 2,233-line file with byte-exact gates, a split state machine (the scrollbar timer arm stays in Chat while the stamp/epoch move), an injected content-reader seam for Selection, and render-composition rewiring (`transcript_widget`'s window loop calling through the objects). One lane — the cluster is one tightly coupled seam; parallel lanes would collide in chat.rb/chat_test.rb.
 
 ## Acceptance Criteria
 
