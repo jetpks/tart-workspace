@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: fourth-run-parity
+  current_iteration: identity-parity
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -692,4 +692,10 @@ project:
     rehearsal:
       gates_digest: d8dfed2c0a644e03432eb0b1440b61612e225355c4c36efbc1bca21d7002804c
       at: '2026-10-10T17:45:35-06:00'
+  - name: identity-parity
+    ordinal: 16
+    file: architecture/I16-identity-parity.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
