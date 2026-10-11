@@ -1074,7 +1074,17 @@ project:
   - name: transcript-expandables
     ordinal: 25
     file: architecture/I25-transcript-expandables.md
-    freeze_sha:
+    freeze_sha: 16b988db3fa97725544aa91b056321e58a7515f8
     verdict: pending
-    lanes: []
+    lanes:
+    - name: transcript
+      repo: tart
+      touch_set:
+      - lib/tart/render/chat.rb
+      - lib/tart/render/transcript.rb
+      - test/chat_test.rb
+      - test/render/**
+    rehearsal:
+      gates_digest: f35c6097edc5e8e835b6a82eca1619d5a65454afcab166158085185f5301839b
+      at: '2026-10-11T16:55:03-06:00'
   integration_branch: project/pi-port
