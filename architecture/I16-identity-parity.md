@@ -993,15 +993,38 @@ STATUS: COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section identity-parity verdict --from <file>`. -->
+### Disagreement rulings (PHASE 0, both lanes)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify identity-parity`)?
+**Identity lane — 7 deviations, all ACCEPT:**
+
+1. **Echo/reply blank structure per pi's real mechanism, not the spec's "component leading spacers" phrasing — ACCEPT.** The spec's *what* was pi's settled bytes; the builder verified the real mechanism (user-message paddingY=1 blank above AND below, assistant internal leading Spacer, container spacer gated on non-emptiness via a `@chat_started` flag reset on new/resume) and matched it — AC1's exit-0 bytes are the proof. The grounds phrasing was my shorthand; the builder's mechanism is the faithful one.
+2. **Footer provider label: pi's >1-available-provider gate unimplementable without a catalog — ACCEPT.** The spec itself ordered "design the seam against pi's mechanism (its models.json lookup) and make it stageable by the rig" — staged `TART_MODEL_PROVIDER` > RubyLLM registry `.provider` > `defaultProvider` is exactly that; the s1 bytes contract (`(mock) mock-1`) holds, gate PASS cold. A letter-vs-spirit conflict properly reported with source evidence (footer.ts:246-258).
+3. **Wrap width = width − paddingX·2 with left pad only rendered — ACCEPT.** pi subtracts paddingX from both sides (markdown.ts:289); the port wraps to the same content width and renders the left pad — the right pad is trailing whitespace, capture-invisible (tmux trims). Faithful everywhere the instrument (or a human eye) can see.
+4. **Abort prefix: pi prints `Error: <msg>` with no app-name prefix, so `tart: ` stays in both modes — ACCEPT.** The spec's item 5 assumed pi had a comparable prefix; the builder's source evidence (cli.ts:333, main.ts:102-103) proves it doesn't — a spec-authoring defect caught exactly where PHASE 0 should catch it. Log for the exact-parity backlog: pi-mode's abort shape (`Error: …`, bare) is a residual divergence to fold into a later live-run slice if it becomes instrument-visible; it is not on the s1 settled screen.
+5. **`TART_IDENTITY` documented at the bin/tart call site, env READ only in `Tart::Identity` — ACCEPT.** One resolution point, as the spec ordered.
+6. **Out-of-scope cuts kept and itemized — ACCEPT.** Per the boundary list; the s2+ items (tool lines, `⎿`, compaction/error-line padding) stay NEXT-iteration work, and the pi-mode hint *text* renders without the bindings (correct: the bytes are the contract, the machinery is s2+).
+7. **The I14 frozen cross-lane footer pin (`model • <level>` unconditional) superseded by the reasoning gate — ACCEPT.** This is spec item 4 itself; both sides of the seam (bin/tart, chat.rb) are this lane's files; the pin was updated to pi's real gate, not weakened — the new `test_footer_renders_the_thinking_level_right_aligned` is strictly stronger than the old unconditional pin.
+
+**uuid lane — ACCEPT (burst ruling + notes):** the spec demanded a measured same-millisecond ruling, not a silent swap — the builder delivered one (Fast::UUID.uuid_v7 = 74 fully random bits, no counter/no shared state per gem source; 10k burst, 0 collisions, both implementations; sub-ms time semantics round-vs-floor itemized with the contract shown unaffected). Session tests unmodified and green — the surface held. Parsing audit (none exists; generation-only adoption complete) matches the spec's grep-first instruction — nothing invented.
+
+### Acceptance Criteria integrity
+
+`architect verify identity-parity`: all 8 checks PASS both lanes (frozen sections untouched, no builder commits, scratch reports present, in-bounds — confirmed by hand: identity worktree diff = touch set + the two authorized new files; uuid worktree = gemspec/Gemfile.lock/session.rb only; both `git log df0ece97..HEAD` empty). `git diff fc3a57d1 HEAD -- architecture/I16-identity-parity.md` = Builder Prompt/Report appends only, hunk starting at the Builder Prompt section.
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | s1-parity gate cold: exit 0; summary.json `candidates: []`, classes `{parity-run-path: 2}` (path normalization only); first-14 capture rows byte-identical pi↔tart; `parity/registry.yml` 0-line diff | §8 | PASS |
+| AC2 | Resolution CLI > env > settings > default proven by `Tart::SettingsTest#test_identity_resolves_cli_over_env_over_settings_over_default`; invalid values error naming pi/tart; per-mode MOTD bytes test-pinned (`test_motd_renders_pi_header_bytes_in_pi_mode` rows 1–7 + brand-color cells; tart-mode art/version/hints test); resume hint follows identity; structural items hold in both modes (tart-mode capture footer `(mock) mock-1`) | §8 | PASS |
+| AC3 | Rig env seam: `Scenario#parse_env` validated at load (unknown-app / non-mapping errors, stringification, tested); `Runner#staged_env` layers scenario env over staged env for BOTH apps; `s1_tart.yml` pinned + loaded-scenario test; s1-tart-mode gate cold: TART_MODE_OK (`tart v0.1.0` present, `Pi can explain` absent, footer format holds) | §8 (pty-tester BRIEF §2) | PASS |
+| AC4 | Suite cold: 354 runs / 1402 assertions / 0 failures / 0 errors / 1 skip (PTY_TESTER_LIVE opt-in); SEAM_BENCH_OK; gemspec diff = exactly `+fast-uuid ~> 0.1.0` | §4, §8 | PASS |
+| AC5 | `Session.uuidv7` → `Fast::UUID.uuid_v7(time:)`, fallback → `Fast::UUID.uuid_v4`; `test/session_test.rb` unmodified (0-line diff) and green; burst/same-ms PHASE 0 ruling delivered with measured evidence (0 collisions in 10k both impls) | §2 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+Gates: 6/6 PASS cold (suite, bench, s1-parity, s1-tart-mode, identity-seam-tripwire, fast-uuid-tripwire — the two grep gates read as tripwires only; substance read above from the named tests and the rig run).
+
+### Idiomaticity / house-style read
+
+Well-factored: `Tart::Identity` is one small module_function resolution point; chat.rb splits `pi_header_lines` / `tart_header_lines` / `pi_mark` / `apple_terminal?`; settings additions follow the existing `resolve_setting`/ENV_KEYS pattern; `parse_env` validates at load like the rest of Scenario. Comments cite pi source anchors throughout — the repo's established idiom. No needless abstraction, no placeholder code. Reads like the surrounding code.
+
+### Iteration
+
+**CONTINUE — diff vs BRIEF §8 faithful: the s1 baseline moved from exit 1 / 18 unknown candidates to exit 0 / byte-identical settled screens, with the identity seam and the rig env seam landing as specced; one decisive reason: the instrument now says indistinguishable on the first measured slice.**

@@ -696,7 +696,7 @@ project:
     ordinal: 16
     file: architecture/I16-identity-parity.md
     freeze_sha: fc3a57d10c3c75440668258a5a934fdead8f7712
-    verdict: pending
+    verdict: continue
     lanes:
     - name: identity
       repo: tart
