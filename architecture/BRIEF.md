@@ -70,3 +70,32 @@ The harness is the owner's daily driver:
 5. The §5 whitespace behavior is fixed and covered by tests (post-parity, per §5).
 6. Compaction triggers and recovers correctly on long sessions.
 7. A real multi-tool session run on this very space end-to-end, judged by gates.
+8. **The §8 exact-parity bar: every pinned pty-tester scenario exits 0 cold from the project branch.**
+
+## §8 The exact-parity program (owner course change, 2026-10-10)
+
+The done bar moves from "port the used parts" to **full settled-screen parity**: run pi and tart
+under identical scripted conditions, and an owner using pi in one tab and tart in another cannot
+tell which is which — same header, glyphs, transcript rendering, footer, colors, everything.
+Scope stays the §3 daily-driver surface; §5/§5.1 discipline is unchanged (deviations itemized,
+never silent), and the instrument decides, not eyeballs.
+
+- **Instrument:** pty-tester (merged `df0ece9`) — staged/sandboxed side-by-side runs of the pi
+  oracle (1.1.0) and tart, settled `tmux capture-pane` diffing with a minimal difference-class
+  registry (per-run path normalization only). A parity gate is `bin/pty-tester run <scenario>`
+  exiting 0. Known divergences surface as unknown-candidate lines — **that candidate list IS the
+  work list.** A difference class is pinned only by owner ruling, never to hide a defect
+  (pty-tester BRIEF §2 discipline carries over verbatim).
+- **Identity seam — the one sanctioned mechanism deviation:** tart renders **pi's identity by
+  default** (pi's logo, name, version line, hints, onboarding text — byte-for-byte). The tart
+  identity (the owner's art collection, `tart v0.1.0`, tart hints) returns across the app through
+  a configuration seam pi does not have: settings key + env var + CLI flag, CLI > env > settings,
+  default `pi`. This supersedes the 2026-10-10 ruling "do NOT copy pi's ascii art — the owner
+  designs tart's own": the art collection lives behind the toggle; pi-mode copies pi's mark
+  exactly.
+- **Version string in pi-mode:** the MOTD version line renders the oracle's version (a tracked
+  constant, e.g. `v1.1.0`), not tart's — indistinguishability is the point; it bumps when the
+  oracle pin moves.
+- **The toggle is identity-only.** Everything behind the identity seam is presentation (logo,
+  name, version line, hints text). Behavior, colors, and rendering rules are parity-first in BOTH
+  modes — tart-mode is the same engine with tart's name on it, not a fork of the render path.
