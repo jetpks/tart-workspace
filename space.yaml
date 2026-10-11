@@ -1032,6 +1032,15 @@ project:
       - lib/tart/render/text.rb
       - test/chat_test.rb
       - test/render/**
+      base_sha: 4d858125e8de1203b0adcd823ed8c2dd68fe72d9
+      worktree: build/I23-decomp-wave3-viewport/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-11T15:24:04-06:00'
+      effort: high
+      integrate_sha: ef2b4a6d5161db9f57f267109779c90a02ee53dc
     rehearsal:
       gates_digest: 6e9c364c63b12e5d8fd5e7f8374b8ac0063f755cbe5fd77b79d50903b200b448
       at: '2026-10-11T15:21:27-06:00'
