@@ -340,6 +340,211 @@ Gates you can run locally (from your worktree):
     bin/pty-tester run parity/scenarios/s2_tool_turn.yml --out <scratch-dir>
       # expected AFTER your cure: exit 0
 
+### file-render
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo. Silent compliance
+is a failure. Silent scope additions are a failure. If you have no
+disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed in BOUNDARIES. You
+are one of several parallel lane agents working in isolated worktrees; files
+outside your lane belong to other agents — touching them fails your lane.
+No placeholder implementations — search the codebase before implementing;
+full implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive forms); well-factored and
+DRY-ish; terse but clear; pragmatic, not clever — the smallest change that does
+the job, no abstraction it doesn't need. Tests stay simple and terse, exercising
+public behavior, no mock/stub of the class under test. Verify your work by
+running the acceptance criteria's gate commands and record the verbatim output.
+Do NOT commit and do NOT run any git write command (commit/add/branch/reset/
+checkout) — the architect commits and merges after verification, and verifies
+you made no commits. Do NOT delete lock files or escalate privileges if a
+command fails; record the exact error and continue. Do NOT use run_in_background
+(or shell `&`) for your own work — run long commands serially in the foreground
+with explicit timeouts instead. When done, write your report to the scratch
+file given below (an absolute path OUTSIDE your worktree), with RAW results
+only — tables, numbers, command output — no interpretation. Every status claim
+must be backed by a command result from this run. Keep the report compact.
+Do not title the report; keep any headings at `###` or deeper. End with exactly
+one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them) |
+BLOCKED (exact blocker + what you tried). Verdicts belong to the architect and
+the human.
+
+=== LANE: file-render (I18 tool-render-parity) ===
+
+Report file: /Users/eric/architect/spaces/20261009-pi-port/build/I18-tool-render-parity-file-render/report.md
+
+=== OBJECTIVE (and why) ===
+
+BRIEF §8 exact-parity program, the s3 slice. The write/read tool turns'
+settled screens diverge because the port renders every non-bash tool through
+one invented `⎿ name: result-preview` shape (chat.rb `tool_line`, I17 kept it
+deliberately for non-bash). pi renders the tool CALL — write: a bold
+`toolTitle` `write` + `renderToolPath` path, then the written CONTENT as a
+preview block (max 10 lines + a muted `... (N more lines, M total, <key> to
+expand)` hint when longer); read: the call line + the file content as
+`toolOutput` result lines. pi's write result renders NOTHING on success
+(formatWriteResult returns undefined unless error). Your lane ports the
+write/read render shapes, live and replay paths, to pi's bytes.
+
+THE CAPTURE IS THE CONTRACT — the architect's control run this session
+(/Users/eric/architect/spaces/20261009-pi-port/repos/tart/tmp/parity-s3-control/
+— READ ONLY, do not re-run to confirm the baseline). Current 8 unknown
+candidates (verbatim; `-` = pi-only, `+` = tart-only):
+
+```
++  ⎿ write: Successfully wrote to s3-tool-turn-note.txt
+- write s3-tool-turn-note.txt
++  ⎿ read: parity s3 sandbox note
+- parity s3 sandbox note
++ The file tools ran; fixed final reply for the spike.
+- read s3-tool-turn-note.txt
+- The file tools ran; fixed final reply for the spike.
++
+```
+
+Read BOTH settled captures (pi.capture, tart.capture) in that directory —
+every row and its blank-line structure is the contract, not just the diff
+lines.
+
+pi oracle anchors (verified by the architect; re-verify in PHASE 0):
+- core/tools/renderers/write.ts:96-126 `formatWriteCall`
+  (`theme.fg("toolTitle", theme.bold("write"))` + `renderToolPath(rawPath,
+  theme, cwd)`; blank line; content lines — language-highlighted when a lang
+  is detected, else plain `theme.fg("toolOutput", …)`; `trimTrailingEmptyLines`;
+  max 10 lines unexpanded; the expand hint), :128-143 `formatWriteResult`
+  (undefined unless error), :145-177 renderCall/renderResult dispatch;
+- core/tools/renderers/read.ts:35-64 `formatReadCall`, :67-110
+  `getCompactReadClassification`/`formatCompactReadCall` (the compact shape
+  used when not expanded), :112-149 `formatReadResult` (content as
+  `toolOutput`, truncation warning);
+- `renderToolPath` — find it via the renderers' shared imports; port its path
+  display (cwd-relative contraction) exactly.
+
+CUT, itemized with anchors (never silent):
+- pi's write-call syntax highlighting (highlightCode/cache) — the port has no
+  highlighter; s3 writes a `.txt` (no language) so pi renders plain there
+  too — invisible to s3, but the cut is real for code files; itemize.
+- The expand hint's `keyHint("app.tools.expand", …)` machinery — the port
+  serves no ctrl+o expand yet (backlog C); render the hint's TEXT bytes per
+  the capture/pi source, but the keybinding itself is out of scope.
+- Non-bash tools OTHER than write/read (edit/grep/ls/find): keep the existing
+  `⎿` shape untouched, itemized unmeasured.
+- The `Elapsed` live-progress line: live-only, invisible to settled captures.
+
+Design contract (mechanism-level where it must be):
+
+1. **Dispatch by tool name** — write and read get their shapes; everything
+   else non-bash keeps `tool_line`. Mirror pi's per-tool renderCall dispatch.
+2. **Write call block:** bold `write` (Theme toolTitle token — verify the
+   port's Theme has it or add it mapped to pi's dark value) + the
+   `renderToolPath` path display, blank line, content lines muted (`toolOutput`
+   analog — the I17 ruling: `Theme[:tool_output]` `#9da5a9` IS pi's dark
+   muted truecolor), trailing-empty-lines trimmed, max 10 lines + the muted
+   expand-hint line when longer. Success result: NOTHING (the result block is
+   empty — pi renders no result row on success). Error result: the error text
+   (pi write.ts:128-143 shape).
+3. **Read block:** the call line per `formatReadCall`/compact classification
+   (READ pi source and the capture; the capture settles which shape the
+   settled screen shows), then the content as muted `toolOutput` result lines
+   (pi formatReadResult), truncation warning per pi if the read was
+   truncated.
+4. **Blank structure:** derive from pi source (the tool-execution component's
+   Spacer/paddingY — the I17 derivation, tool-execution.ts:85-87) and pin
+   against the capture rows; the bytes are the contract.
+5. **Replay:** write/read blocks replay through the same shapes — path and
+   content from the recorded assistant `tool_calls` arguments, result content
+   from the recorded tool results; NO duration lines (unchanged). If golden
+   fixtures pin the old replay shape, update the ones your change legitimately
+   alters (verified this session: none do — `rg '⎿' test/fixtures/` is empty;
+   re-verify).
+6. **The reply-line ordering artifact:** the current diff shows the final
+   reply as BOTH a `-` and `+` candidate (tart renders it inside the tool
+   block's region ordering, pi after) — read the captures; the blank/ordering
+   structure is part of the contract. Close it with the shapes, not with
+   registry classification.
+
+=== EXPECTED STATE (read twice) ===
+
+Your worktree provisions off the merged base where the I17 bash render/timing
+landed. write/read are in-process file tools — NO duration involvement — so
+your s3 live run must exit 0 ALONE. If a `Took` pair appears in your s3 run,
+that is a rig anomaly: record it, do NOT touch agent/timing files.
+
+=== OUTPUT FORMAT ===
+
+- Named test list (write live + replay, read live + replay, shape/style/
+  blank-structure pins, toolTitle/expand-hint cases) with the per-row byte
+  assertions they pin, test-quoted.
+- The s3 live run: command + exit code + summary.json classes + candidates
+  verbatim (expect ZERO unknown-candidate).
+- Any golden fixture updates, itemized (expect none).
+- PHASE 0: numbered disagreements/deviations with file:line evidence.
+
+=== TOOL GUIDANCE ===
+
+- Verification: `bundle install --quiet && bundle exec rake`;
+  `bundle exec ruby bench/seam_bench.rb` → `SEAM_BENCH_OK`.
+- Live rig: `bin/pty-tester run parity/scenarios/s3_tool_turn_files.yml --out <scratch-dir>`
+  (tmux + pi on PATH, present). Architect control baseline (READ ONLY):
+  /Users/eric/architect/spaces/20261009-pi-port/repos/tart/tmp/parity-s3-control/.
+- pi oracle (read-only, do not edit):
+  /Users/eric/architect/spaces/20261009-pi-port/repos/pi — the write.ts/
+  read.ts anchors above plus `modes/interactive/components/tool-execution.ts`
+  (the component/Sparse/paddingY structure — the I17 derivation).
+- Existing seams to build on: chat.rb `BASH_TOOL` dispatch + `enqueue_bash_block`/
+  `padded_fg_rows`/`tool_result_text` (I17 — your write/read branches slot in
+  beside the bash branch, same idioms: pi-source anchor comments, factored
+  per-tool helpers, test-pinned rows), `replay_assistant` (the replay
+  dispatch), Theme token table (theme.rb — add the toolTitle token mapped to
+  pi's dark value if absent; verify pi's dark `toolTitle` value with pi's own
+  converter as I17 did for bashMode).
+
+=== BOUNDARIES ===
+
+MAY touch: `lib/tart/render/chat.rb`, `lib/tart/theme.rb`,
+`test/chat_test.rb`, `test/theme_test.rb`, `test/fixtures/**` (additions/
+updates you author yourself only). MUST NOT touch: `lib/tart/agent/**`,
+`lib/tart/tools/**`, `parity/**`, `tart.gemspec`/`Gemfile*`, `bin/tart`,
+`test/support/**`, any other test file. No refactors beyond the task; no
+placeholders; `rg` before implementing.
+
+=== ACCEPTANCE CRITERIA (frozen — verify against them, do not edit or work around) ===
+
+AC2 (s3 settled-screen parity — BRIEF §8). `bin/pty-tester run
+parity/scenarios/s3_tool_turn_files.yml` exits **0**: the write/read tool
+turns render pi's call-side shapes (bold toolTitle + path, content preview/
+result lines per the pi renderers), replay through the same shapes, and the
+invented `⎿ write:/⎿ read:` result-preview shapes are gone for write/read.
+`parity/registry.yml` gains no new classes.
+
+AC6 (suite, bench — standing). `bundle exec rake` green (0 failures, 0
+errors) including the new render tests; `bench/seam_bench.rb` prints
+`SEAM_BENCH_OK`; the gemspec runtime dependency set is unchanged.
+
+Gates you can run locally (from your worktree):
+
+    bundle install --quiet && bundle exec rake && echo SUITE_OK   # exit 0
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1            # SEAM_BENCH_OK
+    bin/pty-tester run parity/scenarios/s3_tool_turn_files.yml --out <scratch-dir>
+      # expected: exit 0
+
 ## Builder Report
 
 <!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
