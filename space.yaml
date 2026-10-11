@@ -955,7 +955,7 @@ project:
       - tart.gemspec
       - README.md
       base_sha: 931b589a07525e7304d40df6b012c05f353e005e
-      worktree: build/I21-decomp-wave1-rig/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
@@ -976,7 +976,7 @@ project:
       - test/chat_test.rb
       - test/render/**
       base_sha: 931b589a07525e7304d40df6b012c05f353e005e
-      worktree: build/I21-decomp-wave1-render/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
