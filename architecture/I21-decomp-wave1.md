@@ -248,10 +248,219 @@ Owner decisions this session (2026-10-11), logged in ARCHITECT.md at freeze:
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I21-decomp-wave1-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section decomp-wave1 prompt --append --lane <lane> --from build/I21-decomp-wave1-<lane>/prompt.md`. -->
+### rig
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo. Silent compliance
+is a failure. Silent scope additions are a failure. If you have no
+disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed in BOUNDARIES. You
+are one of several parallel lane agents working in isolated worktrees; files
+outside your lane belong to other agents — touching them fails your lane.
+No placeholder implementations — search the codebase before implementing;
+full implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive collection/enumerable
+forms); well-factored and DRY-ish; terse but clear; pragmatic, not clever — the
+smallest change that does the job, no abstraction it doesn't need. Consistency
+with the surrounding code is part of correctness here: a change that works but
+fights the house style (or introduces an inconsistency a careful reader of this
+repo would never write) is not done. Tests stay simple and terse, exercising
+public behavior, no mock/stub of the class under test. Verify your work by
+running the acceptance criteria's gate commands and record the verbatim output.
+Do NOT commit and do NOT run any git write command (commit/add/branch/reset/
+checkout) — the architect commits and merges after verification, and verifies
+you made no commits. Do NOT delete lock files or escalate privileges if a
+command fails; record the exact error and continue. Do NOT use
+`run_in_background` (or shell `&`) for your own work — this process terminates
+when you end your turn and reaps its own children, so backgrounded work is
+SIGTERMed and its output lost while the run still exits 0; run long commands
+serially in the foreground instead. Give every potentially long command an
+explicit timeout (the live rig runs below take tens of seconds each — allow
+120s+ each). If a runtime will not start unattended (interactive prompt, server
+with no timeout), record the exact failure in your report and route around it —
+never busy-wait or retry in a loop. When done, write your report to the
+scratch file given to you below (an absolute path OUTSIDE your worktree), with
+RAW results only — tables, numbers, command output — no interpretation, no
+"promising". Every status claim must be backed by a command result from this
+run. Keep the report compact — tables and numbers, not prose. Do not title
+the report; keep any headings inside the report at `###` or deeper. End it
+with exactly one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list
+them) | BLOCKED (exact blocker + what you tried). Verdicts belong to the
+architect and the human. Persist until your lane is fully handled end-to-end;
+do not stop at analysis or partial fixes.
+
+Your scratch report (write RAW results here, never inside the worktree):
+/Users/eric/architect/spaces/20261009-pi-port/build/I21-decomp-wave1-rig/report.md
+
+=== OBJECTIVE (and why) ===
+
+LANE `rig` of I21 decomp-wave1 — a PURE REFACTOR (zero behavior change) of the
+tart repo: move the parity rig out of shipped lib into a new repo-root
+`gems/tui-split-rig/` directory, renamed end-to-end from "pty-tester". Why:
+`lib/tart/parity/runner.rb:9` currently requires `test/support/mock_llm_server`
+(shipped lib depends on the test tree), and `tart.gemspec` packages
+`Dir["lib/**/*.rb"] + bin/*` — shipping the whole rig (949 lib lines + the
+`bin/pty-tester` CLI) with that require pointing at an unpackaged file. The
+rig is a dev instrument; `gems/` separates it, stops the gem shipping it, and
+highlights future extraction as its own gem (NOT built now — no gemspec for it,
+no publishing).
+
+THE MOVE (exact inventory):
+
+- `lib/tart/parity/scenario.rb`  → `gems/tui-split-rig/lib/tui_split_rig/scenario.rb`
+- `lib/tart/parity/runner.rb`    → `gems/tui-split-rig/lib/tui_split_rig/runner.rb`
+- `lib/tart/parity/differ.rb`    → `gems/tui-split-rig/lib/tui_split_rig/differ.rb`
+- `lib/tart/parity/registry.rb`  → `gems/tui-split-rig/lib/tui_split_rig/registry.rb`
+- `lib/tart/parity/report.rb`    → `gems/tui-split-rig/lib/tui_split_rig/report.rb`
+- `lib/tart/parity.rb` (umbrella) → `gems/tui-split-rig/lib/tui_split_rig.rb`
+- `bin/pty-tester`               → `gems/tui-split-rig/bin/tui-split-rig` (KEEP the
+  executable bit + shebang; it runs stdlib-only, without Bundler)
+- `parity/registry.yml`          → `gems/tui-split-rig/registry.yml` (content byte-identical)
+- `parity/scenarios/*.yml`       → `gems/tui-split-rig/scenarios/*.yml` (content byte-identical)
+- `test/parity/*_test.rb`        → `gems/tui-split-rig/test/*_test.rb`
+- `test/parity/fixtures/**`      → `gems/tui-split-rig/test/fixtures/**`
+
+NAMESPACE: `Tart::Parity::*` → top-level `TuiSplitRig::*` (gem-shaped, no Tart
+dependency). The `Error` class too. Update every reference (CLI, tests).
+
+RENAMES (mechanical, end-to-end):
+- env var `PTY_TESTER_LIVE` → `TUI_SPLIT_RIG_LIVE` (live_run_test.rb skip gate).
+- tmux session-name prefix `pty-tester-` → `tui-split-rig-` (runner.rb session
+  names + `assert_clean_sessions!` grep + README text).
+- CLI usage/help/error strings: "pty-tester" → "tui-split-rig".
+- tmux session names appear in README ("no leftover `pty-tester-*` tmux
+  sessions") — update.
+
+REQUIRE SURGERY:
+- `gems/tui-split-rig/lib/tui_split_rig/runner.rb` still requires
+  `test/support/mock_llm_server.rb` — via a relative path across the trees
+  (from `gems/tui-split-rig/lib/tui_split_rig/` to the tart repo's
+  `test/support/`). MockLLMServer STAYS at `test/support/mock_llm_server.rb`
+  (8 other tart unit test files use it — do not move it, do not duplicate it).
+  This is a dev-only cross-tree require; it never ships.
+- The moved tests re-point their requires: the parent `test/test_helper.rb`
+  (via relative path — dev-only, acceptable), the new lib path, the new
+  scenario/registry/CLI paths, `REPO_ROOT` computation.
+- `runner.rb`'s repo-root derivation (`__dir__`-relative, currently up 3 from
+  `lib/tart/parity`) must still resolve to the TART REPO ROOT from
+  `gems/tui-split-rig/lib/tui_split_rig` (up 3): the `--out` default
+  (`tmp/parity/<timestamp>`), `default_registry` (now
+  `gems/tui-split-rig/registry.yml`), `@tart_dir`, and bundle/pi resolution
+  depend on it. VERIFY this resolution live, not on paper.
+
+WIRING:
+- `Rakefile`: the default test task's `test_files` gains the moved tests:
+  `FileList["test/**/*_test.rb", "gems/tui-split-rig/test/**/*_test.rb"]`.
+  (Verify the moved tests actually run in the default task — count runs
+  before/after in the rake output.)
+- `tart.gemspec`: `Dir["lib/**/*.rb"] + bin/*` no longer matches the rig after
+  the move — confirm the packaged file list contains NO parity/gems entry
+  (proof command below). Adjust the gemspec only if needed to keep the logos/
+  bin packaging working — no other changes.
+- `lib/tart.rb`: it never required `tart/parity` — no change needed (verify).
+- `README.md`: the "Parity rig: pty-tester" section updates to the new name,
+  paths (`gems/tui-split-rig/bin/tui-split-rig run
+  gems/tui-split-rig/scenarios/s1_text_turn.yml`), registry path, and the
+  live-gate line `TUI_SPLIT_RIG_LIVE=1 bundle exec rake test`.
+
+The CLI's frozen surface (verified live by the architect at freeze — bare
+invocation prints the two-verb usage) is PRESERVED byte-for-byte modulo the
+name: `run <scenario.yml> [--runs N] [--app both|pi|tart] [--out <dir>]
+[--tart-dir <path>] [--pi-bin <path>]`, `diff <capture-a> <capture-b>
+[--registry <file>]`; exit 0 = all difference lines sanctioned, 1 =
+unknown-candidate lines exist, 2 = rig failure.
+
+=== OUTPUT FORMAT ===
+
+RAW results only, in the scratch report:
+1. The move inventory: `git status --short` of the worktree (R pairs preferred —
+   plain `mv` like I09 if the guard blocks `git mv`; renames recover at
+   integration).
+2. Namespace-rename diffstat (`git diff --stat`).
+3. Packaging proof: `ruby -e 'puts Gem::Specification.load("tart.gemspec").files.grep(/parity|gems/)'`
+   → EMPTY (exit 0, no output).
+4. Residue proof: `git grep -nE 'PTY_TESTER|Tart::Parity|pty-tester-'` → no
+   matches (exit 1).
+5. Rakefile proof + `bundle exec rake` tail: the last lines with run/assertion
+   counts (the moved rig tests counted in the default suite).
+6. One moved test run standalone: `bundle exec ruby gems/tui-split-rig/test/differ_test.rb`
+   → raw exit code.
+7. ONE live s1 run from the NEW path, both apps:
+   `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out <scratch-out-dir>`
+   → raw exit code + the report's summary exit_code. (Needs tmux + `pi` on PATH;
+   give it 120s+. If your environment cannot run it live, record the exact
+   failure and run the rig's unit tests instead — do not fake it.)
+8. PHASE 0 disagreements (mandatory) + STATUS line.
+
+=== TOOL GUIDANCE (verification commands) ===
+
+- Suite: `bundle install --quiet && bundle exec rake` (from the repo root).
+- Packaging/residue proofs: commands 3–4 above.
+- Live rig: command 7 above (the ONLY live run required this lane — each takes
+  tens of seconds; serial, foreground, explicit timeout).
+- The rig's teardown discipline (kill -9 pane pid trees, assert no leftover
+  `tui-split-rig-*` sessions) must keep working — if the live s1 run exits 0,
+  it did.
+
+=== BOUNDARIES (may touch / must not touch / out of scope) ===
+
+MAY TOUCH (exactly): `gems/tui-split-rig/**` (new), `lib/tart/parity.rb`,
+`lib/tart/parity/**`, `bin/pty-tester`, `parity/**` (moves away),
+`test/parity/**` (moves away), `Rakefile`, `tart.gemspec`, `README.md`.
+
+MUST NOT TOUCH: anything else under `lib/tart/` (another lane owns
+`lib/tart/render/**`), `bin/tart`, any `test/` file outside `test/parity/**`,
+`test/support/**` (you REQUIRE `test/support/mock_llm_server.rb`; you never
+modify it), `bench/**`, `Gemfile`, `Gemfile.lock`, `.gitignore`.
+
+OUT OF SCOPE: any behavior change (pure refactor — a defect found on the way is
+REPORTED, never fixed); publishing or gemspec-ing `gems/tui-split-rig` (it is
+an in-repo directory, NOT a built gem); any `TuiSplitRig` API redesign beyond
+the rename; touching the parity scenarios' content (byte-identical move);
+registry class changes (byte-identical move).
+
+=== DISAGREEMENT RULINGS (from last session) ===
+
+None — first dispatch of this iteration.
+
+=== ACCEPTANCE CRITERIA (frozen; verify against these) ===
+
+**AC1 (rig placement).** The entire rig (five lib classes + umbrella, the CLI,
+`scenarios/`, `registry.yml`, tests + fixtures) lives under `gems/tui-split-rig/`
+in the gem-shaped layout named above; nothing of it remains under `lib/tart/`,
+`bin/`, or root `parity/`; the default rake suite includes the rig's tests from
+their new home; `tart.gemspec` packages none of it; no `Tart::Parity`,
+`PTY_TESTER`, or `pty-tester-` reference remains anywhere in the repo (the
+`echo pty-tester` command-string test fixtures are NOT rig references and may
+stand); README documents the new path, name, and env var `TUI_SPLIT_RIG_LIVE`.
+
+**AC2 (rig behavior preserved).** The renamed CLI is the same instrument:
+verbs, flags, and exit-code semantics byte-identical to the frozen surface;
+the rig's unit tests run green standalone from the new home; one live s1 run
+(both apps) from the new path exits 0 in this worktree.
+
+Relevant judge-time gates (they run POST-integration on the merged tree — your
+in-worktree equivalents are the output-format commands above): suite + bench
+green; s1–s6 via `gems/tui-split-rig/bin/tui-split-rig` all exit 0;
+`git grep -qE 'PTY_TESTER|Tart::Parity|pty-tester-'` no matches; the gemspec
+file list contains no parity/gems entry; `gems/tui-split-rig/registry.yml`
+byte-identical to base `931b589`'s `parity/registry.yml`.
 
 ## Builder Report
 
