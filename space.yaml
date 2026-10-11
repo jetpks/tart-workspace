@@ -863,11 +863,27 @@ project:
       touch_set:
       - lib/tart/render/chat.rb
       - test/chat_test.rb
+      base_sha: fa7283ba884b9eadf4406a8120de300ad65fecfd
+      worktree: build/I19-bash-preview-collapse-render/wt
+      integration_branch:
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-10T22:24:07-06:00'
+      effort: high
     - name: rig
       repo: tart
       touch_set:
       - test/parity/mock_llm_extension_test.rb
       - test/parity/scenario_test.rb
+      base_sha: fa7283ba884b9eadf4406a8120de300ad65fecfd
+      worktree: build/I19-bash-preview-collapse-rig/wt
+      integration_branch:
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-10T22:24:25-06:00'
+      effort: medium
     rehearsal:
       gates_digest: e69e94b83df39871386734abc59486ab8b1ab5368406f418a904df4f0f76d695
       at: '2026-10-10T22:20:30-06:00'
