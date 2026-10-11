@@ -9,11 +9,31 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section tool-render-parity grounds --from <file>`. -->
+**Why this iteration: BRIEF §8, backlog B' + rig robustness.** The exact-parity program's next two measured slices, both with work lists measured this session: s2 (one candidate, root-caused in the I17 Verdict) and s3 (eight candidates, control-re-run below). Plus the rig's own robustness defect, observed twice.
+
+**Measured baseline (this session, post-I17-merge tree 981f4553):**
+
+- **s2** (`tmp/parity-gate-s2`, the I17 judging run): exit 1, exactly one unknown-candidate pair — `- Took 0.0s` (pi) vs `+ Took 0.1s` (tart) — plus 2 sanctioned parity-run-path rows. Root cause (I17 Verdict, probe `tmp/dur_probe2.rb` this session): `lib/tart/tools/bash.rb` `spawn_and_stream` polls `waitpid2(WNOHANG)` in a loop with `sleep 0.05` (:129) — every fast command pays at least one full poll quantum. 10-sample raw durations for `echo pty-tester` through the tool: 0.0547, 0.0613, 0.0617, 0.0669, 0.0603, 0.0637, 0.0617, 0.0293, 0.064, 0.0662 (seconds) — median ~62 ms, past the `%.1f` 0.05 s boundary that separates `Took 0.0s` from `Took 0.1s`. pi's bash.ts spawns evented (`child_process.spawn`, bash.ts:5,112 — exit detected via event, no polling) and honestly measures <50 ms → `0.0s`. The defect is I03-era machinery, invisible until I17's timing seam made duration screen-visible.
+- **s3** (control run this session, `bin/pty-tester run parity/scenarios/s3_tool_turn_files.yml --out tmp/parity-s3-control`): exit 1, 8 unknown-candidate lines (verbatim; `-` = pi-only, `+` = tart-only):
+
+```
++  ⎿ write: Successfully wrote to s3-tool-turn-note.txt
+- write s3-tool-turn-note.txt
++  ⎿ read: parity s3 sandbox note
+- parity s3 sandbox note
++ The file tools ran; fixed final reply for the spike.
+- read s3-tool-turn-note.txt
+- The file tools ran; fixed final reply for the spike.
++
+```
+
+Attribution: the port renders every non-bash tool through the invented `⎿ name: result-preview` shape (I17 kept it deliberately for non-bash); pi renders the tool CALL — `write <path>` (bold toolTitle + path) with the written content as a preview block, `read <path>` with the file content as muted result lines. pi's write result renders NOTHING on success (formatWriteResult returns undefined unless error, write.ts:128-143); the port's `⎿ write: Successfully wrote to …` is a result preview pi never shows.
+
+**pi source anchors (verified readable in `repos/pi` this session):** `core/tools/renderers/write.ts:96-126` (`formatWriteCall`: `theme.fg("toolTitle", theme.bold("write"))` + `renderToolPath`, blank line, content lines — language-highlighted when a lang is detected, plain `toolOutput` otherwise, max 10 lines + muted `... (N more lines, M total, <key> to expand)` when longer), `:128-143` (`formatWriteResult`: undefined unless error), `:145-177` (renderCall/renderResult dispatch, incremental highlight cache — CUT for the port, no highlighter, itemized); `core/tools/renderers/read.ts:35-64` (`formatReadCall`), `:67-110` (`getCompactReadClassification`/`formatCompactReadCall` — compact shape when not expanded), `:112-149` (`formatReadResult` — content lines as `toolOutput`, truncation warning); `renderToolPath` (path display util — find it in the renderers' shared imports). s3 writes a `.txt` (no language) — pi renders the write content plain/unhighlighted there, so the highlighter cut is invisible to s3.
+
+**Rig robustness defect (observed 2026-10-10 in the I17 rig lane, 1-in-4 runs; mechanism verified this session):** `test/support/mock_llm_server.rb` `serve(io)` (:114) shifts `@script` unconditionally per accepted connection — a connection that sends nothing (empty TCP connect, e.g. a client's socket probe) still consumes a scripted response and logs a `method=None` entry, shifting every later response by one (I17 evidence: `tart completed=False requests=4 expected=3`, exit 2 rig failure). The property: a connection with no request line must be skipped entirely.
+
+**Feeder for the NEXT slice:** the carried I17 CUTs (bash 5-line preview truncation `BASH_PREVIEW_LINES` bash.ts:14/78-89, expand hints, truncation warnings, exit-code statuses) are unmeasured — this iteration's rig lane authors **s4_bash_variants** to baseline them. The `Elapsed` live-progress line (bash.ts:105-109) is live-only, invisible in settled captures — stays CUT/unmeasured, noted in the scenario.
 
 ## Specification
 
