@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: header-startup-help
+  current_iteration: tool-pending-bg
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1392,4 +1392,10 @@ project:
     rehearsal_skip_reason: repo field corrected pre-dispatch (repos/tart -> tart,
       the resolution is repos/-relative; gates unchanged — same rehearse stamp class,
       I06 re-freeze precedent, nothing dispatched)
+  - name: tool-pending-bg
+    ordinal: 34
+    file: architecture/I34-tool-pending-bg.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
