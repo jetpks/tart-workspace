@@ -1264,12 +1264,13 @@ project:
       - gems/tui-split-rig/**
       base_sha: a622ee03ea8df8c200548a93850a5248f9f0f5b1
       worktree: build/I30-compaction-panel-panel/wt
-      integration_branch:
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       dispatched_at: '2026-10-12T00:09:55-06:00'
       effort: high
+      integrate_sha: 3475ad744452c317cfec50ca3f185b29e94093d7
     rehearsal:
       gates_digest: b5e34ba16d43cd2c2ca343c6be614de2e590d9ac790cc5855dd5e9fabfa48fde
       at: '2026-10-12T00:01:46-06:00'
