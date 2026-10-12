@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: compaction-residuals
+  current_iteration: prompt-identity
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1277,6 +1277,12 @@ project:
   - name: compaction-residuals
     ordinal: 31
     file: architecture/I31-compaction-residuals.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
+  - name: prompt-identity
+    ordinal: 32
+    file: architecture/I32-prompt-identity.md
     freeze_sha:
     verdict: pending
     lanes: []
