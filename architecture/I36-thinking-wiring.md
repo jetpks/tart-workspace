@@ -413,11 +413,159 @@ The frozen gate commands (run them verbatim from repos/tart): `bundle install --
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I36-thinking-wiring-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence thinking-wiring --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+### Grounding verification (PHASE 0 — what was read, what it showed)
+
+| Premise | Source read | Result |
+|---|---|---|
+| clamp→effort, `off→undefined` | repos/pi packages/ai/src/api/openai-completions.ts :745-755 | confirmed: `clampedReasoning = clampThinkingLevel(model, options.reasoning)`; `reasoningEffort = clamped === "off" ? undefined : clamped` |
+| generic branch sends `map[effort] ?? effort`; no-effort arm sends String `map.off` only | same file :960-976 | confirmed verbatim |
+| delta signatures ∈ {reasoning_content, reasoning, reasoning_text}; replay as `assistantMsg[signature]` | same file :611-627, :1335-1352 | confirmed |
+| getSupportedThinkingLevels: null excludes; xhigh/max need a PRESENT entry (map-less ⇒ off..high); clamp forward-then-backward; unknown ⇒ first | packages/ai/src/models.ts :1224-1254 | confirmed (map-less reasoning model ⇒ xhigh/max excluded — `mapped !== undefined` fails on undefined) |
+| ladder order | packages/coding-agent/src/core/defaults.ts :4-12 | confirmed: off,minimal,low,medium,high,xhigh,max = `Settings::THINKING_LEVELS` |
+| models.json `thinkingLevelMap` = Optional(Partial Record<level, String\|Null>) | packages/coding-agent/src/core/model-config.ts :38/:54 + packages/ai/src/providers/model-schema.ts :14-15 | confirmed |
+| `render_payload` sets `payload[:reasoning_effort]` only when effort resolves | ruby_llm 2.1.0 protocols/chat_completions/chat.rb :57, :85-86 | confirmed |
+| `format_thinking` emits BOTH `:reasoning` + `:reasoning_content` | same file :417-431 | confirmed |
+| `before_request` hooks run LAST in Protocol#render, mutate symbol-keyed payload in place, both streaming + sync paths | protocol.rb :135-155, :695-698; chat.rb :1090, :1445, :1456 | confirmed |
+| `with_thinking` unusable under assume_model_exists; `resolved_thinking` nil unless called (gem adds no effort key) | chat.rb :660-700, :1110-1112; thinking.rb Controls :113-175 | confirmed |
+| `Message#to_h` serializes `thinking:`; `Message.new` coerces String thinking | message.rb :258-279, :323-330 | confirmed |
+| Local-mock probe (this run, no external calls): hook sets `reasoning_effort` on the wire; follow-up replays `reasoning_content` with `:reasoning` deleted; `chat.step {}` accumulates thinking | live probe output | confirmed |
+
+### PHASE 0 disagreement / interpretation list (no blocking disagreements)
+
+1. **`switch_model` nil semantics (interpreted):** the surface passes fully composed facts, so `Loop#switch_model` stores `model_reasoning:`/`thinking_level_map:` unconditionally (nil = "entry declares none" ⇒ map-less). The nil-keeps-current alternative would leak the boot model's known map onto map-less catalog entries (rig mock-2). Loop comment documents it.
+2. **`cycle_thinking_level` clamp (added one line):** the ladder now actually filters, making a stored level outside the gated set reachable (set xhigh on a mapped model → switch to a map-less one): Ruby `nil + 1` crash where pi's JS `indexOf → -1` wraps to index 0. Clamp mirrors the menu's existing floor clamp (pi `_clampThinkingLevel`). Reachability created by this iteration.
+3. **README has no models.json section at base** — the schema note lives in `bin/tart` --help. Added a `### Models` subsection to README AND added `thinkingLevelMap` to the bin/tart Models help field list (1-field doc addition beyond the "boot wiring" letter — declared; a schema note omitting the now-documented field would contradict the README item).
+4. **`footer_data` gains optional `models:` kwarg** (launcher-internal; frozen `launcher_smoke_test` call `footer_data("/somewhere", settings, chat: chat)` stays green).
+5. **Rig staging "both apps' staging sites":** at base, mock-2 exists ONLY in `stage_tart_home` (`stage_pi_agent` stages mock-1 alone — verified against base runner source). Interpreted as: wherever the reasoning:true mock-2 is staged gains the map; mock-1 stays map-less in both. Adding a model to pi's staged catalog was rejected as a parity-target change the "no new scenario" clause argues against.
+6. **`map[clamped] || clamped` vs pi's `??`:** equivalent for String|nil values (verified); implemented `||`.
+7. **Hook deletes exactly `:reasoning`** (spec letter). `:reasoning_signature` would also need deletion only if `thinking.signature` were set — fireworks deltas carry no signature field, so the pi-faithful shape holds without it (residual note).
+
+### Changed files (scope gate: `git diff --name-only a5c0594`)
+
+```
+README.md
+bin/tart
+gems/tui-split-rig/lib/tui_split_rig/runner.rb
+lib/tart/agent/loop.rb
+lib/tart/models.rb
+lib/tart/print.rb
+lib/tart/render/chat.rb
+lib/tart/settings.rb
+test/agent_loop_test.rb
+test/chat_test.rb
+test/models_test.rb
+test/print_test.rb
+test/settings_test.rb
+```
+
+13 files, +712/−86. All within BOUNDARIES except **test/print_test.rb** (additive-only test) — sanctioned by the Tests section's "Additive only elsewhere"; AC1 names print mode as one of the three "every model call" wire sites. Declared here per the no-silent-additions rule.
+
+`git status --short`: same 13 ` M` entries; nothing staged; no commits (`git log` untouched — base = a5c0594 = HEAD).
+
+### Implementation map
+
+- `lib/tart/models.rb`: `require settings`; `build_model` + `thinking_level_map:` (symbolized, nil when undeclared); `build_thinking_level_map`; `supported_thinking_levels(map:, reasoning:)`; `clamp_thinking_level(level, map:, reasoning:)`; `resolve_reasoning_effort(level, map:, reasoning:)`; `validate_thinking_level_map` (hash; String|null values; unknown keys tolerated).
+- `lib/tart/settings.rb`: `THINKING_LEVEL_MAPS` (glm-5p3-flash → owner full-string map, symbol keys), `known_thinking_level_map(id)`, `thinking_facts(entry, settings = nil, model_id:, model:, identity:)` — one composition helper (catalog-entry-first, known-tables-second).
+- `lib/tart/agent/loop.rb`: ctor kwargs `thinking_level:`/"medium", `model_reasoning:`/false, `thinking_level_map:`/nil; `attr_reader :thinking_level`; `set_thinking_level`; `switch_model(..., model_reasoning:, thinking_level_map:)`; ONE `@chat.before_request` hook (`install_thinking_seam`): effort set/delete + per-assistant `:reasoning` delete; **`strip_thinking_replay` deleted** (call + method + comment block).
+- `lib/tart/render/chat.rb`: `apply_thinking_selection` → `@agent&.set_thinking_level`; `available_thinking_levels` = `Models.supported_thinking_levels` over the footer view's map; `footer_data` view merges `@runtime_model[:thinking_level_map]` when the entry carries the key; `boot_model_entry` carries the boot map; `apply_model_selection` passes `Settings.thinking_facts(entry, model_id:)` into `switch_model`; :218-221 comment re-pointed to the request seam; cycle floor clamp.
+- `lib/tart/print.rb`: `Print.run` gains `thinking_level:`/`model_reasoning:`/`thinking_level_map:` → `Agent::Loop.new`.
+- `bin/tart`: print_mode resolves boot/chat once, threads `thinking_level:` + `boot_thinking_kwargs`; `start_session` derives facts from `footer_data` and passes all three loop kwargs; `footer_data(..., models: nil)` composes via `Settings.thinking_facts` + new `resolve_boot_entry` (I28 cross-resolve: canonical pair, then bare id); Models help text documents thinkingLevelMap.
+- `gems/tui-split-rig/.../runner.rb`: staged mock-2 gains the owner full-string `thinkingLevelMap`; mock-1 unchanged.
+- `README.md`: `### Models` — models.json schema + wire behavior (level → reasoning_effort via map; off-floor; replay under reasoning_content).
+
+### Suite (bundle exec rake)
+
+| | runs | assertions | failures | errors | skips |
+|---|---|---|---|---|---|
+| base a5c0594 | 667 | 2746 | 0 | 0 | 1 |
+| this tree | 690 | 2816 | 0 | 0 | 1 |
+
+Run-count delta **+23** (models +10, settings +4, agent_loop +5 net, chat +3 net, print +1; 1 agent_loop pin replaced in place, 1 chat pin replaced by 3).
+
+Verbatim gate tail: `690 runs, 2816 assertions, 0 failures, 0 errors, 1 skips` + `SUITE_OK`.
+
+### New/changed test run tails (verbatim)
+
+```
+test/models_test.rb    27 runs, 81 assertions, 0 failures, 0 errors, 0 skips
+test/settings_test.rb  29 runs, 116 assertions, 0 failures, 0 errors, 0 skips
+test/agent_loop_test.rb 24 runs, 145 assertions, 0 failures, 0 errors, 0 skips
+test/chat_test.rb     197 runs, 866 assertions, 0 failures, 0 errors, 0 skips
+test/print_test.rb      5 runs, 21 assertions, 0 failures, 0 errors, 0 skips
+```
+
+### Request-pin highlights (captured bodies through the real chat, MockLLMServer)
+
+- default boot (medium, owner-style map): request carries `"reasoning_effort":"medium"`; after `set_thinking_level("high")` the NEXT request carries `"high"`; `agent.thinking_level == "high"`.
+- off-floor shapes: live-catalog map (all-null off/minimal/medium/xhigh) + level off → `"low"`; owner override off→"low" → `"low"`; map-less off → key absent.
+- non-reasoning (any level/map) → key absent.
+- switch_model re-resolve: non-reasoning boot → absent; switch(reasoning+map{high:"high"}) → `"high"`; switch(map nil) → `"high"` (map-less falls back to the level).
+- replay protocol: follow-up + tool-continuation request bodies carry `reasoning_content:"I should list the files"` on the assistant entry; `reasoning` key absent; continuation completes without error events.
+- session pin: recorded assistant entry carries `"thinking":"pondering hard"`.
+- resume probe (manual, this run): seed `{role: :assistant, content:, thinking: "prior thoughts"}` → follow-up request: `reasoning_effort:"high"`, assistant replay keys `["role","content","reasoning_content"]`, `reasoning` absent.
+- print mode: `Print.run(thinking_level:"high", model_reasoning:true, map:)` → `"reasoning_effort":"high"`; default kwargs → key absent.
+
+### Resolution-table spot check (direct function calls, verbatim)
+
+```
+owner off -> "low"        catalog off -> "low"      mapless off -> nil
+owner medium -> "medium"  catalog minimal -> "low"  mapless high -> "high"
+non-reasoning -> nil      catalog medium -> "high"  mapless xhigh -> "high"
+supported owner:   [off, minimal, low, medium, high, xhigh, max]
+supported catalog: [low, high, max]
+supported mapless: [off, minimal, low, medium, high]
+clamp catalog xhigh -> "max"; clamp unknown -> "low"
+```
+
+### Bench
+
+```
+bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+SEAM_BENCH_OK
+```
+
+### Parity rig s1–s9 (exit codes; each run cold, fresh tmux)
+
+| scenario | relative `--out tmp/i36-*` (frozen shape, this worktree) | short `--out /tmp/i36-*` | base tart code @ a5c0594, same out depth (control) |
+|---|---|---|---|
+| s1_text_turn | 0 | 0 | — |
+| s1_tart | 1 | 1 | 1 |
+| s2_tool_turn | 0 | 0 | — |
+| s3_tool_turn_files | 0 | 0 | — |
+| s4_bash_variants | 0 | 0 | — |
+| s5_bash_truncation | 0 | 0 | — |
+| s6_long_calls | 0 | 0 | — |
+| s7_compaction | 0 | 0 | — |
+| s8_zero_usage_compaction | 0 | 0 | — |
+| s9_startup_help | 1 | 0 | 1 |
+
+- The frozen gate glob `s{1..9}_*.yml` is ambiguous for s1 (two files: s1_text_turn.yml, s1_tart.yml — verified with ls); run individually. `tui-split-rig run` accepts exactly one scenario (verified in bin source: `usage! if ... argv.shift`).
+- s9 relative-shape exit 1 in this worktree is the **pre-existing footer-cwd/staged-path truncation sensitivity** the spec warns about (the worktree root is deep): the sole unknown-candidate is `- d`, a path wrap fragment; proven environmental — base tart code (repos/tart @ a5c0594) run by the same rig at the same out-dir depth also exits 1; short out-dir exits 0 on my tree.
+- s1_tart exit 1 is by design at base too (control run = 1): its subject IS the tart-vs-pi identity art (24 unknown-candidate lines, all art/version/hints — zero thinking-related); s1_text_turn is the clean s1 parity scenario (exit 0).
+- Settled-screen wire proof: s9 tart request log (mock-1 boot) → `reasoning_effort` key absent, messages carry no replay fields — request bodies byte-equivalent to base (verified by parsing tmp/i36-s9/run-1/tart-requests.jsonl).
+
+### Tripwire greps (RED at base by design → GREEN here)
+
+| grep | base | this tree |
+|---|---|---|
+| `reasoning_effort` in lib/tart/agent/loop.rb | 0 | 6 |
+| `def strip_thinking_replay` in lib/tart/agent/loop.rb | 1 | 0 |
+| `thinkingLevelMap` in lib/tart/models.rb | 0 | 4 |
+| `supported_thinking_levels` in lib/tart/render/chat.rb | 0 | 1 |
+| `supported_thinking_levels` in test/chat_test.rb | 0 | 1 |
+| `reasoning_content` in test/agent_loop_test.rb | 4 | 6 |
+
+### Residual risks / notes
+
+1. `lib/tart/render/transcript.rb:294-299` (must-not-touch) still carries the stale comment "thinking is stripped before record (agent/loop.rb strip_thinking_replay), so no reasoning block replays" — no longer true; the code path itself is correct (replay_assistant already renders `message["thinking"]`). Comment retirement belongs to the architect.
+2. `:reasoning_signature` is not normalized off the wire (spec letter says `:reasoning` only); inert for this provider (no signature deltas), re-assess if a signature-carrying dialect is ever wired.
+3. Commands::Handler's /thinking arg validation still enumerates the full `Settings::THINKING_LEVELS` (frozen file); the runtime gate (`gate_thinking_level` → `available_thinking_levels`) is the surface-side gate — a `/thinking xhigh` on a map-less model errors at the surface with the gated set, unchanged from the I27 shape.
+4. The `THINKING_LEVEL_MAPS` known map uses symbol keys (the parsed `:thinking_level_map` domain); raw models.json keys stay strings until `build_thinking_level_map` symbolizes. Mixed-key maps passed by hand callers would silently miss lookups (documented in the functions' comments; tests pin the symbol domain).
+5. The owner's live pi override map and live-catalog map are encoded from the grounding's numbers and pinned as tests; if the owner's pi override changes, `THINKING_LEVEL_MAPS` and the two test maps move together.
+
+STATUS: COMPLETE_WITH_CONCERNS (s9/s1_tart exit codes under the frozen relative-out command shape in this deep worktree are 1 — proven pre-existing/environmental via base-code control runs and short-out 0s, see parity table; test/print_test.rb additive test declared under "additive only elsewhere"; stale strip comment in frozen transcript.rb flagged for the architect)
 
 ## Verdict
 
