@@ -1505,12 +1505,13 @@ project:
       - lib/tart/render/transcript.rb
       - test/chat_test.rb
       base_sha: 7c4ae1903db39e5840a4eb4d9a0b493eb6684dc9
-      worktree: build/I37-thinking-ux-render/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: adff3772a809c8fe201856de50c90f41e4de4610
     rehearsal:
       gates_digest: ec2b9553c7dd6fe70af44fe34c943ba0062fc1ebc274a7fff5553af30e379a86
       at: '2026-10-12T17:08:55-06:00'
