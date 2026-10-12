@@ -1100,7 +1100,7 @@ project:
     ordinal: 26
     file: architecture/I26-editor-kill-ring.md
     freeze_sha: 757049756dfb66137aeba94dfbb62133c2c9599c
-    verdict: pending
+    verdict: continue
     lanes:
     - name: editor
       repo: tart
@@ -1111,7 +1111,7 @@ project:
       - test/chat_test.rb
       - test/render/**
       base_sha: 16f20fdb56479c2c9af9b2667d16ce27b904a616
-      worktree: build/I26-editor-kill-ring-editor/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
@@ -1122,7 +1122,7 @@ project:
       touch_set:
       - gems/tui-split-rig/**
       base_sha: 16f20fdb56479c2c9af9b2667d16ce27b904a616
-      worktree: build/I26-editor-kill-ring-rig/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash

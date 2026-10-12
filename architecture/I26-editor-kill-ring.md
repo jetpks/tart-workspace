@@ -960,15 +960,123 @@ STATUS: COMPLETE_WITH_CONCERNS — (1) s3/s4/s5 exit 1 from this deep worktree p
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section editor-kill-ring verdict --from <file>`. -->
+# Verdict — I26 editor-kill-ring
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify editor-kill-ring`)?
+Judged 2026-10-12 in a fresh session (this session dispatched nothing; it read the freeze 75704975 from the commit and the gates from the frozen text).
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+## Post-flight forensics — the dominant finding
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+`architect verify` flagged BOTH lanes out-of-bounds: each worktree contained BOTH
+lanes' work. Confirmed by direct inspection — the editor report's file list is
+headed "Files (lane editor + lane rig)", the rig report's "Files (both lanes)",
+and the two trees hold genuinely DIFFERENT implementations of each slice
+(kill_ring.rb, editor.rb, chat_test.rb, runner.rb all differ across trees).
+
+Root cause — MINE, dispatch-side, verified this session: the two dispatched
+prompts are byte-identical except the scratch-report path. No "You are lane X"
+heading, no per-lane BOUNDARIES restatement; each prompt says "Build YOUR LANE
+ONLY: exactly the files listed in BOUNDARIES" and then embeds the FULL two-lane
+specification whose Boundaries section reads "Sanctioned scope is exactly the
+two lanes above." Each builder read that literally and built the whole
+iteration, transparently (both file lists declare the cross-lane files; both
+suites were run green; neither hid anything). Both builders also failed PHASE 0
+in one specific way: neither raised the ambiguity ("my prompt names two lanes —
+which is mine?") as a disagreement. That silence is a defect to log, but the
+prompt handed them a spec that named both deliverables as sanctioned scope.
+
+**Ruling (MODIFY-the-recovery):** each lane is judged and integrated on its
+in-bounds portion only. This session stripped each worktree to its frozen touch
+set — editor wt discarded its duplicate rig work (runner/scenario seams, s7,
+pending-probe); rig wt discarded its duplicate editor work (kill_ring.rb,
+editor.rb mods, chat.rb mods, chat_test.rb, both test files) — re-ran each
+cleaned tree's suite (editor 466 runs/1836 assertions green = base 445 + 21;
+rig 450/1806 green = base + 5), then integrated both lanes. The discarded
+duplicates are exactly that — discarded, not graded, not merged. Selection note:
+because each lane's OWN work was built by the lane that spec'd it (editor slice
+by the editor lane, rig by the rig lane), the selection is authorship-exact,
+not a quality judgment between the two variants.
+
+**Binding process carry-in for every future multi-lane dispatch:** the lane
+prompt MUST open with "You are lane `<name>`" plus that lane's own touch and
+must-not lists, and embed ONLY that lane's Specification section. I26's prompts
+violate this — direct cause of the duplication. Recorded in ARCHITECT.md.
+
+## Mechanical checks (all confirmed with session evidence)
+
+- Frozen sections untouched: `git diff 75704975 HEAD -- architecture/I26-editor-kill-ring.md` shows additions only (Builder Prompt/Report/Verdict) — no Grounds/Specification/AC line changed.
+- No builder commits: `git log 16f20fd..` empty in both worktrees pre-integration.
+- Scratch reports present, raw-results-only, PHASE 0 items present.
+- Scope: integrated diff = 12 files, +656/−16, exactly the AC4 union (SCOPE_OK cold).
+
+## PHASE-0 / disagreement rulings
+
+1. **Grounds 3 stale — alt+backspace/alt+d already bound at base.** Both lanes
+   found it independently (binding tables cite base chat.rb lines; the
+   surviving editor diff adds zero word-delete bindings). **ACCEPT** —
+   regression pins instead of wiring. Authoring defect, mine.
+2. **Word-deletes promoted to kill ops** (ctrl+w/alt+backspace/alt+d now push
+   the crossed span into the ring, pi editor.ts:1692-1772). **ACCEPT** —
+   required by AC2's accumulate semantics; verified in the diff (the was_kill
+   capture precedes the movement's window reset — the subtle part, done right).
+3. **/compact cannot ride the one-prompt runner** — both lanes proved it
+   independently (`Error: Compaction failed: Nothing to compact (session too
+   small)` on both apps, live probe). **ACCEPT** the spec-sanctioned fallback:
+   threshold trigger via the new `context_window:` scenario seam + zeroed
+   compaction knobs staged into both apps' settings; s7 pins both apps
+   compacting (2/2 requests each) and exits 1 by design.
+4. **Compaction trigger arithmetic diverges** — pi usage-backed
+   (agent-session.ts:3050-3100) vs port estimate-backed (loop.rb
+   threshold_exceeded?, chars/4). **ACCEPT** as itemized future work (backlog):
+   both fire at s7's window 10, so s7 measures the panel, not the arithmetic;
+   at realistic windows they diverge. Decide at spec time: port pi's
+   usage-backed arithmetic or ratify the divergence.
+5. **Rig environmental — shared tmux server.** `assert_clean_sessions!` counts
+   sibling lanes' `tui-split-rig-*` sessions on the shared default server
+   (spurious exit 2, clean on re-run; a `tmux kill-server` from one agent kills
+   every agent's sessions — observed mid-probe). **ACCEPT** — rig-hardening
+   backlog item (scoped session naming or a per-run server socket). This
+   session's cold gate run used a quiet server (no server running at start).
+6. **s3/s4/s5 exit 1 in the deep worktree** — the known I25 footer-cwd
+   path-length artifact (exit 0 at short paths; base-tree control clean).
+   **ACCEPT** — not a lane regression; the frozen gates run from repos/tart and
+   all passed cold.
+
+No letter-versus-spirit conflicts raised; no silent compliance beyond the
+prompt-ambiguity silence ruled above.
+
+## Per-AC verdict (gates run cold on the integrated tree fcf232f4)
+
+- **AC1 PASS** — kill-ring-class, editor-ops, bindings-wired gates PASS; the
+  diff read directly: `when "u"`/`"k"`/`"y"` ctrl cases + alt+y on the "y" alt
+  branch; ctrl+a/ctrl+e unchanged; every kill op calls exit_history_browsing
+  before mutating; the single-line line-merge cuts are itemized in code
+  comments, never silent.
+- **AC2 PASS** — kill_ring_test.rb (15 tests: accumulate into ONE entry,
+  directional prepend/append, empty-ring accumulate, nil/empty no-ops, rotate
+  cycling) + 6 chat binding cases; the lastAction window is threaded through
+  every pre-existing op (insert/delete/moves/clear/replace_token each reset it,
+  pi citations inline); suite fully green with them included.
+- **AC3 PASS** — s1–s6 all exit 0 cold; registry diff additions-only (+1
+  evidenced `staged-settings-path` class; REGISTRY_ADDITIONS_ONLY_OK).
+- **AC4 PASS** — sealed-files-untouched SCOPE_OK; integrated diff touches
+  exactly the sanctioned union, nothing else.
+- **AC5 PASS** — suite 471 runs / 1855 assertions / 0 failures on the
+  integrated tree (445 base + 21 editor + 5 rig — the arithmetic checks);
+  SUITE_OK; SEAM_BENCH_OK.
+- **AC6 PASS** — s7_compaction.yml exists, drives both apps through a real
+  compaction against the rig machinery, exits 1 by design with an itemized
+  candidate list (head: pi's customMessageBg #3a3055 collapsed `[compaction]`
+  panel vs the port's dim `✻ compacted` line + expanded [Context] summary);
+  the pending-state probe documents pi's toolPendingBg #34383a mid-flight
+  bytes vs the port's completion-only enqueue with raw styled captures
+  (17 frames/app).
+
+## KILL/CONTINUE
+
+**CONTINUE** — the owner's daily-driver emacs blocker is closed with pi-exact
+semantics, and the rig's two unmeasured §8 surfaces now have instruments whose
+baselines ARE the specs for the next slices (compaction-panel port;
+toolPendingBg port). Diff read for idiomaticity: house-consistent throughout
+(endless methods where the repo uses them, pi citations carried in comments,
+terse guards, no gratuitous abstraction); the rig's `public :capture, …`
+exposure for the probe is documented at the site.
