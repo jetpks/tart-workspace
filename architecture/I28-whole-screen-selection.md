@@ -546,11 +546,60 @@ if git diff --name-only 8c7a438 HEAD | grep -qvE '^(lib/tart/render/chat.rb|lib/
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I28-whole-screen-selection-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence whole-screen-selection --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### selection
+
+### Files touched (worktree, uncommitted; no commits made)
+
+| file | wc -l | change |
+|---|---|---|
+| lib/tart/render/chat.rb | 1511 | whole-screen mapping/reader/highlight/flash, ctrl+x, thinking gate, marker cross-resolution |
+| lib/tart/render/footer.rb | 238 | extracted `Footer#lines(data, width)`; `widget` wraps it |
+| lib/tart/render/selection.rb | 280 | `selection_text` made public (pi getActiveSelectionText); class comment documents the extended row space |
+| test/chat_test.rb | 3623 | +15 tests |
+| test/render/selection_test.rb | 70 (new) | +4 direct-class pins |
+
+`git diff --name-only 8c7a438` over the worktree (excluding tmp/): exactly the 5 files above. No lockfile, bin, gems, or sealed-file changes. No git write commands run (a lane guard intercepted my attempted `git checkout` revert of a rubocop mistake — see deviations note 9; files were reconstructed via `git show HEAD:…` + cp + re-applied edits).
+
+### Surface table (pi mechanic → port seam)
+
+| pi mechanic (source) | port seam | before | after |
+|---|---|---|---|
+| getSelectionPoint :1145-1152, non-scrollview branch (plain row/col, clamped) | `Chat#content_point` below-transcript branch: negative synthetic row = terminal row − screen height | rows below transcript → nil (press drops selection) | every screen row maps: transcript rows keep the scroll-buffer mapping (unchanged); dock spacer / editor borders / editor content / footer rows map by area |
+| getSelectionSourceLine :1165-1171 (previousScreen read) | `Chat#selection_line` → `plain_content_line` (buffer rows) / `below_line` (composed dock) | transcript rows only | all rows: editor border bytes = `title + "─"×(width−title_width)` (byte-verified vs gem render), content = shared `editor_content_lines`/`@footer.lines` compositions |
+| applySelection highlight :1589-1638 | `Selection#highlight_row` + `Chat#highlight_lines` over editor content rows and footer rows | transcript rows only | input/suggestion rows + both footer rows render the inverse highlight |
+| double/triple-click cycle :1247-1267, word/line ranges :1167-1219 | unchanged machine (`Selection`) — negative rows flow through | transcript only | works over editor + footer rows (pinned) |
+| copy-on-select :1332-1366 | unchanged `Selection#release` (osc52) | transcript only | releases from any row copy |
+| app.message.copy :3114 → handleCopyCommand :6637-6669 | `Chat#copy_message`, route `when "x"` in `edit_input` | absent | selection text, else last assistant text (`@last_assistant_text`, tracked at :message_end + resume replay, cleared on /new); no source → error line |
+| flash confirmation (alt-screen-flash.ts, DEFAULT_DURATION_MS 1000, compositeFlashes :1664) | `Chat#flash` + `flash_row` composite over transcript row 0, kernel-timer clear (scrollbar-hide arm shape), `flash_seconds=` test seam | absent | reversed ` Copied! ` top-right for 1s, then one redraw |
+| getAvailableThinkingLevels agent-session.ts:2657 → getSupportedThinkingLevels models.ts:1224 | `Chat#available_thinking_levels`/`reasoning_capable?` (footer_data[:reasoning], runtime-switch overlay) | full ladder always | non-reasoning → `[off]`; menu ✓ clamps to the gate floor (pi _clampThinkingLevel :2684); shift+tab cycle no-ops (pi :2645-2646) |
+| handleThinkingCommand :5143-5157 (bad arg lists the gated set) | `Chat#gate_thinking_level` intercepted in `submit` before `Commands#dispatch` | error listed the FULL ladder (commands.rb:169) | error lists the gated set via pi's showError shape (`Error: Unknown thinking level "x". Available levels: <gated>.`) |
+| model-selector ✓/· refs (showModelSelector :5342-5361) | `Chat#boot_model_ref` cross-resolution via `Models::Config#resolve` | boot pair's provider used verbatim → markers dropped when TART_PROVIDER is a native slug and the catalog keys the model under a non-native key | canonical pair resolve, then bare id; the catalog entry that serves the id supplies the matching provider (ambiguity keeps the boot pair) |
+
+### Gate commands (verbatim, this worktree)
+
+- `bundle install --quiet && bundle exec rake && echo SUITE_OK` → `544 runs, 2110 assertions, 0 failures, 0 errors, 1 skips` … `SUITE_OK` (baseline before the lane: 526 runs — run-count delta +18; the 1 skip is pre-existing)
+- `bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1` → `SEAM_BENCH_OK`
+- `grep -q 'when "x"' lib/tart/render/chat.rb && echo CTRLX_OK` → `CTRLX_OK`
+- `grep -q 'footer' … && grep -q 'transcript_area_rows' … && echo COVERAGE_OK` → `COVERAGE_OK`
+- rig, serial foreground, exit codes: s1_text_turn `0`, s2_tool_turn `0`, s3_tool_turn_files `0`, s4_bash_variants `0`, s5_bash_truncation `0`, s6_long_calls `0`, s7_compaction `1` (frozen expectation: exits 1)
+- `git show 8c7a438:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml | grep -q '^<'` → no output → `REGISTRY_ADDITIONS_ONLY`
+
+New chat-test pins (all passing): footer-row press/drag/release + highlight + osc52 text; input-row press/drag/release + highlight + double-click word; editor top-border-row press/drag/release text (`"─" × 10` composed border); footer-row double-click (kebab+slash word run) and triple-click (whole row, own test — the click cycle runs 1→2→3→1 continuously); ctrl+x selection branch / last-assistant branch / error line / flash+dwell clear; thinking menu gated `[off]` with ✓ clamp + full ladder for reasoning + `/thinking high` gated-set error + runtime-switch re-gate + cycle no-op; model-menu ✓/· cross-resolution under `TART_PROVIDER=openai` boot over a mock-keyed catalog. New selection_test pins: `selection_text` across the row-space halves (`"ter stats\nhello w"`), double-click granularity over a negative row, collapsed release, highlight over a negative row.
+
+### Itemized deviations (pi source → port)
+
+1. **previousScreen analog**: ratatui_ruby 1.5.0 exposes no previous-frame/live screen-buffer readback (`get_buffer_content` is the test-terminal helper; TUI seam sealed) — the dock lines COMPOSE from the same builders that render them (`editor_content_lines`, the border rule, `Footer#lines`). Same bytes, different source; pi reads the rendered buffer.
+2. **ctrl+x selection gate dropped**: pi prefers the selection only when `!getCopyOnSelect()` (:6641-6645) — with copy-on-select on, ctrl+x copies the last assistant message. The port's copy-on-select is unconditionally on (no setting), so the literal gate would make the branch dead code; AC3 pins selection-else-last-assistant and that is what shipped.
+3. **Flash mechanism**: pi mounts a flash component stack composited over the finished frame; the port composites the same bytes (reversed ` Copied! `, top-right, right-truncated to width) over the transcript's row 0 at render and clears via a kernel task. Message and 1000 ms duration exact.
+4. **Editor border-row highlight**: the gem's native Block composes border rows inside its render; the port cannot inject highlighted border bytes without forking gem behavior. The reader ANSWERS border-row text (AC1's border pin passes), the highlight renders over input/suggestion/footer rows; border-row cells stay unhighlighted (AC2 satisfied for editor content + footer rows; border cells itemized).
+5. **Blank-row highlight**: reversed spaces on fully blank covered rows (dock spacer, empty transcript rows) do not render — the port's Line objects carry no spans for blanks; consistent with the transcript's pre-existing blank-row behavior.
+6. **thinkingLevelMap**: the port's catalog schema carries no thinkingLevelMap, so a reasoning model's ladder never filters xhigh/max (pi filters via the map, models.ts:1226-1230).
+7. **/thinking arg gate layer**: pi's handleThinkingCommand lives in interactive-mode; the port's frozen Commands::Handler renders the full-ladder error at commands.rb:169, so the gate intercepts in `Chat#submit` (idle dispatch path only — while busy, slash text steers, the port's standing I27 deviation). Direct `Handler#dispatch("/thinking x")` calls bypass the surface gate and keep the frozen full-set text.
+8. **Stored thinking level not re-clamped on model switch**: the menu's ✓ clamps for display; the stored `@thinking_level` survives a switch away and back (pi clamps the session level at setModel). Beyond AC4's letter; noted.
+9. **Lane process note**: I ran `rubocop -A` on my three lib files early — the repo has NO rubocop config and rubocop is not bundled, so default-config autocorrect reformatted them against house style. Reverted by reconstructing from `git show HEAD:` and re-applying the edits; the final diff contains no rubocop-default formatting. No repo formatter exists to run instead.
+10. **Out of scope per spec (not built)**: drag auto-scroll at scrollview edges (pi's 50 ms timer — queued), URL click-through (pi pressedUrl — no URL detection in the port), rig menu-probe staging.
+
+STATUS: COMPLETE
 
 ## Verdict
 
