@@ -472,11 +472,94 @@ directory or build/I35-editor-multiline-{core,rig}/prompt.md.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I35-editor-multiline-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence editor-multiline --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+### Files touched (all inside the lane boundary)
+
+| file | status | wc -l |
+|---|---|---|
+| lib/tart/render/editor.rb | rewritten (visual-line model) | 952 |
+| lib/tart/render/chat.rb | rewired (dispatch, area rows, border composition, paste) | 1701 |
+| lib/tart/render/viewport.rb | scroll_page deletion only | 187 |
+| test/render/editor_multiline_test.rb | new | 456 |
+| test/render/editor_test.rb | additive surgery (comment + flat-cursor test) | 143 |
+| test/chat_test.rb | paging-family re-point + 9 new tests | 4386 |
+| README.md | keybindings table + input-editor prose | — |
+
+`git status --short` at end: 6 modified + 1 new (untracked) test file. No commits, no git write commands.
+
+### Suite counts (before / after)
+
+| run | command (verbatim tail) | result |
+|---|---|---|
+| base | `bundle exec rake` → `629 runs, 2595 assertions, 0 failures, 0 errors, 1 skips` | green |
+| after | `bundle exec rake` → `667 runs, 2746 assertions, 0 failures, 0 errors, 1 skips` | green |
+| delta | — | +38 runs, +151 assertions |
+
+The pre-existing async JSON warning (Terminal is not initialized, test_escape_cancels_the_running_user_bash path) is present at base and after — unchanged noise.
+
+### New/updated tests + verbatim run tails
+
+| file | tail |
+|---|---|
+| test/render/editor_multiline_test.rb (28 new tests) | `28 runs, 103 assertions, 0 failures, 0 errors, 0 skips` |
+| test/chat_test.rb (9 new: OPTION A ×2, box growth, window cap/borders, newline keys, backslash idiom, multi-line paste, multi-line recall, slash line-0 gate) | selected: `9 runs, 45 assertions, 0 failures, 0 errors, 0 skips`; full file in `bundle exec rake` above |
+| test/render/editor_test.rb (existing 8 + 1 new flat-cursor test) | `9 runs, 36 assertions, 0 failures, 0 errors, 0 skips` |
+| test/render/kill_ring_test.rb + autocomplete_test.rb (neighbor editor-driven, unchanged) | `15 runs, 36 assertions, 0 failures, 0 errors, 0 skips` |
+
+New-test coverage per the spec's test list: (1) wrap chunks/offsets/forced-breaks/CJK widths/visual map/render rows/fake cursor; (2) sticky-column clamp-restore (P/S/T/U rows 1,2,3,6) + visual-row walk + home-at-top; (3) home/end LOGICAL (cites editor.ts:1613-1620); (4) logical prefix/suffix kills, boundary "\n" kills/merges, accumulate, plain backspace/forward-delete merges without ring, word-deletes at boundaries, multi-line yank/yank_pop; (5) box growth cell-readback, window cap, cursor-row visibility, ↑/↓ border composition, transcript ceding; (6) multi-line history recall (rows, start/end placement, draft restore, editability); (7) shift+enter/alt+enter/ctrl+j dispatch, backslash-enter idiom, paste normalize+filter+splice; (8) OPTION A pin (editor pages, transcript offset unmoved on both keys, `Viewport#scroll_page` gone via `refute Render::Viewport.method_defined?(:scroll_page)`, wheel still pans); (9) slash line-0 gate through dispatch, bash line-0 readback, ctrl+d empty shape (`lines == [""]`), submit joins+trims.
+
+### Gates
+
+| gate | command | exit |
+|---|---|---|
+| seam bench | `bundle exec ruby bench/seam_bench.rb` → `SEAM_BENCH_OK` | 0 |
+| s1 | `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/i35` | 0 |
+| s2 | …/s2_tool_turn.yml | 0 |
+| s3 | …/s3_tool_turn_files.yml | 0 |
+| s4 | …/s4_bash_variants.yml | 0 |
+| s5 | …/s5_bash_truncation.yml | 0 |
+| s6 | …/s6_long_calls.yml | 0 |
+| s7 | …/s7_compaction.yml | 0 |
+| s8 | …/s8_zero_usage_compaction.yml | 0 |
+| s9 | …/s9_startup_help.yml | 1 |
+
+s9: exit 1 in this tree AND at base (verified by `git stash push` → rerun → `git stash pop`; base run out-dir tmp/b). Failure signatures byte-identical (same out-dir length tmp/b vs tmp/b9): classes `{parity-run-path: 6, unknown-candidate: 1, staged-path-wrap-fragment: 3, footer-provider-prefix: 2}` both; the single unknown-candidate is pi's `ctrl+g for external editor` help line absent from tart — pre-existing oracle drift, untouched by this lane. Note: `scenarios/s1_tart.yml` and the probe_*.yml files are extras outside the s1–s9 family (s1_tart exits 1 at base by the registry's own design — its MOTD divergences are the declared work list).
+
+### PHASE 0 — grounding verification (against repos/pi, read before planning)
+
+| premise | checked | verdict |
+|---|---|---|
+| state {lines, cursorLine, cursorCol} :285-289 | editor.ts EditorState + class init | as stated |
+| wordWrapLine :131-234 (backtracking, forced break, atomic re-wrap) | :134-234 | as stated |
+| buildVisualLineMap/findVisualLineAt :1836-1892 | :1836-1892 | as stated |
+| layoutText cursor-on-chunk mapping :997-1079 | :998-1079 | as stated |
+| layoutWidth = width−1, maxVisible = max(5, floor(rows*0.3)), scrollOffset window :546-578 | :536-558 (maxVisible at :538) | content as stated; cited line numbers drift slightly |
+| createScrollBorder :323-341 | function at :279-296 | content as stated (centered label, `───` fallback, `...` floor); line numbers drifted |
+| sticky column P/S/T/U :1583-1611 inside moveToVisualLine :1476-1558 | verbatim read | as stated |
+| snappedFromCursorCol paste-marker-only | set only in the multi-grapheme snap path | ported WITHOUT it, as ruled |
+| up/down dispatch :925-949 | :924-950 | as stated (up: empty‖browsing‖col==0 → history else home; down: browsing → history else line-end) |
+| home/end = LOGICAL :1613-1620 | moveToLineStart/End | as stated |
+| newlines keybindings.ts:143 (shift+enter/ctrl+j) + alt fallbacks :897-903 | verbatim | as stated |
+| backslash-enter both directions :878-917 | read | see deviation D1 |
+| paste normalize/filter/splice :1129-1177 (normalizeText :1148) | read | as stated |
+| history draft clone, start/end placement :454-503 | navigateHistory :475-503 | as stated |
+| kill boundary arms :1626-1690, word-deletes :1692-1775, yank/yankPop :2028-2108 | read | as stated |
+| slash line-0 :2178-2188 | isSlashMenuAllowed | as stated |
+| pageScroll :1961-1973, pageSize = maxVisible | read | as stated |
+| custom-editor.ts:36-66 border composition, chat-viewport.ts:22-45 dock, ratatui_ruby 1.5.0 key events (code + modifiers; shift+enter = "enter"+["shift"], `text?` false for "enter") | read (gem event/key.rb, character.rb) | as stated |
+
+### Itemized deviations / spec readings
+
+- **D1 (spec-baked cut):** pi's `shouldSubmitOnBackslashEnter` (editor.ts:878-901) makes **backslash + shift+enter SUBMIT** (delete the backslash, submit) — the inverse idiom. The spec's dispatch ruling ("enter with shift or alt … route to add_new_line BEFORE the plain-enter path") is unconditional; implemented spec-literal. The plain-enter backslash arm (delete + newline) is implemented per pi :906-917.
+- **D2 (reading of "exits history browsing exactly as today"):** ops that exist at base keep their `exit_history_browsing` (move/delete/kill family, verbatim base discipline). The NEW `cursor_up`/`cursor_down`/`page_scroll` follow pi's full dispatch: pure visual motion keeps browsing (pi moveCursor/moveToVisualLine/pageScroll never exit) — otherwise multi-line history recall could never walk down through a browsed entry (the down-at-last-row history arm requires browsing to survive the visual-row moves). The up/down history arms route through `history_previous`/`history_next` unchanged.
+- **D3 (border composition, sanctioned house judgment):** tui.rb (the shared gem seam) is outside this lane's boundary and exposes no bottom-title/multi-style border row; the editor area composes its border rows manually as span lines inside a paragraph. Bytes are pi's (`Editor.scroll_border` = createScrollBorder verbatim, unit-pinned); per-segment styling is preserved where the base test pins it (status span rides `Theme[:dim]` as the base `title_style` did, border segments ride `editor_border_color`). pi labels the borders only when rows are actually hidden (renderTop/BottomBorder guard) — mirrored.
+- **D4 (pi editor.ts:906-917 order):** the autocomplete confirm arm precedes the backslash arm in the plain-enter path (pi's select list consumes enter before Editor.handleInput sees it); base behavior for the list case is unchanged.
+- **D5 (Ruby/JS split semantics):** `"\n".split("\n")` is `[]` in Ruby vs `["", ""]` in JS — the multi-line splice/yank-delete/recall splits use `split("\n", -1)` to keep pi's exact behavior (found by test, fixed).
+- **D6 (small scope addition):** README also gained Ctrl+U/Ctrl+K and Ctrl+Y/Alt+Y rows — those ops existed at base but their boundary behavior (newline-kill line merges) is exactly this iteration's deliverable and the editor.rb "N/A" comments retired; documenting them belongs to the table update.
+- **D7:** `benchmark/` goldens, `gems/tui-split-rig/**`, `lib/tart/tui.rb`, and every file in the must-not list are untouched. The s10 scenario does not exist in this worktree (expected — rig lane).
+
+STATUS: COMPLETE_WITH_CONCERNS (s9 exits 1 in this tree — byte-identical pre-existing base failure, pi `ctrl+g for external editor` oracle drift, evidence above; D1 is a fidelity cut baked into the spec's dispatch ruling — flagged for the architect; D2 is my reading of the browsing-exit discipline for the new ops, itemized)
 
 ## Verdict
 
