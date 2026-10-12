@@ -9,11 +9,94 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section compaction-residuals grounds --from <file>`. -->
+# Grounds — I31 compaction-residuals
+
+Measured this session (2026-10-12, the I30 judging session) at base **276eda3d**
+(= `project/pi-port` tip after I30; the integrated tree with panel + rebuild +
+agent seams landed). All captures below are this session's cold gate runs under
+`repos/tart/tmp/parity-gate-s7` and `tmp/parity-gate-s8`.
+
+1. **The s7 failure is exactly one 7-row vertical shift.** The integrated s7
+   captures: pi's settled screen retains its header rows 2–8 (MOTD art
+   `▀▀█ v1.1.0`, the two startup-help lines, blank, `Pi can explain…`, two
+   blanks) then the kept entry (`first turn reply…`) at row 9 and the panel at
+   12–14; tart's settled screen has the SAME content rows (kept entry, blank
+   pair, `[compaction]`, blank, `Compacted from 15 tokens (ctrl+o to expand)`)
+   starting at row 2 — byte-identical content, shifted up 7. The rig diff: 14x
+   unknown-candidate = 7 pi-side header rows + 7 tart-side trailing blanks;
+   2x parity-run-path + 2x footer-provider-prefix (sanctioned); **style
+   differences: none**. The panel bytes and the kept-entry replay are proven —
+   the only defect is the MOTD wipe.
+
+2. **Why the wipe was wrong (the I30 Grounds-3 authoring defect).** pi's
+   `compaction_end` (interactive-mode.ts:3686-3725) calls `chatContainer.clear()`
+   — the CHAT container only. pi's MOTD header lives in a separate container
+   above it that compaction never touches: the header persists byte-for-byte
+   through compaction (the capture is the oracle). I30's Grounds 3 conflated
+   tart's `[Context]` candidate with the whole MOTD and mandated wiping both.
+   The correct port behavior: the rebuild leaves the header rows on screen
+   (preserve the region through the clear, or re-render it — the builder
+   verifies which is faithful; the AC is the settled bytes).
+
+3. **The `[Context]` trap.** The port's MOTD `[Context]` section (motd.rb:117,
+   :133) is a port-only inline listing of loaded resource files — pi shows
+   loaded resources only in the ctrl+o expanded startup help, never in its
+   settled header. The registry's `staged-settings-path` class covers the path
+   fragments and its comment says "the [Context] heading itself stays a
+   candidate (a real port-only listing, left on the work list)". I30's wipe
+   already removed it from the settled screen (matching pi); the header fix
+   must NOT resurrect it — the header that survives the rebuild is pi's header
+   shape (art + help + `Pi can explain…`), not the port's full MOTD block with
+   its resource listings. The long-term home for the listings is the queued
+   "header startup-help flip" backlog item (loaded resources under ctrl+o,
+   pi's shape) — NOT this iteration.
+
+4. **The s8 `tokens_before` divergence decomposes into a fixable defect plus a
+   sanctioned residue (this session's measurements).** s8 suppresses usage, so
+   both apps fall to the chars/4 Case-3 estimate over their own message
+   history. Measured from the run artifacts:
+   - **tart = 67, exactly**: `estimate_tokens` (compaction.rb:248) counts
+     message TEXT only — developer prompt 203 + user 13 + assistant reply 45
+     chars, ceil per message → 51+4+12 = 67.
+   - **pi = 1,482**: `estimateTokens` (pi compaction.ts:296-311) counts the
+     system message's content + **`system.sections`** + **`system.toolsAdded`
+     (the JSON of the tool definitions)** — 2,930 content + 2,841 tool JSON +
+     13 user chars, /4 with per-message ceilings ≈ 1,482. pi's estimate is an
+     honest measurement of its real wire request (5,783 chars ≈ 1,445 tokens).
+   - **tart's real wire request is 5,187 chars ≈ 1,296 tokens** (its tool
+     schemas alone are 4,971 chars — MORE than pi's 2,841). tart's estimator
+     under-reports its own wire context by ~20×. This is a genuine
+     estimator-scope defect vs pi's mechanism, and it is production-relevant:
+     whenever a real provider reports no usage, the port under-estimates and
+     under-triggers compaction.
+   - The residue after the fix (different prompt sizes + different tool-schema
+     verbosity — pi 4 tools on the wire, tart 7) is each app's honest
+     measurement of its own deliberately different context: same family as the
+     footer usage values already covered by `footer-provider-prefix`'s
+     line-level match. s7, where usage IS reported, shows `15` on BOTH sides —
+     the render is faithful; only the estimate source differs.
+
+5. **The registry class (owner-agreed direction, 2026-10-12).** The registry's
+   own doctrine (registry.yml header): "pin a new class here only when the
+   OWNER has ruled the difference out of scope". The owner agreed with the
+   direction this session: fix the estimator scope, then sanction the residual
+   value divergence as a documented class. Class shape: name
+   `compaction-token-estimate`, line-anchored pattern matching the panel's
+   token row on BOTH sides (e.g. `Compacted from [\d,]+ tokens`) — the panel's
+   wording/bytes stay pinned by the I30 chat tests, so the class forgives only
+   the number (each app's own context measurement), exactly as
+   `footer-provider-prefix`'s `mock-1$` anchor forgives the footer's
+   provider-prefix + usage values at line level.
+
+6. **The comment artifact (I30 style flag).** transcript.rb ≈:365-373: the
+   comment block atop `compaction_panel_rows` opens with 9 pasted lines of the
+   SKILL-panel's comment before the actual compaction-panel comment starts.
+   Fold into this iteration (same file as the header fix).
+
+7. **Control (this session, base 276eda3d).** Suite 565 runs / 2217
+   assertions / 0 failures / 1 pre-existing skip; SEAM_BENCH_OK; s1–s6 exit 0
+   cold; s7 + s8 exit 1 (the two residuals above). All regression claims are
+   against this baseline.
 
 ## Specification
 
