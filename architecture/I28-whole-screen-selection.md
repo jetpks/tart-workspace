@@ -9,11 +9,63 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section whole-screen-selection grounds --from <file>`. -->
+# Grounds — I28 whole-screen-selection
+
+Measured this session (2026-10-12) at base **8c7a438** (= `project/pi-port` tip after
+I27 + the owner-directed `build_surface` wiring fix):
+
+1. **Owner rulings (2026-10-12, decisions log).** (a) I27 wave 2 = **whole-screen
+   selection** — pi's fullscreen TuiAltScreen owns selection over EVERY rendered row
+   including the footer/editor rows (drag char-wise, double-click word-wise, triple-click
+   line-wise, copy-on-release); the port drops clicks below the transcript area today.
+   (b) pi's `app.message.copy` = **ctrl+x copy-selection-or-last-assistant** "rides the
+   selection wave". (c) The two I27-verdict menu parity residuals fold here (chat.rb is
+   the single writer): the model menu's ✓/· default markers missing under an env boot
+   (TART_PROVIDER native wire slug vs the catalog's provider key — no cross-resolution),
+   and the thinking menu offering all 8 levels where pi gates by the model's reasoning
+   capability.
+
+2. **pi's selection mechanics (measured, packages/tui/src/tui-alt-screen.ts).**
+   `handleSelectionMouseEvent` :1322 — left button only (`button&3 == 0`); press anchors,
+   drag (button&32) extends, release selects+copies when `copyOnSelect`. The pointer
+   maps via `getSelectionPoint` :1148: inside the scroll view → scroll-buffer
+   coordinates (getScrollSelectionPoint :1138 — row clamp to the visible box); OUTSIDE
+   it → plain terminal row/col (clamped to the screen). Non-transcript row CONTENT
+   comes from `getSelectionSourceLine` :1165 — the scroll view's content lines for
+   transcript rows, else **`previousScreen[row]`** (the last-rendered screen buffer,
+   terminal sequences stripped on read). Granularity: multi-click window 500 ms
+   (`DOUBLE_CLICK_INTERVAL_MS` :82), 1→2→3 cycle; word selection keeps paths and
+   kebab-case tokens whole (`TERMINAL_WORD_SELECTION_JOINERS` :85 = `{"/", "-"}`);
+   line granularity on triple. `app.message.copy` (interactive-mode :3116) →
+   `handleCopyCommand({flashConfirmation: true, preferSelection: true})`.
+
+3. **The port's state (measured at 8c7a438).** The Selection machine
+   (`lib/tart/render/selection.rb`, 271 l) is ALREADY pi-complete at its own layer:
+   anchor/focus/granularity state, the 500 ms multi-click cycle, `WORD_JOINERS = "/-"`,
+   word/line ranges with exclusive-end boundaries, `highlight_row`, `selection_text`,
+   osc52 copy inside release, and an injected `line_reader` (chat.rb:142 — reads
+   `plain_content_line`, display_lines only). `content_point` (chat.rb:846) returns
+   **nil for y ≥ transcript_area_rows** — clicks below the transcript are dropped
+   (press/drag/release all no-op). The highlight pass exists only in the transcript
+   widget build (chat.rb:944 `transcript_widget`). The editor block (border+input
+   rows) is chat.rb-composed (the edit box, chat.rb:955+); the footer widget builds in
+   `lib/tart/render/footer.rb:49` (`widget(data, width)`). Selection behavior tests
+   all live in test/chat_test.rb (no test/render/selection_test.rb exists).
+
+4. **Control (this session, base 8c7a438).** Suite 526 runs / 2035 assertions / 0
+   failures / 1 pre-existing skip; SEAM_BENCH_OK; s1–s6 exit 0 cold; s7 exit 1 by
+   design (the compaction panel — the fast-follow iteration after this one). All
+   regression claims below are against this baseline.
+
+5. **Sequencing (this session's ruling, refining the owner's sketch).** The owner's
+   standing sketch ran "selection wave → compaction (panel + usage)"; chat.rb is the
+   single-writer bottleneck (the compaction panel renders in chat.rb's `:compaction`
+   event handler, chat.rb:393-404), so the panel CANNOT run parallel to this
+   iteration — it queues as the fast-follow off this iteration's integrated tip.
+   The compaction USAGE work (agent/loop.rb + compaction.rb + tests + rig) is
+   file-disjoint from this iteration → it runs PARALLEL as I29 (both dispatched
+   together this session off the same base). The `nil contextWindow` switch residual
+   (I27 verdict concern 1) is a loop.rb seam → it folds into I29, not here.
 
 ## Specification
 
