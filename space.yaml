@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: model-menus
+  current_iteration: whole-screen-selection
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1156,7 +1156,7 @@ project:
       - test/models_test.rb
       - test/render/model_menu_test.rb
       base_sha: fcf232f49d1694c60492fb710d5c5af48d6ad4db
-      worktree: build/I27-model-menus-model/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
@@ -1169,7 +1169,7 @@ project:
       touch_set:
       - gems/tui-split-rig/**
       base_sha: fcf232f49d1694c60492fb710d5c5af48d6ad4db
-      worktree: build/I27-model-menus-rig/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
@@ -1180,4 +1180,10 @@ project:
     rehearsal:
       gates_digest: f162e34724d691d933904eaa1f364d2e3c454c987d4417f1eac165a10d0dddae
       at: '2026-10-11T20:08:21-06:00'
+  - name: whole-screen-selection
+    ordinal: 28
+    file: architecture/I28-whole-screen-selection.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
