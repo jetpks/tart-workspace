@@ -1436,11 +1436,27 @@ project:
       - test/render/editor_multiline_test.rb
       - test/chat_test.rb
       - README.md
+      base_sha: 8131f438799d6f56c4487d577702589cdd3f4b01
+      worktree:
+      integration_branch: project/pi-port
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
+      integrate_sha: 104e75d7a99a281b28fcb8f4179b4db47fc31e99
     - name: rig
       repo: tart
       touch_set:
       - gems/tui-split-rig/scenarios/s10_editor_wrap.yml
       - gems/tui-split-rig/registry.yml
+      base_sha: 8131f438799d6f56c4487d577702589cdd3f4b01
+      worktree:
+      integration_branch: project/pi-port
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
+      integrate_sha: 327e3e58851c0f36a34b6634312b21255f59fbc9
     rehearsal:
       gates_digest: bba0a7f6596d6b247280cdaf5b52cb3d732ab2a5c4f00b56c0b58acfca2b7078
       at: '2026-10-12T14:25:19-06:00'
