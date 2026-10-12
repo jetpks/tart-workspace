@@ -1058,15 +1058,103 @@ STATUS: COMPLETE_WITH_CONCERNS — (1) staged tart models.json shape is an unrat
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section model-menus verdict --from <file>`. -->
+- **Post-flight (mechanical, this session).** `architect verify model-menus` all PASS
+  (both lanes: frozen sections untouched, no builder commits, scratch reports present,
+  in-bounds — each confirmed by hand: `git status --porcelain` in both worktrees shows
+  exactly the lanes' declared files, `git log fcf232f4..HEAD` empty in both). Frozen
+  region unchanged since freeze 0a113b96 (`git diff 0a113b96 HEAD --` shows only the
+  appended Builder Prompt/Report). Evidence transcribed verbatim (594ad49b, 205f7b72).
+  Both lanes merged `--no-ff` into `project/pi-port` (model a07b7039, rig 725de20c, no
+  conflicts — lane plan disjoint as declared). All 16 frozen gates PASS cold.
+  Post-integration probe re-run (the rig report's flagged obligation): exit 0, all
+  four capture pairs good — and it EXPOSED a live defect, ruled below.
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify model-menus`)?
+- **Disagreement rulings (each flagged item from the Builder Reports).**
+  - Model lane, models.json `"default"` key port extension (priority 2 over the
+    Settings default; pi's schema has no such key and pi puts the settings default
+    first) — **ACCEPT**: the spec invited "itemize any deviation", a user's declared
+    catalog default outranking the compiled-in fireworks default serves BRIEF §3
+    (the user's own catalog governs the daily driver), and the deviation is
+    documented at the loader (models.rb:99-104) and in `bin/tart --help`.
+  - Model lane, unified one-component family (`Render::ModelMenu`, variant
+    `:thinking`/`:model`) — **ACCEPT**: the spec explicitly left unify-or-mirror to
+    the builder; one component over one shared shape is the DRY-er reading of pi's
+    two-class-one-shape family.
+  - Model lane, dropped byte-identical duplicate test in chat_test — **ACCEPT**:
+    verified myself at base fcf232f4 (the `test_bash_mode_border_renders_the_bash_mode_token`
+    bodies at lines 1857 and 2003 are byte-identical; the second shadowed the first,
+    which never ran). In-bounds file; dropping reconciles runs with source.
+  - Model lane, degenerate catalog extension (empty/absent catalog → the menu offers
+    the single boot model) — **ACCEPT**, with a cost made explicit below (it masked
+    the live wiring defect): the extension itself is sound (ctrl+s set-as-default
+    works out of the box) and is documented.
+  - Model lane cuts, all declared: catalog network refresh, scopedModels/all toggle,
+    isDefaultSearch boost, /login hint, wheel-over-list, and the ctrl+p/shift+ctrl+p
+    cycling STRETCH — **ACCEPT** (each was out of the frozen scope; none silent).
+    The shift+tab cycle is now actually WIRED (verified in the diff — at base it was
+    reachable only via bare `/thinking`): a fair reading of "the cycle stays".
+  - Model lane concerns 1–2 (nil `contextWindow` keeps the previous window; a corrupt
+    settings.json is rewritten by a ctrl+s save) — **NOTED** for the wave-2/I28
+    polish backlog; neither breaks the frozen letter.
+  - Rig lane, staged models.json shape as an unratified contract — **RECONCILED,
+    ACCEPT**: verified live this session against the integrated tree —
+    `HOME=<staged home>` → `Tart::Models.load` returns both staged entries, no error
+    (mock/mock-1 "Mock 1", mock/mock-2 "Mock 2"). The rig mirrored pi's shape; the
+    model lane's loader reads it exactly. No merge seam.
+  - Rig lane, token-scoped tmux naming trade-off (foreign crashed-process leftovers
+    no longer fail a later run; opt-in live_run_test.rb:53 unchanged) — **ACCEPT**:
+    the concurrency cure is the deliverable, the narrowing is documented, and the
+    concurrent gate passes cold (CONCURRENT_OK).
+  - Rig lane, pre-model-lane tart snapshots — **ACCEPT with the obligation
+    discharged**: the probe re-run post-integration is done (this session, evidence
+    below); the probe CODE is the deliverable and works.
+
+- **Live defect found by the post-integration probe re-run (root-caused this
+  session).** The live tart `/model` menu renders ONE entry —
+  `→ ✓ mock-1 [openai] · default / Model Name: mock-1` — against a staged 2-model
+  models.json the loader reads cleanly. Root cause: `bin/tart:229` constructs
+  `Render::Chat.new(...)` WITHOUT the `models:` kwarg (render/chat.rb:121 grew the
+  param; the launcher threads `models` into `build_chat`, the Commands handler,
+  `require_api_key`, and `footer_data` — but not the surface). `model_menu_entries`
+  (chat.rb:1179) therefore degenerates to `boot_model_entry` — the boot model with
+  `name = id` and the env provider — exactly the frame captured. The suite never
+  caught it because the chat tests inject `models:` directly (the class-level
+  contract is correct; the launcher seam is unwired). Live consequences: the menu's
+  fuzzy search, (n/N) indicator, catalog sort, and `Model Name:` line are inert in
+  the real app; `/model <exact-ref>` direct switching still works live (the handler
+  holds the catalog). Ruled below as a spec-intent miss at the launcher seam — not an
+  AC FAIL (the frozen ACs measure the component + dispatch wiring, both delivered
+  and pinned; the gates are green) — but it gates wave 2: the follow-up (one kwarg +
+  a launcher-seam regression test) must land before the selection lane builds on
+  this tip. Surfaced to the owner with the verdict: inline fix (precedent: the I10
+  first-boot smoke defect, I13 hermeticity follow-up) vs a micro-lane.
+
+- **Parity finding (beyond the frozen letter, queued to the backlog).** pi gates the
+  thinking menu's available levels by the current model's reasoning capability
+  (agent-session.ts:2657 `getAvailableThinkingLevels` → `getSupportedThinkingLevels`;
+  the staged non-reasoning mock-1 offers only `off`). The port's thinking menu offers
+  all 8 levels unconditionally (probe capture: full off→max list vs pi's single `off`
+  row). The frozen AC2 did not name the gating, so no FAIL — recorded as a parity
+  gap for the wave-2 polish pass alongside the nil-contextWindow concern.
+
+- **Acceptance Criteria integrity** — frozen sections unchanged since freeze 0a113b96
+  (`architect verify` PASS; `git diff 0a113b96 HEAD` shows only appended Prompt/Report).
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | models.rb loads the rig's staged pi-shape models.json live (2 entries, no error); JSONC/BOM handled; invalid file → error field naming the path (direct tests); env > models.json default > Settings precedence itemized at models.rb:99-104 | §3 | PASS |
+| AC2 | Menu component + both dispatches pinned by direct-class tests (filter/nav/select/persist/cancel/click) + chat_test wiring; gates MENU_OK, MODEL_CMD_OK; probe captures both apps' menus | §3 | PASS — with the root-caused launcher-seam wiring defect (bin/tart:229, ruled above) recorded as the immediate follow-up |
+| AC3 | switch_model seam test-pinned with a live request round-trip on the switched chat (Chat#with_model, protocol :chat_completions); ctrl+s persists preserving unknown keys (settings_test); ctrl+l/ctrl+s wired (chat.rb when "l"/"s"); post-selection status + footer verified in probe captures | §3 | PASS |
+| AC4 | s1–s6 exit 0 cold, s7 exit 1, registry diff empty (additions-only trivially) | §3/§8 | PASS |
+| AC5 | Scope gate SCOPE_OK; both worktrees exactly in-scope (verified by hand); sealed files untouched | §3 | PASS |
+| AC6 | Integrated suite 525 runs / 2032 assertions / 0 failures / 0 errors / 1 pre-existing skip (base 471 → +54 net; the model report's +51 arithmetic was off by one — the integrated count is the record); SEAM_BENCH_OK | §3 | PASS |
+| AC7 | Probe captures both apps × both menus mid-flight + post-selection, plain+styled; candidate tables delivered; staged ~/.tart/models.json ≥2 mock models (verified live); concurrent gate CONCURRENT_OK cold; probe re-run post-integration exit 0 | §3/§8 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+- **Iteration — CONTINUE + the single decisive reason.** All 7 AC PASS and 16/16
+  frozen gates green cold on a diff that reads house-idiomatic (models.rb and
+  model_menu.rb carry the port's documentation idiom; the deviation itemization is
+  exemplary) — but the iteration is NOT done-done: the launcher seam (bin/tart:229
+  `models:` unwired into Render::Chat) breaks the objective's live value (BRIEF §3:
+  a multi-model daily driver) and must land, with its regression test, before the
+  wave-2 selection lane and I28 compaction build on this tip. The thinking-level
+  gating parity gap rides the wave-2 polish backlog.
