@@ -175,51 +175,159 @@ I27 + the owner-directed `build_surface` wiring fix):
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse whole-screen-selection` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze whole-screen-selection` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria — I28 whole-screen-selection
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC1 (row coverage).** Mouse press/drag/release map over EVERY screen row: the
+transcript keeps its scroll-buffer mapping (unchanged); rows below map by area
+(editor border/input rows, footer rows) instead of nil-ing (pi getSelectionPoint's
+non-scrollview branch). The whole-screen line reader answers plain text for those
+rows (pi getSelectionSourceLine's previousScreen analog — composed per area,
+deviation itemized if the port reads composition rather than the rendered screen).
+Direct-class/chat tests pin press/drag/release + selection_text over an
+editor-border row, the input row, and a footer row.
 
-**AC1.** ...
+**AC2 (granularity + highlight, all rows).** Double-click selects the word
+(joiners `/-` keep paths/kebabs whole), triple-click the line, drag extends — over
+editor and footer rows exactly as over transcript rows; release copies (osc52) from
+any row. The selection highlight RENDERS over editor and footer rows (the
+transcript highlight pass extended). At rest (no selection) the settled screens are
+byte-identical to base: s1–s6 exit 0 cold, s7 still exits 1, registry additions-only
+vs 8c7a438.
+
+**AC3 (ctrl+x).** ctrl+x copies the active selection's text, else the last
+assistant message's text, with pi's confirmation flash shape (pi handleCopyCommand
+{:6848+ flashConfirmation: true, preferSelection: true} — read and match the exact
+message/duration); both branches pinned by chat tests.
+
+**AC4 (menu residuals).** The model menu's ✓ current and · default markers match
+the runtime model under an env boot whose TART_PROVIDER is a native wire slug while
+the catalog keys the model under a non-native provider key (the cross-resolution,
+pinned by a chat test with that boot pair); the thinking menu's available levels
+gate on the runtime model's reasoning (non-reasoning → `[off]` alone; the
+`/thinking <bad-level>` error lists the gated set; switching to a reasoning:false
+catalog model re-gates).
+
+**AC5 (scope discipline).** The integrated diff touches exactly the enumerated
+files. Sealed (sibling iteration I29's territory + the rest):
+compaction.rb, agent/loop.rb, test/compaction_test.rb, test/agent_loop_test.rb,
+test/support/mock_llm_server.rb, test/parity/**, gems/**, editor.rb,
+transcript.rb, model_menu.rb, models.rb, settings.rb, commands.rb, bin/tart.
+
+**AC6 (suite + bench).** The default rake task fully green (run-count delta > 0 —
+new tests) and the seam bench prints `SEAM_BENCH_OK`.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse whole-screen-selection` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: ctrlx-tripwire
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'when "x"' lib/tart/render/chat.rb && echo CTRLX_OK
+  expect:
+    exit_code: 0
+    stdout_match: CTRLX_OK
+
+- id: coverage-tripwire
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'footer' lib/tart/render/chat.rb && grep -q 'transcript_area_rows' lib/tart/render/chat.rb && echo COVERAGE_OK
+  expect:
+    exit_code: 0
+    stdout_match: COVERAGE_OK
+
+- id: s1-parity
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/parity-gate-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/parity-gate-s6
+  expect:
+    exit_code: 0
+
+- id: s7-still-baselined
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    test -f gems/tui-split-rig/scenarios/s7_compaction.yml || exit 1
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7
+    test $? -eq 1
+  expect:
+    exit_code: 0
+
+- id: registry-additions-only
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    if git show 8c7a438:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml | grep -q '^<'; then exit 1; else echo REGISTRY_ADDITIONS_ONLY_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: REGISTRY_ADDITIONS_ONLY_OK
+
+- id: scope
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only 8c7a438 HEAD | grep -qvE '^(lib/tart/render/chat.rb|lib/tart/render/selection.rb|lib/tart/render/footer.rb|test/chat_test.rb|test/render/selection_test.rb)$'; then exit 1; else echo SCOPE_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
 
 ## Builder Prompt
