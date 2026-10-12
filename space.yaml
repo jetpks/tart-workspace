@@ -1247,6 +1247,13 @@ project:
       - lib/tart/agent/session.rb
       - test/agent_loop_test.rb
       - test/session_test.rb
+      base_sha: a622ee03ea8df8c200548a93850a5248f9f0f5b1
+      worktree: build/I30-compaction-panel-agent/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      integrate_sha: 914bb8736785e05eff8748c08b4e89539db18ffc
     - name: panel
       repo: tart
       touch_set:
@@ -1255,6 +1262,14 @@ project:
       - test/chat_test.rb
       - test/render/**
       - gems/tui-split-rig/**
+      base_sha: a622ee03ea8df8c200548a93850a5248f9f0f5b1
+      worktree: build/I30-compaction-panel-panel/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      dispatched_at: '2026-10-12T00:09:55-06:00'
+      effort: high
     rehearsal:
       gates_digest: b5e34ba16d43cd2c2ca343c6be614de2e590d9ac790cc5855dd5e9fabfa48fde
       at: '2026-10-12T00:01:46-06:00'
