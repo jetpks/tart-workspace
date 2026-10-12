@@ -1423,7 +1423,25 @@ project:
   - name: editor-multiline
     ordinal: 35
     file: architecture/I35-editor-multiline.md
-    freeze_sha:
+    freeze_sha: e63a05a2d9c47c0f7c78026d1c670bfa6938ee1f
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/render/editor.rb
+      - lib/tart/render/chat.rb
+      - lib/tart/render/viewport.rb
+      - test/render/editor_test.rb
+      - test/render/editor_multiline_test.rb
+      - test/chat_test.rb
+      - README.md
+    - name: rig
+      repo: tart
+      touch_set:
+      - gems/tui-split-rig/scenarios/s10_editor_wrap.yml
+      - gems/tui-split-rig/registry.yml
+    rehearsal:
+      gates_digest: bba0a7f6596d6b247280cdaf5b52cb3d732ab2a5c4f00b56c0b58acfca2b7078
+      at: '2026-10-12T14:25:19-06:00'
   integration_branch: project/pi-port
