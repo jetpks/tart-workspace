@@ -9,11 +9,91 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section compaction-panel grounds --from <file>`. -->
+# Grounds — I30 compaction-panel
+
+Measured this session (2026-10-12) at base **a622ee03** (= `project/pi-port` tip after
+I28 + I29):
+
+1. **Owner directive (this session).** Spec & dispatch as much as possible in
+   parallel. chat.rb is the single-writer bottleneck (the panel handler, the rebuild,
+   and every other queued render item all live there), so the maximum parallel split
+   is ONE iteration cut at the agent/render seam: an agent-side lane (`loop.rb` +
+   `session.rb` — the event payload + persistence + the I29 window-tier residual)
+   parallel with a render-side lane (`chat.rb` + `transcript.rb` + the rig), joined by
+   a frozen event-payload contract. Everything else queued (header startup-help flip,
+   user-bash live streaming, editor undo, toolPendingBg, §7.7 e2e) is chat.rb-bound
+   or depends on this landing — sequenced behind it.
+
+2. **pi's panel (measured, compaction-summary-message.ts, full file read).**
+   `CompactionSummaryMessageComponent extends Box(outputPad=1, padY=1, (t) =>
+   theme.bg("customMessageBg", t))`. Collapsed: bold `customMessageLabel` `[compaction]`
+   + `Spacer(1)` + `customMessageText` `` `Compacted from ${tokensBefore.toLocaleString()} tokens (` ``
+   + `dim` keyText("app.tools.expand") + `` ` to expand)` `` — s7's settled capture shows
+   the key renders as `ctrl+o`. Expanded: the label + `Markdown(`**Compacted from
+   <N> tokens**\n\n` + summary)` with `customMessageText` color.
+   `tokensBefore.toLocaleString()` = comma grouping (s8's pi capture: `Compacted from
+   1,487 tokens`). Replay (`renderSessionEntries` case `compactionSummary`,
+   interactive-mode :3903-3904, :4086 "Used for initial load and rebuild after
+   compaction"): `Spacer(1)` + the panel with `setExpanded(this.toolOutputExpanded)`
+   — the GLOBAL expand state. MouseRegion click-to-toggle is a standing cut (the
+   port's mouse owns selection — the skill-panel precedent).
+
+3. **pi's live rebuild (measured, interactive-mode :3686-3725 `compaction_end`).**
+   On success: `chatContainer.clear()` → `renderSessionEntries(entries.slice(1))`
+   (the kept post-compaction entries re-rendered at their chronological positions)
+   → the panel appended LAST (`createCompactionSummaryMessage(result.summary,
+   result.tokensBefore, now)`) → `footer.invalidate()` (recompute, NOT reset). The
+   clear wipes the MOTD/[Context] header (s7's @@ -8 candidate: pi's settled screen
+   has no `[Context]` after compaction). The `compaction_cost` usage notice
+   (`addCompactionCostNotice` :4118-4130, warning-fg `Compaction: N tokens billed
+   (~$X.XX)`) is gated on `showCacheMissNotices` — **default FALSE**
+   (settings-defaults.ts:27) → does not render in the rig; CUT for this iteration,
+   itemized (no settings seam in the port; the entry persists usage so a future seam
+   can render it).
+
+4. **pi persists usage on the entry (measured, session-manager.ts :85-101,
+   :1265-1290).** `CompactionEntry` carries `usage?: Usage` ("Usage from the LLM
+   call(s) that generated this summary") — appended by `appendCompactionEntry(…
+   usage?, …)`. The port's `Recorder#append_compaction` (session.rb:383-398) persists
+   summary/first_kept_entry_id/tokens_before/details — **usage missing** (the I29
+   residual: `Preparation#usage` exists in memory, never persisted). pi does NOT
+   persist estimatedTokensAfter (live computation only) — the port must not either.
+
+5. **The port's state (measured at a622ee03).** The `:compaction` event (loop.rb:357)
+   carries `reason/tokens_before/summary` — the rebuild needs the kept ENTRIES, which
+   only the agent side holds → the payload extension is the lane contract. The
+   surface's handler (chat.rb:413-427) enqueues a dim `✻ compacted (reason, N tokens)`
+   line + a blank region — replaced wholesale by the rebuild + panel. Replay renders
+   the compaction entry as BARE markdown (transcript.rb:395-402) — becomes the panel.
+   The skill-panel family (transcript.rb:347-377) already builds the exact
+   customMessageBg Box shape (bold label span, prose markdown over
+   `custom_message_text`, bg on every span — the port's own precedent); the I25
+   expandable/ctrl+o machinery and `@tool_output_expanded` global state exist.
+   `clear_transcript` (the /new path) also resets footer usage — the rebuild must NOT
+   (pi invalidates, never resets; s7's footer parity rides on it). replay_user feeds
+   `@history_sink` (transcript.rb:407) — a live rebuild through `replay_entries`
+   must not duplicate editor history (measure + handle).
+
+6. **The switch window tier (measured; the I29-ruled residual).**
+   `Settings.resolve_context_window` (settings.rb:115-127) chains explicit → env →
+   `model.context_window` → `MODEL_CONTEXT_WINDOWS[model.id]`; `switch_model`
+   (loop.rb:127) re-resolves only `context_window || @chat.model&.context_window` —
+   the known-models tier is skipped, so switching to a known-models entry without a
+   declared window disables the threshold instead of resolving the table's window.
+
+7. **The measured targets.** s7's candidate list (this session's cold gate run at
+   a622ee03): 9x unknown-candidate = the panel (2 lines) + the rebuild shift
+   (blank/first-turn-reply/[Context]/hello-compact lines) + the ✻ line; 3x
+   parity-run-path + 2x footer-provider-prefix already sanctioned. s8 (I29's
+   zero-usage scenario) shares the panel divergence + one style_unknown candidate
+   (an empty dim-fg `"  "` spacer row on tart's side of the settled compaction
+   screen — raw evidence, likely the ✻ line's blank region; expected to vanish with
+   the rebuild). **Target: s7 AND s8 exit 0 cold.**
+
+8. **Control (this session, base a622ee03).** Suite 553 runs / 2134 assertions / 0
+   failures / 1 pre-existing skip; SEAM_BENCH_OK; s1–s6 exit 0 cold; s7 + s8 exit 1
+   by design (this iteration's targets). All regression claims below are against
+   this baseline.
 
 ## Specification
 
