@@ -96,51 +96,96 @@ Mechanism facts (pi source, verified this session): the header is `BuiltInHeader
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse header-startup-help` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze header-startup-help` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+**AC1 — the startup-help flip, byte parity (BRIEF §8).** With the staged pi identity, ctrl+o after boot expands the startup header IN PLACE to pi's expanded shape; a second ctrl+o restores the collapsed bytes exactly. Expanded shape (live-oracle ground truth, Grounds capture): mark+version row; mark row carrying hint 1 (`escape to interrupt`); hints 2–19 one per row, each the keyHint shape (dim key + muted description, one left-pad column), including the darwin `option+enter`/`option+up` rewrites; a blank row; the onboarding line. The `Press ctrl+o to show full startup help…` notice line renders ONLY collapsed. Collapsed bytes are unchanged from base (s1 green is the guard). Proof = the expanded screen reproduced through the rig's new post-settle-keys path against the live oracle + s9 exit 0.
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC2 — resource sections expandable + lifecycle.** The loaded-resource sections flip with the same global toggle. Expanded bodies match pi's shapes: [Context] = full display paths one per line (~-contracted, two-space indent, dim, registration order, the discovered agents files included ahead of the config sources); [Skills]/[Prompts] = scope groups in pi's order (project → user → path), each group an accent label row then dim indented entries sorted within the group ([Prompts] entries as `/name`). Sections stay boot-once: NOT re-rendered at /new (the /new path re-enqueues the header block alone, at the current toggle state), NOT resurrected by the compaction rebuild (which restores the header at its current expansion state); empty sections stay omitted; the npm/git package sub-groups and diagnostics sections stay cut, itemized.
 
-**AC1.** ...
+**AC3 — the instrument.** `s9_startup_help` exits 0 cold from the integrated tree: the staged AGENTS.md + user skill + project skill + one prompt template render in both apps, compact and expanded; every difference line is sanctioned — the pre-existing classes plus staged-resource-path noise pinned as narrowly-evidenced new class(es), each cited to its base-run candidate lines, none broader than its evidence; `s1_text_turn` and `s2_tool_turn` stay exit 0.
+
+**AC4 — showStatus semantics.** The three persistent statuses (thinking-level selection, model selection, tool-output toggle) render as pi's showStatus: a blank row then a dim one-left-pad row at the transcript tail, replaced in place while still the tail, persisting at settle. The editor border title carries only the transient busy/compaction spinner — the `Tool output:` string never rides the border.
+
+**AC5 — identity fold-in.** `Identity.current` is gone process-globally (zero refs in `lib/` and `bin/`, comments included) — the face threads explicitly to the header builders.
+
+**AC6 — quality.** Suite green, SEAM_BENCH_OK, house style; the new public behavior is test-covered (expanded bodies, flip round-trip, status-row semantics, the scenario knobs' load validation); goldens and the s1–s8 scenario pins byte-unchanged.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse header-startup-help` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-regression
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1-i33
+  expect:
+    exit_code: 0
+
+- id: s2-regression
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2-i33
+  expect:
+    exit_code: 0
+
+- id: s9-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s9_startup_help.yml --out tmp/parity-gate-s9
+  expect:
+    exit_code: 0
+
+- id: flip-motd
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    grep -q "expanded" lib/tart/render/motd.rb && echo FLIP_OK
+  expect:
+    exit_code: 0
+    stdout_match: FLIP_OK
+
+- id: status-not-border
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    ! grep -q 'border_status = "Tool output' lib/tart/render/chat.rb && echo STATUS_ROW_OK
+  expect:
+    exit_code: 0
+    stdout_match: STATUS_ROW_OK
+
+- id: identity-retired
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    ! grep -rq "Identity.current" lib bin && echo IDENTITY_OK
+  expect:
+    exit_code: 0
+    stdout_match: IDENTITY_OK
+
+- id: scope
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    test -z "$(git diff --name-only 8638aa7 HEAD | grep -Ev '^(lib/tart/render/(chat|motd|transcript)\.rb|lib/tart/identity\.rb|bin/tart|test/(chat|identity)_test\.rb|test/render/motd_test\.rb|gems/tui-split-rig/(lib/tui_split_rig/(runner|scenario)\.rb|scenarios/s9_startup_help\.yml|registry\.yml|test/(scenario|registry)_test\.rb))$')" && echo SCOPE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
 
 ## Builder Prompt
