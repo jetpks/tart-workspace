@@ -248,51 +248,171 @@ see the fast-follow note in the Specification).
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse prompt-identity` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze prompt-identity` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria — I32 prompt-identity
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+Gate calibration notes: `prompt-wired` and `env-prefix` are tripwires/wiring
+proofs (they prove the seam moved, not the bytes); the prompt's byte-parity
+substance is the pi-mode golden test (AC2), architect-read. The s7/s8 gates
+prove on the integrated tree (I31's class + estimator + header are in this
+iteration's base — the fast-follow).
 
-**AC1.** ...
+**AC1 (identity free-form).** Any non-empty identity string resolves and
+drives the branding: pi and tart keep their existing byte-exact rendering
+(pi-mode goldens unchanged; s1_tart green); any other identity (e.g. `foo`)
+renders its own name in the preamble and UI text with `Tart::VERSION`, and
+its env namespace is `FOO_`. Empty/whitespace values hit the clean-abort
+error path. Pinned by identity/launcher tests incl. a `foo` smoke.
+
+**AC2 (the wired prompt).** The launcher composes `Agent::SystemPrompt` on
+both the interactive and print paths — the 203-char terse string is gone.
+Pi-mode composition is byte-identical to pi's captured system message at the
+SAME tool loadout (golden derived from pi's request capture, cwd normalized,
+never from the port's own output); the preamble and the bash env-var rule
+bullet template the identity (pi mode byte-identical to pi's
+system-prompt.ts/bash.ts:47); `<docs>` keeps pi's resolved install paths
+(owner ruling 2026-10-12). Pinned by the system_prompt goldens + the
+launcher wiring test.
+
+**AC3 (project context).** Context-file discovery follows pi's
+resource-loader: the five candidates in pi's order, per-directory
+first-match, the ancestor walk, the worktree-shadowing rule; found files
+inject as `<project_context>`; none found → no section. Pinned by tests
+incl. the shadowing case; the parity scenarios stay bare (neither app's
+request carries a section).
+
+**AC4 (the env namespace).** Every app env read routes through the identity
+prefix (the settings ENV map, the context-window reads incl. loop.rb's env
+tier, the model/provider/api-key seams); `TART_IDENTITY` and
+`TART_MCP_CONFIG` remain the only launcher-owned `TART_` literals (both
+itemized in the report). The rig stages prefix-aware env for tart and
+scrubs parent `PI_*`/`TART_*` inheritance. Proof: the env-prefix gate + the
+staging tests + the parity scenarios green.
+
+**AC5 (regression).** The default rake task fully green with run-count
+delta > 0; s1–s8 AND s1_tart all exit 0 cold on the integrated tree;
+SEAM_BENCH_OK.
+
+**AC6 (scope).** The integrated diff vs 276eda3d (the pre-I31 tip — this
+iteration's tree carries I31's merged work) touches exactly I31's union ∪
+this lane's enumerated files, nothing else.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse prompt-identity` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/parity-gate-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/parity-gate-s6
+  expect:
+    exit_code: 0
+
+- id: s7-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7
+  expect:
+    exit_code: 0
+
+- id: s8-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml --out tmp/parity-gate-s8
+  expect:
+    exit_code: 0
+
+- id: s1-tart-mode
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_tart.yml --out tmp/parity-gate-s1tart
+  expect:
+    exit_code: 0
+
+- id: prompt-wired
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/prompt-gate-s1 && ruby -rjson -e 'c = JSON.parse(File.readlines("tmp/prompt-gate-s1/run-1/tart-requests.jsonl")[0])["body"]["messages"][0]["content"]; abort "terse prompt still wired" if c.include?("You are a coding assistant working in"); abort "no preamble" unless c.include?("You are an expert coding assistant operating inside"); abort "no rules section" unless c.include?("<rules>"); abort "no docs section" unless c.include?("<docs>"); abort "no cwd section" unless c.include?("<cwd>"); puts "PROMPT_WIRED"'
+  expect:
+    exit_code: 0
+    stdout_match: PROMPT_WIRED
+
+- id: env-prefix
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    if grep -rnE '"TART_[A-Z_]+"' lib bin/tart | grep -vE 'TART_IDENTITY|TART_MCP_CONFIG'; then exit 1; else echo ENV_PREFIX_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: ENV_PREFIX_OK
+
+- id: scope
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only 276eda3d HEAD | grep -qvE '^(lib/tart/render/chat\.rb|lib/tart/render/transcript\.rb|test/chat_test\.rb|test/render/|lib/tart/compaction\.rb|lib/tart/agent/loop\.rb|test/compaction_test\.rb|test/agent_loop_test\.rb|gems/tui-split-rig/registry\.yml|bin/tart|lib/tart/identity\.rb|lib/tart/agent/system_prompt\.rb|lib/tart/agent/context_files\.rb|lib/tart/settings\.rb|lib/tart/models\.rb|lib/tart/render/motd\.rb|test/system_prompt_test\.rb|test/settings_test\.rb|test/models_test\.rb|test/launcher_smoke_test\.rb|test/print_test\.rb|test/identity_test\.rb|gems/tui-split-rig/runner\.rb|gems/tui-split-rig/lib/|gems/tui-split-rig/test/|gems/tui-split-rig/scenarios/)$'; then exit 1; else echo SCOPE_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
 
 ## Builder Prompt
