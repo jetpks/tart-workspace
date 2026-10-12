@@ -207,6 +207,15 @@
     exit_code: 0
     stdout_match: REQUEST_WIRING_OK
 
+- id: ladder-gating
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'supported_thinking_levels' lib/tart/models.rb && grep -q 'supported_thinking_levels' lib/tart/render/chat.rb && echo LADDER_GATING_OK
+  expect:
+    exit_code: 0
+    stdout_match: LADDER_GATING_OK
+
 - id: replay-protocol
   ac: AC2
   cwd: repos/tart
