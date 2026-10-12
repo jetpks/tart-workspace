@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: thinking-ux
+  current_iteration: user-bash-streaming
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1515,4 +1515,10 @@ project:
     rehearsal:
       gates_digest: ec2b9553c7dd6fe70af44fe34c943ba0062fc1ebc274a7fff5553af30e379a86
       at: '2026-10-12T17:08:55-06:00'
+  - name: user-bash-streaming
+    ordinal: 38
+    file: architecture/I38-user-bash-streaming.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
