@@ -1210,7 +1210,7 @@ project:
     ordinal: 29
     file: architecture/I29-compaction-usage.md
     freeze_sha: 45ffeb612a060acf9d868efcbd6a8a1f459397fe
-    verdict: pending
+    verdict: continue
     lanes:
     - name: usage
       repo: tart

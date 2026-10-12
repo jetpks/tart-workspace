@@ -614,15 +614,80 @@ STATUS: COMPLETE_WITH_CONCERNS — (a) s8's style_unknown empty-dim-line candida
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section compaction-usage verdict --from <file>`. -->
+# Verdict — I29 compaction-usage
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify compaction-usage`)?
+Judged 2026-10-12 in a fresh session (this session dispatched nothing). Integrated
+`usage` → project/pi-port at a622ee03 (after I28's 355c05ea). Gates: 11/12 commands
+PASS cold + 1 INVALID (scope — ruled below, property proven directly); combined tree
+553 runs / 2134 assertions / 0 failures / SEAM_BENCH_OK.
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+## Post-flight (all confirmed with evidence this session)
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+Frozen region untouched (`git diff 45ffeb61 HEAD` appends Builder Prompt/Report only);
+no builder commits; worktree status = exactly the 9 declared files + the new s8
+scenario; report transcribed verbatim (05625b77).
+
+## PHASE 0 rulings (all five substantive — none silent)
+
+1. **Stop-reason guard resolves to CUT, and the spec's premise needed correcting** —
+   ACCEPT. Live-verified this session against ruby_llm 2.1.0: `Message#finish_reason`
+   exists (message.rb:63, set :115) but never carries `:aborted`/`:error` — failed
+   turns raise instead of appending, cancel raises inside `record_generated_message`.
+   A ported skip would fake a guard over an unreachable value; the spec's own
+   "never fake an unobservable guard" rule applies. AC2's IFF clause satisfied on the
+   itemize-with-citation arm.
+2. **`estimatedTokensAfter` is agent-session's post-append pure estimate, not
+   compact()'s** — ACCEPT. My spec implied compact() populated it; the builder's
+   reading is correct (agent-session.ts :2850/:366-371) and the port populates
+   `estimated_tokens_after` at the pi-equivalent point via `full_estimate`. Criterion
+   authoring defect, not a lane defect.
+3. **pi reference is `setModel`, not `switchModel`** — ACCEPT (no switchModel exists;
+   pi has no cached window to go stale — the port's re-resolve is the honest analog,
+   itemized).
+4. **`test/parity/mock_llm_extension_test.rb` does not exist; the mock's home is
+   `gems/tui-split-rig/test/`** — ACCEPT. Stale spec path; the lane's `gems/**` grant
+   covers the actual home. Nothing under test/parity/ was created.
+5. No further disagreements, with the checked-sources list stated — accepted.
+
+## Concern rulings (STATUS COMPLETE_WITH_CONCERNS)
+
+- **(a) s8's style_unknown empty-dim-line candidate** — new raw evidence, correctly
+  left on the work list; affects no expected exit code. Queued for the compaction-panel
+  iteration's authoring (it owns the settled compaction screen).
+- **(b) cut #5 — known-models tier not re-consulted on switch** (settings.rb sealed) —
+  ACCEPT as an itemized lane-boundary residual; the chat-model tier re-resolve ships
+  and AC4's property (no stale window) holds.
+- **(c) cut #4 — usage/estimated_tokens_after not persisted on the session compaction
+  entry** — ACCEPT; the recorder seam was out of lane, and the compaction-panel
+  fast-follow renders off these fields anyway, so persistence folds there naturally.
+
+## Per-AC
+
+- **AC1 PASS** — `trigger_tokens` is pi's Case structure verbatim (direct-first,
+  Case-3 fallback, stale guard INSIDE the fallback only), pinned by three named
+  direct-class tests + the loop-level knob test.
+- **AC2 PASS** — sweep table complete with every delta ruled; stop-reason cut
+  gem-cited (re-verified live this session); result fields carried data-only;
+  projection cut itemized.
+- **AC3 PASS** — `suppress_usage` knob + s8 scenario prove BOTH apps fire on the
+  estimate and compact (requests 2/2 both sides); s1–s6 exit 0 cold, s7 exit 1,
+  registry additions-only.
+- **AC4 PASS** — nil-window switch re-resolves (`context_window ||
+  @chat.model&.context_window`), footer-denominator refresh pinned.
+- **AC5 PASS, gate INVALID** — the instrument, not the lane: the frozen scope command
+  measures `8c7a438..HEAD`, which after I28's legitimate integration contains I28's
+  files too — a first-of-its-kind parallel-sibling artifact. Property proven directly
+  this session: `git diff --name-only 355c05ea a622ee03` = exactly the 9 enumerated
+  files, all in-bounds. Carry the corrected window (diff vs the pre-iteration
+  integrated tip) into any future parallel-sibling freeze.
+- **AC6 PASS** — +9 runs of its own (535 in isolation); combined tree 553 runs /
+  2134 assertions green, SEAM_BENCH_OK.
+
+## Call
+
+**CONTINUE** — the compaction trigger arithmetic is now pi's exact usage-backed shape,
+instrumented end-to-end (the gem's usage was always there; the port finally reads it
+the way pi does), and the panel fast-follow has its measured seams
+(usage/estimated_tokens_after on the preparation result + s8's settled-screen
+evidence). Decisive: both apps compact under the zero-usage path in the rig — the
+previously unexercised Case-3 is now parity-measured.
