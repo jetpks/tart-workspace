@@ -578,15 +578,32 @@ STATUS: COMPLETE_WITH_CONCERNS (concerns 1–3 above are behavior changes beyond
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section header-startup-help verdict --from <file>`. -->
+- **Disagreement rulings** (all six PHASE 0 items from the Builder Report):
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify header-startup-help`)?
+| # | Disagreement | Ruling | Why |
+|---|---|---|---|
+| 1 | Thread via `build_surface`, not the spec's `build_chat` | **ACCEPT** | `build_surface` is the Render::Chat construction seam (already takes `prompts:`/`extensions:`); `build_chat` is the print-path client builder. Same outcome, right seam (BRIEF §8 unchanged). |
+| 2 | Two blanks between onboarding and `[Context]` | **ACCEPT** | Verified against live pi source this session: headerContainer trailing Spacer (interactive-mode.ts:1075-1077) + the contextFiles-branch leading Spacer (:1852-1853). Renders only when `[Context]` renders; no pin covers that state (s1/s2 exit 0). |
+| 3 | motd.rb HINTS_LINE comment was factually wrong | **ACCEPT** | Comment-only; HINTS_LINE bytes frozen. |
+| 4 | `StatusEntry` arms the leading-spacer gate (`@chat_started`) | **ACCEPT** | pi's gate reads chat-container children and the status children count (:3930-3931 analog). Faithful to the mechanism, beyond the letter. |
+| 5 | `[Extensions]` stays compact in both states | **MODIFY** | Disposition ACCEPTED — the spec itself sanctioned "port the grouping shape if cheap, else cut with an itemized note", and the port's extensions are MCP server *names* (`mcp_servers.keys`), so `formatExtensionDisplayPath` has no input. But the mechanism claim is REJECTED: pi's `[Extensions]` passes a real expanded body (`extList` scope groups, interactive-mode.ts:1889-1911 — verified this session); the `expandedBody = collapsedBody` default (:1797) is never exercised for Extensions. The report and the motd.rb:206-209 comment repeat this wrong citation — see defects. |
+| 6 | Expanded keyHint rows don't wrap | **ACCEPT** | Itemized cut; the dim/muted span pair can't split through the port's plain-text wrap, and rows are identical at the rig's 120 cols. |
+
+- **Acceptance Criteria integrity** — `architect verify` all PASS; `git diff 03c7da9e HEAD -- architecture/I33-header-startup-help.md` touches ONLY the Builder Prompt section (two post-freeze prompt appends: original + EPIPE resume) and Builder Report/evidence transcription; Grounds/Specification/AC byte-identical to the freeze commit.
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | flip-motd gate PASS cold; probe captures: 40-row pi vs tart diff = 2 footer rows only (pre-existing classes), rows 1-38 byte-identical incl. the full 19-hint expanded header + darwin option rewrites; notice collapsed-only; round-trip pinned by `test_ctrl_o_flips_the_startup_header_in_place`; s9 exit 0 cold | §8 | PASS |
+| AC2 | Sections flip via per-section expandables; `[Context]` display paths (AGENTS.md threaded from ContextFiles.load, first row = pi's systemPromptSource position); scope groups project→user→path, accent label + sorted dim entries, `/demo` prompt entry (s9 capture read this session); /new re-enqueues header alone (`test_new_session_rerenders_the_header_alone_at_the_current_state`); compaction restores at current state (test); empty omitted; package/diagnostics cut itemized | §8 | PASS |
+| AC3 | s9 gate PASS cold (exit 0, candidates=0, style_unknown=0); staged AGENTS.md + user skill + project skill + prompt render in both apps (settled screens read this session); ONE new class `staged-path-wrap-fragment` (`^\s*\S+\.md$`), pinned from base-run evidence lines, first-match-wins keeps full-path rows in the run-N classes; s1 + s2 gates PASS cold | §8 | PASS |
+| AC4 | `Tool output: expanded` renders as dim transcript tail row in the s9 capture (border title empty at settle); replace-in-place pinned by `test_statuses_render_as_transcript_tail_rows_replaced_in_place` + `test_status_row_renders_dim`; status-not-border gate PASS cold | §8 | PASS |
+| AC5 | identity-retired gate PASS cold (0 hits in lib/ + bin/, comments included); `class << self attr_writer :current` block deleted; face threads via constructor (`build_surface` → `identity:`) | §8 | PASS |
+| AC6 | suite gate PASS cold (606 runs, 2487 assertions, 0 failures; 1 pre-existing live-env skip); SEAM_BENCH_OK; scope gate PASS cold (13 files, all in the declared set); goldens + s1-s8 pins byte-unchanged; 6 new chat tests + 11 new motd tests + 4 rig knob tests | §8 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+- **Diff read (beyond the gates).** The delta-carrying rebuild in `Transcript#set_tool_output_expanded` is the correct fix for the stale-start latent the boot header exposed — blocks register in ascending start order, the walk threads the row delta; without it the ~17-row header growth splices later blocks mid-header. Builder note 1 ACCEPTED as a genuine prerequisite fix (in-lane, evidence: the flip corrupted the buffer before it). The pi-tui `wrapSingleLine`/`breakLongWord` port reproduces the staged-path wrap byte shape (the s9 base-run candidates document the blank-row + width-cell-row form). House style is consistent throughout — guard clauses, module_function shape, comment idiom citing pi line numbers, Struct over class. Three non-blocking blemishes, none gate-relevant:
+  - `gems/tui-split-rig/lib/tui_split_rig/runner.rb:245-253` — the trust-store comment block is duplicated verbatim (paste artifact, likely from the EPIPE-interrupted then resumed dispatch). Comment-only; no behavior impact.
+  - `lib/tart/render/motd.rb:206-209` — states "pi's default expandedBody IS the collapsed body (addLoadedSection :1810)" for `[Extensions]`; wrong per live source (pi passes `extList`; the default is never exercised — ruling 5). The cut itself is sanctioned; the citation misstates pi.
+  - `gems/tui-split-rig/lib/tui_split_rig/scenario.rb` `parse_post_settle_keys` — `raw.map { |key| String(key) }` after the `raw.all?(String)` guard is dead weight (trivial).
+  These are comment/dead-code polish; fold into the next lane that touches these files or a one-line out-of-loop pass at owner direction — they do not gate this verdict.
+
+- **Iteration** — **CONTINUE** — the startup-help flip landed byte-true against the live oracle (rows 1-38 of the expanded screen identical to pi), the instrument that proves it (s9 + both rig knobs) is in the tree and cold-green, and the status rows moved to their pi home — diff vs BRIEF §8 faithful.
