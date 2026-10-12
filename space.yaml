@@ -1464,7 +1464,7 @@ project:
     ordinal: 36
     file: architecture/I36-thinking-wiring.md
     freeze_sha: 5090b8463aacbeaba6018b0c650a76d1e8d033bc
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart

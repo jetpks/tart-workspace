@@ -569,15 +569,61 @@ STATUS: COMPLETE_WITH_CONCERNS (s9/s1_tart exit codes under the frozen relative-
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section thinking-wiring verdict --from <file>`. -->
+# Verdict — I36 thinking-wiring
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify thinking-wiring`)?
+**CONTINUE** — judged cold 2026-10-12 in a fresh session (the dispatch session did not judge).
+
+## Post-flight (mechanical, by command)
+
+`architect verify`: (a) frozen untouched PASS, (b) no builder commits PASS (`git -C wt log a5c0594..` empty), (c) report exists PASS; (d) in-bounds initially **FAIL** (declared `test/print_test.rb`) — conformed before integrate (ruling 8), re-verify 4/4 PASS. `git diff 5090b846 HEAD -- architecture/I36-thinking-wiring.md`: single hunk at line 246+ (Builder Prompt append; frozen region lines 1–245 byte-identical). Evidence transcribed at e8532c5a.
+
+## Cold gate runs
+
+- **Lane worktree (as delivered):** suite 690/2816/0/0/1 + `SUITE_OK`, `SEAM_BENCH_OK`, s1–s8 exit 0, request-wiring/ladder-gating/map-parse PASS; **replay-protocol FAIL** (comment token — ruling 9), **s9 exit 1** (environmental — ruling 10), scope vacuous (HEAD=base in worktree).
+- **Integrated tree (repos/tart @ 7c4ae190, canonical depth): 16/16 PASS** — `SUITE_OK` (692 runs, 2820 assertions, 0 failures, 0 errors, 1 skips; base 667/2746 → +25 runs), `SEAM_BENCH_OK`, s1–**s9 all exit 0**, all four tripwires green, `SCOPE_OK` non-vacuous (diff vs a5c05948 = exactly the 12 declared files, +760/−87).
+
+## PHASE 0 rulings (core)
+
+1. **`switch_model` nil semantics — the CLAIM accepted, the CODE rejected (defect; fixed at integrate).** The builder argued the surface passes fully composed facts so the loop must store unconditionally ("nil = the entry declares none") — correct, and the frozen letter ("re-resolving the facts alongside the window", AC1 "re-resolves map+reasoning from the switched entry"; pi setModel swaps the Model object) agrees. The delivered code was `@thinking_level_map = … unless nil?` — nil-KEEPS-current, the exact leak the builder's own PHASE 0 rejected: switching glm-5p3-flash (known map, off→"low") to a map-less reasoning entry keeps flooring `/thinking off` to `"low"` on the wire where pi sends nothing, while the surface's menu correctly re-gates map-less (the two seams disagreed). The delivered pin (`agent_loop_test.rb` third leg) was vacuous — leaked `{high:"high"}` and map-less fallback both yield `"high"`. Fixed at integrate to unconditional store + a discriminating pin (`test_switch_to_a_mapless_entry_drops_the_previous_map`: off + map→nil switch must send NO key); verified the pin fails on the delivered code and passes on the fix.
+2. **`cycle_thinking_level` clamp — MODIFY (guard needed, landing off by one; fixed at integrate).** The reachability argument is right (a stored level outside the re-laddered set is new this iteration; `nil + 1` crashes where JS `indexOf → -1` survives). But pi's wrap lands on `levels[0]` (`(−1+1) % size = 0`, agent-session.ts:2641-2653 — read this session); the delivered floor-clamp-then-advance lands on `levels[1]`. Fixed to `index = levels.index(current) || -1` (pi-exact) + pinned (`test_cycle_from_an_out_of_set_level_lands_on_the_first_rung`).
+3. **README `### Models` section + the bin/tart help field — ACCEPT.** README had no models.json schema note to extend (verified at base); both files are declared touches, and a schema note omitting the now-documented field would contradict the README deliverable.
+4. **`footer_data` optional `models:` kwarg — ACCEPT.** Launcher-internal; the frozen `launcher_smoke_test` legacy call shape stays green (suite).
+5. **Rig staging interpretation — ACCEPT.** Verified at base: `stage_pi_agent` stages mock-1 alone; mock-2 exists only in `stage_tart_home`. "Wherever mock-2 is staged gains the map" is the conservative reading — no parity-target change, no new scenario, no registry change.
+6. **`map[clamped] || clamped` vs pi's `??` — ACCEPT.** Equivalent for the String|nil map domain (values validated String|null); verified against models.ts/openai-completions.ts this session.
+7. **Hook deletes exactly `:reasoning` — ACCEPT.** The spec letter; `:reasoning_signature` inert for fireworks (no signature deltas) — backlog if a signature-carrying dialect is ever wired.
+8. **Declared `test/print_test.rb` additive pin — MODIFY (pin right, file wrong; relocated at integrate).** AC1 names print mode among the "every model call" wire sites and the Tests section's "additive only elsewhere" sanctions additive tests, but the frozen touch set and the frozen scope-gate regex enumerate exactly 12 files — the integrated diff must match them for AC4's letter. The pin's content moved verbatim (minus harness) into `test/agent_loop_test.rb` and `test/print_test.rb` reverted to base; no `--accept-bounds` escape used; every frozen gate green on the integrated tree.
+
+## Judge-found defects and integration fixes (recorded; I35 precedent)
+
+- **loop.rb `switch_model` stale-map leak** (ruling 1): behavioral, 2 lines + comment, matching the builder's own declared intent and the frozen letter; discriminating pin added.
+- **chat.rb `cycle_thinking_level` wrap off-by-one** (ruling 2): behavioral, 1 line, pi-exact semantics; pin added.
+- **loop.rb:576 comment token** (ruling 9 below): comment-only.
+- All fixes verified by full cold re-runs: worktree suite 692/2820/0/0/1 + all tripwires, then the integrated-tree 16/16. No criterion relaxed — each fix enforces a frozen letter the delivered code missed.
+
+## Grounds open questions — ruled
+
+- **Replay-field pin (Grounds 3/5/7): STANDS — `reasoning_content`-only via the before_request seam.** pi replays the delta-carried signature field (:1340-1352) and fireworks carries `reasoning_content` (live probe: 32 delta hits, zero for `reasoning`/`reasoning_text`); the gem's both-fields native replay re-sends the exact field the I05 strict window 400'd, and the pinned shape is live-accepted (T2b HTTP 200). The gem cannot record the delta field (streaming.rb merges), so the port pins the daily driver's field — itemized deviation, correctly carried in code comments and the report.
+- **Known-map tier values (Grounds 4/6): STANDS — ship the owner's EFFECTIVE pi map (every level a String, off→"low" … max→"max").** The parity target is the owner's daily driver: on the owner's machine pi's effective map for glm-5p3-flash IS the override (both catalog and override routes floor off→"low" — verified in pi's clamp this session); shipping the catalog map instead would diverge tart's wire from the owner's live pi wire (off→nothing vs "low"). The catalogless boot composes through `Settings.thinking_facts` exactly as specified.
+- **The `before_request` seam vs `with_thinking` (Grounds 7): STANDS.** Verified in the gem this session: hooks run LAST in `Protocol#render` after provider_options, mutating the symbol-keyed payload in place on both paths (protocol.rb:143-155/:695-698; chat.rb:909-914); `with_thinking()`/`(false)` are registry-driven (`Thinking::Controls` raises under `assume_model_exists:`) and unsettable — the hook is the only per-turn-fresh seam.
+- **The dialect cuts + off-controls (Grounds 8): STANDS.** fireworks needs none of pi's other thinking dialects; `with_thinking(false)` off-controls are registry-driven and unusable — the port's own off resolution is pi's, verified. All cuts itemized in Grounds and the report.
+
+## Acceptance Criteria integrity
+
+Frozen sections unchanged since freeze 5090b846 (`architect verify` PASS; iteration-file diff append-only in the prompt/report region).
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | Request pins through the real chat (captured bodies): medium→`"medium"`, `set_thinking_level("high")`→next request `"high"`, catalog-map off→`"low"`, owner String off→`"low"`, map-less off→no key, non-reasoning→no key, switch re-resolve (now discriminating: map→nil drops the off-floor), print mode pinned; resolution functions read by the judge against pi models.ts:1224-1254 + openai-completions.ts:745-755/:969-976 — verbatim-faithful | §7 | PASS (stale-map switch defect found by judge, fixed at integrate, pinned) |
+| AC2 | `strip_thinking_replay` zero occurrences (the frozen tripwire itself, green on the integrated tree); session-file pin `"thinking":"pondering hard"`; follow-up + tool-continuation bodies replay `reasoning_content` with `reasoning` absent; continuation completes; resume probe replays seeded thinking; live evidence in Grounds 2–3 | §7 | PASS (tripwire initially tripped on the deviation-note comment token — reworded, zero behavior change) |
+| AC3 | Agent-seam spy pins `/thinking`, shift+tab cycle, menu selection; ladder gating pinned for map-less (off..high), boot map (full ladder), catalog map (low/high/max), switch overlay (re-gates); boot + switch apply without restart; cycle wrap pi-exact + pinned | §7 | PASS (wrap off-by-one found by judge, fixed at integrate, pinned) |
+| AC4 | Integrated tree 16/16: `SUITE_OK` 692/2820/0/0/1 (+25 runs vs base 667/2746; flipped pin replaced not deleted), `SEAM_BENCH_OK`, s1–s9 all exit 0 cold at canonical depth, `SCOPE_OK` non-vacuous (exactly the 12 declared files, +760/−87), pi/gem citations carried, deviations itemized (replay-field pin, dialect cuts, known-map tier, `:reasoning_signature` residual) | §7 | PASS (after the ruling-8 relocation; s9 worktree FAIL proven environmental) |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+## Judge notes
+
+- **s9 adjudication (ruling 10).** The frozen s9 gate exits 1 in the provisioned lane worktree — reproduced by this session's control at base a5c0594 in an equal-depth clean worktree with the IDENTICAL unknown-candidate set (`- ctrl+g for external editor`, `+`) and class counts; nothing thinking-related in the diff (the wire param renders nothing; s9 tart request bodies byte-equivalent to base per the builder's parse, accepted). s9 exits 0 on the integrated tree at canonical repos/tart depth (16/16 run). Pre-existing locational sensitivity (I34/I35 lineage), not lane work.
+- **Report/code integrity.** The report's PHASE 0 item 1 and implementation map describe the unconditional store the code did not implement, and the switch pin passed vacuously — flagged here as the iteration's one discipline lapse; the declared-intent match made the integrate-time fix unambiguous.
+- **Backlog recorded:** stale strip comment in `lib/tart/render/transcript.rb:294-299` (must-not-touch this iteration; comment-only, the replay path itself is correct); `:reasoning_signature` normalization if a signature-carrying dialect is ever wired; `Commands::Handler` /thinking arg validation still enumerates the full ladder (the runtime gate is the surface's `gate_thinking_level`, unchanged from I27); the owner's override map and `THINKING_LEVEL_MAPS` move together if the owner's pi override changes.
+
+## Iteration
+
+**CONTINUE** — the owner's live-run show-stopper (45K-token thinking runaways; BRIEF §7) is closed pi-faithfully: the level reaches the wire through pi's exact map+clamp+off-floor resolution (verified against pi source this session), the I05 strip is replaced by pi's replay protocol under the delta-carried field, the ladder gates by the runtime map (I27 deviation retired), settled screens unmoved (s1–s9 exit 0 cold on the integrated tree) — merged core 7c4ae190 on project/pi-port, worktree and lane branch torn down, 16/16 frozen gates green.
