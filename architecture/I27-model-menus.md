@@ -9,11 +9,105 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section model-menus grounds --from <file>`. -->
+# Grounds — I27 model-menus
+
+Measured this session (2026-10-12) at base **fcf232f4** (= `project/pi-port` tip after I26):
+
+1. **Owner rulings (this session, decisions log 2026-10-12).** (a) `/model` + multi-model
+   config is the next daily-driver blocker — models defined via pi's `models.json` shape,
+   tart reads `~/.tart/models.json`; (b) `/model` and `/thinking` open SELECTOR MENUS
+   (the owner: "the same component insofar as they seem to work the same way") — fuzzy
+   text input across word + description, arrow navigation, click-to-select, help line
+   `Enter to select · Ctrl+S to set as default · Escape/Ctrl+C to cancel`; (c) both menus
+   observable via the rig; (d) the compaction arithmetic goes usage-backed next
+   iteration (NOT this one — chat.rb single-writer forces waves; see Lane plan).
+
+2. **pi's selector family (measured, packages/coding-agent/src/modes/interactive/components/):**
+   `model-selector.ts` (421 l) and `thinking-selector.ts` (154 l) — one family, two classes.
+   Shared shape: DynamicBorder top/bottom, Spacer(1), a title line ("Thinking Level" /
+   the model list's scope hint), an `Input` search field whose typing fuzzy-filters
+   (`fuzzyFilter`, tui/src/fuzzy.ts:100 — query tokens split `/[\s/]+/`), the list
+   (model-selector hand-rolls it; thinking-selector uses `SelectList` with a
+   primary-column layout), and a dim help line built from `keyDisplayText`:
+   `<confirm> to select · <save> to set as default · <cancel> to cancel` (resolves to
+   `Enter to select · Ctrl+S to set as default · Escape/Ctrl+C to cancel`).
+   Navigation (both): up/down with WRAP (model-selector :392-401), Enter selects,
+   Escape/Ctrl+C cancels, ctrl+s = select-and-persist; everything else goes to the
+   search input and re-filters. Thinking items carry `✓ ` for current +
+   `<description> · default` badge (LEVEL_DESCRIPTIONS table :22-31: "No reasoning",
+   "Very brief reasoning (~1k tokens)", … "Maximum reasoning"). Model rows:
+   `→ ` cursor (accent) + `✓ ` current marker + `<id>` + dim `[<provider>]` +
+   ` · default` badge; a `(n/N)` scroll indicator when the 10-row window truncates;
+   a dim `  Model Name: <name>` line for the selected row; sorted current-first,
+   default-second, then provider (model-selector :255-273). SelectList handles
+   click-to-select via mouse press/release index tracking (select-list.ts:109-134).
+   Scope: model-selector has an all|scoped tab toggle + "Only showing models from
+   configured providers. Use /login to add providers." warning when unscoped —
+   tart has one provider config surface, scopedModels is empty there.
+
+3. **Command flow (interactive-mode.ts:5142-5205, 5355-5392).** `/model` no-arg →
+   selector; arg exact-matching a known model reference (`provider/model` or `model`)
+   → switch directly + status `Model: <id>`; unknown arg → selector pre-seeded with
+   the search text. `/thinking` no-arg → selector (the port's current no-arg CYCLE is
+   the pre-menu stand-in — replaced); arg must exactly name a level else error
+   listing available levels. `selectThinkingLevel(level, persist)` /
+   `selectModel(model, persist)`: session swap + `footer.invalidate()` +
+   `updateEditorBorderColor()` + status (`Default thinking level: <lvl>` /
+   `Default model: <provider>/<id>` when persisted). **showSelector mechanics
+   (:4884-4906): the selector REPLACES the editor** — `editorContainer.clear();
+   addChild(selector)`, `done()` restores the editor + focus — exactly the port's
+   Picker precedent (I15: "renders the session list in place of the editor").
+
+4. **Keybindings (core/keybindings.ts).** `app.model.select` = **ctrl+l** (open model
+   selector); `app.model.cycleForward/cycleBackward` = ctrl+p / shift+ctrl+p;
+   `app.thinking.cycle` = shift+tab (the port HAS this); `app.thinking.save` /
+   `app.models.save` = **ctrl+s**; `tui.select.confirm/cancel` = enter / escape,ctrl+c;
+   `app.message.copy` = ctrl+x (copy selection or last assistant — rides the
+   whole-screen-selection wave, NOT this iteration).
+
+5. **pi's models.json (core/model-config.ts).** Agent-dir `models.json`, JSONC
+   (comments stripped) + BOM-tolerant, validated by schema: `providers: {<id>:
+   {name?, baseUrl?, apiKey?, api?, headers?, models?: [{id, name?, api?, baseUrl?,
+   reasoning?, contextWindow?, maxTokens?, …}], modelOverrides?}}`; invalid file →
+   error message naming the file (never a crash). `settings.json` carries
+   `defaultProvider` + `defaultModel` (settings-manager getDefaultProvider/
+   getDefaultModel — the WRITE path persists the ctrl+s "set as default").
+
+6. **The port's current state (measured at fcf232f4).** `Settings::DEFAULTS` already
+   has `defaultModel`/`defaultProvider` (+ `TART_MODEL`/`TART_PROVIDER` env resolution,
+   settings.rb:37-63); `bin/tart build_chat` (:358-370) constructs ONE RubyLLM chat
+   from resolved settings (openai-completions protocol, `assume_model_exists: true`)
+   — no models.json, no switching; `Commands::BUILTINS` has `/thinking`
+   (cycle/set-text, no menu) and NO `/model`; chat.rb has the Picker in-place-editor
+   precedent + the I22 autocomplete fuzzy trio + footer model segment
+   (footer_data=` seam) + the thinking-level editor-border ladder (5af076d);
+   `Agent::Loop` takes `context_window:` at construction (no recompute seam);
+   ruby_llm 2.1.0 `Chat#with_model(model_id, provider:)` exists (gem chat.rb:609) —
+   switching mid-session has a gem path to verify against.
+
+7. **Rig state.** s1–s6 exit 0 cold at fcf232f4 (this session's gate run); s7 exit 1
+   by design (the compaction panel — I28, untouched here); the rig stages pi's
+   models.json already (mock provider, `context_window:` seam from I26); the probe
+   precedent (I26 `bin/tool-pending-probe` — drives panes directly through Runner's
+   public seams) extends naturally to menus: boot, settle, `send-keys` the
+   `/model`/`/thinking` opening keystrokes, capture mid-menu frames, drive a
+   selection, capture the result. **Known rig defect (backlog, queued into this
+   iteration's rig lane):** `assert_clean_sessions!` counts sibling lanes'
+   `tui-split-rig-*` sessions on the shared default tmux server (spurious exit 2;
+   one agent's kill-server kills every agent's sessions — observed mid-probe in I26).
+
+8. **Control (this session, base fcf232f4).** Suite 471 runs / 1855 assertions /
+   0 failures / 0 errors / 1 pre-existing skip; SEAM_BENCH_OK; s1–s6 exit 0 cold;
+   s7 exit 1 (by design). All regression claims below are against this baseline.
+
+**Lane plan:** two parallel lanes, disjoint by construction — `model`
+(lib/tart/models.rb new, settings.rb, commands.rb, render/chat.rb,
+render/model_menu.rb new, render/footer.rb, agent/loop.rb, bin/tart, test/**) and
+`rig` (gems/tui-split-rig/** only). chat.rb is single-writer: the whole-screen
+selection slice (owner nit) and the compaction family (panel + usage-backed
+arithmetic, owner-ruled) are deliberately NOT here — they queue as I27 wave 2
+(selection: chat.rb + selection.rb) and I28 (compaction: panel lane + usage lane,
+parallel), sequenced off this iteration's integrated tip.
 
 ## Specification
 
