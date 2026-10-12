@@ -1463,7 +1463,25 @@ project:
   - name: thinking-wiring
     ordinal: 36
     file: architecture/I36-thinking-wiring.md
-    freeze_sha:
+    freeze_sha: 5090b8463aacbeaba6018b0c650a76d1e8d033bc
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/models.rb
+      - lib/tart/settings.rb
+      - lib/tart/agent/loop.rb
+      - lib/tart/render/chat.rb
+      - lib/tart/print.rb
+      - bin/tart
+      - test/models_test.rb
+      - test/settings_test.rb
+      - test/agent_loop_test.rb
+      - test/chat_test.rb
+      - README.md
+      - gems/tui-split-rig/lib/tui_split_rig/runner.rb
+    rehearsal:
+      gates_digest: 112db659fa02a973679e898d4ca0a85a5483ab811721487e2497657408314dd1
+      at: '2026-10-12T15:58:46-06:00'
   integration_branch: project/pi-port
