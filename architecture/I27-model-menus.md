@@ -654,6 +654,166 @@ grep -q '"model"' lib/tart/commands.rb && grep -q 'model_menu\|ModelMenu\|Menu' 
 grep -q 'when "l"' lib/tart/render/chat.rb && grep -q 'when "s"' lib/tart/render/chat.rb && echo CTRL_KEYS_OK
 ```
 
+### rig
+
+# Lane dispatch — I27 model-menus, lane `rig`
+
+**You are lane `rig`.** You are ONE of two parallel lane agents (the other is lane
+`model`, isolated in its own worktree — its territory is `lib/tart/**`, `bin/tart`,
+and `test/**`, which you must NEVER touch). Your lane's territory, exhaustively:
+
+- **Touch (exactly this tree):** `gems/tui-split-rig/**` — scenarios, probes, lib,
+  bin, registry, test. The whole rig is yours.
+- **Must not touch:** anything outside `gems/tui-split-rig/` — in particular
+  `lib/tart/**`, `test/**` (including `test/parity/**`), and `bin/tart` (all lane
+  model's). Touching them fails your lane.
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo. Silent compliance
+is a failure. Silent scope additions are a failure. If you have no
+disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed above. No placeholder
+implementations — search the codebase before implementing; full implementations
+only. Write IDIOMATIC, house-consistent code: read the neighbouring code and
+match its conventions (naming, guards, predicates, error/persistence idioms,
+the language's expressive collection/enumerable forms); well-factored and
+DRY-ish; terse but clear; pragmatic, not clever — the smallest change that does
+the job, no abstraction it doesn't need. Consistency with the surrounding code
+is part of correctness here: a change that works but fights the house style (or
+introduces an inconsistency a careful reader of this repo would never write) is
+not done. Tests stay simple and terse, exercising public behavior, no
+mock/stub of the class under test. Verify your work by running the acceptance
+criteria's gate commands and record the verbatim output. Do NOT commit and do
+NOT run any git write command (commit/add/branch/reset/checkout) — the
+architect commits and merges after verification, and verifies you made no
+commits. Do NOT delete lock files or escalate privileges if a command fails;
+record the exact error and continue. Do NOT use `run_in_background` (or shell
+`&`) for your own work — this process terminates when you end your turn and
+reaps its own children, so backgrounded work is SIGTERMed and its output lost
+while the run still exits 0; run long commands serially in the foreground
+instead. Give every potentially long command an explicit timeout (the rig runs
+below take tens of seconds each — allow 120s+ each; the concurrent proof takes
+~1 minute). If a runtime will not start unattended, record the exact failure in
+your report and route around it — never busy-wait or retry in a loop. IMPORTANT
+tmux discipline: a `tmux kill-server` from you kills every other agent's live
+sessions on the shared server — NEVER run it; kill only sessions you created by
+exact name. When done, write your report to the scratch file given to you below
+(an absolute path OUTSIDE your worktree), with RAW results only — tables,
+numbers, command output — no interpretation, no "promising". Every status claim
+must be backed by a command result from this run. Keep the report compact —
+tables and numbers, not prose. Do not title the report; keep any headings
+inside the report at `###` or deeper. End it with exactly one status line:
+STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them) | BLOCKED (exact blocker +
+what you tried). Verdicts belong to the architect and the human. Persist until
+your lane is fully handled end-to-end; do not stop at analysis or partial fixes.
+
+Your scratch report (write RAW results here, never inside the worktree):
+/Users/eric/architect/spaces/20261009-pi-port/build/I27-model-menus-rig/report.md
+
+## Your lane's specification (lane `rig` ONLY — the other lane's deliverables are NOT yours)
+
+- **Objective.** Make the rig able to SEE the selector menus (the owner: both
+  `/model` and `/thinking` must be rig-observable) and stop the rig from flaking
+  under parallel lanes — so menu parity becomes measurable and future lanes stop
+  paying the shared-tmux-server tax.
+
+- Deliver **menu probes** (the I26 `bin/tool-pending-probe` precedent — drive
+  panes directly through Runner's public seams): a probe that boots each app,
+  settles, `send-keys` opens `/model` (and `/thinking`) — verify the exact
+  keystrokes each app needs (tart's editor dispatch vs pi's) — captures mid-menu
+  frames (plain + styled), drives a selection (enter on the highlighted row),
+  and captures the post-selection settled screen. Deliver the captured evidence
+  + a candidate table (pi's menu bytes vs tart's — the settled-screen comparator
+  does not apply to transient menus; the diff table IS the deliverable, the
+  s4/s5/s6/s7 pattern). Staging: the rig stages `~/.tart/models.json` for tart
+  (pi's models.json staging already exists — mirror it: ≥2 mock models so the
+  menu has something to select). NOTE: tart's `/model` menu does not exist at
+  your base — the model lane builds it in parallel. Your probe must therefore
+  (a) probe PI unconditionally (pi's menus exist), (b) probe tart best-effort:
+  capture whatever tart renders for the same keystrokes at your base (likely
+  nothing/the fallback), and RECORD that the tart side of the table is a
+  pre-model-lane snapshot — the architect re-runs the probe post-integration.
+  The probe CODE is your deliverable; the pi captures + the candidate-table
+  shape are the evidence.
+- Deliver **tmux hardening**: scoped session naming or a per-run server socket
+  so concurrent rig processes cannot flake each other's end-of-run
+  `assert_clean_sessions!` leftover check (runner.rb:92/327-330 — it greps
+  `tmux ls` for `tui-split-rig-` and fails on ANY match, including another
+  process's live sessions) or kill each other's sessions. Prove it with the
+  frozen concurrent gate: scenario s1 started, then s2 started 2s later, both
+  must exit 0 (at base this exits `2 0` — the s1 finisher's check sees s2's live
+  sessions; reproduce it FIRST as your control, then cure it).
+- Hard constraint: s1–s7 exit codes unchanged (s1–s6 = 0, s7 = 1 — the
+  compaction panel is a later iteration, untouched here); registry changes
+  ADDITIONS ONLY (no existing line removed or modified).
+- Output format: file list + wc; the probe command lines + exit codes + the
+  menu-bytes candidate table + the concurrent-run proof output (the base `2 0`
+  control + the cured `0 0`) + the registry diff. PHASE 0 disagreements
+  mandatory. STATUS line last.
+
+- **Tool guidance.** Verification:
+  `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml
+  --out tmp/<out>` (s1–s6 exit 0; s7 exits 1 by design). The rig's runner
+  mechanics: I21's extraction shape (`TuiSplitRig`, `TUI_SPLIT_RIG_LIVE`,
+  cross-tree MockLLMServer dev require); the I26 seams (`context_window:`,
+  `compaction:`, boot_session/public staging seams) are the probe's substrate —
+  read bin/tool-pending-probe before writing yours. pi's menus: the probe sends
+  keystrokes to a live pi pane — read repos/pi/packages/coding-agent/src/core/
+  keybindings.ts (ctrl+l opens the model selector) and the slash command paths
+  (`/model` + enter, `/thinking` + enter) to choose the opening keystrokes.
+
+## Acceptance Criteria (frozen — verify against these)
+
+**AC4 (parity + registry discipline).** Cold: s1–s6 all exit 0 (settled screens
+unshifted); s7 still exits 1 (compaction panel untouched); registry.yml
+additions-only.
+
+**AC7 (rig: menu probes + hardening).** The menu probe captures both apps'
+`/model` and `/thinking` menus mid-flight (plain + styled frames) and the
+post-selection settled screen, with a candidate table (pi's menu bytes vs
+tart's) in your report; tart's staged `~/.tart/models.json` carries ≥2 mock
+models; the tmux hardening lets two scenarios run CONCURRENTLY (s2 started 2s
+after s1) with both exiting 0.
+
+**AC5 (scope discipline).** The integrated diff touches exactly the two lanes'
+enumerated files (the model lane's list + gems/tui-split-rig/**).
+
+Gate commands you can run to self-verify (frozen):
+
+```
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/gate-s1      # exit 0
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/gate-s2      # exit 0
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/gate-s3  # exit 0
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/gate-s4  # exit 0
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/gate-s5 # exit 0
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/gate-s6     # exit 0
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/gate-s7; test $? -eq 1 && echo S7_STILL_1
+# registry additions-only (no '<' lines):
+git show fcf232f4:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml | grep '^<' ; test $? -eq 1 && echo REGISTRY_ADDITIONS_ONLY
+# the concurrent proof (the frozen gate verbatim) — expect 0 0 AFTER your cure (2 0 at base):
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/conc-a > tmp/conc-a.log 2>&1 & p1=$!
+sleep 2
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/conc-b > tmp/conc-b.log 2>&1 & p2=$!
+wait $p1; e1=$?
+wait $p2; e2=$?
+echo "concurrent exits: $e1 $e2"
+```
+
 ## Builder Report
 
 <!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
