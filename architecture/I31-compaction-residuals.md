@@ -1072,6 +1072,90 @@ files outside the territory touched; `gems/**`, `lib/tart/agent/**`,
 
 STATUS: COMPLETE
 
+### estimate
+
+# Lane `estimate` — I31 raw results
+
+### PHASE 0 raises (architect rulings needed)
+
+1. **`gems/tui-split-rig/test/registry_test.rb` must change — outside my touch set.** `test_seed_registry_contains_only_path_or_sandbox_classes` (:37) asserts every seed rule name matches `/path|sandbox/` except `SANCTIONED_NON_PATH = ["footer-provider-prefix"]`. Required one-word fix for AC4's "default rake fully green": `SANCTIONED_NON_PATH = ["footer-provider-prefix", "compaction-token-estimate"]`. Until applied, the `suite` gate is red in my worktree with exactly this one failure (verbatim below). Everything else in the suite is green.
+2. **s8 "token-value candidates" wording.** With my class present, the token rows CANNOT remain unknown-candidates: `Differ.classify` is per-line and both rows match `Compacted from [\d,]+ tokens`. Empirically (below) they moved to `2x compaction-token-estimate` in per-class counts; the remaining 12 unknown-candidates are all header-shift lines. I read the spec's "token-value + header-shift" as the physical diff composition, not the post-classification candidate list.
+
+### Live dependency verification (PHASE 0, cited)
+
+- pi compaction.ts recovered from the installed package's source map (`dist/core/compaction/compaction.js.map` → sourcesContent). `estimateTokens` :298-345; **system arm :302-311**: `chars = content + Σ sections + JSON.stringify(system.toolsAdded).length`, one `Math.ceil(chars/4)` — tools once. `toolsAdded` populated by `createInitialSystemMessage(systemPrompt, tools)` (normalizeContext) with the context's tool-definition objects.
+- Port wire shape: ruby_llm 2.1 `Chat#tools` (chat.rb:487); chat_completions payload per tool `{type:"function",function:{name,description,parameters}}` (gem `protocols/chat_completions/tools.rb` `tool_for`); `Tool#parameters_schema` always returns a Hash (tool.rb:291-303). Port mapping: `JSON.generate([{name:, description:, parameters:}, …])` — pi's toolsAdded shape (definitions, no framing wrapper), counted once.
+- Loop access: `@chat.tools` (the set serialized into every request). `Compaction.prepare` at loop.rb:323 confirmed; also threaded `trigger_tokens` (:297, the s8 zero-usage arm) and `full_estimate` (:353, `estimated_tokens_after`) — AC2 requires the trigger arm.
+
+### Changes (my 5-file territory, exactly; no commits made)
+
+- `lib/tart/compaction.rb` — new `estimate_tools_tokens(tools)` (0 for nil/empty; `ceil(JSON.generate(definitions).length / 4.0)`); additive `tools: nil` kwarg on `estimate_context_tokens` / `full_estimate` (adds the component once) / `trigger_tokens` / `prepare` (pass-throughs). Usage-backed branch of `estimate_context_tokens` byte-identical. `Preparation` untouched.
+- `lib/tart/agent/loop.rb` — three call sites pass `tools: @chat.tools` (:297 trigger, :323 prepare, :353 estimated_tokens_after).
+- `test/compaction_test.rb` — +3 tests: exact wire-JSON pin for `estimate_tools_tokens` (incl. nil/{} → 0); arms with/without tools (counted once, not per-message) + usage-backed path unchanged (60 usage + 10 trailing, no tools term); `prepare.tokens_before` covers the wire tools.
+- `test/agent_loop_test.rb` — +1 test: `test_zero_usage_threshold_estimate_covers_the_wire_tools` — suppress_usage!, `Tools::Registry.build(selected: %w[ls])`, `context_window: 50` sits between the text-only estimate (10: system 3 + user 4 + assistant 3) and the tools-inclusive estimate (10 + 111; the ls definition component is 443 chars → 111 tokens). Asserts 2 requests + `:threshold` + `tokens_before > 49`.
+- `gems/tui-split-rig/registry.yml` — appended `compaction-token-estimate`, pattern `Compacted from [\d,]+ tokens`, provenance comment (2026-10-12 owner direction; forgives only the number; panel bytes pinned by chat tests; `mock-1$` line-level analogy). Additions-only vs 276eda3d verified.
+
+No existing pin changed: every pre-existing call site omits `tools:` → component 0 → arithmetic identical (this answers the spec's "update existing estimate pins" — none needed).
+
+### Gate results (verbatim)
+
+| gate | result |
+|---|---|
+| suite (`bundle exec rake`) | **exit 1** — 569 runs, 2230 assertions, **1 failure**: `TuiSplitRig::RegistryTest#test_seed_registry_contains_only_path_or_sandbox_classes` — "seed registry must stay path/sandbox-only: compaction-token-estimate." (the PHASE 0 raise; fix named above). 1 skip = pre-existing live-run env gate. Run-count delta vs 276eda3d: compaction_test 19→22, agent_loop_test 18→19 (+4). |
+| bench | `SEAM_BENCH_OK` |
+| s1-parity … s6-parity | exit=0 (all six) |
+| s7-header | **exit 1** — expected in-worktree (MOTD fix is lane rebuild's); candidates below |
+| s8-estimate | **exit 1** — expected in-worktree; token rows classified, candidates below |
+| registry-additions-only | `REGISTRY_ADDITIONS_ONLY_OK` |
+| comment-fold (AC6, rebuild's) | FAIL at base — expected: transcript.rb is lane rebuild's territory, untouched by me |
+| scope (AC5) | integration gate; my worktree diff = exactly `gems/tui-split-rig/registry.yml, lib/tart/agent/loop.rb, lib/tart/compaction.rb, test/agent_loop_test.rb, test/compaction_test.rb` (git status verbatim) |
+
+### s7 candidates (exit 1, verbatim — header-shift only; do not chase)
+
+```
+- ▀▀█  v1.1.0
+- █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more
+- Press ctrl+o to show full startup help and loaded resources.
+- Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.
++ (7 trailing blank lines)
+```
+per-class: 14x unknown-candidate, 2x parity-run-path, 2x footer-provider-prefix. Token rows aligned (both panels `Compacted from 15 tokens` — usage-backed path value-identical, AC2's s7 clause holds).
+
+### s8 candidates (exit 1, verbatim)
+
+per-class: **12x unknown-candidate, 2x compaction-token-estimate**, 2x parity-run-path, 2x footer-provider-prefix. Classified diff:
+
+```diff
+@@ -2,3 +1,1 @@
+- ▀▀█  v1.1.0
+- █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more
+- Press ctrl+o to show full startup help and loaded resources.
++ first turn reply for the compaction scenario.
+@@ -6,1 +5,0 @@
+- Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.
+@@ -4,0 +5,1 @@
++ [compaction]
+@@ -9,1 +8,1 @@
+- first turn reply for the compaction scenario.
++ Compacted from 1,264 tokens (ctrl+o to expand)
+@@ -12,1 +11,0 @@
+- [compaction]
+@@ -14,1 +13,0 @@
+- Compacted from 1,490 tokens (ctrl+o to expand)
+@@ -31,0 +32,4 @@
++ (4 trailing blank lines)
+```
+
+- The two `Compacted from` rows classified under `compaction-token-estimate` — tart **1,264** (was 75 at base: the full-7-tool wire component, ~1,189 tokens, now counted), pi **1,490**. Both rows survive as sanctioned; at integration (header fixed) s8 goes exit 0 cold with the number free to be each app's own measurement.
+- The 12 remaining unknown-candidates are all header-shift: pi MOTD banner ×3, docs line ×1, reply-row shift pair ×2, `[compaction]` label shift pair ×2, trailing blanks ×4.
+
+### Baseline evidence (276eda3d, before my changes, same worktree)
+
+- s7: exit 1, 14x unknown-candidate (identical header-shift set).
+- s8: exit 1, 14x unknown-candidate — including `Compacted from 75 tokens` (tart) and `Compacted from 1,490 tokens` (pi) as candidates.
+
+STATUS: COMPLETE_WITH_CONCERNS — (1) `gems/tui-split-rig/test/registry_test.rb` `SANCTIONED_NON_PATH` needs `"compaction-token-estimate"` added (outside my touch set; architect's one-word fix; `suite` gate red in my worktree until applied, all other 568 runs green); (2) s8's post-classification candidates are header-shift-only — the token rows classify under my class (spec's "token-value candidates" read as pre-classification diff composition); (3) comment-fold/AC6 fails at base as expected (lane rebuild's territory).
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
