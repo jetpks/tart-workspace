@@ -564,15 +564,39 @@ STATUS: COMPLETE_WITH_CONCERNS — (1) s9-parity exits 1 from THIS worktree at a
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section tool-pending-bg verdict --from <file>`. -->
+# Verdict — I34 tool-pending-bg
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify tool-pending-bg`)?
+**CONTINUE** — judged cold 2026-10-12 in a fresh session (dispatch session did not judge).
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+## Post-flight (mechanical, by command)
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+`architect verify` 4/4 PASS (frozen untouched / no builder commits / report exists / in-bounds); `git -C wt log ecc6b2b..` empty; the iteration-file diff since freeze 9e194a19 is append-only (Builder Prompt + Builder Report). Evidence transcribed at 65b0937a.
+
+## Cold gate run (repos/tart @ base ecc6b2b)
+
+12/14 PASS. The two failures — `tool-pending-gate` (`invalid option: --gate`) and `pending-machinery` — are RED-at-base BY DESIGN per AC5's own text (the gate mode and the machinery are this iteration's deliverables); both PASS in the lane worktree, independently re-run cold by this session: `TOOL_PENDING_GATE_OK` exit 0. s9-parity PASSED cold at the repos/tart depth, confirming the builder's worktree s9 failure is the pre-existing deep-path environmental sensitivity (their controlled experiment: unmodified base at depth 118 fails byte-identically, base at depth 94 green).
+
+## PHASE 0 rulings
+
+- **panel.rb:84-86 stale comment — ACCEPT.** Comment-only, zero behavior; panel.rb sits in the spec's own Must-not list, so the lane correctly left it. Architect-owned one-line follow-up (recorded below, residual).
+- **Premise verification (no disagreement) — ACCEPT.** Spot-checked this session against live sources: pi interactive-mode.ts:3573-3586 (pendingTools loop, updateResult isError, "Operation aborted" :3570), the I33 registry discipline in transcript.rb, and the theme token — the probe's live frames carry the exact SGR `48;2;52;56;58`.
+- **s9 worktree exit 1 — ACCEPT (environmental).** Proven by the base-tree depth experiment + my cold s9 PASS at integration depth.
+- **Supersede caveat (second pending while one is live) — ACCEPT.** The spec sanctioned "appends sanely and is documented" (Grounds 6b: unreachable under ruby_llm's sequential default); the builder implemented it, documented it in-code, and pinned it (`test_second_pending_supersedes_and_the_stale_end_appends`).
+
+## Acceptance Criteria
+
+- **AC1 PASS** — pending state renders mid-flight: unit-pinned per family (transcript_test shape tests + chat_test paint test: PLAIN Spacer, pending pads, bold toolTitle header) and live-pinned (probe frames 02–12: `$ sleep 6` under `48;2;52;56;58` ×2, frame-for-frame identical to pi).
+- **AC2 PASS** — both drain cases byte-identical to the end-only control (unit + buffer-level); s1–s9 green cold at integration depth; no pending-bg row survives any settle (pinned).
+- **AC3 PASS** — replay path untouched; zero pending-bg spans on replay (two unit pins).
+- **AC4 PASS** — interrupt orphan ("Operation aborted" under toolErrorBg, warning line stays), error arm with the message, ctrl+o mid-flight (constant-size builder; final toggles both ways, round-trip), sequential multi-tool no residue, reset clears the registration. All green in this session's independent re-run (14 + 9 tests, 0F).
+- **AC5 PASS** — `--gate` mode additive, default evidence mode unchanged; gate exit 0 cold for BOTH apps; RED at base verified.
+- **AC6 PASS** — suite 629 runs / 2595 assertions / 0F / 0E / 1 skip (+23 runs; chat_test surgery additive: 3 removed lines = the old helper signature); SEAM_BENCH_OK; scope exactly the declared set (7 M + 1 new file, all inside touch); pi citations carried throughout, module-function shape preserved.
+
+## Diff review (intent)
+
+The implementation matches the spec's shape closely: `enqueue_pending_tool_block` pushes a constant-size MarkedRegion through the scrollback queue (order preserved), `flush_scrollback` links the region to its registry entry (the I33 stale-start cure), `finalize_tool_block` replaces at the recorded start with the rows the SHARED `tool_block_builder` composes (toggle state read at replacement time) and threads the row delta to later registrations; the queued case swaps via drain-and-repush (Ruby Queue is FIFO — order preserved); `finalize_pending_as_error` routes a synthetic error result through the same dispatch (pi's same-component updateResult); `reset` clears the registration; chat.rb wiring is exactly the spec's three edges with the I17 `duration:` contract riding through.
+
+## Residuals (architect-owned, non-blocking)
+
+1. panel.rb:84-86's `tool_panel_bg` comment ("the pending bg never reaches the scrollback") is now factually stale — one-line comment fix, out-of-loop.
+2. The superseded-pending caveat is documented + tested but leaves the stale block under the pending bg until its own end appends below it — unreachable under sequential execution today; revisit only if tool concurrency ever lands.

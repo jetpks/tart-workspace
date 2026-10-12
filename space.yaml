@@ -1396,7 +1396,7 @@ project:
     ordinal: 34
     file: architecture/I34-tool-pending-bg.md
     freeze_sha: 9e194a19f458d0ea204e1e54020e90fac7930e78
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
@@ -1409,6 +1409,13 @@ project:
       - test/chat_test.rb
       - test/render/**
       - gems/tui-split-rig/**
+      base_sha: ecc6b2b1d433d58b50a213617aeb8ed489b89e0f
+      worktree: build/I34-tool-pending-bg-core/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: 2062718cf6fd4e344a0ef17ea4960d2306e32a8062a9a63ef68c8655cdcb8810
       at: '2026-10-12T13:00:36-06:00'
