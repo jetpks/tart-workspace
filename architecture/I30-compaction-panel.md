@@ -1013,6 +1013,175 @@ Rig registry: no gems/** changes from this lane (additions-only check is the arc
 
 STATUS: COMPLETE
 
+### panel
+
+### PHASE 0 — verification and disagreements
+
+Checked before concluding the spec sound (all against live files in this worktree + repos/pi):
+
+- pi `compaction-summary-message.ts` (whole file read): Box(outputPad=1, padY=1, customMessageBg); collapsed = label row `[compaction]` (bold customMessageLabel, NO trailing space) + inner `Spacer(1)` + three-fg-run content row (`customMessageText` `Compacted from N tokens (`, `dim` keyText(app.tools.expand)=`ctrl+o`, `customMessageText` ` to expand)`); expanded = label row + Spacer(1) + `Markdown("**Compacted from N tokens**\n\n"+summary, prose customMessageText)`. MouseRegion click-to-toggle → cut (standing deviation).
+- pi-tui `box.ts` render(): bg applies to EVERY child line (padY rows, inner Spacer blank, content padded full-width) → port `panel_blank_line`/`padded_spans_row`, the `skill_panel_rows` precedent (transcript.rb:347-377 pre-change).
+- pi `interactive-mode.ts:3686-3725` compaction_end: `chatContainer.clear()` → `renderSessionEntries(entries.slice(1))` with NO updateFooter/populateHistory → `addMessageToChat(panel)` where case `compactionSummary` adds an UNCONDITIONAL `Spacer(1)` + `setExpanded(this.toolOutputExpanded)` → `footer.invalidate()` (never reset). Rebuild also `resetTextSelection()` (renderSessionEntries head, #9311).
+- Replay `:3903-3904`: Spacer(1) + panel + setExpanded — replaces transcript.rb:395-402 bare markdown.
+- "Session compacted N times": pi `renderInitialMessages` :4209-4225 renders it AFTER renderSessionEntries → SURVIVES alongside the panels in pi → port's resume notice KEPT (existing test untouched).
+- Cost notice gate: `settings-defaults.ts:27` `showCacheMissNotices: false`; rig staging (`runner.rb stage_pi_agent`) sets none → cut confirmed.
+- Grouping helper search: NONE exists. Footer's `Text.format_tokens` (text.rb:155) is pi's COMPACT `formatTokens` (footer.ts:23-30, k/M form) — a different format.
+- ctrl+o machinery: chat.rb:661-663 + :1501-1508 + `Transcript#set_tool_output_expanded` sweeps `@expandable_blocks` — panel rides with zero coordinator change.
+- Baseline s7 from this worktree pre-change: exit 1; oracle captured (`tmp/gate-s7-baseline/run-1/pi.capture`). The port's MOTD art is byte-identical to pi's staged header (baseline rows 1-7 all `:same`).
+
+Disagreements (none blocking; all itemized):
+
+- (a) The spec hoped the footer's counters hold the grouping helper — they don't (compact k/M form, cited above). Wrote `Transcript.grouped_tokens` in transcript.rb (text.rb is outside this lane's enumerated territory — flagging the territory nuance rather than touching a foreign file).
+- (b) `toLocaleString()` is runtime-locale-dependent; the port pins en-US comma grouping. s8's pi capture renders `1,487` — the grouped form IS rig-observable there and my implementation reproduces it.
+- (c) The AC's collapsed description reads like one row; pi's source + the capture show the label on its OWN row with a bg'd blank between (two content rows + inner Spacer). Built pi's shape; the capture is the oracle and the bytes match (below).
+- (d) Gating the reseed sink on the rebuild is load-bearing, not pedantry: `Footer#reseed_usage → accumulate_usage` clears `@usage_stale`, which would kill pi's post-compaction `?`. pi's rebuild passes no `updateFooter` for this reason.
+- (e) `@last_assistant_text`: pi's compaction_end never touches its copy source; the rebuild's wipe leaves it (only `/new`'s `clear_transcript` nils it). Itemized; unmeasured by any scenario.
+- (f) s7 footer `↑20 ↓10` vs `↑10 ↓5`: pre-existing divergence riding the already-classified footer line (footer-provider-prefix); out of scope per spec.
+
+### Files touched (exactly this lane's territory)
+
+| file | wc -l | change vs a622ee03 |
+|---|---|---|
+| lib/tart/render/chat.rb | 1525 | +wipe_transcript split; :compaction handler rewrite |
+| lib/tart/render/transcript.rb | 588 | +grouped_tokens, +enqueue_compaction_panel, +compaction_panel_rows, replay case → panel, replay_entries(update_footer:/populate_history:) |
+| test/chat_test.rb | 3813 | 1 test rewritten (✻ pin → panel pins), 8 tests added (162→170 defs) |
+
+`git diff a622ee03 --stat`: 3 files changed, 297 insertions(+), 29 deletions(-). No `lib/tart/agent/**`, no test/support, no bin/tart, no other lane files.
+
+### Render table (pi mechanic → port seam)
+
+| pi mechanic (source) | port seam | before | after |
+|---|---|---|---|
+| CompactionSummaryMessageComponent (compaction-summary-message.ts, whole file) | `Transcript.compaction_panel_rows` (private, skill-panel Box shape) | — (no panel) | label row + bg'd inner Spacer + collapsed three-fg-run row / expanded markdown over prose |
+| addMessageToChat case compactionSummary :3903-3904 (unconditional Spacer(1) + setExpanded(toolOutputExpanded)) | `Transcript.enqueue_compaction_panel` (public; Spacer + push_expandable → ctrl+o global family) | — | live rebuild + replay both land here |
+| compaction_end result arm :3686-3725 (chatContainer.clear → renderSessionEntries(slice(1)) → panel LAST → footer.invalidate) | `Chat#on_agent_event :compaction` → `wipe_transcript` + `replay_entries(entries, update_footer: false, populate_history: false)` + `enqueue_compaction_panel` + `mark_usage_stale` | dim `✻ compacted (reason, tokens)` line over un-wiped scrollback | clear → kept entries → panel last → invalidate |
+| renderSessionEntries options {updateFooter, populateHistory} | `replay_entries(entries, update_footer:, populate_history:)` threading to replay_user/replay_assistant | sinks always fired | rebuild passes both false (pi's rebuild); resume defaults true |
+| renderSessionEntries' resetTextSelection (#9311) | `Chat#wipe_transcript` (clear minus the /new halves: no footer.reset_usage, no @last_assistant_text nil) | `clear_transcript` conflated | split |
+| toLocaleString() (tokenStr) | `Transcript.grouped_tokens` | — | 12345 → "12,345" |
+| MouseRegion click-to-toggle | CUT (standing skill-panel deviation) | cut | cut |
+| addCompactionCostNotice (:4118-4130, gated showCacheMissNotices=false, settings-defaults.ts:27) | CUT per spec (no settings seam) | cut | cut |
+| "Session compacted N times" (:4209-4225, after the entries) | KEPT — survives alongside the panels in pi | resume_session notice | unchanged |
+
+### Chat-test pins (all new/rewritten; frozen payload injected directly)
+
+- collapsed panel bytes: label fg/bold/bg per cell; three-fg-run hint row (`custom_message_text` / `dim` ctrl+o / `custom_message_text`), grouped `12,345`; ✻ refuted
+- ctrl+o toggle: expanded = bold markdown header + summary prose, hint dies; second press collapses
+- rebuild: MOTD (`[Context]`) wiped and NOT re-rendered; kept user+assistant entries re-render; panel LAST (index > last kept row); border status clears
+- footer: `↑10 ↓5` survives (NOT reset) + `?/1.0k (auto)` (stale = pi's post-compaction ?)
+- history not duplicated: up-walk stops at oldest (no rebuilt interleave)
+- absent `entries` tolerance: cleared transcript + panel still renders
+- replay panel: persisted compaction entry renders the panel at its chronological position; "Session compacted 1 time" survives
+- `grouped_tokens`: 15 / 12,345 / 1,000,000 / 0
+
+### Verbatim gate outputs (final tree)
+
+```
+$ bundle install --quiet && bundle exec rake 2>&1 | tail -3 && echo SUITE_OK
+561 runs, 2196 assertions, 0 failures, 0 errors, 1 skips
+SUITE_OK
+```
+(run delta > 0: 162 → 170 test defs in chat_test.rb; the 1 skip is pre-existing, untouched)
+
+```
+$ bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+SEAM_BENCH_OK
+$ grep -q '\[compaction\]' lib/tart/render/transcript.rb lib/tart/render/chat.rb && echo PANEL_OK
+PANEL_OK
+```
+
+Rig exits from this worktree (exact frozen gate paths):
+
+| scenario | exit | expected |
+|---|---|---|
+| s1_text_turn | 0 | 0 ✓ |
+| s2_tool_turn | 0 | 0 ✓ |
+| s3_tool_turn_files | 0 | 0 ✓ |
+| s4_bash_variants | 0 | 0 ✓ |
+| s5_bash_truncation | 0 | 0 ✓ |
+| s6_long_calls | 0 | 0 ✓ |
+| s7_compaction | 1 | 1 in-worktree ✓ (kept-entry candidates only, below) |
+| s8_zero_usage_compaction | 1 | 1 in-worktree ✓ (kept-entry candidates only, below) |
+
+### s7 classified diff tail (tmp/gate-s7/report.md)
+
+14x unknown-candidate, 2x parity-run-path, 2x footer-provider-prefix; style differences: **none**.
+
+```diff
+@@ -2,3 +1,0 @@
+- ▀▀█  v1.1.0
+- █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more
+- Press ctrl+o to show full startup help and loaded resources.
+@@ -6,1 +5,1 @@
+- Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.
++ [compaction]
+@@ -4,0 +5,1 @@
++ Compacted from 15 tokens (ctrl+o to expand)
+@@ -9,1 +8,0 @@
+- first turn reply for the compaction scenario.
+@@ -12,1 +11,0 @@
+- [compaction]
+@@ -14,1 +13,0 @@
+- Compacted from 15 tokens (ctrl+o to expand)
+@@ -30,0 +31,5 @@
++ (5 blank rows)
+@@ -39,2 +38,2 @@
+-/…/tmp/gate-s7/run-1/sandbox/pi (lane/...                                        (2x parity-run-path)
+-↑20 ↓10 ?/10 (auto)   (mock) mock-1                                              (footer-provider-prefix)
++/…/tmp/gate-s7/run-1/sandbox/tart
++↑10 ↓5 ?/10 (auto)            mock-1
+```
+
+Candidate disposition (tart side = `+` lines only):
+
+- `+ [compaction]` / `+ Compacted from 15 tokens (ctrl+o to expand)` — MY panel rows, byte-identical to pi's oracle rows (proof below); they surface as candidates ONLY through vertical misalignment caused by the absent kept-entry rows (pi's panel sits at rows 12-14 after its kept entries; tart's at rows 3-6 with an empty payload). Payload-dependent position, not panel content.
+- 5x trailing blanks — the cleared region the kept-entry rows will occupy once the payload lands. Payload-dependent.
+- ✻ line: GONE (no `✻` anywhere in either capture). `[Context]`/staged-settings-path: GONE from the tart side (wiped, not re-rendered — pi's settled screen has no `[Context]` either; the class no longer fires).
+- pi-side `-` unknowns: 4x persistent header rows (pi's header is a separate container it never clears; the port's mandated wipe removes the byte-identical MOTD) + 1x kept-entry row + 2x pi panel rows (same misalignment).
+
+### s8 disposition
+
+14x unknown-candidate (same structure as s7; panel shows `Compacted from 72 tokens` tart vs `Compacted from 1,487 tokens` pi), 2x parity-run-path, 2x footer-provider-prefix.
+
+- **style_unknown empty-dim candidate: RESOLVED — vanished.** Both s7 and s8 report `style differences: none — every text-identical line carries identical SGR runs`. Baseline s8 had `~ "" pi= tart=[fg=rgb:126;136;142,false]"  "` (the ✻ region's dim-fg blank); the ✻-line removal eliminated it. Root-caused by elimination, not sanctioned (no registry change).
+- Cross-lane note (not mine): tart's `tokens_before` value (72) vs pi's (1,487 — pi ESTIMATES with zero usage, agent-session estimate path). The payload VALUE is lane `agent`'s emission; my grouping renders whatever arrives (pi's `1,487` form reproduced).
+- s8 footer `?/10 (auto)` on BOTH sides — the invalidate-not-reset parity holds in the zero-usage path.
+
+### Byte oracle (spec requirement: "diff your chat-test-rendered panel bytes against it")
+
+Probe: drove the Chat surface at rig geometry (120x40), injected `{type: :compaction, reason: :threshold, tokens_before: 15, summary: "s"}`, rendered, compared against `tmp/gate-s7/run-1/pi.capture` (pi rows 12/14 = the settled panel):
+
+```
+$ diff <(sed -n '3p;5p' tmp/panel_rows.txt) <(sed -n '12p;14p' tmp/gate-s7/run-1/pi.capture) && echo PANEL_PLAIN_BYTES_MATCH
+PANEL_PLAIN_BYTES_MATCH
+$ diff <(sed -n '12p;14p' tmp/gate-s7/run-1/pi.capture.styled) <(sed -n '3p;5p' tmp/gate-s7/run-1/tart.capture.styled) && echo PANEL_STYLED_BYTES_MATCH
+PANEL_STYLED_BYTES_MATCH
+```
+
+Styled SGR runs (byte-identical both sides):
+- label row: `ESC[1mESC[38;2;167;152;215m[compaction]ESC[0mESC[48;2;58;48;85m…` (bold, customMessageLabel, panel bg)
+- content row: `ESC[38;2;157;165;169mCompacted from 15 tokens (ESC[38;2;126;136…` (customMessageText → dim key run)
+
+### Registry
+
+```
+$ if git show a622ee03:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml | grep -q '^<'; then echo REGISTRY_REGRESSION; else echo REGISTRY_ADDITIONS_ONLY; fi
+REGISTRY_ADDITIONS_ONLY
+```
+Additions: ZERO (registry.yml untouched; `git diff a622ee03 -- gems/tui-split-rig/` empty). All classified lines fall under the pre-existing classes (parity-run-path, footer-provider-prefix).
+
+### Itemized deviations / cuts
+
+- MouseRegion click-to-toggle: cut (standing skill-panel deviation — the port's mouse owns selection).
+- compaction_cost notice: cut per spec (pi defaults OFF, settings-defaults.ts:27; no settings seam in the port).
+- compaction FAILURE render paths (aborted/errorMessage arms): NOT built (unmeasured by any rig scenario; spec: queue, do not build).
+- `@last_assistant_text` untouched by the rebuild (pi's compaction_end doesn't touch its copy source; itemized, unmeasured).
+- Locale pinned to en-US comma grouping (pi's toLocaleString is runtime-locale-dependent; s8's pi capture renders the grouped form `1,487`, reproduced).
+- Footer `↑20 ↓10` vs `↑10 ↓5` (s7): pre-existing, rides the classified footer line, out of scope per spec.
+- tart `tokens_before` value (72) vs pi estimate (1,487) in s8: lane `agent`'s payload value; render-side grouping verified against pi's grouped form.
+
+### STATUS
+COMPLETE
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
