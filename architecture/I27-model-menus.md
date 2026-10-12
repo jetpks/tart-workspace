@@ -455,10 +455,204 @@ models; the tmux hardening lets two scenarios run CONCURRENTLY with both exiting
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I27-model-menus-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section model-menus prompt --append --lane <lane> --from build/I27-model-menus-<lane>/prompt.md`. -->
+### model
+
+# Lane dispatch — I27 model-menus, lane `model`
+
+**You are lane `model`.** You are ONE of two parallel lane agents (the other is lane
+`rig`, isolated in its own worktree — its territory is `gems/tui-split-rig/**`,
+which you must NEVER touch). Your lane's territory, exhaustively:
+
+- **Touch (exactly these files):** `lib/tart/models.rb` (new), `lib/tart/settings.rb`,
+  `lib/tart/commands.rb`, `lib/tart/render/chat.rb`,
+  `lib/tart/render/model_menu.rb` (new), `lib/tart/render/footer.rb`,
+  `lib/tart/agent/loop.rb`, `bin/tart`, `test/chat_test.rb`, `test/commands_test.rb`,
+  `test/settings_test.rb`, `test/agent_loop_test.rb`, `test/models_test.rb` (new),
+  `test/render/model_menu_test.rb` (new).
+- **Must not touch:** everything else — in particular `gems/tui-split-rig/**`
+  (lane rig's), `lib/tart/render/selection.rb`, `lib/tart/render/editor.rb`,
+  `lib/tart/render/transcript.rb`, `lib/tart/compaction.rb`, `lib/tart/theme.rb`,
+  `lib/tart/tui.rb`, `test/parity/**`. Files outside this list belong to other
+  agents or are sealed — touching them fails your lane.
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo. Silent compliance
+is a failure. Silent scope additions are a failure. If you have no
+disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them (notably: ruby_llm 2.1.0 `Chat#with_model` — gem source at
+~/.local/share/mise/installs/ruby/4.0.7/lib/ruby/gems/4.0.0/gems/ruby_llm-2.1.0/
+chat.rb:609 — verify the switching path live before building on it; and pi's
+model-resolver precedence in repos/pi/packages/coding-agent/src/core/).
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed above. No placeholder
+implementations — search the codebase before implementing; full implementations
+only. Write IDIOMATIC, house-consistent code: read the neighbouring code and
+match its conventions (naming, guards, predicates, error/persistence idioms,
+the language's expressive collection/enumerable forms); well-factored and
+DRY-ish; terse but clear; pragmatic, not clever — the smallest change that does
+the job, no abstraction it doesn't need. Consistency with the surrounding code
+is part of correctness here: a change that works but fights the house style (or
+introduces an inconsistency a careful reader of this repo would never write) is
+not done. Tests stay simple and terse, exercising public behavior, no
+mock/stub of the class under test. Verify your work by running the acceptance
+criteria's gate commands and record the verbatim output. Do NOT commit and do
+NOT run any git write command (commit/add/branch/reset/checkout) — the
+architect commits and merges after verification, and verifies you made no
+commits. Do NOT delete lock files or escalate privileges if a command fails;
+record the exact error and continue. Do NOT use `run_in_background` (or shell
+`&`) for your own work — this process terminates when you end your turn and
+reaps its own children, so backgrounded work is SIGTERMed and its output lost
+while the run still exits 0; run long commands serially in the foreground
+instead. Give every potentially long command an explicit timeout (the rig runs
+below take tens of seconds each — allow 120s+ each). If a runtime will not
+start unattended, record the exact failure in your report and route around it —
+never busy-wait or retry in a loop. When done, write your report to the scratch
+file given to you below (an absolute path OUTSIDE your worktree), with RAW
+results only — tables, numbers, command output — no interpretation, no
+"promising". Every status claim must be backed by a command result from this
+run. Keep the report compact — tables and numbers, not prose. Do not title the
+report; keep any headings inside the report at `###` or deeper. End it with
+exactly one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them)
+| BLOCKED (exact blocker + what you tried). Verdicts belong to the architect
+and the human. Persist until your lane is fully handled end-to-end; do not stop
+at analysis or partial fixes.
+
+Your scratch report (write RAW results here, never inside the worktree):
+/Users/eric/architect/spaces/20261009-pi-port/build/I27-model-menus-model/report.md
+
+## Your lane's specification (lane `model` ONLY — the other lane's deliverables are NOT yours)
+
+- **Objective.** The owner's next daily-driver blocker: make tart a multi-model
+  client — models defined via pi's `models.json` shape (`~/.tart/models.json`),
+  switchable at runtime through `/model`, with `/thinking` upgraded from the
+  cycle stand-in to the full selector menu — both menus ported from pi's selector
+  family, with the ctrl+s set-as-default persistence.
+
+- Deliver **config**: `lib/tart/models.rb` — `Tart::Models` loading
+  `~/.tart/models.json` (pi model-config.ts: JSONC-tolerant, BOM-stripped,
+  schema-validated subset: providers `{name, baseUrl, apiKey, api, models:
+  [{id, name, reasoning, contextWindow, maxTokens}]}`; invalid file → error
+  naming the file, never a crash). Resolution order for the boot model:
+  `TART_MODEL`/`TART_PROVIDER` env > models.json default > `Settings`
+  defaultModel/defaultProvider (verify against pi's model-resolver precedence;
+  itemize any deviation). Env keys (`TART_API_KEY`, `TART_API_BASE`) keep working
+  against the resolved provider.
+- Deliver **the selector component**: `lib/tart/render/model_menu.rb` — one
+  component family serving BOTH menus (pi has two classes sharing one shape;
+  unify or mirror, your call — itemize the choice). Ported surface: bordered,
+  title ("Thinking Level" for the thinking menu), fuzzy `Input` over
+  word+description (thinking) / id+provider+name (model — pi's
+  getModelSelectorSearchText text shape), up/down with wrap, enter selects,
+  escape/ctrl+c cancels, ctrl+s selects-and-persists, click-to-select
+  (press/release index tracking, pi select-list.ts:109-134), the dim help line
+  resolving to `Enter to select · Ctrl+S to set as default · Escape/Ctrl+C to
+  cancel`, current `✓` marker, `· default` badge, `(n/N)` scroll indicator at
+  the 10-row window, the model menu's `  Model Name: <name>` line and
+  current-first default-second-provider sort, the thinking menu's
+  LEVEL_DESCRIPTIONS table ("No reasoning", "Very brief reasoning (~1k tokens)",
+  … "Maximum reasoning") and description column. In-place-of-the-editor mounting
+  (the port's Picker precedent + pi showSelector :4884-4906) — done restores the
+  editor + focus.
+- Deliver **commands + switching**: `Commands::BUILTINS` gains `/model`
+  (argumentHint `<provider/model>`); `/model` no-arg → menu, exact arg → direct
+  switch + `Model: <id>` status, unknown arg → menu pre-seeded with the arg;
+  `/thinking` no-arg → the MENU (replacing the cycle stand-in; shift+tab cycle
+  stays), exact arg → direct set, bad arg → the error listing levels (unchanged).
+  Model switching mid-session: the gem path (`Chat#with_model` — verify live) or
+  an equivalent seam; `Agent::Loop` gains a model/context-window recompute seam
+  (switch must re-resolve the window); footer model segment refreshes and the
+  editor border re-ladders (thinking-level switch). ctrl+l opens the model menu
+  (pi app.model.select); ctrl+p / shift+ctrl+p model cycling is a STRETCH item —
+  itemize as cut if not delivered, never silent.
+- Deliver **persistence**: the ctrl+s set-as-default writes `defaultProvider` +
+  `defaultModel` to `~/.tart/settings.json` (pi settings-manager write path;
+  Settings gains its first write surface — preserve unknown keys on write, never
+  clobber) + status `Default model: <provider>/<id>` / `Default thinking level:
+  <level>`.
+- Tests: direct-class tests for Models (load/validate/JSONC/errors) and the menu
+  component (filter/nav/select/persist/cancel/click — drive public behavior);
+  the existing edit_input/chat_test pattern for the command dispatches +
+  ctrl+l/ctrl+s key routes + the switch seams (footer refresh, border re-ladder,
+  window recompute). Model the assertions on pi's editor/menu behavior where
+  observable.
+- **Boundaries for this lane:** the touch list above is exhaustive. Out of
+  scope: model CATALOG refresh (pi's refreshModelCatalogs network path — tart
+  reads the static models.json; itemize as cut), the scopedModels/all-scope tab
+  toggle (cut, itemized; one models.json is the whole catalog), /login, the
+  ctrl+x copy-selection-or-last-message key, undo-stack, multi-line editor. No
+  placeholders; search before implementing.
+
+- **Tool guidance.** Verification: `bundle install --quiet && bundle exec rake`,
+  `bundle exec ruby bench/seam_bench.rb`. pi sources at
+  `repos/pi/packages/coding-agent/src/` (components/model-selector.ts,
+  components/thinking-selector.ts, interactive-mode.ts:4884-5440,
+  core/keybindings.ts, core/model-config.ts, core/model-resolver.ts) and
+  `repos/pi/packages/tui/src/` (fuzzy.ts, select-list.ts) — read before coding;
+  cite what you port. Output format: file list + wc; the command/keybinding
+  table (pi → port, before/after) + verbatim test tails + suite counts + the
+  models.json resolution-precedence table. PHASE 0 disagreements mandatory.
+  STATUS line last.
+
+## Acceptance Criteria (frozen — verify against these)
+
+**AC1 (models config).** `lib/tart/models.rb` loads `~/.tart/models.json` with pi's
+schema subset (providers with models; JSONC-tolerant, BOM-stripped); a missing file
+falls back to the Settings defaults cleanly; an INVALID file surfaces an error naming
+the file (never a crash). The boot model resolves env > models.json > Settings
+(precedence verified against pi's model-resolver, any deviation itemized). Direct-class
+tests pin load/validate/error behavior.
+
+**AC2 (the selector menus).** `/thinking` with no arg opens the Thinking Level menu
+(fuzzy input over level word + description, ✓ current marker, · default badge,
+description column); `/model` with no arg opens the model menu (fuzzy over
+id+provider+name, ✓/default badges, `(n/N)` scroll indicator, `  Model Name: <name>`
+line, current-first sort); both: arrow navigation with wrap, enter selects,
+escape/ctrl+c cancels, ctrl+s selects-and-persists, click-to-select, the dim help
+line `Enter to select · Ctrl+S to set as default · Escape/Ctrl+C to cancel`, mounted
+in place of the editor (done restores the editor). Direct-class tests pin
+filter/nav/select/persist/cancel; chat_test pins the dispatch wiring. `/model <arg>`
+exact-match switches directly (`Model: <id>` status); unknown arg opens the menu
+pre-seeded. shift+tab thinking cycle unchanged.
+
+**AC3 (switching + persistence).** Selecting a model swaps the runtime chat model,
+re-resolves the context window (the loop seam), refreshes the footer model segment,
+and re-ladders the editor border; the gem switching path (`Chat#with_model` or
+verified equivalent) is exercised by a test. ctrl+s persists `defaultProvider` +
+`defaultModel` to `~/.tart/settings.json` preserving unknown keys, with the
+`Default model: <provider>/<id>` / `Default thinking level: <level>` status lines.
+ctrl+l opens the model menu.
+
+**AC5 (scope discipline).** The integrated diff touches exactly the two lanes'
+enumerated files. selection.rb, editor.rb, transcript.rb, compaction.rb, theme.rb,
+tui.rb, and test/parity/** are untouched.
+
+**AC6 (suite + bench).** The default rake task fully green (run-count delta > 0 —
+new tests) and the seam bench prints `SEAM_BENCH_OK`.
+
+Gate commands you can run to self-verify (frozen; the suite and bench are yours,
+the parity gates run on the integrated tree later):
+
+```
+bundle install --quiet && bundle exec rake && echo SUITE_OK     # expect exit 0, SUITE_OK
+bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1             # expect SEAM_BENCH_OK
+test -f lib/tart/models.rb && grep -q 'module Models\|class Models' lib/tart/models.rb && test -f test/models_test.rb && echo MODELS_OK
+test -f lib/tart/render/model_menu.rb && test -f test/render/model_menu_test.rb && grep -q 'to select' lib/tart/render/model_menu.rb && echo MENU_OK
+grep -q '"model"' lib/tart/commands.rb && grep -q 'model_menu\|ModelMenu\|Menu' lib/tart/render/chat.rb && echo MODEL_CMD_OK
+grep -q 'when "l"' lib/tart/render/chat.rb && grep -q 'when "s"' lib/tart/render/chat.rb && echo CTRL_KEYS_OK
+```
 
 ## Builder Report
 
