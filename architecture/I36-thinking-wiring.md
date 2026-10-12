@@ -46,34 +46,53 @@
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section thinking-wiring specification --from <file>`. -->
+# Specification — I36 thinking-wiring
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+- **Objective.** Close the live-run hang (Grounds 1; BRIEF §7): the resolved thinking level must reach the wire — for OpenAI-compat providers, `reasoning_effort` resolved through the model's `thinkingLevelMap` exactly as pi's generic branch does (clamp, off-floor, non-reasoning sends nothing; Grounds 4) — and the I05 `strip_thinking_replay` deviation is replaced by pi's replay protocol: prior assistant thinking persists (memory, session file, resume) and replays on later requests under the provider-accepted field (`reasoning_content`), with ruby_llm's duplicate `reasoning` field dropped at the request seam (Grounds 3/5/7). Settled screens must not move: s1–s9 stay exit 0 cold (Grounds 10).
+
+- **Port shape (single-writer agent-side slice; one lane).**
+
+  - **`Tart::Models` (lib/tart/models.rb) — the map + pi's resolution, pure functions.**
+    - `build_model` parses `thinkingLevelMap` from models.json entries: hash of level-name → String|nil, symbolized keys (`:thinking_level_map`); `validate_model_fields` gains the shape check (hash; values String or null; unknown level keys tolerated — pi's Partial-Record default, Grounds 4).
+    - `supported_thinking_levels(map:, reasoning:)` → Array (pi getSupportedThinkingLevels, models.ts:1224-1233): `["off"]` when not reasoning; else the ladder filtered — a `nil` (null) map value means unsupported, `xhigh`/`max` require a present (non-nil) entry.
+    - `clamp_thinking_level(level, map:, reasoning:)` → String (pi clampThinkingLevel, models.ts:1235-1254): exact level if supported; else forward-then-backward scan through `Settings::THINKING_LEVELS` order; unknown level → first supported, else `"off"`.
+    - `resolve_reasoning_effort(level, map:, reasoning:)` → String|nil (pi openai-completions.ts:745-755 + :969-976): nil unless reasoning; clamped = clamp(level); `nil` (send nothing) when clamped == "off" and the map's `off` is not a String; else the map's value for the clamped level, falling back to the level itself (`map[clamped] || clamped`), and for clamped "off" the map's String `off` value.
+  - **`Settings` (lib/tart/settings.rb) — the known-models tier.** `THINKING_LEVEL_MAPS` beside `MODEL_CONTEXT_WINDOWS`/`MODEL_REASONING` (same documented class — ids with no registry entry that the owner's daily-driver declares): glm-5p3-flash → the owner's effective pi map (every level a String: off→"low", minimal→"low", low→"low", medium→"medium", high→"high", xhigh→"xhigh", max→"max" — Grounds 4's both-routes-floor rule; the out-of-box boot then never sends nothing on this model). `known_thinking_level_map(model_id)` reader. The boot facts compose catalog-entry-first, known-tables-second (one helper, used by `bin/tart` interactive boot, `lib/tart/print.rb` boot, and the switch path): reasoning = entry's flag when a catalog entry exists, else `Settings.model_reasoning_capable`; map = entry's map when present, else the known table.
+  - **`Agent::Loop` (lib/tart/agent/loop.rb) — the request seam.** Constructor kwargs `thinking_level:` (String, default `"medium"` — pi DEFAULT_THINKING_LEVEL), `model_reasoning:` (Boolean), `thinking_level_map:` (Hash|nil); `attr_reader :thinking_level`; public `set_thinking_level(level)` (stores; the surface calls it); `switch_model` gains `model_reasoning:`/`thinking_level_map:` kwargs re-resolving the facts alongside the window (the I27 seam's shape). At construction the loop installs ONE `@chat.before_request` hook (Grounds 7 — the gem seam; runs last, mutates the symbol-keyed payload in place): (a) `effort = Models.resolve_reasoning_effort(@thinking_level, map: @thinking_level_map, reasoning: @model_reasoning)` → `payload[:reasoning_effort] = effort` or `payload.delete(:reasoning_effort)`; (b) replay normalization: each assistant entry in `payload[:messages]` loses `:reasoning` (ruby_llm's duplicate field; `:reasoning_content` stays — pi's signature replay, Grounds 5/7). Reading the level at request time means mid-session changes apply to the NEXT request with no gem state to reset. **`strip_thinking_replay` is DELETED** with its comment block (the deviation note moves to the hook; Grounds 6): recorded assistant messages keep their thinking — the session file (`Message#to_h` already serializes it), resume replay, and the display replay all regain it. `with_thinking` is never called (its no-arg/false forms are registry-driven and unusable under `assume_model_exists:`; its set-state cannot be unset — Grounds 7).
+  - **`Render::Chat` (lib/tart/render/chat.rb) — the surface seam.** `apply_thinking_selection` additionally calls `@agent&.set_thinking_level(level)` (the `/thinking` command, shift+tab cycle, and the menu all land there); `available_thinking_levels` gates by pi's rule through `Models.supported_thinking_levels` using the runtime map — `footer_data` gains the boot map and the `@runtime_model` switch overlay carries the entry's map (retiring the I27 "xhigh/max never filter" deviation; the no-map fallback = pi's map-less rule: off..high, Grounds 4); `apply_model_selection` passes the switched entry's `model_reasoning:`/`thinking_level_map:` into `switch_model` (known-table fallback for the degenerate boot entry). The chat.rb:218-221 comment citing `strip_thinking_replay` re-points at the request-seam normalization (Grounds 9). No render/byte changes: the level ladder, footer, border, and status rows render exactly as today.
+  - **`bin/tart` + `lib/tart/print.rb` — boot wiring.** Both `Agent::Loop.new` sites pass `thinking_level: Settings.resolve_thinking_level(settings)` plus the composed facts; `footer_data` gains the resolved `thinking_level_map` (the surface's ladder source). `build_chat` itself is unchanged.
+  - **Rig staging symmetry (gems/tui-split-rig/lib/tui_split_rig/runner.rb).** The staged models.json mock-2 entry (reasoning:true — both apps' staging sites, `stage_pi_agent`/`stage_tart_home`) gains the same full-string `thinkingLevelMap`; mock-1 (reasoning:false) stays map-less. Inert for the pinned scenarios (settled screens unchanged — the param changes no rendering), keeps the parity environment exercising the same catalog shape both sides. No new scenario, no registry change.
+  - **README.** Document `thinkingLevelMap` in the models.json schema note + the wire behavior (level → reasoning_effort via the map; off-floor on models that cannot turn thinking off).
+
+- **Tests (the deterministic proof; MockLLMServer's captured request bodies are the instrument — Grounds 7).**
+  1. `test/models_test.rb`: thinkingLevelMap parse (string/null values, symbolized) + validation errors; the resolution table as direct-function cases — the owner's override map (off→"low" floor, medium→"medium"), the live-catalog map ({off:null,…} → off floors to "low", minimal clamps to "low", medium clamps to "high", xhigh clamps forward to "max"), map-less (off sends nothing; xhigh/max clamp down to "high"), non-reasoning (no level ever sends), `supported_thinking_levels` per shape (the menu ladders).
+  2. `test/agent_loop_test.rb`: surgery on `test_thinking_replay_is_suppressed_on_followup_requests` → the replay protocol pin (follow-up request bodies carry the assistant `reasoning_content`, NOT `reasoning`; the tool-continuation completes); NEW request pins through the real chat: `reasoning_effort` present with the resolved value per level (drive `set_thinking_level` between turns — the NEXT request changes); the off-floor (map with off:null → "low"); non-reasoning facts → NO `reasoning_effort` key; `switch_model` re-resolves the map; the scripted-400 worker-error test untouched. NEW session pin: a thinking reply's recorded entry in the session file carries the thinking text (no strip).
+  3. `test/chat_test.rb`: `set_thinking_level`/cycle reaches an injected agent seam (spy); `available_thinking_levels` gates by the runtime map (footer_data/boot + switch overlay).
+  4. `test/settings_test.rb`: `known_thinking_level_map` + the composition helper's tiering (catalog entry wins; known table when absent).
+  5. Additive only elsewhere; existing pins that flip meaning are re-pointed, not deleted (Grounds 9).
+
+- **Output format.** Raw evidence to scratch: file list + wc; the new/changed test list with verbatim run tails; suite counts before/after; the s1–s9 exit codes; the PHASE 0 disagreement list (the Grounds 3-8 premises are checkable against repos/pi + the gem — cite what you read). STATUS line last.
+
+- **Tool guidance.** Verification (tart): `bundle install --quiet && bundle exec rake`, `bundle exec ruby bench/seam_bench.rb`; parity gates: `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml --out tmp/<short-out>` (s1–s9 must stay exit 0 in YOUR tree — SHORT out-dirs; allow 60 s+ each, both apps boot). pi sources: `packages/ai/src/api/openai-completions.ts` (:745-755 clamp→effort, :969-976 the generic branch, :611-627 delta signatures, :1340-1352 replay), `packages/ai/src/models.ts` (:1224-1254 supported/clamp), `packages/coding-agent/src/core/defaults.ts` (:4-12 ladder order), `model-config.ts` (:38/:54 map schema). The gem (ruby_llm 2.1.0): `protocols/chat_completions/chat.rb` (:57/:85-86 render_payload effort, :329 format_message, :417-431 format_thinking), `protocol.rb` (:143-155/:695-698 hook application), `chat.rb` (:909-914 before_request, :669-687 with_thinking), `thinking.rb` (Controls — why with_thinking()/false are unusable), `message.rb` (:258-279 to_h, :323-330 coerce_thinking). The live probes for reference: the space's `tmp/repro_thinking_budget.rb`, `tmp/repro_thinking_replay.rb`(.out), `tmp/repro_gem_replay.rb` — do NOT re-run them live (cost; the recorded outputs are the evidence). Read loop.rb's switch_model + chat.rb's apply_thinking_selection/available_thinking_levels/footer_data before designing.
+
+- **Boundaries.** May touch exactly: `lib/tart/models.rb`, `lib/tart/settings.rb`, `lib/tart/agent/loop.rb`, `lib/tart/render/chat.rb`, `lib/tart/print.rb`, `bin/tart`, `test/models_test.rb`, `test/settings_test.rb`, `test/agent_loop_test.rb`, `test/chat_test.rb`, `README.md`, `gems/tui-split-rig/lib/tui_split_rig/runner.rb`. Must not: `lib/tart/agent/{bridge,session,status,system_prompt,context_files}.rb` (session recording rides Message#to_h unchanged), `lib/tart/render/{transcript,footer,editor,motd,viewport,selection,model_menu,picker,autocomplete,kill_ring,text,panel,user_bash,bash_block,file_blocks,tool_block,markdown,slash_source}.rb`, `lib/tart/{compaction,commands,identity,prompts,skills,theme,tools}.rb`, `lib/tart/tools/**`, `lib/tart/core/**`, `lib/tart/mcp*`, `test/support/mock_llm_server.rb` (it already captures bodies; no server change needed), `bench/**`, `gems/tui-split-rig/{bin,test}/**`, any scenario yml, `gems/tui-split-rig/registry.yml`, any golden. Out of scope: Grounds 8/11's cuts (pi's other thinking dialects, budget fields, encrypted reasoning_details, the thinking-UX render slice, with_thinking off-controls). No placeholders; search before implementing.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision thinking-wiring`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/models.rb
+    - lib/tart/settings.rb
+    - lib/tart/agent/loop.rb
+    - lib/tart/render/chat.rb
+    - lib/tart/print.rb
+    - bin/tart
+    - test/models_test.rb
+    - test/settings_test.rb
+    - test/agent_loop_test.rb
+    - test/chat_test.rb
+    - README.md
+    - gems/tui-split-rig/lib/tui_split_rig/runner.rb
 ```
 
 ## Acceptance Criteria
