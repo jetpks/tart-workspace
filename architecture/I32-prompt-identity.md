@@ -951,15 +951,55 @@ STATUS: COMPLETE_WITH_CONCERNS — (a) frozen scope-gate regex has dead prefix b
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section prompt-identity verdict --from <file>`. -->
+# Verdict — I32 prompt-identity
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify prompt-identity`)?
+Judged 2026-10-12 in a fresh session (dispatched nothing). Integration: lane
+`prompt` merged `--no-ff` → project/pi-port 8638aa72 (--accept-bounds, ruled
+below). Diff vs BRIEF §3 (daily-driver parity) + §8 (settled-screen parity
+program) — the highest-leverage §3 gap (the model never saw the user's
+AGENTS.md; the terse 203-char prompt shaped every turn) is closed.
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+## Mechanical post-flight (all verified this session, not taken from the report)
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+- (a) Frozen region untouched: `git diff 8702bfbd HEAD -- architecture/I32-prompt-identity.md` shows only the Builder-Prompt placeholder replacement + appended Report/Verdict.
+- (b) No builder commits: worktree HEAD == base 64d30af (the builder guard blocked its one `git stash` attempt — no state changed).
+- (c) Scratch report present, raw evidence only (STATUS: COMPLETE_WITH_CONCERNS).
+- (d) In-bounds: `architect verify` FAILed on `lib/tart/agent/loop.rb` — ruled a spec-authoring defect, `--accept-bounds` applied (below).
+
+## Rulings — PHASE 0 disagreements (1–5) and STATUS concerns (a–c)
+
+1. **MOTD wordmark via `Identity.current` process-global (disagreement 1 / concern b) — ACCEPT.** chat.rb:559 carries no identity argument and chat.rb is frozen for this lane; the boot-recorded face (`Theme[]` precedent) is the only threadable-free path, the default keeps chat_test pins green untouched, and the global is written once at resolve time. Carry-in for whenever chat.rb next opens: thread the face explicitly and retire the global.
+2. **Print-mode loop env tier defaults to PI_ (disagreement 2 / concern c) — ACCEPT, itemized.** print.rb is frozen and constructs `Agent::Loop` without `identity:`; the kwarg defaults to pi. Interactive (the daily-driver path) and all parity scenarios thread the resolved face. Fix rides the next print.rb-opening iteration.
+3. **Golden inlined as a test literal (disagreement 3) — ACCEPT, provenance verified.** tmp/ is gitignored; a runtime file dependency would be flaky. I re-derived it myself this session: the inlined literal == pi's captured system message byte-for-byte (cwd-normalized), and `SystemPrompt.build` at the 4-tool loadout == the capture. The doctrine (golden from pi's capture, never the port's output) is honored.
+4. **Context tests in system_prompt_test.rb (disagreement 4) — ACCEPT.** The scope gate only admits test/identity_test.rb as new; the `ContextFiles.load → SystemPrompt.build` pair belongs together anyway.
+5. **`Settings.resolve_context_window` also called from footer_data (disagreement 5) — ACCEPT.** Same threading covers it.
+6. **Scope-gate regex defect (concern a) — ACCEPT as INVALID, AC6 proven directly (below).** Verified myself: the frozen pattern's directory branches (`test/render/`, `gems/tui-split-rig/lib/` …) end at `/` before `$` and can never match a file; the committed I31 base ALONE fails the gate (`registry_test.rb`). My independent union check (I31 diff ∪ lane worktree vs 276eda3d, prefix branches corrected): nothing outside I31 ∪ lane set. Gate INVALID; AC6 substance PASS.
+
+## Spec-authoring defects (mine, recorded)
+
+- **Scope-gate regex**: dead prefix branches + `gems/tui-split-rig/runner.rb` names a nonexistent file (the runner is `lib/tui_split_rig/runner.rb`). Corrected pattern for the next freeze needing one: `…|gems/tui-split-rig/(lib|test|scenarios)/`.
+- **`lanes` touch-set omitted loop.rb** while the prose sanctioned the :311 env-key edit and the scope pattern lists the file — three boundary statements, one wrong. The builder's edit (identity kwarg + env-key line + docs) is exactly the minimal mechanical form of the sanctioned change; I31's estimator threading verified intact. `--accept-bounds` with reason recorded in space.yaml. Carry-in: the lanes block is the source of truth — prose and pattern must be generated from it, never hand-written alongside.
+
+## Per-AC
+
+- **AC1 (identity free-form) — PASS.** Free-form resolve with clean-abort on empty/whitespace; pi/tart byte-exact (s1_tart TART_MODE_OK cold; chat_test pins untouched); `foo` smoke on the wire: preamble "inside foo", FOO_API_KEY auth'd, MOTD " foo v0.1.0".
+- **AC2 (the wired prompt) — PASS.** Terse string gone from both paths (bin/tart:204/:239); composed prompt == pi's captured system message byte-for-byte at the same loadout (verified independently this session); preamble + bash env-rule templated (pi mode byte-identical); `<docs>` resolves pi's real install (live resolver == capture triple).
+- **AC3 (project context) — PASS.** Faithful resource-loader port (line-cited); candidates order, ancestor walk root-most-first with global-first, dedup, worktree shadowing (with control) all pinned by real-fixture tests; parity scenarios bare both sides (verified in the gate captures).
+- **AC4 (env namespace) — PASS.** ENV_PREFIX_OK cold; `TART_IDENTITY`+`TART_MCP_CONFIG` the only literals (itemized); settings load order restructured (file → identity → prefixed env); rig staging prefix-aware with parent PI_*/TART_* scrub (`env -u`, staged keys win).
+- **AC5 (regression) — PASS.** Suite 586 runs / 2342 assertions / 0 failures cold (delta +21 runs vs the 565 baseline); SEAM_BENCH_OK; s1–s8 exit 0 cold; s1_tart TART_MODE_OK.
+- **AC6 (scope) — PASS** (gate INVALID, substance proven directly — see ruling 6). Integrated diff touches exactly I31's union ∪ the lane set.
+
+## Gates (cold, integration tree 8638aa72)
+
+13 PASS (suite, bench, s1–s8, s1-tart-mode, prompt-wired, env-prefix), 1 INVALID (scope — instrument defect, not a result defect).
+
+## Iteration call: CONTINUE
+
+The port's model-facing seam is now pi's: the harness prompt, the identity
+namespace, and the user's project instructions all reach the wire. The one
+decisive reason: AC2's byte-parity is proven against pi's own captured request,
+not a self-derived golden — the strongest form of §8's oracle discipline.
+
+Follow-ups queued (backlog, not blockers): print-mode identity threading (ruling
+2), `Identity.current` retirement when chat.rb opens (ruling 1), 4-vs-7 tool
+loadout parity (standing, out of scope by spec), session-env EXPOSURE (bash.ts:221).
