@@ -1287,6 +1287,14 @@ project:
       - lib/tart/render/transcript.rb
       - test/chat_test.rb
       - test/render/**
+      base_sha: 276eda3df8161122936cb0f0c19d405df66334be
+      worktree: build/I31-compaction-residuals-rebuild/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      dispatched_at: '2026-10-12T02:18:55-06:00'
+      effort: high
     - name: estimate
       repo: tart
       touch_set:
@@ -1295,6 +1303,12 @@ project:
       - test/compaction_test.rb
       - test/agent_loop_test.rb
       - gems/tui-split-rig/registry.yml
+      base_sha: 276eda3df8161122936cb0f0c19d405df66334be
+      worktree: build/I31-compaction-residuals-estimate/wt
+      integration_branch:
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
     rehearsal:
       gates_digest: 9591e618ec3399e06d8f18885baac526ec8c000ed5482227beac1c2ecae92bf9
       at: '2026-10-12T01:47:53-06:00'
