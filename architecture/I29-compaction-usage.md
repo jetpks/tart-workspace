@@ -9,11 +9,64 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section compaction-usage grounds --from <file>`. -->
+# Grounds — I29 compaction-usage
+
+Measured this session (2026-10-12) at base **8c7a438** (= `project/pi-port` tip after
+I27 + the `build_surface` wiring fix):
+
+1. **Owner ruling (2026-10-12, decisions log).** The compaction arithmetic goes
+   **usage-backed**: ruby_llm 2.1.0 exposes `Message#tokens` (input/output/cache_read/
+   cache_write, aggregated per provider attempt) and `Chat#tokens` (gem chat.rb:940-956)
+   — the gem was never the blocker. The own-client hypothesis is dead (parked unless a
+   live gap appears). pi's reference math: `calculateContextTokens` (compaction.ts:140)
+   with pi's Case-3 estimate fallback for error/zero-usage messages.
+
+2. **pi's trigger arithmetic (measured, packages/coding-agent/src/core/).**
+   `compaction.ts`: `calculateContextTokens` :140 (`usage.totalTokens ||` the four-part
+   sum); `getAssistantUsage` :146 (skips aborted/error stop-reasons and all-zero
+   usage); `estimateContextTokens` :196 (usage-backed through the LAST valid assistant
+   usage, chars/4 estimates trailing); `estimateProjectedContextTokens` :222 (the
+   context-edit projection); `shouldCompact` :292; DEFAULT_COMPACTION_SETTINGS :120.
+   `agent-session.ts` ~:3049-3100, the threshold trigger's Case structure:
+   **the just-completed assistant's DIRECT usage is the primary context-tokens
+   source**; Case 3 (stopReason error OR direct tokens == 0) falls back to
+   `estimateContextTokens` over the messages; the stale pre-compaction guard lives
+   INSIDE the fallback (a usage message at-or-before the compaction entry's timestamp
+   cannot trigger — kept messages carry stale, larger-context usage).
+
+3. **The port's state (measured at 8c7a438) — already further than the ruling
+   assumed.** `lib/tart/compaction.rb` already mirrors pi's estimate family:
+   `calculate_context_tokens` :164 (four-part sum; the gem's Tokens has no total
+   accessor — itemized), `estimate_context_tokens` :171 (last-usage + trailing
+   estimate, pi :196-225), `assistant_usage` :182 (**NO stop-reason guard** — the
+   gem's `Message` surface must be checked for a stop-reason observable),
+   `full_estimate` :191. The footer's usage accounting is usage-backed
+   (footer.rb:62-75, accumulated from assistant `Message#tokens`), and the rig's
+   MockLLM ALREADY emits usage (test/support/mock_llm_server.rb:159/:181 —
+   10/5/15) with both apps' settled footers rendering `0.0%/33k` — usage flows live
+   end-to-end today. The REAL deltas: (a) the port's threshold trigger
+   (agent/loop.rb:282-290) is **estimate-always** — pi's is direct-usage-first with
+   the Case-3 fallback; (b) `assistant_usage` lacks pi's stop-reason skip (verify
+   the gem's observable); (c) pi's `CompactionResult` carries `estimatedTokensAfter?`
+   + `usage?` (the compaction call's own usage) — the port's `prepare` result shape
+   must be checked against what pi populates (the compaction-panel fast-follow
+   iteration renders off these fields); (d) the rig has NO zero-usage knob — the
+   Case-3 path is unexercised by any instrument; (e) the I27-verdict residual:
+   `Agent::Loop#switch_model` keeps the OLD context window when the catalog entry
+   declares none (loop.rb seam — chat.rb passes nil through).
+
+4. **Sequencing (this session's ruling, refining the owner's sketch).** The owner's
+   sketch ran compaction as panel+usage in one iteration; chat.rb (the `:compaction`
+   render handler, chat.rb:393-404) is single-writer with the I28 selection wave
+   running in parallel right now — the panel queues as the FAST-FOLLOW iteration off
+   I28's integrated tip. The usage work (loop.rb + compaction.rb + tests + rig) is
+   file-disjoint from I28 → it runs parallel NOW (both dispatched together this
+   session, same base, both worktrees isolated).
+
+5. **Control (this session, base 8c7a438).** Suite 526 runs / 2035 assertions / 0
+   failures / 1 pre-existing skip; SEAM_BENCH_OK; s1–s6 exit 0 cold; s7 exit 1 by
+   design (the panel — the fast-follow, untouched here). All regression claims below
+   are against this baseline.
 
 ## Specification
 
