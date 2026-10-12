@@ -423,10 +423,365 @@ this lane's enumerated files, nothing else.
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I32-prompt-identity-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section prompt-identity prompt --append --lane <lane> --from build/I32-prompt-identity-<lane>/prompt.md`. -->
+### prompt
+
+# Lane dispatch — I32 prompt-identity, lane `prompt`
+
+**You are lane `prompt`** — the single lane of iteration I32 (a FAST-FOLLOW:
+your worktree is provisioned off the post-I31 `project/pi-port` tip — I31's
+estimator + header work is already in your base; build on it, do not
+re-litigate it).
+
+- **Touch (exactly these files):** `bin/tart`, `lib/tart/identity.rb`,
+  `lib/tart/agent/system_prompt.rb`, `lib/tart/agent/context_files.rb` (new,
+  allowed), `lib/tart/settings.rb`, `lib/tart/models.rb`,
+  `lib/tart/render/motd.rb`, `test/system_prompt_test.rb`,
+  `test/settings_test.rb`, `test/models_test.rb`,
+  `test/launcher_smoke_test.rb`, `test/print_test.rb`,
+  `test/identity_test.rb` (new, allowed), `test/chat_test.rb` (ONLY the
+  MOTD-identity pins — I31's rebuild pins are in your base and must not be
+  touched), `gems/tui-split-rig/runner.rb`, `gems/tui-split-rig/lib/**`,
+  `gems/tui-split-rig/test/**`, `gems/tui-split-rig/scenarios/**` (only if
+  staging requires).
+- **Must not touch:** everything else — in particular
+  `lib/tart/render/chat.rb`, `lib/tart/render/transcript.rb`,
+  `lib/tart/compaction.rb`, `test/render/**`, `test/compaction_test.rb`,
+  `test/agent_loop_test.rb`, `gems/tui-split-rig/registry.yml` (I31's class
+  — read, never edit), `lib/tart/agent/loop.rb` BEYOND the :311 env-key line
+  (I31's estimator threading is in your base — leave it intact),
+  `lib/tart/agent/session.rb`, `lib/tart/prompts.rb`, `test/prompts_test.rb`
+  (the /prompts templates feature — unrelated), `test/golden_parity_test.rb`
+  (edit-tool goldens — unrelated), `test/support/**` (STOP and raise in
+  PHASE 0 if you need it).
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you
+have with this spec, with reasons, citing real files in this repo. Silent
+compliance is a failure. Silent scope additions are a failure. If you have
+no disagreements, state what you checked before concluding the spec is
+sound. Verify the named APIs/formats/versions against the live dependencies
+before planning around them (notably: pi's system-prompt.ts composition and
+its getReadmePath/getDocsPath/getExamplesPath resolution; the
+resource-loader context-file walk + worktree shadowing; the gem's
+with_instructions; the request-capture oracle at
+repos/tart/tmp/parity-gate-s8/run-1/pi-requests.jsonl).
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them.
+The `:compaction` event payload is I30's frozen contract. You have no access
+to the space's architecture/ directory; the architect owns it. The
+ACCEPTANCE CRITERIA below are frozen — verify your work against them; never
+weaken or work around them. If an AC's letter can only be satisfied by
+making the artifact worse than the property the AC asserts, build the right
+thing and raise the conflict in your report — name the AC, the conflict, and
+the evidence. This is not permission to skip work or weaken a criterion:
+the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed above. No
+placeholder implementations — search the codebase before implementing; full
+implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions; well-factored and DRY-ish;
+terse but clear; pragmatic, not clever — the smallest change that does the
+job, no abstraction it doesn't need. Tests stay simple and terse, exercising
+public behavior, no mock/stub of the class under test. Verify your work by
+running the acceptance criteria's gate commands and record the verbatim
+output. Do NOT commit and do NOT run any git write command. Do NOT delete
+lock files or escalate privileges if a command fails; record the exact
+error and continue. Do NOT use `run_in_background` (or shell `&`) for your
+own work; run long commands serially in the foreground instead. Give every
+potentially long command an explicit timeout (the parity rig runs take tens
+of seconds each — allow 120s+ each). IMPORTANT tmux discipline: a
+`tmux kill-server` from you kills every other agent's live sessions on the
+shared server — NEVER run it; kill only sessions you created by exact name.
+If a runtime will not start unattended, record the exact failure in your
+report and route around it — never busy-wait or retry in a loop. When done,
+write your report to the scratch file given to you below (an absolute path
+OUTSIDE your worktree), with RAW results only — tables, numbers, command
+output — no interpretation, no "promising". Every status claim must be
+backed by a command result from this run. Keep the report compact — tables
+and numbers, not prose. Do not title the report; keep any headings inside
+the report at `###` or deeper. End it with exactly one status line:
+STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them) | BLOCKED (exact
+blocker + what you tried). Verdicts belong to the architect and the human.
+Persist until your lane is fully handled end-to-end; do not stop at
+analysis or partial fixes.
+
+Your scratch report (write RAW results here, never inside your worktree):
+/Users/eric/architect/spaces/20261009-pi-port/build/I32-prompt-identity-prompt/report.md
+
+## Your lane's specification
+
+- **Objective.** Wire the port's existing faithful prompt builder into the
+  launcher, identity-branded and white-labelable: pi's full harness prompt
+  (preamble, `<tools>`, `<rules>`, `<docs>`, `<project_context>`,
+  `<skills>`, `<cwd>`) replaces the 203-char terse string at `bin/tart:389`,
+  the branding and env namespace follow the configured identity
+  (pi/tart/foo → `PI_`/`TART_`/`FOO_`), and the missing AGENTS.md discovery
+  seam lands so the user's project instructions reach the model. The port's
+  `Agent::SystemPrompt` (lib/tart/agent/system_prompt.rb) is a complete,
+  golden-tested port of pi's system-prompt.ts currently called only from
+  its own tests — you are wiring it in, not writing it.
+
+- **Owner rulings, 2026-10-12 (frozen into this spec):**
+  1. **Branding follows Identity — white-labelable out of the box**: any
+     non-empty identity value works (`foo` renders "inside foo" and loads
+     `FOO_` vars). Not "support pi and tart" — "configure the identity any
+     way and it works".
+  2. **`<docs>` paths KEEP pi's for now.**
+  3. **The `PI_*` env-var rule follows Identity**: pi mode → `PI_`, tart
+     mode → `TART_`, foo → `FOO_`.
+
+- Deliver **identity free-form**: any non-empty identity string resolves
+  (CLI flag > `TART_IDENTITY` env > settings `identity` > default `pi`);
+  `pi` and `tart` keep their existing byte-exact rendering (pi goldens,
+  s1_tart); any other identity renders the tart-family face with its own
+  name and `Tart::VERSION`. Empty/whitespace-only → the clean-abort error
+  path (the I16 seam). The env namespace is `"#{identity.upcase}_"`.
+
+- Deliver **the prompt wiring**: `bin/tart`'s `system_prompt` seam composes
+  `Agent::SystemPrompt.build(selected_tools:, cwd:, context_files:,
+  docs_paths:, skills:, identity:)` — the terse string is GONE from both the
+  interactive (:199) and print (:232) paths. The PREAMBLE templates the
+  identity name ("…operating inside <name>, a coding agent harness…"); pi
+  mode is byte-identical to pi's. The bash env-var rule bullet
+  (system_prompt.rb TOOL_GUIDELINES) templates the prefix ("<PREFIX>_
+  environment variables"); pi mode byte-identical to pi's bash.ts:47.
+  `<docs>` keeps pi's resolved install paths — verify how pi resolves them
+  (getReadmePath/getDocsPath/getExamplesPath) and cite. The golden for
+  pi-mode byte parity is derived from pi's CAPTURED request
+  (repos/tart/tmp/parity-gate-s8/run-1/pi-requests.jsonl — cwd section
+  normalized; same-loadout comparison), never from the port's own output
+  (the edit-goldens doctrine).
+
+- Deliver **project-context discovery** (pi resource-loader.ts:175-280):
+  the candidates `AGENTS.override.md`/`AGENTS.md`/`AGENTS.MD`/`CLAUDE.md`/
+  `CLAUDE.MD`, per-directory first-match, the ancestor walk, and the
+  worktree-shadowing rule — port faithfully (new
+  `lib/tart/agent/context_files.rb` or inside system_prompt.rb, your call
+  within the touch set); thread the found files as `context_files`. No
+  files → no `<project_context>` section (the parity sandboxes find none —
+  pi's rig requests carry none either; both sides stay bare).
+
+- Deliver **the env namespace**: every app env read routes through the
+  identity prefix — the settings ENV map (settings.rb:63-67),
+  `TART_CONTEXT_WINDOW` (settings.rb:118 AND loop.rb:311), the
+  model/provider/api-key seams (models.rb:123-126, bin/tart:345/:425-426).
+  `TART_IDENTITY` and `TART_MCP_CONFIG` stay launcher-owned bootstrap knobs
+  (itemized: the identity key cannot depend on its own output; pi reads no
+  mcp env). Verify the settings load-order seam: the settings FILE loads,
+  identity resolves, THEN env overrides apply with the resolved prefix
+  (restructure Settings if needed — it is in your touch set). Launcher help
+  text names the mechanism, not hardcoded `TART_MODEL` spellings.
+
+- Deliver **the rig staging**: runner.rb stages prefix-aware env for tart
+  (the scenario's identity decides `PI_*` vs `TART_*` keys; the parity
+  scenarios run tart in pi mode → `PI_*`); scrub parent-env `PI_*`/`TART_*`
+  inheritance so the operator's real `PI_API_KEY` cannot leak into a staged
+  run; scenario_test pins update. s1_tart (tart mode) stages `TART_*`
+  unchanged.
+
+- **In-worktree gate expectations:** I31 is in your base — s1–s8 ALL
+  expected exit 0, plus s1_tart completing (exit ≤ 1 + summary.json shows
+  tart completed with expected requests). Your own RED-able gates:
+  `prompt-wired` and `env-prefix` (the two tripwires) must pass in your
+  worktree.
+
+- **Output format.** Raw evidence to scratch: file list + wc; the seam
+  table (pi mechanic → port seam, before/after: preamble/env-rule/docs/
+  context discovery/env namespace/rig staging); verbatim test tails + suite
+  counts; s1–s8 + s1_tart results from YOUR worktree; the pi-mode prompt
+  golden diff (the composed prompt vs pi's captured message, cwd
+  normalized, same loadout — verbatim); the white-label smoke (identity
+  `foo`: preamble name, `FOO_` resolution, version); itemized
+  deviations/cuts. PHASE 0 disagreements mandatory (a labeled PHASE 0
+  section). STATUS line last.
+
+- **Tool guidance.** Verification (from repos/tart): `bundle install
+  --quiet && bundle exec rake`, `bundle exec ruby bench/seam_bench.rb`;
+  parity: `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/
+  scenarios/<s>.yml --out tmp/<out>`. pi sources (read before coding; cite
+  what you port): `packages/coding-agent/src/core/system-prompt.ts` (whole
+  file), `src/core/resource-loader.ts:160-280`, `src/core/tools/bash.ts:47
+  +221`, the settings env-override shapes in `src/core/settings-manager.ts`,
+  `src/modes/interactive/interactive-mode.ts` (how the composed prompt
+  reaches the request). The gem's `with_instructions`. The request-capture
+  oracle: `repos/tart/tmp/parity-gate-s8/run-1/pi-requests.jsonl`.
+
+- **Out of scope, itemize if tempted:** the 4-vs-7 tool loadout parity
+  (queued; the golden pins at same-loadout), the `PI_*`/`FOO_*` session-env
+  EXPOSURE feature (bash.ts:221 — the port's bash sets none; prompt-text
+  parity only), rebranding pi's `<docs>` paths (owner: keep), identity-
+  driven anything in the MCP config path beyond the itemized bootstrap knob.
+
+## Frozen ACCEPTANCE CRITERIA (verify against these; never weaken them)
+
+Gate calibration notes: `prompt-wired` and `env-prefix` are
+tripwires/wiring proofs; the prompt's byte-parity substance is the pi-mode
+golden test (AC2), architect-read.
+
+**AC1 (identity free-form).** Any non-empty identity string resolves and
+drives the branding: pi and tart keep their existing byte-exact rendering
+(pi-mode goldens unchanged; s1_tart green); any other identity (e.g.
+`foo`) renders its own name in the preamble and UI text with
+`Tart::VERSION`, and its env namespace is `FOO_`. Empty/whitespace values
+hit the clean-abort error path. Pinned by identity/launcher tests incl. a
+`foo` smoke.
+
+**AC2 (the wired prompt).** The launcher composes `Agent::SystemPrompt` on
+both the interactive and print paths — the 203-char terse string is gone.
+Pi-mode composition is byte-identical to pi's captured system message at
+the SAME tool loadout (golden derived from pi's request capture, cwd
+normalized, never from the port's own output); the preamble and the bash
+env-var rule bullet template the identity (pi mode byte-identical to pi's
+system-prompt.ts/bash.ts:47); `<docs>` keeps pi's resolved install paths
+(owner ruling 2026-10-12). Pinned by the system_prompt goldens + the
+launcher wiring test.
+
+**AC3 (project context).** Context-file discovery follows pi's
+resource-loader: the five candidates in pi's order, per-directory
+first-match, the ancestor walk, the worktree-shadowing rule; found files
+inject as `<project_context>`; none found → no section. Pinned by tests
+incl. the shadowing case; the parity scenarios stay bare (neither app's
+request carries a section).
+
+**AC4 (the env namespace).** Every app env read routes through the identity
+prefix (the settings ENV map, the context-window reads incl. loop.rb's env
+tier, the model/provider/api-key seams); `TART_IDENTITY` and
+`TART_MCP_CONFIG` remain the only launcher-owned `TART_` literals (both
+itemized in the report). The rig stages prefix-aware env for tart and
+scrubs parent `PI_*`/`TART_*` inheritance. Proof: the env-prefix gate + the
+staging tests + the parity scenarios green.
+
+**AC5 (regression).** The default rake task fully green with run-count
+delta > 0; s1–s8 all exit 0 cold on the integrated tree; s1_tart (the
+tart-mode scenario — branding diffs vs pi are BY DESIGN, exit 1) completes:
+tart boots, connects through the identity-correct env namespace, and
+completes its expected requests; SEAM_BENCH_OK.
+
+**AC6 (scope).** The integrated diff vs 276eda3d (the pre-I31 tip — this
+iteration's tree carries I31's merged work) touches exactly I31's union ∪
+this lane's enumerated files, nothing else.
+
+```gates
+- id: suite
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/parity-gate-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/parity-gate-s6
+  expect:
+    exit_code: 0
+
+- id: s7-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7
+  expect:
+    exit_code: 0
+
+- id: s8-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml --out tmp/parity-gate-s8
+  expect:
+    exit_code: 0
+
+- id: s1-tart-mode
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_tart.yml --out tmp/parity-gate-s1tart; ec=$?; if [ "$ec" -gt 1 ]; then exit 1; fi; ruby -rjson -e 's = JSON.parse(File.read("tmp/parity-gate-s1tart/summary.json"))["runs"][0]["apps"]["tart"]; abort "tart incomplete" unless s["completed"] && s["requests"] == s["expected_requests"]; puts "TART_MODE_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: TART_MODE_OK
+
+- id: prompt-wired
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/prompt-gate-s1 && ruby -rjson -e 'c = JSON.parse(File.readlines("tmp/prompt-gate-s1/run-1/tart-requests.jsonl")[0])["body"]["messages"][0]["content"]; abort "terse prompt still wired" if c.include?("You are a coding assistant working in"); abort "no preamble" unless c.include?("You are an expert coding assistant operating inside"); abort "no rules section" unless c.include?("<rules>"); abort "no docs section" unless c.include?("<docs>"); abort "no cwd section" unless c.include?("<cwd>"); puts "PROMPT_WIRED"'
+  expect:
+    exit_code: 0
+    stdout_match: PROMPT_WIRED
+
+- id: env-prefix
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    if grep -rnE '"TART_[A-Z_]+"' lib bin/tart | grep -vE 'TART_IDENTITY|TART_MCP_CONFIG'; then exit 1; else echo ENV_PREFIX_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: ENV_PREFIX_OK
+
+- id: scope
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only 276eda3d HEAD | grep -qvE '^(lib/tart/render/chat\.rb|lib/tart/render/transcript\.rb|test/chat_test\.rb|test/render/|lib/tart/compaction\.rb|lib/tart/agent/loop\.rb|test/compaction_test\.rb|test/agent_loop_test\.rb|gems/tui-split-rig/registry\.yml|bin/tart|lib/tart/identity\.rb|lib/tart/agent/system_prompt\.rb|lib/tart/agent/context_files\.rb|lib/tart/settings\.rb|lib/tart/models\.rb|lib/tart/render/motd\.rb|test/system_prompt_test\.rb|test/settings_test\.rb|test/models_test\.rb|test/launcher_smoke_test\.rb|test/print_test\.rb|test/identity_test\.rb|gems/tui-split-rig/runner\.rb|gems/tui-split-rig/lib/|gems/tui-split-rig/test/|gems/tui-split-rig/scenarios/)$'; then exit 1; else echo SCOPE_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
+```
 
 ## Builder Report
 
