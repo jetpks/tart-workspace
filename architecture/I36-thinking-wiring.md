@@ -97,51 +97,142 @@
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse thinking-wiring` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze thinking-wiring` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria — I36 thinking-wiring
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC1 — the resolved thinking level reaches the wire, pi's resolution exactly.** For every model call (interactive, tool-continuation, and print mode), the request body carries `reasoning_effort` with `Models.resolve_reasoning_effort`'s value: the map's value for the clamped level, else the level itself; a level that clamps to "off" sends the map's String `off` value when one exists (the null-off floor clamps upward instead — off→"low" on the catalog map), and sends NO `reasoning_effort` key when the resolved effort is nil (non-reasoning models; map-less off). Unsupported levels clamp through pi's forward-then-backward scan; a mid-session `set_thinking_level` changes the NEXT request; `switch_model` re-resolves map+reasoning from the switched entry. Mock-asserted per level through the real chat (captured request bodies). The wiring tripwires are RED at base BY DESIGN (the resolution machinery is this iteration's deliverable).
 
-**AC1.** ...
+**AC2 — pi's replay protocol replaces the strip.** Recorded assistant messages KEEP their thinking: in memory (`strip_thinking_replay` is gone), in the session file (a thinking reply's entry carries the thinking text), and on resume. Follow-up and tool-continuation request bodies replay that thinking under `reasoning_content` with ruby_llm's duplicate `reasoning` field ABSENT (the request-seam normalization; pi's signature replay — the delta-carried field for the daily driver, live-verified Grounds 3). The continuation completes (the I05 400 class cannot recur through the port's own payload shape). The live evidence (A/B bound, delta-signature discovery, two-turn with/without replay, the gem-path probe) is recorded in Grounds 2–3. The replay tripwire is RED at base BY DESIGN.
+
+**AC3 — the level machinery is live end to end, not display-only.** `/thinking <level>`, shift+tab cycle, the selector menu, the boot setting, and a model switch all flow to the loop seam and apply to the next request without restart; the menu ladder offers exactly `Models.supported_thinking_levels` for the runtime model (the I27 "xhigh/max never filter" deviation retires; a non-reasoning model still offers off alone). Unit-pinned (surface seam spy + ladder gating).
+
+**AC4 — quality, scope, settled parity.** Suite fully green with run-count delta > 0 (re-pointed pins replaced, not deleted); `SEAM_BENCH_OK`; the integrated diff touches exactly the declared set (scope gate against the pre-iteration tip `a5c05948`); s1–s9 all exit 0 cold (settled screens unmoved — the wire param renders nothing); house style throughout (pi/gem citations carried, deviations itemized in the report: the replay-field pin, the dialect cuts, the known-map tier).
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse thinking-wiring` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/i36-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/i36-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/i36-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/i36-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/i36-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/i36-s6
+  expect:
+    exit_code: 0
+
+- id: s7-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/i36-s7
+  expect:
+    exit_code: 0
+
+- id: s8-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml --out tmp/i36-s8
+  expect:
+    exit_code: 0
+
+- id: s9-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s9_startup_help.yml --out tmp/i36-s9
+  expect:
+    exit_code: 0
+
+- id: request-wiring
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'def resolve_reasoning_effort' lib/tart/models.rb && grep -q 'before_request' lib/tart/agent/loop.rb && grep -q 'set_thinking_level' lib/tart/agent/loop.rb && grep -q 'set_thinking_level' lib/tart/render/chat.rb && grep -q 'thinking_level' lib/tart/print.rb && echo REQUEST_WIRING_OK
+  expect:
+    exit_code: 0
+    stdout_match: REQUEST_WIRING_OK
+
+- id: replay-protocol
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    if grep -q 'strip_thinking_replay' lib/tart/agent/loop.rb; then exit 1; fi && grep -q 'delete(:reasoning)' lib/tart/agent/loop.rb && echo REPLAY_PROTOCOL_OK
+  expect:
+    exit_code: 0
+    stdout_match: REPLAY_PROTOCOL_OK
+
+- id: map-parse
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'thinking_level_map' lib/tart/models.rb && grep -q 'thinking_level_map' bin/tart && grep -q 'THINKING_LEVEL_MAPS' lib/tart/settings.rb && echo MAP_PARSE_OK
+  expect:
+    exit_code: 0
+    stdout_match: MAP_PARSE_OK
+
+- id: scope
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only a5c05948 HEAD | grep -qvE '^(lib/tart/models\.rb|lib/tart/settings\.rb|lib/tart/agent/loop\.rb|lib/tart/render/chat\.rb|lib/tart/print\.rb|bin/tart|test/models_test\.rb|test/settings_test\.rb|test/agent_loop_test\.rb|test/chat_test\.rb|README\.md|gems/tui-split-rig/lib/tui_split_rig/runner\.rb)$'; then exit 1; else echo SCOPE_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
 
 ## Builder Prompt
