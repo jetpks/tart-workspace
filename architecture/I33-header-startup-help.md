@@ -466,11 +466,115 @@ against them, do not edit or work around) ===
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I33-header-startup-help-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence header-startup-help --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+### Phase 0 disagreements (all flagged before implementation; none blocked)
+
+| # | Disagreement | Resolution + evidence |
+|---|---|---|
+| 1 | Spec says thread skills/context into `build_chat`; that is the RubyLLM client builder (bin/tart), not a render seam | Threaded through `build_surface` (the Render::Chat construction seam, which already took `prompts:`/`extensions:`). Same outcome, right seam |
+| 2 | pi renders TWO blanks between onboarding and `[Context]`; the port rendered one | Mirrored pi exactly (headerContainer trailing Spacer :1075-1077 + the contextFiles-branch leading Spacer :1852-1853). Changes collapsed boot bytes ONLY when `[Context]` renders — no existing scenario/golden pins that (s1/s2 stage no AGENTS.md; s1 green below is the guard) |
+| 3 | motd.rb's HINTS_LINE comment claimed `!` bash / ctrl+c-twice / thinking-model cycles "have no port binding" — false (chat.rb routes all of them) | Comment corrected; HINTS_LINE bytes frozen; the expanded tart header enumerates the real routing |
+| 4 | Status rows arm pi's leading-spacer gate (children-non-empty) | `Transcript::StatusEntry` sets `@chat_started` — beyond the spec letter, faithful to the mechanism |
+| 5 | [Extensions] expanded body | Kept compact in both states via pi's own `expandedBody = collapsedBody` default (addLoadedSection :1810) — the port's extensions are names, not paths; `formatExtensionDisplayPath` has no input |
+| 6 | Expanded keyHint rows don't wrap (pi soft-wraps at the component level) | Itemized cut: the port's wrap machinery is plain-text and can't split the dim/muted span pair; identical at the rig's 120 cols |
+
+### Gate results (this session, final tree)
+
+| Gate | Command | Result |
+|---|---|---|
+| suite | `bundle install --quiet && bundle exec rake` | exit 0 — `606 runs, 2487 assertions, 0 failures, 0 errors, 1 skips` (the 1 skip = pre-existing live-run env guard, gems/tui-split-rig/test/live_run_test.rb:21; base had the same 1 skip) |
+| bench | `bundle exec ruby bench/seam_bench.rb 2>&1 \| tail -1` | `SEAM_BENCH_OK` |
+| s1-regression | rig run s1_text_turn --out tmp/parity-gate-s1-i33 | exit 0 — `failure=nil candidates=0 style_unknown=0 pi:ok(1/1) tart:ok(1/1)` per_class `{"parity-run-path"=>2, "footer-provider-prefix"=>2}` |
+| s2-regression | rig run s2_tool_turn --out tmp/parity-gate-s2-i33 | exit 0 — `failure=nil candidates=0 style_unknown=0 pi:ok(2/2) tart:ok(2/2)` per_class `{"parity-run-path"=>2, "footer-provider-prefix"=>2}` |
+| s9-parity | rig run s9_startup_help --out tmp/parity-gate-s9 | exit 0 — `failure=nil candidates=0 style_unknown=0 pi:ok(1/1) tart:ok(1/1)` per_class `{"parity-run-path"=>6, "staged-path-wrap-fragment"=>6, "footer-provider-prefix"=>2}` |
+| flip-motd | `grep -q "expanded" lib/tart/render/motd.rb` | `FLIP_OK` |
+| status-not-border | `! grep -q 'border_status = "Tool output' lib/tart/render/chat.rb` | `STATUS_ROW_OK` |
+| identity-retired | `! grep -rq "Identity.current" lib bin` | `IDENTITY_OK` (grep -c over lib+bin: 0 hits, comments included) |
+| scope | working-tree file set = `git status --short` | exactly the 14 touch-set entries (11 M + 2 ?? + registry.yml; registry_test.rb needed no change — the new class name contains "path") |
+
+### Byte proof (AC1) — live oracle
+
+pi oracle captured via the rig's own machinery: boot → settle → Enter (trust) → `C-o` → settle → `capture-pane` (`tmp/probe-expanded-plain/run-1/pi-expanded.capture`, header-only probe so the 40-row window keeps the whole header; the s9 settled screen scrolls it off). Port captured through the identical path (`tmp/probe-expanded-tart/run-1/tart-expanded.capture`).
+
+`diff` of the two 40-row captures: 4 differing rows — the two footer rows only (per-probe out-dir cwd line + `footer-provider-prefix` stats segment, both pre-existing classes). Rows 1–38 byte-identical, i.e. the entire expanded header:
+
+```
+ ▀▀█  v1.1.0
+ █▀ █ escape to interrupt
+ ctrl+c to clear
+ ctrl+c twice to exit
+ ctrl+d to exit (empty)
+ ctrl+z to suspend
+ ctrl+k to delete to end
+ shift+tab to cycle thinking level
+ ctrl+p/shift+ctrl+p to cycle models
+ ctrl+l to select model
+ ctrl+o to expand tools
+ ctrl+t to expand thinking
+ ctrl+g for external editor
+ / for commands
+ ! to run bash
+ !! to run bash (no context)
+ option+enter to queue follow-up
+ option+up to edit all queued messages
+ ctrl+v to paste files on macOS, images, or text
+ drop files to attach
+
+ Pi can explain its own features and look up its docs. Ask it how to use or extend Pi.
+
+
+ Tool output: expanded
+```
+
+Collapsed round-trip: pinned by `test_ctrl_o_flips_the_startup_header_in_place` (collapsed bytes restored exactly after the second C-o; notice renders collapsed-only). The tart family's expanded header (unit-level bytes, presentation-only, identity threaded):
+
+```
+ tart v0.1.0
+ enter to send / escape to interrupt / ctrl+c to clear / ctrl+c twice to exit
+ ctrl+d to exit (empty) / ctrl+o to expand tools / ctrl+l to select model
+ ctrl+s to save as default / shift+tab to cycle thinking level / ctrl+x to copy
+ pgup/pgdn to scroll / ctrl+u/ctrl+k to delete to line start/end
+ ctrl+y to yank / alt+y to yank pop / / for commands
+ ! to run bash / !! to run bash (no context)
+```
+
+### s9 instrument
+
+- Base work-list run (pre-implementation): exit 1, 39 candidates — verbatim list on disk at tmp/parity-gate-s9-base/summary.json. Key evidence lines: `+x/tart/.tart/skills/demo.md: name "demo" collision`, `-x/pi/AGENTS.md`, `-x/pi/.pi/skills/demo.md`, `+ Tool output: expanded ─────…` (border-riding status), `-[Skill conflicts]` block.
+- Final: exit 0; attribution (12 diff rows + 2 footer rows, every one classed):
+  - `parity-run-path` ×6 — the wrapped full-path first segments (`…/run-1/sandbox/pi/` vs `…/run-1/sandbox/tar`)
+  - `staged-path-wrap-fragment` ×6 — wrap tails (`AGENTS.md`, `.pi/skills/demo.md`, `t/.tart/skills/demo.md`) + the ~ user-skill rows (`    ~/.pi/agent/skills/demo-user.md` vs `    ~/.tart/skills/demo-user.md`)
+  - `footer-provider-prefix` ×2 — `(mock) mock-1` vs `mock-1`
+- New registry class: `staged-path-wrap-fragment`, pattern `^\s*\S+\.md$` — pinned ONLY from the base-run evidence lines above (bare staged-path fragment rows; full path rows still classify through run-N classes first). No other new classes; s1–s8 pins and goldens untouched.
+- Rig knobs added (validated at load): `post_settle_keys` (list of tmux key strings, default []), `stage_project_resources` (boolean, default false). Staging (BEFORE tmux boot): AGENTS.md at the cwd, project skill+prompt under `<cwd>/.pi|​.tart/`, user skill in the staged agent dir — with a DISTINCT user-skill name (same-name fired both apps' collision diagnostics in the base run), pi's trust store pre-seeded (`<agentDir>/trust.json`, trust-manager.ts:214 — the staged .pi otherwise pops the boot trust dialog, which swallowed the typed prompt once in the base-run re-runs), and pi's agentDir staged under the staged HOME (`~/.pi/agent`, config.ts:610) so the ~-contraction aligns with the port's.
+
+### Files changed
+
+| File | Delta |
+|---|---|
+| lib/tart/render/motd.rb | rewritten bodies: `pi_header_lines(expanded:)`, `tart_header_lines(width, name, expanded:, logo_lines:)`, `key_hint_row`, `Section` struct, `scope_group(s)/scope_group_rows/display_path/wrap_resource_row/break_long_word` (pi-tui wrapSingleLine port, utils.ts:925-995) |
+| lib/tart/render/chat.rb | enqueue_motd → header expandable + section expandables; /new + compaction re-enqueue header-only at current toggle state; 3 status sites → `Transcript#enqueue_status`; @border_status deleted; status_title = transient spinner only; skills/context_files threaded |
+| lib/tart/render/transcript.rb | `StatusEntry` + `enqueue_status` + replace-in-place flush (identity-checked tail pair); `push_expandable` public; `set_tool_output_expanded` now carries the row delta across blocks |
+| lib/tart/identity.rb | `Identity.current` + `attr_writer :current` deleted |
+| bin/tart | Identity.current writer deleted; context_files computed once, threaded to system_prompt + build_surface; skills/context_files wired into Render::Chat |
+| test/render/motd_test.rb | NEW, 192 lines, 11 tests (expanded/collapsed headers, keyHint styles, scope groups, display paths, pi-wrap, extensions) |
+| test/chat_test.rb | +6 I33 tests (flip round-trip, section flip, /new boot-once, compaction-at-current-state, status tail-row semantics, status dim fg); border-status assertions moved to transcript rows |
+| test/identity_test.rb | rewritten: face threads explicitly, no global |
+| gems/tui-split-rig/{scenario,runner}.rb | the two knobs + validation; post-settle key flow; stage_project_resources + trust pre-seed + agentDir-under-home |
+| gems/tui-split-rig/scenarios/s9_startup_help.yml | NEW, 21 lines |
+| gems/tui-split-rig/{registry.yml,test/scenario_test.rb} | the pinned class + 4 knob/staging tests + s9 load pin |
+
+Totals: 850 insertions, 228 deletions (11 modified + 2 new files).
+
+### Notes for the architect (conflicts raised, never silently resolved)
+
+1. **Latent I25 toggle bug fixed in transcript.rb** — `set_tool_output_expanded` rebuilt blocks by recorded ranges without adjusting later blocks' starts when an earlier block changed size; the boot header (which grows by ~17 rows on flip) exposed it: the flip CORRUPTED the buffer (sections spliced mid-header). The rebuild now walks blocks in start order carrying the row delta. transcript.rb is in-lane; without this AC1/AC2 cannot hold.
+2. **Collapsed blank adjacency** — with staged resources the collapsed boot now renders pi's two blanks between onboarding and `[Context]` (disagreement 2). No golden/scenario pins that state; s1/s2 byte-unchanged (exit 0).
+3. **Compact section rows keep the port's output pad; expanded rows and section headers are padless** (pi's section components are paddingX 0, verified in the base capture: `[Context]` at column 0). The spec freezes the compact bodies ("unchanged") — honored; no instrument captures collapsed-with-sections.
+4. The probe script (tmp/probe-expanded.rb) is throwaway under gitignored tmp/ — not part of the tree.
+
+STATUS: COMPLETE_WITH_CONCERNS (concerns 1–3 above are behavior changes beyond the spec's letter, each evidence-backed and inside the lane boundary; everything else ran clean — all 9 gates green, byte proof vs live oracle, s9 exit 0 with 0 unknown candidates)
 
 ## Verdict
 
