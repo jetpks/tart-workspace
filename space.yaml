@@ -1410,7 +1410,7 @@ project:
       - test/render/**
       - gems/tui-split-rig/**
       base_sha: ecc6b2b1d433d58b50a213617aeb8ed489b89e0f
-      worktree: build/I34-tool-pending-bg-core/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
