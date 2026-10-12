@@ -526,15 +526,23 @@ STATUS: COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section thinking-ux verdict --from <file>`. -->
+- **Disagreement rulings**
+  - **D1 (spec test-item glyph letters off by one vs AC1's formula) — ACCEPT.** The frozen AC1 formula `SPINNER[floor((t−anchor)/0.08) % 10]` and both repos' frame tables (tart SPINNER ≡ pi loader.ts DEFAULT_FRAMES, re-verified this session) give ⠹ at +160ms and ⠴ at 0.40s; the spec's test-item letters (⠸/⠼) contradicted the formula inside the same AC. Building to the formula is the only self-consistent reading; the builder's first-run failure on exactly those two letters confirms the letters, not the code, were wrong. No property weakened — AC1's formula is what shipped.
+  - **D2 (branch-3 narrow degradation vs "branches UNCHANGED in arithmetic") — ACCEPT.** Frozen AC2 demands "the narrow/label-collision degradations render the spinner glyph alone"; pi custom-editor.ts:70-78 re-renders `renderSpinnerInBorder` before the prefix math (verified this session). The builder kept the three branch CONDITIONS byte-identical (the I34/I35 fit rules — the substance of "unchanged arithmetic") and degraded only the status input, exactly pi's shape; itemized per PHASE 1. The literal-letter alternative would have violated frozen AC2.
+  - **D3 (no other disagreements; premises verified) — ACCEPT.** Spot-verified against repos/pi this session: loader.ts frames/80ms/frame-0, status-indicator.ts renderInBorder/renderSpinnerInBorder + constructor defaults, interactive-mode.ts :487/:651/:2345-2356/:3427-3433/:3681/:3694/:4516-4521, custom-editor.ts :37-78, assistant-message.ts :99-176. All accurate.
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify thinking-ux`)?
+- **Grounds open questions**
+  - **OQ-1 (working-status color) — RULE: editor border color stands; no flip to the plan letter.** Verified: interactive-mode.ts:2345-2356 passes `colorFn = (text) => (this.editor.borderColor ?? theme.getThinkingBorderColor(level))(text)` to BOTH spinner and message whenever the editor embeds the status, and :651 constructs the default editor with `embedWorkingStatus: true`; :4516-4521 sets borderColor = bashMode/ladder. In the owner's daily driver the constructor-default accent/muted is unreachable for the working status — shipping it would leave the owner's named "wrong color" defect open (BRIEF §8 pi-exact is the program). The plan letter's accent/muted correctly HOLDS for compaction (no colorFn parameter, status-indicator.ts:85-96) and the port implements exactly that split, bashMode arm included.
+  - **OQ-2 (message text) — RULE: the constant "Working" stands.** pi `defaultWorkingMessage = "Working"` (interactive-mode.ts:487, verified); the port's "thinking"/"…"/"tool: <name>" vocabulary was an unruled I04-era invention. pi surfaces tool progress through transcript tool blocks, which the port already renders — parity loses nothing. Exact-parity done bar (standing ruling) applies; no re-litigation.
+  - **OQ-3 (no rig probe) — RULE: unit-pinned stands; no probe this iteration and no new lane work.** The frozen boundaries forbid any rig/scenario/registry change (Grounds 9), and a transient spinner/streaming-markdown probe requires exactly that rig work. The injected-clock seam + 13 deterministic pins cover AC1–AC3's letters; s1–s9 prove settled immobility. RESIDUAL RISK recorded: the live end-to-end path (real 80ms dwell under real render cadence, real streaming markdown) is unpinned by the rig — if the owner's next live run shows divergence, an I26-style probe becomes a named plan item, not a lane patch.
+
+- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify thinking-ux`: PASS a–d; `git diff 26c8dbc HEAD -- architecture/I37-thinking-ux.md` touches only the Builder Prompt append + Builder Report transcription, both post-freeze by design).
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | spinner-time PASS, frames-retired PASS (`@frames` zero hits repo-wide); cadence pins t=0/+40/+81/+160 + frozen-clock repeated draws + re-anchor at :agent_start/:compaction_start/:compaction; BUSY_FRAME_SECONDS cadence untouched | §8 | PASS |
+| AC2 | status-colors PASS; working spinner+message = editor_border_color pinned at off-default, set level, mid-turn high→low recolor, bashMode; compaction accent/muted, COMPACTION_LABELS unchanged; row `"── ⠋ Working "` + dashes byte-pinned; both degradations spinner-alone in spinner color | §8 | PASS |
+| AC3 | reasoning-md PASS; reasoning_lines → strip + markdown_lines(prose_fg: thinkingText, prose_modifiers: [:italic]) on the nil-fg seam; all three callers (live :1564, enqueue :149, replay :650); bold/code/list cell pins on all three paths; no raw markers; whitespace strip; plain-prose pins green unchanged; I13 comments re-pointed | §8 | PASS |
+| AC4 | suite 705 runs / 2899 assertions, 0 failures (+13 runs, 3 pins re-pointed not deleted); SEAM_BENCH_OK; s1–s9 exit 0 cold (builder run + judge's cold gate run); diff vs 7c4ae19 = exactly the 3 declared files; house style with pi citations carried; deviations itemized (OQ-1 color, OQ-2 message, mechanism note) | §1/§8 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+- **Iteration** — **CONTINUE.** Diff vs BRIEF §8 faithful on both named defects (time-gated spinner + embedded-status colors; reasoning markdown through one path), settled screens unmoved, scope exact, both PHASE 0 disagreements resolved in pi's favor with citations I re-verified cold. One non-blocking nit: Grounds 7 over-counted chat_test.rb:61-63 as an I13-cut comment — it carries only an accurate origin cite whose assertions still hold; the frozen spec letter named the three real re-point sites, all done.
