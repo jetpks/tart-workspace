@@ -1136,7 +1136,7 @@ project:
     ordinal: 27
     file: architecture/I27-model-menus.md
     freeze_sha: 0a113b963abca8664c24e40629efd8fe7f6da071
-    verdict: pending
+    verdict: continue
     lanes:
     - name: model
       repo: tart
