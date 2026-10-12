@@ -1358,11 +1358,11 @@ project:
   - name: header-startup-help
     ordinal: 33
     file: architecture/I33-header-startup-help.md
-    freeze_sha: 98cbc743adb17b41a9c0f611415ab34da9b2841a
+    freeze_sha: 03c7da9e3c500ce2a5d16f51b703981d182a4880
     verdict: pending
     lanes:
     - name: core
-      repo: repos/tart
+      repo: tart
       touch_set:
       - lib/tart/render/chat.rb
       - lib/tart/render/motd.rb
@@ -1381,4 +1381,7 @@ project:
     rehearsal:
       gates_digest: cacef7694e686cc8bf2b5b8242aaacea28c0af60da14fe50571277ae12042632
       at: '2026-10-12T10:57:27-06:00'
+    rehearsal_skip_reason: repo field corrected pre-dispatch (repos/tart -> tart,
+      the resolution is repos/-relative; gates unchanged — same rehearse stamp class,
+      I06 re-freeze precedent, nothing dispatched)
   integration_branch: project/pi-port
