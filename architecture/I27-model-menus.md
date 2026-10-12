@@ -257,51 +257,199 @@ parallel), sequenced off this iteration's integrated tip.
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse model-menus` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze model-menus` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria — I27 model-menus
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC1 (models config).** `lib/tart/models.rb` loads `~/.tart/models.json` with pi's
+schema subset (providers with models; JSONC-tolerant, BOM-stripped); a missing file
+falls back to the Settings defaults cleanly; an INVALID file surfaces an error naming
+the file (never a crash). The boot model resolves env > models.json > Settings
+(precedence verified against pi's model-resolver, any deviation itemized). Direct-class
+tests pin load/validate/error behavior.
 
-**AC1.** ...
+**AC2 (the selector menus).** `/thinking` with no arg opens the Thinking Level menu
+(fuzzy input over level word + description, ✓ current marker, · default badge,
+description column); `/model` with no arg opens the model menu (fuzzy over
+id+provider+name, ✓/default badges, `(n/N)` scroll indicator, `  Model Name: <name>`
+line, current-first sort); both: arrow navigation with wrap, enter selects,
+escape/ctrl+c cancels, ctrl+s selects-and-persists, click-to-select, the dim help
+line `Enter to select · Ctrl+S to set as default · Escape/Ctrl+C to cancel`, mounted
+in place of the editor (done restores the editor). Direct-class tests pin
+filter/nav/select/persist/cancel; chat_test pins the dispatch wiring. `/model <arg>`
+exact-match switches directly (`Model: <id>` status); unknown arg opens the menu
+pre-seeded. shift+tab thinking cycle unchanged.
+
+**AC3 (switching + persistence).** Selecting a model swaps the runtime chat model,
+re-resolves the context window (the loop seam), refreshes the footer model segment,
+and re-ladders the editor border; the gem switching path (`Chat#with_model` or
+verified equivalent) is exercised by a test. ctrl+s persists `defaultProvider` +
+`defaultModel` to `~/.tart/settings.json` preserving unknown keys, with the
+`Default model: <provider>/<id>` / `Default thinking level: <level>` status lines.
+ctrl+l opens the model menu.
+
+**AC4 (parity + registry discipline).** Cold from the integrated tree: s1–s6 all
+exit 0 (settled screens unshifted); s7 still exits 1 (compaction panel untouched);
+registry.yml additions-only (`git show fcf232f4:... | diff -` shows no `<` lines).
+
+**AC5 (scope discipline).** The integrated diff touches exactly the two lanes'
+enumerated files (AC-listed model set + gems/tui-split-rig/**). selection.rb,
+editor.rb, transcript.rb, compaction.rb, theme.rb, tui.rb, and test/parity/** are
+untouched.
+
+**AC6 (suite + bench).** The default rake task fully green (run-count delta > 0 —
+new tests) and the seam bench prints `SEAM_BENCH_OK`.
+
+**AC7 (rig: menu probes + hardening).** The menu probe captures both apps'
+`/model` and `/thinking` menus mid-flight (plain + styled frames) and the
+post-selection settled screen, with a candidate table (pi's menu bytes vs tart's)
+in the rig lane's report; tart's staged `~/.tart/models.json` carries ≥2 mock
+models; the tmux hardening lets two scenarios run CONCURRENTLY with both exiting 0
+(the gate runs exactly that).
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse model-menus` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: models-class
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    test -f lib/tart/models.rb && grep -q 'module Models\|class Models' lib/tart/models.rb && test -f test/models_test.rb && echo MODELS_OK
+  expect:
+    exit_code: 0
+    stdout_match: MODELS_OK
+
+- id: menu-class
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    test -f lib/tart/render/model_menu.rb && test -f test/render/model_menu_test.rb && grep -q 'to select' lib/tart/render/model_menu.rb && echo MENU_OK
+  expect:
+    exit_code: 0
+    stdout_match: MENU_OK
+
+- id: model-command
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    grep -q '"model"' lib/tart/commands.rb && grep -q 'model_menu\|ModelMenu\|Menu' lib/tart/render/chat.rb && echo MODEL_CMD_OK
+  expect:
+    exit_code: 0
+    stdout_match: MODEL_CMD_OK
+
+- id: ctrll-tripwire
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'when "l"' lib/tart/render/chat.rb && grep -q 'when "s"' lib/tart/render/chat.rb && echo CTRL_KEYS_OK
+  expect:
+    exit_code: 0
+    stdout_match: CTRL_KEYS_OK
+
+- id: s1-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/parity-gate-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/parity-gate-s6
+  expect:
+    exit_code: 0
+
+- id: s7-still-baselined
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    test -f gems/tui-split-rig/scenarios/s7_compaction.yml || exit 1
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7
+    test $? -eq 1
+  expect:
+    exit_code: 0
+
+- id: registry-additions-only
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    if git show fcf232f4:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml | grep -q '^<'; then exit 1; else echo REGISTRY_ADDITIONS_ONLY_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: REGISTRY_ADDITIONS_ONLY_OK
+
+- id: concurrent-rig
+  ac: AC7
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/conc-a > tmp/conc-a.log 2>&1 &
+    p1=$!
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/conc-b > tmp/conc-b.log 2>&1 &
+    p2=$!
+    wait $p1; e1=$?
+    wait $p2; e2=$?
+    if [ "$e1" -eq 0 ] && [ "$e2" -eq 0 ]; then echo CONCURRENT_OK; else echo "concurrent exits: $e1 $e2"; exit 1; fi
+  expect:
+    exit_code: 0
+    stdout_match: CONCURRENT_OK
+
+- id: sealed-files-untouched
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only fcf232f4 HEAD | grep -qvE '^(lib/tart/models.rb|lib/tart/settings.rb|lib/tart/commands.rb|lib/tart/render/chat.rb|lib/tart/render/model_menu.rb|lib/tart/render/footer.rb|lib/tart/agent/loop.rb|bin/tart|test/chat_test.rb|test/commands_test.rb|test/settings_test.rb|test/agent_loop_test.rb|test/models_test.rb|test/render/model_menu_test.rb|gems/tui-split-rig/)'; then exit 1; else echo SCOPE_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
 
 ## Builder Prompt
