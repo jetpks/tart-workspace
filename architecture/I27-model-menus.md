@@ -912,6 +912,150 @@ Process notes: no git writes performed (one `git stash` attempt was blocked by t
 
 STATUS: COMPLETE
 
+### rig
+
+## Lane `rig` — files
+
+| file | state | wc |
+|---|---|---|
+| gems/tui-split-rig/lib/tui_split_rig/runner.rb | M | 460 (+56/-11 vs base) |
+| gems/tui-split-rig/test/scenario_test.rb | M | 215 (+34) |
+| gems/tui-split-rig/bin/model-menu-probe | A | 112 |
+| gems/tui-split-rig/scenarios/probe_model_menus.yml | A | 15 |
+
+No other file touched. `git status --porcelain` shows exactly those four. No commits made.
+
+## Gate commands (frozen, post-change)
+
+```
+s1_text_turn exit: 0
+s2_tool_turn exit: 0
+s3_tool_turn_files exit: 0
+s4_bash_variants exit: 0
+s5_bash_truncation exit: 0
+s6_long_calls exit: 0
+s7 exit: 1  →  S7_STILL_1
+```
+Each via `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml --out tmp/gate-<s>`.
+
+## Registry diff (additions-only check)
+
+```
+$ git show fcf232f4:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml | grep '^<' ; test $? -eq 1 && echo REGISTRY_ADDITIONS_ONLY
+REGISTRY_ADDITIONS_ONLY
+$ git show fcf232f4:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml ; echo "diff exit: $?"
+diff exit: 0        ← zero changes of any kind; no new classes needed
+```
+
+## Concurrent proof (frozen gate verbatim)
+
+Control at BASE (before any edit): `concurrent exits: 2 0`
+Failure evidence from `tmp/conc-a/summary.json`: `rig_failure: leftover tui-split-rig-* tmux sessions: tui-split-rig-tart-s2_tool_turn-r1-5600` (s1's finisher saw s2's live session).
+
+Cured (post-change), run twice:
+```
+concurrent exits: 0 0
+concurrent exits (repeat): 0 0
+```
+Post-run: both `summary.json` → `exit 0, failure None`; `tmux ls | grep -c tui-split-rig-` → `0`.
+
+## Menu probe runs
+
+```
+$ gems/tui-split-rig/bin/model-menu-probe --out tmp/model-menu-probe ; echo "probe exit: $?"
+pi model: menu=captured selected=captured
+pi thinking: menu=captured selected=captured
+tart model: menu=captured selected=captured
+tart thinking: menu=captured selected=captured
+probe exit: 0
+```
+Captured files (tmp/model-menu-probe/): per app × {model,thinking} × {menu,selected} × {.txt,.styled} = 16 frames. Styled frames carry SGR (e.g. `pi-model-menu.styled` 23 escape-bearing lines; `tart-thinking-selected.styled` 12). Staged tart menu file: `tmp/model-menu-probe/home/tart/.tart/models.json` → models `['mock-1', 'mock-2']`, baseUrl `http://127.0.0.1:62221/v1`.
+
+Opening keystrokes used for BOTH apps: literal `/model` + Enter, then `/thinking` + Enter (slash paths; pi's ctrl+l is pi-only). Keystroke verification at source: pi `keybindings.ts:49` (ctrl+l = app.model.select), `interactive-mode.ts:5196/5145` (no-arg /model → showModelSelector, /thinking → showThinkingSelector), `pi-tui keybindings.ts:154` (enter = tui.select.confirm); tart `lib/tart/commands.rb:41-50` (/model cut from BUILTINS → plain-text submission), `chat.rb:556-558` (Enter applies completion then submits).
+
+## Candidate table — model menu (pi mid-menu bytes vs tart mid-menu bytes; raw line diff, blank-line run collapsed to one row marked `(blanks)`)
+
+Tart side is a PRE-MODEL-LANE SNAPSHOT (no /model builtin at base fcf232f4; re-run post-integration).
+
+```
+   (common boot/MOTD rows elided: identical)
++  /model
++  The fallback reply for a text submission.
+- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+- Only showing models from configured providers. Use /login to add providers.
+- >
+- → ✓ mock-1 [mock]
+-     accounts/fireworks/models/deepseek-v4p1-flash [fireworks]
+-     accounts/fireworks/models/ember-1 [fireworks]
+-     accounts/fireworks/models/gpt-oss-120b [fireworks]
+-     accounts/fireworks/models/inkling [fireworks]
+-     accounts/fireworks/models/minimax-m3 [fireworks]
+-     accounts/fireworks/models/nemotron-3-ultra-nvfp4 [fireworks]
+-     accounts/fireworks/models/nemotron-lightning-3p5-30b-a3b [fireworks]
+-     accounts/fireworks/models/qwen3p8-2p4t-a95b [fireworks]
+-     accounts/fireworks/models/qwen3p8-max [fireworks]
+-   (1/23)
+-   Model Name: Mock 1
+-   Model catalogs refreshed.
+-   Enter to select · Ctrl+S to set as default · Escape/Ctrl+C to cancel
++ (blanks ×12)
+  ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+- /Users/…/tmp/model-menu-probe/sandbox/pi (lane/I27-...)
+- 0.0%/33k (auto)                                     (mock) mock-1
++ /Users/…/tmp/model-menu-probe/sandbox/tart
++ ↑10 ↓5 0.0%/33k (auto)                             mock-1
+```
+diff-lines=38 full.
+
+## Candidate table — thinking menu
+
+```
+-  Model: mock-1            ← pi (post-model-selection status, still on screen)
++  /model                   ← tart's editor still holds the un-dispatched "/model"
++  The fallback reply for a text submission.
+- ────────────────────────────────────────────────────────────────────────────────────────────────────────────────────────
+- Thinking Level
+- Shift+Tab cycles thinking levels in-session
+- >
+- → ✓ off       No reasoning
+-   Enter to select · Ctrl+S to set as default · Escape/Ctrl+C to cancel
++ (blanks ×3)
++  Thinking level: high ──────────────────────────────────────────────────────────────────────────────────────────────────
+  (footer path/percentage rows as above)
+```
+diff-lines=18 full.
+
+## Post-selection settled screens
+
+- pi model: status ` Model: mock-1` rendered; footer `(mock) mock-1`.
+- pi thinking: status ` Thinking level: off` (mock model declares reasoning: false → its available level set is `[off]`; the selector offered and selected `off`).
+- tart model: fallback — the submission echo + mock LLM reply rendered (1 mock request consumed by tart; pi made 0 for /model).
+- tart thinking: ` Thinking level: high ─…` — bare `/thinking` cycles (commands.rb:146-147), started from the port default medium, cycled to high. No menu.
+
+## Tests
+
+```
+$ bundle exec ruby gems/tui-split-rig/test/scenario_test.rb
+20 runs, 84 assertions, 0 failures, 0 errors, 0 skips       (20 def test_ — no buried tests)
+$ bundle exec rake test
+473 runs, 1864 assertions, 0 failures, 0 errors, 1 skips    (skip = opt-in TUI_SPLIT_RIG_LIVE live test)
+```
+New tests: `test_session_names_and_leftover_check_are_token_scoped` (token uniqueness + session-name shape), `test_tart_home_stages_two_mock_models` (pi-shape models.json, ≥2 models, settings.json stays context_window-gated).
+
+### AC cross-check
+| AC | result |
+|---|---|
+| AC4 | s1–s6 exit 0, s7 exits 1, registry additions-only (zero diff) — all recorded above |
+| AC7 | probe captures both apps' /model + /thinking mid-menu (plain+styled) + post-selection; candidate tables above; `~/.tart/models.json` staged with 2 mock models; concurrent s1/s2 → 0 0 |
+| AC5 | diff touches exactly gems/tui-split-rig/** (4 files above) |
+
+### Notes for the architect
+- The staged `~/.tart/models.json` shape mirrors pi's `models.json` (providers → {baseUrl, apiKey, api, models:[{id,name,reasoning,contextWindow,maxTokens}]}). Base tart has NO reader for it (verified: no `models.json` reference under lib/tart; Settings.load reads settings.json only). The model lane's reader contract must match this shape — reconcile at merge if it chose differently. Inert at base: AC4 cold gates passed with the staging in place.
+- pi's staged agent-dir `models.json` was NOT touched (1 mock model + built-in catalog; keeps s1–s6 settled screens unshifted).
+- Trade-off accepted by the token-scoping cure: leftovers from a crashed FOREIGN process no longer fail a later run (only own-token leftovers do). `test/live_run_test.rb:53` still greps for any `tui-split-rig-*` leftover — opt-in test, unmodified, remains concurrency-sensitive if two lanes run it simultaneously.
+
+STATUS: COMPLETE_WITH_CONCERNS — (1) staged tart models.json shape is an unratified contract with the parallel model lane (mirrored pi's shape; needs reconciliation at merge); (2) tart sides of both candidate tables are pre-model-lane snapshots (probe re-run required post-integration); (3) token scoping narrows leftover detection to own-process sessions.
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
