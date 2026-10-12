@@ -1224,12 +1224,13 @@ project:
       - gems/tui-split-rig/**
       base_sha: 8c7a4381a081d0e70dba54fadb5d7dd090d98572
       worktree: build/I29-compaction-usage-usage/wt
-      integration_branch:
+      integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
       variant: false
       dispatched_at: '2026-10-11T22:21:15-06:00'
       effort: high
+      integrate_sha: 8d3331a44873d110ff4b159a5d53d8326b28bb60
     rehearsal:
       gates_digest: e754ec1025f839d5648073b3bb826e9ae9d1223866da7196b9b3713c34a10d73
       at: '2026-10-11T22:16:33-06:00'
