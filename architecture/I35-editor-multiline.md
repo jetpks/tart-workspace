@@ -88,51 +88,154 @@
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse editor-multiline` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze editor-multiline` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria — I35 editor-multiline
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC1 — the visual-line model renders and navigates wrapped rows.** `Tart::Render::Editor` holds logical lines × wrapped visual rows (pi editor.ts:285-289, :131-234, :1836-1892): typing past the end of the row renders on visual row 2+ (chunk-faithful wrap with backtracking, the width−1 reserved cursor column); cursor up/down move across wrapped rows through pi's sticky-column table (preferred column clamped then restored); home/end go to the LOGICAL line's start/end (editor.ts:1613-1620 — the entry's "per-visual-row" shorthand corrected against source, Grounds 5); horizontal and word motions wrap across logical lines. Unit-pinned per the Specification's test list (1)–(3).
 
-**AC1.** ...
+**AC2 — real newlines work end to end.** shift+enter, alt+enter, ctrl+j, and the backslash-before-cursor enter idiom insert newlines (editor.ts:897-917, keybindings.ts:143); bracketed paste inserts multi-line text with pi's normalization/filtering (Grounds 6); submit sends the joined trimmed text; multi-line history entries recall all rows with pi's cursor placement and draft restore; slash/autocomplete context stays line-0-only. Unit-pinned per the test list (6), (7), (9). The large-paste marker compaction is an itemized CUT (Grounds 6/11) — never silent.
+
+**AC3 — every existing op survives the multi-line regime.** Kill/yank operate across rows with the boundary `"\n"`-kill/line-merge arms (editor.ts:1626-1775, :2028-2108); word ops cross lines; the I26 lastAction discipline holds; the I06/I26 cursor/edit/history assertions survive the state-model change. Settled parity is unmoved: post-integration, cold, s1–s9 all exit 0.
+
+**AC4 — the editor box grows with content, bounded by pi's layout rules, and the rig sees it.** The bordered area's height follows the windowed visual-row count (cap `max(5, floor(rows/3))`-shaped per pi editor.ts:556-557), the cursor row stays visible while typing past the cap, hidden rows surface through pi's ` ↑ N more `/` ↓ N more ` border labels (editor.ts:323-341, custom-editor.ts:36-66), and the transcript cedes rows cleanly. The frozen instrument: `s10_editor_wrap` exits 0 cold — byte-identical settled screens with the wrapped, grown editor box. This gate and the wrap machinery are RED at base BY DESIGN (today's one-row clip is the defect; the I14 wave-1 tripwire precedent).
+
+**AC5 — the pre-ruled pageUp/pageDown binding lands (OPTION A).** pageUp/pageDown page the EDITOR's visual rows (pi pageScroll, editor.ts:1961-1973 — sticky column, clamped); tart's transcript-keyboard paging is RETIRED (the page_up/page_down arms rebind; `Viewport#scroll_page` is gone with no callers); the transcript remains wheel-scrollable; the Grounds-9 test family is re-pointed to the wheel seam (fix the pin, not the ruling); the ruling's divergences-from-fullscreen-pi stay itemized in Grounds 8 with the judge's open question recorded — no silent drift.
+
+**AC6 — quality.** Suite fully green with run-count delta > 0 (new tests; editor_test/chat_test surgery re-pointing, not deletion); `SEAM_BENCH_OK`; the integrated diff touches exactly the declared set (scope gate against the pre-iteration tip `8131f438` — the I29 parallel-sibling carry-in); registry additions-only; house style throughout (pi citations carried, module shapes preserved, deviations itemized in the report).
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse editor-multiline` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/i35-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/i35-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/i35-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/i35-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/i35-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/i35-s6
+  expect:
+    exit_code: 0
+
+- id: s7-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/i35-s7
+  expect:
+    exit_code: 0
+
+- id: s8-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml --out tmp/i35-s8
+  expect:
+    exit_code: 0
+
+- id: s9-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s9_startup_help.yml --out tmp/i35-s9
+  expect:
+    exit_code: 0
+
+- id: s10-editor-wrap
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s10_editor_wrap.yml --out tmp/i35-s10
+  expect:
+    exit_code: 0
+
+- id: visual-machinery
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'def word_wrap_line' lib/tart/render/editor.rb && grep -q 'def build_visual_line_map' lib/tart/render/editor.rb && grep -q 'def input_rows' lib/tart/render/editor.rb && grep -q 'def page_scroll' lib/tart/render/editor.rb && echo VISUAL_MACHINERY_OK
+  expect:
+    exit_code: 0
+    stdout_match: VISUAL_MACHINERY_OK
+
+- id: option-a-wired
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'page_scroll' lib/tart/render/chat.rb && if grep -q 'scroll_page' lib/tart/render/chat.rb || grep -q 'def scroll_page' lib/tart/render/viewport.rb; then exit 1; else echo OPTION_A_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: OPTION_A_OK
+
+- id: scope
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only 8131f438 HEAD | grep -qvE '^(lib/tart/render/editor\.rb|lib/tart/render/chat\.rb|lib/tart/render/viewport\.rb|test/render/editor_test\.rb|test/render/editor_multiline_test\.rb|test/chat_test\.rb|README\.md|gems/tui-split-rig/scenarios/s10_editor_wrap\.yml|gems/tui-split-rig/registry\.yml)$'; then exit 1; else echo SCOPE_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
+
+- id: registry-additions-only
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    if git show 8131f438:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml | grep -q '^<'; then exit 1; else echo REGISTRY_ADDITIONS_ONLY_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: REGISTRY_ADDITIONS_ONLY_OK
 ```
 
 ## Builder Prompt
