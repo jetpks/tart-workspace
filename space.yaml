@@ -1237,7 +1237,25 @@ project:
   - name: compaction-panel
     ordinal: 30
     file: architecture/I30-compaction-panel.md
-    freeze_sha:
+    freeze_sha: 1589b66c4ba5112bb7247b015d487262cbedd71f
     verdict: pending
-    lanes: []
+    lanes:
+    - name: agent
+      repo: tart
+      touch_set:
+      - lib/tart/agent/loop.rb
+      - lib/tart/agent/session.rb
+      - test/agent_loop_test.rb
+      - test/session_test.rb
+    - name: panel
+      repo: tart
+      touch_set:
+      - lib/tart/render/chat.rb
+      - lib/tart/render/transcript.rb
+      - test/chat_test.rb
+      - test/render/**
+      - gems/tui-split-rig/**
+    rehearsal:
+      gates_digest: b5e34ba16d43cd2c2ca343c6be614de2e590d9ac790cc5855dd5e9fabfa48fde
+      at: '2026-10-12T00:01:46-06:00'
   integration_branch: project/pi-port
