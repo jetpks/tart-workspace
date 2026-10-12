@@ -259,51 +259,168 @@ I28 + I29):
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse compaction-panel` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze compaction-panel` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria — I30 compaction-panel
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC1 (the panel).** The compaction panel renders pi's bytes: the customMessageBg
+Box family (outputPad 1, padY 1, bg on every span — the skill-panel precedent),
+collapsed = bold `customMessageLabel` `[compaction]` + the `customMessageText`
+`Compacted from <grouped> tokens (` + `dim` `ctrl+o` + ` to expand)` prose; expanded
+= the label + markdown `**Compacted from <grouped> tokens**` + blank + summary over
+the panel; the number comma-grouped (pi `toLocaleString`); the panel rides the ctrl+o
+GLOBAL expand state (toggling re-renders in place); MouseRegion click-to-toggle stays
+cut (itemized). Replay renders persisted compaction entries as this panel at their
+chronological position. Pinned by chat tests on both states + the replay path.
 
-**AC1.** ...
+**AC2 (the live rebuild).** On the `:compaction` event (the frozen payload), the
+surface clears the transcript (MOTD/[Context] wiped, NOT re-rendered), re-renders the
+event's kept entries chronologically through the replay machinery, and appends the
+panel LAST; footer usage is NOT reset (invalidate, not /new's reset) and editor
+history is not duplicated; the dim `✻ compacted` line + its blank region are gone.
+Proof: s7_compaction exits 0 cold + the chat-test pins. The `:compaction_start`
+border-status contract is untouched.
+
+**AC3 (the agent seams).** The `:compaction` event payload is exactly
+`reason/tokens_before/summary/entries` with `entries` = the kept post-compaction
+replay-entry Hashes in chronological order (no system, no summary message) — asserted
+by agent_loop tests on a real cut fixture. The recorder persists the summarization
+call's `usage` on the compaction entry in pi's CompactionEntry `Usage` shape
+(camelCase keys per the standing format rule); `estimated_tokens_after` is NOT
+persisted. `switch_model`'s re-resolve consults the known-models tier (a
+known-models-table entry with no declared window resolves the table's window; the
+footer denominator refreshes). Pinned by agent_loop + session tests.
+
+**AC4 (the zero-usage path).** s8_zero_usage_compaction exits 0 cold — the Case-3
+path renders identically through the panel + rebuild; s8's style_unknown empty-dim
+candidate is resolved (vanished with the ✻-line removal, or root-caused against the
+capture in the report — never sanctioned away silently).
+
+**AC5 (regression).** s1–s6 all exit 0 cold (the rebuild leaks into no other turn);
+the rig registry is additions-only vs a622ee03; the default rake task is fully green
+with run-count delta > 0 (new tests); the seam bench prints SEAM_BENCH_OK.
+
+**AC6 (scope).** The integrated diff vs a622ee03 (the pre-iteration tip — the I29
+parallel-sibling lesson) touches exactly the union of the two lanes' enumerated
+files: loop.rb, session.rb, agent_loop_test.rb, session_test.rb, chat.rb,
+transcript.rb, chat_test.rb, test/render/**, gems/tui-split-rig/**.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse compaction-panel` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: panel-tripwire
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    grep -q '\[compaction\]' lib/tart/render/transcript.rb lib/tart/render/chat.rb && echo PANEL_OK
+  expect:
+    exit_code: 0
+    stdout_match: PANEL_OK
+
+- id: payload-tripwire
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'entries:' lib/tart/agent/loop.rb && echo PAYLOAD_OK
+  expect:
+    exit_code: 0
+    stdout_match: PAYLOAD_OK
+
+- id: s1-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/parity-gate-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/parity-gate-s6
+  expect:
+    exit_code: 0
+
+- id: s7-panel
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7
+  expect:
+    exit_code: 0
+
+- id: s8-zero-usage
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml --out tmp/parity-gate-s8
+  expect:
+    exit_code: 0
+
+- id: registry-additions-only
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    if git show a622ee03:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml | grep -q '^<'; then exit 1; else echo REGISTRY_ADDITIONS_ONLY_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: REGISTRY_ADDITIONS_ONLY_OK
+
+- id: scope
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only a622ee03 HEAD | grep -qvE '^(lib/tart/agent/loop\.rb|lib/tart/agent/session\.rb|test/agent_loop_test\.rb|test/session_test\.rb|lib/tart/render/chat\.rb|lib/tart/render/transcript\.rb|test/chat_test\.rb|test/render/|gems/tui-split-rig/)'; then exit 1; else echo SCOPE_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
 
 ## Builder Prompt
