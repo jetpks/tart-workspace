@@ -111,34 +111,148 @@ parallel), sequenced off this iteration's integrated tip.
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section model-menus specification --from <file>`. -->
+# Specification — I27 model-menus
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+- **Objective.** The owner's next daily-driver blocker (BRIEF §3, Grounds 1): make tart
+  a multi-model client — models defined via pi's `models.json` shape
+  (`~/.tart/models.json`), switchable at runtime through `/model` and the thinking
+  menu through `/thinking`, both as selector menus ported from pi's selector family
+  (Grounds 2-3), with the ctrl+s set-as-default persistence (Grounds 5). Second
+  deliverable, parallel: the rig gains menu observability (probes for both menus, the
+  I26 probe precedent) + the tmux shared-server hardening (Grounds 7) so menu parity
+  is measurable and the rig stops flaking under parallel lanes. Why now: the owner
+  cannot switch models without restarting tart with different env vars today; the
+  selector menus are the last major editor-area surface unported; and every future
+  rig lane pays the tmux flake tax until hardened.
+
+- **Lane `model` (high effort — the owner's blocker; new config + new component + switching seams).**
+  - Deliver **config**: `lib/tart/models.rb` — `Tart::Models` loading `~/.tart/models.json`
+    (pi model-config.ts: JSONC-tolerant, BOM-stripped, schema-validated subset:
+    providers `{name, baseUrl, apiKey, api, models: [{id, name, reasoning,
+    contextWindow, maxTokens}]}`; invalid file → error naming the file, never a
+    crash). Resolution order for the boot model: `TART_MODEL`/`TART_PROVIDER` env >
+    models.json default > `Settings` defaultModel/defaultProvider (verify against pi's
+    model-resolver precedence; itemize any deviation). Env keys (`TART_API_KEY`,
+    `TART_API_BASE`) keep working against the resolved provider.
+  - Deliver **the selector component**: `lib/tart/render/model_menu.rb` — one component
+    family serving BOTH menus (pi has two classes sharing one shape; unify or mirror,
+    the builder's call — itemize the choice). Ported surface (Grounds 2): bordered
+    (DynamicBorder analog), title ("Thinking Level" for the thinking menu), fuzzy
+    `Input` over word+description (thinking) / id+provider+name (model —
+    getModelSelectorSearchText's text), up/down with wrap, enter selects,
+    escape/ctrl+c cancels, ctrl+s selects-and-persists, click-to-select
+    (press/release index tracking, select-list.ts:109-134), the dim help line
+    resolving to `Enter to select · Ctrl+S to set as default · Escape/Ctrl+C to
+    cancel`, current `✓` marker, `· default` badge, `(n/N)` scroll indicator at the
+    10-row window, the model menu's `  Model Name: <name>` line and current-first
+    default-second-provider sort, the thinking menu's LEVEL_DESCRIPTIONS table and
+    description column. In-place-of-the-editor mounting (the Picker/showSelector
+    precedent, Grounds 3) — done restores the editor + focus.
+  - Deliver **commands + switching**: `Commands::BUILTINS` gains `/model`
+    (argumentHint `<provider/model>`); `/model` no-arg → menu, exact arg → direct
+    switch + `Model: <id>` status, unknown arg → menu pre-seeded with the arg;
+    `/thinking` no-arg → the MENU (replacing the cycle stand-in; shift+tab cycle
+    stays), exact arg → direct set, bad arg → the error listing levels (unchanged).
+    Model switching mid-session: the gem path (`Chat#with_model` — verify live) or
+    an equivalent seam; `Agent::Loop` gains a model/context-window recompute seam
+    (switch must re-resolve the window); footer model segment refreshes
+    (footer_data= / invalidate path) and the editor border re-ladders
+    (thinking-level switch). ctrl+l opens the model menu (app.model.select);
+    ctrl+p / shift+ctrl+p model cycling is a STRETCH item — itemize as cut if not
+    delivered, never silent.
+  - Deliver **persistence**: the ctrl+s set-as-default writes `defaultProvider` +
+    `defaultModel` to `~/.tart/settings.json` (pi settings-manager write path;
+    Settings gains its first write surface — preserve unknown keys on write, never
+    clobber) + status `Default model: <provider>/<id>` / `Default thinking level:
+    <level>`.
+  - Tests: direct-class tests for Models (load/validate/JSONC/errors) and the menu
+    component (filter/nav/select/persist/cancel/click — drive public behavior); the
+    existing edit_input/chat_test pattern for the command dispatches + ctrl+l/ctrl+s
+    key routes + the switch seams (footer refresh, border re-ladder, window
+    recompute). Model the assertions on pi's editor/menu behavior where observable.
+  - Touch: `lib/tart/models.rb` (new), `lib/tart/settings.rb`,
+    `lib/tart/commands.rb`, `lib/tart/render/chat.rb`,
+    `lib/tart/render/model_menu.rb` (new), `lib/tart/render/footer.rb`,
+    `lib/tart/agent/loop.rb`, `bin/tart`, `test/chat_test.rb` (binding/dispatch
+    cases), `test/commands_test.rb` (/model dispatch), `test/settings_test.rb`
+    (the write path), `test/agent_loop_test.rb` (the switching seam, if
+    loop-tested), `test/models_test.rb` (new), `test/render/model_menu_test.rb`
+    (new). Must not: gems/**, `test/parity/**`,
+    `lib/tart/render/selection.rb`, `lib/tart/render/editor.rb`,
+    `lib/tart/render/transcript.rb`, `lib/tart/compaction.rb`, `lib/tart/theme.rb`,
+    `lib/tart/tui.rb`, any scenario or registry file.
+
+- **Lane `rig` (high effort — new probe family + hardening).**
+  - Deliver **menu probes** (the I26 tool-pending-probe precedent — drive panes
+    directly through Runner's public seams): a probe that boots each app, settles,
+    `send-keys` opens `/model` (and `/thinking`) — verify the exact keystrokes each
+    app needs (tart's editor dispatch vs pi's) — captures mid-menu frames (plain +
+    styled), drives a selection (enter on the highlighted row), and captures the
+    post-selection settled screen. Deliver the captured evidence + a candidate
+    table (pi's menu bytes vs tart's — the settled-screen comparator does not apply
+    to transient menus; the diff table IS the deliverable, the s4/s5/s6/s7 pattern).
+    Staging: the rig stages `~/.tart/models.json` for tart (pi's models.json staging
+    already exists — mirror it: ≥2 mock models so the menu has something to select)
+    — the frozen contract is pi's models.json schema at `~/.tart/models.json`
+    (Grounds 5/6).
+  - Deliver **tmux hardening** (backlog, Grounds 7): scoped session naming or a
+    per-run server socket so concurrent rig processes cannot flake each other's
+    `assert_clean_sessions!` or kill each other's sessions — prove it with a
+    CONCURRENT run of two scenarios both exiting 0 (the gate does this).
+  - Hard constraint: s1–s7 exit codes unchanged (s1–s6 = 0, s7 = 1 — the compaction
+    panel is I28, untouched here); registry changes ADDITIONS ONLY.
+  - Touch: `gems/tui-split-rig/**` (scenarios, probes, lib, bin, registry, test).
+    Must not: anything outside gems/tui-split-rig/, esp. `lib/tart/**`, `test/**`,
+    `bin/tart`.
+
+- **Output format (both lanes).** Raw evidence to scratch: file list + wc; for model —
+  the command/keybinding table (pi → port, before/after) + verbatim test tails +
+  suite counts + the models.json resolution-precedence table; for rig — the probe
+  command lines + exit codes + the menu-bytes candidate table + the concurrent-run
+  proof output + the registry diff. PHASE 0 disagreements mandatory (the Grounds 2-6
+  premises are checkable). STATUS line last.
+
+- **Tool guidance.** Verification (tart): `bundle install --quiet && bundle exec rake`,
+  `bundle exec ruby bench/seam_bench.rb`; rigs:
+  `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml
+  --out tmp/<out>`. pi sources at `repos/pi/packages/coding-agent/src/` (the selector
+  components, interactive-mode.ts:4884-5440, core/keybindings.ts, core/model-config.ts,
+  core/model-resolver.ts) and `repos/pi/packages/tui/src/` (fuzzy.ts, select-list.ts) —
+  read before coding; cite what you port. ruby_llm 2.1.0 gem source at
+  `~/.local/share/mise/installs/ruby/4.0.7/lib/ruby/gems/4.0.0/gems/ruby_llm-2.1.0/`
+  (chat.rb:609 with_model) — verify the switching path live before building on it.
+
+- **Boundaries.** Sanctioned scope is exactly the two lanes above. Out of scope: the
+  whole-screen selection slice (footer/editor rows — wave 2), the compaction panel +
+  usage-backed arithmetic (I28), toolPendingBg, model CATALOG refresh (pi's
+  refreshModelCatalogs network path — tart reads the static models.json; itemize as
+  cut), the scopedModels/all-scope tab toggle (pi's multi-provider scope machinery —
+  cut, itemized; one models.json is the whole catalog), /login, the ctrl+x
+  copy-selection-or-last-message key (rides the selection wave), undo-stack,
+  multi-line editor. No placeholders; search before implementing.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision model-menus`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: model
+  repo: tart
+  touch:
+    - lib/tart/models.rb
+    - lib/tart/settings.rb
+    - lib/tart/commands.rb
+    - lib/tart/render/chat.rb
+    - lib/tart/render/model_menu.rb
+    - lib/tart/render/footer.rb
+    - lib/tart/agent/loop.rb
+    - bin/tart
+    - test/chat_test.rb
+    - test/commands_test.rb
+    - test/settings_test.rb
+    - test/agent_loop_test.rb
+    - test/models_test.rb
+    - test/render/model_menu_test.rb
+- name: rig
+  repo: tart
+  touch:
+    - gems/tui-split-rig/**
 ```
 
 ## Acceptance Criteria
