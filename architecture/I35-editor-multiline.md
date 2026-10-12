@@ -387,6 +387,89 @@ not the ruling).
 
 (AC4's s10 rig gate belongs to the `rig` lane + integration; your unit half of AC4 — box growth/clamping, the ↑/↓ borders — is test list (5).)
 
+### rig
+
+# LANE: rig — iteration I35 editor-multiline (one of TWO parallel lanes; the `core` lane owns lib/tart + tests — you never touch those)
+
+You are the `rig` lane builder for iteration I35 in repo `tart` (worktree: the provisioned lane checkout, base = project/pi-port @ 8131f438). Everything below the rules is YOUR lane's spec. The sibling `core` lane ports the visual-line editor into lib/tart/render/ — you never touch lib/ or test/.
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo. Silent compliance
+is a failure. Silent scope additions are a failure. If you have no
+disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed in BOUNDARIES. You
+are one of several parallel lane agents working in isolated worktrees; files
+outside your lane belong to other agents — touching them fails your lane.
+No placeholder implementations — search the codebase before implementing;
+full implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive collection/enumerable
+forms); well-factored and DRY-ish; terse but clear; pragmatic, not clever — the
+smallest change that does the job, no abstraction it doesn't need. Consistency
+with the surrounding code is part of correctness here: a change that works but
+fights the house style (or introduces an inconsistency a careful reader of this
+repo would never write) is not done. Tests stay simple and terse, exercising
+public behavior, no mock/stub of the class under test. Verify your work by
+running the acceptance criteria's gate commands and record the verbatim output. Do NOT commit and do NOT run any
+git write command (commit/add/branch/reset/checkout) — the architect commits
+and merges after verification, and verifies you made no commits. Do NOT delete
+lock files or escalate privileges if a command fails; record the exact error
+and continue. Do NOT use `run_in_background` (or shell `&`) for your own work — this
+process terminates when you end your turn and reaps its own children, so
+backgrounded work is SIGTERMed and its output lost while the run still exits
+0; run long commands serially in the foreground instead. Give every
+potentially long command an explicit timeout; if a
+runtime will not start unattended (interactive prompt, server with no timeout),
+record the exact failure in your report and route around it — never busy-wait
+or retry in a loop. When done, write your report to the scratch file given to
+you, build/I35-editor-multiline-rig/report.md (an absolute path outside
+your worktree: /Users/eric/architect/spaces/20261009-pi-port/build/I35-editor-multiline-rig/report.md),
+with RAW results only — tables, numbers, command output — no interpretation, no
+"promising". Every status claim must be backed by a command result from this
+run. Keep the report compact — tables and numbers, not prose. Do not title the
+report — the architect's tooling supplies the `### <lane>` heading when it
+transcribes; keep any headings inside the report at `###` or deeper. End it with
+exactly one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them)
+| BLOCKED (exact blocker + what you tried). Verdicts belong to the architect
+and the human. Persist until your lane is fully handled end-to-end; do not stop
+at the first blocker. NEVER edit files under the space's architecture/
+directory or build/I35-editor-multiline-{core,rig}/prompt.md.
+
+=== SPECIFICATION (I35 rig lane) ===
+
+# Specification — I35 editor-multiline (rig lane — the frozen instrument)
+
+- **Objective.** Author the parity scenario that makes the owner's show-stopper MEASURED: `s10_editor_wrap` — one tiny text turn, then a long literal typed into the editor via `post_settle_keys` (the s9 precedent; NO Enter — the capture shows the SETTLED screen with the WRAPPED, GROWN editor box and the fake cursor at the end of the typed text). pi wraps and grows its editor box (the visual-line model, packages/tui/src/components/editor.ts); tart at base clips to one row — the scenario is RED at base BY DESIGN (the I14 wave-1 tripwire precedent; exit 1 with the wrap candidate list IS the work list) and goes exit 0 on the integrated tree once the core lane's editor lands. Your worktree has the BASE editor (the core lane builds in parallel) — exit 1 there is the EXPECTED control, record it as such.
+
+- **Scenario shape.** `gems/tui-split-rig/scenarios/s10_editor_wrap.yml`, house style of s9_startup_help.yml: `name: s10_editor_wrap`, `prompt: "hi"`, `expected_requests: 1`, one canned stream reply, `post_settle_keys: [<one long literal string>]`. The literal: simple ASCII words + spaces (tmux send-keys key-tokenization safety — no braces/semicolons/control chars), long enough to wrap past the rig's 120-col geometry onto ≥ 3 editor rows (~300 chars). Do NOT send Enter (the text must stay in the editor); do NOT exercise shift+enter/newline keys (tmux's encoding of those through the pane is not dependable — newlines are unit-pinned in the core lane). Read the runner's post_settle_keys path (gems/tui-split-rig/lib/tui_split_rig/runner.rb:126-131) and s9's yml before authoring; the header comment in the yml documents the RED-at-base design and cites editor.ts.
+
+- **Verification.** Run `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s10_editor_wrap.yml --out tmp/i35-s10` (SHORT out-dir; allow 120 s+, both apps boot): record the exit code (1 expected at base), the candidate-list table verbatim, and confirm the candidates are the WRAP/BOX-GROWTH rows (tart's single clipped row + missing rows vs pi's wrapped rows) — if any candidate is NOT editor-family, root-cause before finishing (the scenario must be a clean editor-only instrument). Re-run once for stability (the flake discipline). Registry changes are ADDITIONS-ONLY if genuinely forced by a real recurring candidate (each addition evidenced; none expected — the editor rows are new-content territory, not path noise).
+
+- **Output format.** Raw evidence to scratch: the yml verbatim; the run command lines + exit codes (both runs); the candidate table; the registry diff (empty if untouched); PHASE 0 disagreements mandatory. STATUS line last.
+
+- **Boundaries.** May touch exactly: `gems/tui-split-rig/scenarios/s10_editor_wrap.yml`, `gems/tui-split-rig/registry.yml` (additions only). Must not: `gems/tui-split-rig/{lib,bin,test}/**`, any existing scenario yml, anything under lib/ or test/ (the core lane owns them), any golden. No placeholders; search before implementing.
+
+=== ACCEPTANCE CRITERIA (frozen — judge your work against these) ===
+
+**AC4 — the editor box grows with content, bounded by pi's layout rules, and the rig sees it.** The bordered area's height follows the windowed visual-row count (cap `max(5, floor(rows/3))`-shaped per pi editor.ts:556-557), the cursor row stays visible while typing past the cap, hidden rows surface through pi's ` ↑ N more `/` ↓ N more ` border labels (editor.ts:323-341, custom-editor.ts:36-66), and the transcript cedes rows cleanly. The frozen instrument: `s10_editor_wrap` exits 0 cold on the INTEGRATED tree — byte-identical settled screens with the wrapped, grown editor box. This gate is RED at base BY DESIGN (today's one-row clip is the defect; the I14 wave-1 tripwire precedent) — your lane's deliverable is the scenario + its clean RED control + the evidence that the candidate list is editor-family only.
+
+**AC6 — quality (your lane's half).** Registry additions-only; the scenario follows house style (s9's shape, documented header); PHASE 0 disagreements recorded. The scope gate is judged on the INTEGRATED tree, not your worktree.
+
 ## Builder Report
 
 <!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
