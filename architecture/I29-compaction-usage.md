@@ -523,11 +523,94 @@ if git diff --name-only 8c7a438 HEAD | grep -qvE '^(lib/tart/compaction.rb|lib/t
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I29-compaction-usage-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence compaction-usage --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### usage
+
+### PHASE 0 — disagreements with the spec (mandatory; checked against live sources before planning)
+
+1. **Stop-reason guard — the spec's conditional resolves to CUT, and one premise needs correcting.** The spec said "if the gem exposes [a stop-reason observable], port the guard." Live check of ruby_llm 2.1.0: `Message#finish_reason` DOES exist (message.rb:63, set at :115, values `:stop`/`:max_tokens`/`:tool_calls`/`:content_filter`/provider-spelled) — but it can **never** be `:aborted`/`:error`, because aborted/errored turns never become Messages in the transcript: `record_generated_message` (chat.rb:1213, called from generate_once :1006) only runs after `provider_completion` succeeds (errors raise, chat.rb:1416/:1467), and a cancelled response raises `CancelledError` at `raise_if_cancelled!` *inside* `record_generated_message` (chat.rb:1221) and at `step`/`generate` entry (chat.rb:236/:246). A ported `finish_reason == :aborted` skip would be a fake guard guarding nothing — the spec's own "never fake an unobservable guard" rule applies. The all-zero-usage half of pi's getAssistantUsage guard (compaction.ts:155) is already in `Compaction.assistant_usage` (calculate <= 0 → nil). Itemized as cut below; AC2's IFF clause is satisfied on the "unobservable → itemize with gem citation" arm.
+2. **"pi's estimatedTokensAfter?/usage?" — verified populated, but not where the spec implies.** `compact()` itself populates `usage: summaryUsage` (the summarization call's own usage, compaction.ts:1085). `estimatedTokensAfter` is NOT compact()'s: agent-session computes it post-append over the projected messages via the PURE `estimateMessagesTokens` (agent-session.ts:2850/:3180, defined :366-371 — chars/4 sum, never usage-backed). Ported accordingly: `usage` from the summary call's Message tokens, `estimated_tokens_after` = `full_estimate` over the post-compaction history. Carried data-only on `Compaction::Preparation` (mutable struct fields), populated by loop.rb at the pi-equivalent points.
+3. **pi reference for AC4 is `setModel`, not `switchModel`** (no `switchModel` exists in packages/coding-agent/src): pi's `setModel` swaps the Model object (agent-session.ts:2484) and every check reads `model.contextWindow` live (:2965, `?? 0`) — pi has no cached window to go stale. The port's cache is re-resolved instead of pi-shaped (a live read would need the loop to drop the explicit-override tier; the standing `resolved_context_window` chain is kept).
+4. **`test/parity/mock_llm_extension_test.rb` does not exist in this tree**; the mock's test home is `gems/tui-split-rig/test/mock_llm_extension_test.rb` (inside `gems/tui-split-rig/**`, mine). The knob's tests went there. Nothing under test/parity/ was created.
+5. **No other disagreements.** Checked before concluding: pi compaction.ts (:103-113 result iface, :138-158 calculate/getAssistantUsage, :176-225 estimateContextTokens, :226+ projection, :292-296 shouldCompact, :103-113 + :985-1093 compact()); pi agent-session.ts :2477-2497, :2719-2900, :3020-3090, :366-371; the port's compaction.rb/loop.rb in full; the gem's message.rb/tokens.rb/chat.rb/models.rb; the rig's scenario.rb/runner.rb and both test homes; the existing suites' compaction tests (16+16 tests, none skipped).
+
+### Files (lane touch list; `git diff --name-only 8c7a438`)
+
+| file | change |
+|---|---|
+| lib/tart/compaction.rb | +`trigger_tokens` (Case-3 selector), +2 Preparation fields, assistant_usage cut note |
+| lib/tart/agent/loop.rb | direct-first wiring, nil-window re-resolve, usage/estimated_tokens_after carry |
+| test/compaction_test.rb | +3 trigger-path tests |
+| test/agent_loop_test.rb | +1 zero-usage loop test, extended switch test (nil-window) |
+| test/support/mock_llm_server.rb | +`suppress_usage!` knob (message + stream paths) |
+| gems/tui-split-rig/lib/tui_split_rig/scenario.rb | +`suppress_usage` scenario field (parse + validation) |
+| gems/tui-split-rig/lib/tui_split_rig/runner.rb | apply the knob in run_once |
+| gems/tui-split-rig/test/mock_llm_extension_test.rb | +3 knob tests |
+| gems/tui-split-rig/test/scenario_test.rb | +2 knob parse tests |
+| gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml | NEW, 24 lines |
+
+SCOPE_OK (gate check verbatim below); registry: byte-identical → REGISTRY_ADDITIONS_ONLY. wc: compaction.rb 452, loop.rb 564, s8 24.
+
+### Function-by-function arithmetic sweep (pi compaction.ts ↔ lib/tart/compaction.rb)
+
+| pi | port | verdict |
+|---|---|---|
+| `calculateContextTokens` :140 | `calculate_context_tokens` | no change; standing itemization: gem `Tokens` has no totalTokens accessor (tokens.rb READERS :35-37: input/output/cache_read/cache_write/thinking/...) → component sum |
+| `getAssistantUsage` :146-156 | `assistant_usage` | all-zero-usage skip present; **aborted/error stop-reason skip CUT** (unobservable — gem citation in PHASE 0 §1; documented in the method's comment) |
+| `estimateContextTokens` :196-225 | `estimate_context_tokens` | no change (same shape: tokens/usage_tokens/trailing_tokens/last_usage_index) |
+| `estimateTokens` :258-296 | `estimate_tokens` | no change (standing role-restriction itemization: no bashExecution/custom/branchSummary/compactionSummary roles in the port's live context) |
+| `shouldCompact` :292-296 | `should_compact?` | no change (+ caller-side window guard, standing) |
+| `DEFAULT_COMPACTION_SETTINGS` :120 | `Settings::DEFAULTS` | no change (enabled/reserve 16384/keep-recent 20000 match) |
+| `estimateProjectedContextTokens` :226 | — | **CUT** (no projection system; no context_edit entries — spec named it cut) |
+| pi Case 3 `hasContextEdits` branch :3056-3058 | — | **CUT** with the projection |
+| `compact()` result `usage` :1085 | `Preparation#usage` ← loop.rb `run_compaction` | **DELIVERED** (summarization call's tokens; pi populates it) |
+| `estimatedTokensAfter` (agent-session :2850, :366-371) | `Preparation#estimated_tokens_after` ← loop.rb (post-history-replacement, `full_estimate` = pure chars/4) | **DELIVERED** (data only; render untouched) |
+
+Itemized residual: the recorder's compaction ENTRY (`Session::Recorder#append_compaction`, lib/tart/agent/session.rb:383 — out of lane, sealed) does not persist usage/estimated_tokens_after; they live on the in-memory preparation result only. The :compaction EVENT shape is the frozen I12 contract — untouched.
+
+### Trigger Case structure (pi agent-session.ts:3050-3090 ↔ port)
+
+| path | pi | port | test |
+|---|---|---|---|
+| direct | `assistantMessage.usage ? calculateContextTokens(...) : 0` | `trigger_tokens` reads `message.tokens` direct, returns it when positive | `test_trigger_tokens_reads_the_just_completed_messages_direct_usage_first` (guard set CONTAINS the usage message — direct skips it) |
+| Case-3 fallback | `stopReason === "error" \|\| directContextTokens === 0` → `estimateContextTokens(messages)` | zero/absent usage → `estimate_context_tokens` (error-stopReason arm unreachable — see cut) | `test_trigger_tokens_zero_direct_usage_falls_back_to_the_estimate` + loop-level `test_threshold_compaction_fires_on_the_estimate_under_zero_usage` (knob) |
+| stale guard | timestamp ≤ compaction-entry timestamp → `return false`, inside fallback only | `@pre_compaction_messages` identity-set membership → nil, inside fallback only (standing equivalent, itemized per spec) | `test_trigger_tokens_stale_guard_trips_inside_the_fallback` |
+
+Mechanism divergence (itemized): pi compares usage-message timestamp vs the compaction entry's; the port uses object identity in `@pre_compaction_messages` (no timestamps on the flat list's gem Messages).
+
+### Gem Message-surface verification (live, ruby_llm 2.1.0)
+
+- `Message#finish_reason` attr_reader (message.rb:63); `@finish_reason = options[:finish_reason]&.to_sym` (:115); documented values `:stop/:max_tokens/:tool_calls/:content_filter` + provider-spelled (:57-63).
+- No `:aborted`/`:error` producer anywhere: `grep -rn finish_reason lib/` shows only provider wire mappings + `RubyLLM::Error#finish_reason` (error.rb:156-161, an exception attribute, not a Message).
+- Error turns: `provider_completion` raises (chat.rb:1416); `record_generated_message` chat.rb:1213 runs only on success (call site :1006).
+- Cancel: `raise_if_cancelled!` inside `record_generated_message` (chat.rb:1221) → cancelled responses never append; `step` rescues only `CancelledError` to re-raise (chat.rb:236-246).
+- `Tokens` READERS (tokens.rb:35-37): `input output cache_read cache_write thinking cache_write_by_ttl server_tool_use reported_cost` — no totalTokens.
+- `Chat#with_model` re-resolves model+provider in place (chat.rb:609-615, `Models.resolve` :188-217; `assume_model_exists` → `Model.default` fallback models.rb:211, no context_window).
+
+### Case-3 rig proof (s8, run twice — before and after a runner tidy; identical results)
+
+`gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml --out tmp/gate-s8b` → **exit 1** (candidates, NOT rig failure):
+
+- summary.json: `exit_code=1`, `rig_failure=nil`; run1 pi: `requests=2/2 completed=true`; run1 tart: `requests=2/2 completed=true` — request #2 IS the summarization call: **both triggers fired on the estimate, both compacted**.
+- Settled captures: pi `Compacted from 1,487 tokens (ctrl+o to expand)`; tart `✻ compacted (threshold, 72 tokens)`.
+- The 11 candidates are s7's known panel-vs-line divergence (compaction-panel fast-follow) plus a `[Context]`/MOTD line; style_unknown=1: `~ "" pi= tart=[fg=rgb:126;136;142,false]"  " -> unknown-candidate` (an empty dim spacer line on the port's side of the settled screen — raw evidence only, left on the work list; it does not affect the expected exit-1).
+
+### Gates (verbatim tails)
+
+- `bundle install --quiet && bundle exec rake && echo SUITE_OK` → `535 runs, 2059 assertions, 0 failures, 0 errors, 1 skips` (the 1 skip is the pre-existing `TUI_SPLIT_RIG_LIVE` gate, live_run_test.rb:21); run-count delta +9 vs base (def test_ counts: compaction_test 16→19, agent_loop_test 16→17, scenario_test 20→22, mock_llm_extension_test 4→7); runs == `def test_` count per file (no buried/private-test shadowing).
+- `bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1` → `SEAM_BENCH_OK`
+- s1_text_turn exit=0; s2_tool_turn exit=0; s3_tool_turn_files exit=0; s4_bash_variants exit=0; s5_bash_truncation exit=0; s6_long_calls exit=0; s7_compaction **exit=1** (expected); s8 exit=1 (above).
+- Registry: `git show 8c7a438:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml` → empty → REGISTRY_ADDITIONS_ONLY.
+- Scope: `git diff --name-only 8c7a438 | grep -qvE '^(lib/tart/compaction.rb|...)'` → no output → SCOPE_OK. Sealed files untouched (git status: only the 9 lane files + the new s8 yml). No commits, no git writes made (one stash attempt was correctly refused by the guard and abandoned — replaced by arithmetic for the base run-count).
+
+### Itemized cuts (summary)
+
+1. aborted/error stop-reason skip in `assistant_usage` — unobservable (PHASE 0 §1, gem citations there).
+2. `estimateProjectedContextTokens` + pi's `hasContextEdits` Case-3 branch — no projection system.
+3. `totalTokens` in `calculate_context_tokens` — gem Tokens lacks the accessor (standing).
+4. usage/estimated_tokens_after persistence on the session compaction entry — recorder seam out of lane.
+5. MODEL_CONTEXT_WINDOWS/settings-file tier of the boot window chain on switch re-resolve — settings.rb sealed; the loop's re-resolve uses the chat's model tier (`@chat.model&.context_window`); switching to the one known-model-table entry without a declared window re-resolves via the gem registry (nil) → threshold disabled, not 1,048,573. Itemized, not built.
+
+STATUS: COMPLETE_WITH_CONCERNS — (a) s8's style_unknown empty-dim-line candidate is new raw evidence on the work list (does not affect any expected exit code); (b) cut #5 (known-models tier not re-consulted on switch) and cut #4 (result fields not persisted to the session entry) are itemized lane-boundary residuals for the owner.
 
 ## Verdict
 
