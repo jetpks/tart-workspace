@@ -620,6 +620,246 @@ grep -q 'entries:' lib/tart/agent/loop.rb && echo PAYLOAD_OK    # expect PAYLOAD
 gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/gate-s1   # exit 0 (regression guard — your loop changes must not shift the healthy path)
 ```
 
+### panel
+
+# Lane dispatch — I30 compaction-panel, lane `panel`
+
+**You are lane `panel`.** You are ONE of TWO parallel lane agents dispatched together
+(the other is lane `agent` of the SAME iteration, isolated in its own worktree — its
+territory is `lib/tart/agent/loop.rb`, `lib/tart/agent/session.rb`,
+`test/agent_loop_test.rb`, and `test/session_test.rb`, which you must NEVER touch).
+Your lane's territory, exhaustively:
+
+- **Touch (exactly these files):** `lib/tart/render/chat.rb`,
+  `lib/tart/render/transcript.rb`, `test/chat_test.rb`, `test/render/**` (new files
+  only if a direct-class pin needs a home), `gems/tui-split-rig/**`.
+- **Must not touch:** everything else — in particular `lib/tart/agent/**` ALL
+  (loop.rb/session.rb are lane `agent`'s territory — a parallel lane is building
+  there right now; touching it fails both lanes), `test/agent_loop_test.rb`,
+  `test/session_test.rb`, `test/support/**`, `lib/tart/compaction.rb`,
+  `lib/tart/models.rb`, `lib/tart/settings.rb`, `lib/tart/commands.rb`, `bin/tart`.
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo. Silent compliance
+is a failure. Silent scope additions are a failure. If you have no
+disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them (notably: pi's CompactionSummaryMessageComponent — read
+the whole file; pi's compaction_end handler; the existing skill-panel family in
+transcript.rb; the I25 expandable/ctrl+o machinery).
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed above. No placeholder
+implementations — search the codebase before implementing; full implementations
+only. Write IDIOMATIC, house-consistent code: read the neighbouring code and
+match its conventions (naming, guards, predicates, error/persistence idioms,
+the language's expressive collection/enumerable forms); well-factored and
+DRY-ish; terse but clear; pragmatic, not clever — the smallest change that does
+the job, no abstraction it doesn't need. Consistency with the surrounding code
+is part of correctness here: a change that works but fights the house style (or
+introduces an inconsistency a careful reader of this repo would never write) is
+not done. Tests stay simple and terse, exercising public behavior, no
+mock/stub of the class under test. Verify your work by running the acceptance
+criteria's gate commands and record the verbatim output. Do NOT commit and do
+NOT run any git write command (commit/add/branch/reset/checkout) — the
+architect commits and merges after verification, and verifies you made no
+commits. Do NOT delete lock files or escalate privileges if a command fails;
+record the exact error and continue. Do NOT use `run_in_background` (or shell
+`&`) for your own work — this process terminates when you end your turn and
+reaps its own children, so backgrounded work is SIGTERMed and its output lost
+while the run still exits 0; run long commands serially in the foreground
+instead. Give every potentially long command an explicit timeout (the parity
+rig runs take tens of seconds each — allow 120s+ each). IMPORTANT tmux
+discipline: a `tmux kill-server` from you kills every other agent's live
+sessions on the shared server — NEVER run it; kill only sessions you created by
+exact name (the runner's sessions are token-scoped). If a runtime will not
+start unattended, record the exact failure in your report and route around it —
+never busy-wait or retry in a loop. When done, write your report to the scratch
+file given to you below (an absolute path OUTSIDE your worktree), with RAW
+results only — tables, numbers, command output — no interpretation, no
+"promising". Every status claim must be backed by a command result from this
+run. Keep the report compact — tables and numbers, not prose. Do not title the
+report; keep any headings inside the report at `###` or deeper. End it with
+exactly one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them)
+| BLOCKED (exact blocker + what you tried). Verdicts belong to the architect
+and the human. Persist until your lane is fully handled end-to-end; do not stop
+at analysis or partial fixes.
+
+Your scratch report (write RAW results here, never inside the worktree):
+/Users/eric/architect/spaces/20261009-pi-port/build/I30-compaction-panel-panel/report.md
+
+## Your lane's specification (lane `panel` ONLY — lane `agent`'s deliverables are NOT yours)
+
+- **Objective (iteration context).** Port pi's compaction render to close the s7/s8
+  settled-screen divergence (the owner's done bar: full settled-screen parity): pi
+  renders compaction as a customMessageBg `[compaction]` panel AND rebuilds the
+  transcript from the post-compaction kept entries on the live path; the port renders
+  a dim `✻ compacted` line over an un-wiped scrollback. Lane `agent` builds the
+  event payload + persistence + window tier; YOUR lane builds the render: the panel,
+  the rebuild, the replay panel, and the rig proof.
+
+- **THE FROZEN CONTRACT (lane `agent` emits it; you consume it; never drift it).**
+  The `:compaction` event payload is exactly:
+  `{type: :compaction, reason:, tokens_before:, summary:, entries:}` where `entries`
+  is an Array of replay-entry Hashes — the SAME shape `Agent::Session.load_entries` /
+  `Transcript#replay_entries` consume — holding the post-compaction KEPT context
+  entries in chronological order (no system messages, no summary message). Your chat
+  tests inject events in EXACTLY this shape. In YOUR worktree the live loop does not
+  emit `entries:` yet (lane `agent`'s file) — tolerate an absent `entries` gracefully
+  (render the panel over the cleared transcript; an empty replay yields a blank
+  transcript); the integrated tree always carries it.
+
+- Deliver **the panel component** (pi compaction-summary-message.ts — read the whole
+  file): rides the existing skill-panel family (transcript.rb:347-377 — same
+  `custom_message_bg` Box shape, outputPad 1 / padY 1, bg on every span, bold
+  `custom_message_label` span, prose over `custom_message_text`). Collapsed content
+  row: `Compacted from <grouped> tokens (ctrl+o to expand)` — `custom_message_text`
+  fg with the `ctrl+o` key in `dim` (pi composes three fg runs; match the span
+  split). Expanded: `**Compacted from <grouped> tokens**` header + blank line + the
+  summary, markdown-rendered over the panel (the skill panel's markdown-over-prose
+  machinery). The number uses pi's `toLocaleString()` comma grouping — SEARCH the
+  repo for an existing grouping helper before writing one (the footer's token
+  counters likely have it). The panel joins the ctrl+o GLOBAL expand family
+  (`@tool_output_expanded` — the I25/I06 machinery): toggling re-renders
+  collapsed/expanded in place. MouseRegion click-to-toggle stays CUT (the standing
+  skill-panel deviation — the port's mouse owns selection).
+
+- Deliver **the live rebuild** (pi compaction_end, interactive-mode :3686-3725): the
+  `:compaction` handler becomes: clear the transcript (WITHOUT the /new footer-usage
+  reset — pi invalidates, never resets; split the clear if `clear_transcript`
+  conflates them), replay the event's `entries` through the existing `replay_entries`
+  machinery (pi's own load/rebuild reuse precedent — renderSessionEntries :4086),
+  then enqueue the panel region LAST. The MOTD/[Context] header is wiped by the
+  clear and NOT re-rendered (s7's @@ -8 candidate: pi's settled screen has no
+  `[Context]` after compaction). Editor history must not duplicate (`replay_user`
+  feeds the history sink — measure and handle; pi's rebuild path does not
+  re-populate history). The dim `✻ compacted` line and its blank region are REPLACED
+  (s7's ✻ candidate); the `:compaction_start` border-status machinery is untouched
+  (the frozen I12 contract).
+
+- Deliver **the replay panel** (pi renderSessionEntries case `compactionSummary`
+  :3903-3904): the resume path renders a persisted compaction entry as the panel
+  (Spacer(1) + the panel at its chronological position with the global expand state)
+  — replacing the bare-markdown render (transcript.rb:395-402). The "compacted N
+  times" resume notice: verify against pi's resume path whether it survives alongside
+  the panels (grep pi for the notice's source; if pi has no such line post-panel, cut
+  it and itemize — it predates the panel port).
+
+- Deliver **the rig proof**: run s7 AND s8 from YOUR worktree. EXPECTED in your
+  worktree: both still exit 1 — lane `agent` owns the payload emission, so the
+  rebuild's kept-entry rows cannot render live yet. Your in-worktree acceptance:
+  the tart side's remaining unknown candidates must be EXACTLY the kept-entry rows
+  (the payload-dependent lines); the panel rows, the ✻ line, and the MOTD-vs-clear
+  divergence must be GONE from the tart side; pi's settled capture in your run
+  artifacts (run-1/pi.capture) is your BYTE ORACLE for the panel rows — diff your
+  chat-test-rendered panel bytes against it. s8's style_unknown empty-dim candidate
+  is expected to vanish with the ✻-line removal — if it survives, root-cause it
+  against the capture (do not sanction it away). Registry additions-only vs a622ee03
+  (this is a FIX-the-port iteration — additions should be zero or near-zero; every
+  addition itemized). s1–s6 must stay exit 0 (the rebuild leaks into no other turn).
+
+- **Tests.** chat_test pins: the rebuild (cleared transcript, kept entries
+  re-rendered, panel last, MOTD gone, footer usage NOT reset, history not
+  duplicated), the panel's collapsed/expanded bytes (both states + the ctrl+o toggle
+  re-render), the replay panel (a persisted compaction entry renders the panel), the
+  grouped number, and the absent-entries tolerance. Inject the frozen payload shape
+  directly.
+
+- **Out of scope, itemize if tempted:** the compaction_cost notice (no settings
+  seam — pi defaults it OFF), MouseRegion click-to-toggle, the compaction FAILURE
+  render paths (pi's aborted/errorMessage arms — unmeasured by any rig scenario;
+  queue, do not build), the footer ↑/↓ count divergence (sanctioned
+  footer-provider-prefix class, existing debt), anything in `lib/tart/agent/**`.
+
+- **Tool guidance.** Verification (from your worktree root):
+  `bundle install --quiet && bundle exec rake` (expect fully green, run-count delta
+  > 0); `bundle exec ruby bench/seam_bench.rb` (expect SEAM_BENCH_OK); the rig:
+  `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml
+  --out tmp/<out>`. pi sources (READ before coding; cite what you port):
+  `repos/pi/packages/coding-agent/src/modes/interactive/components/
+  compaction-summary-message.ts` (the whole file — the panel),
+  `repos/pi/packages/coding-agent/src/modes/interactive/interactive-mode.ts`
+  (:3686-3725 compaction_end — the rebuild; :3903-3904 + :4086-4110
+  renderSessionEntries — the replay; :4118-4130 the cost notice — context for the
+  cut), `core/settings-defaults.ts:27` (the cost-notice gate defaults off).
+
+- **Output format.** Raw evidence to scratch: file list + wc; the render table
+  (pi mechanic → port seam, before/after: panel/rebuild/replay); verbatim test tails
+  + suite counts; s1–s8 exit codes from YOUR worktree run with the candidate-class
+  counts (s7/s8 expected exit 1 in-worktree with ONLY the kept-entry candidates
+  remaining — show the classified diff tails proving it); the s8 style_unknown
+  disposition; registry addition list (itemized); itemized deviations/cuts. PHASE 0
+  disagreements mandatory (a labeled PHASE 0 section). STATUS line last.
+
+## Acceptance Criteria (frozen — verify against these)
+
+**AC1 (the panel — YOURS).** The compaction panel renders pi's bytes: the
+customMessageBg Box family (outputPad 1, padY 1, bg on every span — the skill-panel
+precedent), collapsed = bold `customMessageLabel` `[compaction]` + the
+`customMessageText` `Compacted from <grouped> tokens (` + `dim` `ctrl+o` +
+` to expand)` prose; expanded = the label + markdown `**Compacted from <grouped>
+tokens**` + blank + summary over the panel; the number comma-grouped (pi
+`toLocaleString`); the panel rides the ctrl+o GLOBAL expand state (toggling re-renders
+in place); MouseRegion click-to-toggle stays cut (itemized). Replay renders persisted
+compaction entries as this panel at their chronological position. Pinned by chat
+tests on both states + the replay path.
+
+**AC2 (the live rebuild — YOURS).** On the `:compaction` event (the frozen payload),
+the surface clears the transcript (MOTD/[Context] wiped, NOT re-rendered), re-renders
+the event's kept entries chronologically through the replay machinery, and appends
+the panel LAST; footer usage is NOT reset (invalidate, not /new's reset) and editor
+history is not duplicated; the dim `✻ compacted` line + its blank region are gone.
+Proof: s7_compaction exits 0 cold (on the integrated tree; in your worktree — exactly
+the kept-entry candidates remaining) + the chat-test pins. The `:compaction_start`
+border-status contract is untouched.
+
+**AC3 (the agent seams).** [lane `agent`'s — listed for context; you build none of
+it] The `:compaction` event payload is exactly `reason/tokens_before/summary/entries`
+with `entries` = the kept post-compaction replay-entry Hashes in chronological order;
+the recorder persists usage; the switch re-resolve consults the known-models tier.
+
+**AC4 (the zero-usage path).** s8_zero_usage_compaction exits 0 cold on the
+integrated tree (the Case-3 path renders identically through the panel + rebuild);
+s8's style_unknown empty-dim candidate is resolved (vanished with the ✻-line removal,
+or root-caused against the capture in the report — never sanctioned away silently).
+
+**AC5 (regression).** s1–s6 all exit 0 cold; the rig registry is additions-only vs
+a622ee03; the default rake task is fully green with run-count delta > 0 (new tests);
+the seam bench prints SEAM_BENCH_OK.
+
+**AC6 (scope).** The integrated diff vs a622ee03 touches exactly the union of the two
+lanes' enumerated files.
+
+Gate commands you can run to self-verify (frozen; run from YOUR worktree — note the
+s7/s8 exit-0 gates judge the INTEGRATED tree; in YOUR worktree expect exit 1 with
+ONLY the kept-entry candidates remaining, per the spec above):
+
+```
+bundle install --quiet && bundle exec rake && echo SUITE_OK     # expect exit 0, SUITE_OK, run delta > 0
+bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1             # expect SEAM_BENCH_OK
+grep -q '\[compaction\]' lib/tart/render/transcript.rb lib/tart/render/chat.rb && echo PANEL_OK  # expect PANEL_OK
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/gate-s1   # exit 0
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/gate-s2      # exit 0
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/gate-s3  # exit 0
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/gate-s4  # exit 0
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/gate-s5 # exit 0
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/gate-s6     # exit 0
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/gate-s7     # exit 1 in YOUR worktree, kept-entry candidates only
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml --out tmp/gate-s8  # exit 1 in YOUR worktree, kept-entry candidates only
+if git show a622ee03:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml | grep -q '^<'; then exit 1; else echo REGISTRY_ADDITIONS_ONLY; fi
+```
+
 ## Builder Report
 
 <!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
