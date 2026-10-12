@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: prompt-identity
+  current_iteration: header-startup-help
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1355,4 +1355,10 @@ project:
     rehearsal:
       gates_digest: ef999cc06c96a7f88f4c75faaf1817f0fbce6f9964ba6cb8bb616bf0e367f456
       at: '2026-10-12T02:03:22-06:00'
+  - name: header-startup-help
+    ordinal: 33
+    file: architecture/I33-header-startup-help.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
