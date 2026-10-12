@@ -664,6 +664,298 @@ are gone.
     stdout_match: SCOPE_OK
 ```
 
+### estimate
+
+# Lane dispatch — I31 compaction-residuals, lane `estimate`
+
+**You are lane `estimate`.** You are ONE of TWO parallel lane agents
+dispatched together (the other is lane `rebuild` of the SAME iteration,
+isolated in its own worktree — its territory is `lib/tart/render/chat.rb`,
+`lib/tart/render/transcript.rb`, `test/chat_test.rb`, and `test/render/**`,
+which you must NEVER touch). Your lane's territory, exhaustively:
+
+- **Touch (exactly these files):** `lib/tart/compaction.rb`,
+  `lib/tart/agent/loop.rb`, `test/compaction_test.rb`,
+  `test/agent_loop_test.rb`, `gems/tui-split-rig/registry.yml`.
+- **Must not touch:** everything else — in particular `lib/tart/render/**`
+  ALL (chat.rb/transcript.rb are lane `rebuild`'s single-writer territory —
+  a parallel lane is building there right now; touching it fails both
+  lanes), `test/chat_test.rb`, `test/render/**`, `gems/tui-split-rig/**`
+  EXCEPT `registry.yml` (runner/lib/test/scenarios are a follow-up
+  iteration's territory), `bin/tart`, `lib/tart/identity.rb`,
+  `lib/tart/settings.rb`, `lib/tart/agent/system_prompt.rb`,
+  `lib/tart/models.rb`, `lib/tart/render/motd.rb`, `test/support/**` (if
+  you find you need a MockLLM change, STOP and raise it in PHASE 0).
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you
+have with this spec, with reasons, citing real files in this repo. Silent
+compliance is a failure. Silent scope additions are a failure. If you have
+no disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them (notably: pi's estimateTokens system arm — read
+compaction.ts:296-311 live and map what `system.toolsAdded` counts to the
+port's wire shape; and where the Loop can obtain the tool schemas it sends —
+`Compaction.prepare(@chat.messages, @compaction_settings)` is called at
+loop.rb:323).
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. The `:compaction` event payload
+(`type/reason/tokens_before/summary/entries`) is I30's frozen contract —
+additive changes only, none expected. You have no access to the space's
+architecture/ directory; the architect owns it. The ACCEPTANCE CRITERIA
+below are frozen — verify your work against them; never weaken or work
+around them. If an AC's letter can only be satisfied by making the artifact
+worse than the property the AC asserts, build the right thing and raise the
+conflict in your report — name the AC, the conflict, and the evidence. This
+is not permission to skip work or weaken a criterion: the conflict is
+reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed above. No
+placeholder implementations — search the codebase before implementing; full
+implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive collection/enumerable
+forms); well-factored and DRY-ish; terse but clear; pragmatic, not clever —
+the smallest change that does the job, no abstraction it doesn't need.
+Consistency with the surrounding code is part of correctness here: a change
+that works but fights the house style (or introduces an inconsistency a
+careful reader of this repo would never write) is not done. Tests stay
+simple and terse, exercising public behavior, no mock/stub of the class
+under test. Verify your work by running the acceptance criteria's gate
+commands and record the verbatim output. Do NOT commit and do NOT run any
+git write command (commit/add/branch/reset/checkout) — the architect
+commits and merges after verification, and verifies you made no commits. Do
+NOT delete lock files or escalate privileges if a command fails; record the
+exact error and continue. Do NOT use `run_in_background` (or shell `&`) for
+your own work — this process terminates when you end your turn and reaps its
+own children, so backgrounded work is SIGTERMed and its output lost while
+the run still exits 0; run long commands serially in the foreground instead.
+Give every potentially long command an explicit timeout (the parity rig runs
+take tens of seconds each — allow 120s+ each). IMPORTANT tmux discipline: a
+`tmux kill-server` from you kills every other agent's live sessions on the
+shared server — NEVER run it; kill only sessions you created by exact name
+(the runner's sessions are token-scoped). If a runtime will not start
+unattended, record the exact failure in your report and route around it —
+never busy-wait or retry in a loop. When done, write your report to the
+scratch file given to you below (an absolute path OUTSIDE your worktree),
+with RAW results only — tables, numbers, command output — no interpretation,
+no "promising". Every status claim must be backed by a command result from
+this run. Keep the report compact — tables and numbers, not prose. Do not
+title the report; keep any headings inside the report at `###` or deeper.
+End it with exactly one status line: STATUS: COMPLETE |
+COMPLETE_WITH_CONCERNS (list them) | BLOCKED (exact blocker + what you
+tried). Verdicts belong to the architect and the human. Persist until your
+lane is fully handled end-to-end; do not stop at analysis or partial fixes.
+
+Your scratch report (write RAW results here, never inside your worktree):
+/Users/eric/architect/spaces/20261009-pi-port/build/I31-compaction-residuals-estimate/report.md
+
+## Your lane's specification (lane `estimate` ONLY — lane `rebuild`'s
+## deliverables are NOT yours)
+
+- **Objective (iteration context).** Close I30's two root-caused residuals:
+  the MOTD wipe (lane `rebuild`'s — the render side) and the s8 estimator
+  scope (YOURS). Measured decomposition: s8 suppresses usage, both apps fall
+  to the chars/4 estimate; tart counts message TEXT only (developer 203 +
+  user 13 + reply 45 → exactly 67) while its real wire request is 5,187
+  chars (tool schemas alone 4,971); pi counts content + sections +
+  `toolsAdded` (the tool JSON) → 1,482, an honest measurement of its 5,783-
+  char request. tart under-reports its own context ~20× and would
+  under-trigger compaction on any real zero-usage provider.
+
+- Deliver **the estimator scope** (pi estimateTokens parity): the chars/4
+  estimate must cover the FULL wire context — the message text AND the tool
+  schemas the chat sends on every request (pi's `system.toolsAdded`
+  equivalent; the port's tools live on the chat/loop, not in a message —
+  thread them into `Compaction.prepare`, currently
+  `prepare(@chat.messages, @compaction_settings)` at loop.rb:323). Read pi
+  compaction.ts:296-311 (the system arm) and map the port's equivalent
+  faithfully; cite what you port. The usage-backed path (estimate through
+  the last valid assistant usage) is UNCHANGED — only the estimate arms grow
+  the tools component. Do not reshape `Preparation`; `tokens_before`
+  semantics stay "the context the summarization replaces".
+
+- Deliver **the registry class**: add `compaction-token-estimate` to
+  `gems/tui-split-rig/registry.yml` — a line-anchored pattern matching the
+  panel's token row on both sides (`Compacted from [\d,]+ tokens`), with the
+  comment block documenting the owner-agreed provenance (2026-10-12
+  direction: each app's estimate over its own deliberately different
+  context; the panel bytes stay pinned by chat tests — the class forgives
+  only the number, exactly as footer-provider-prefix's `mock-1$` anchor
+  forgives the footer's values at line level). Additions-only vs 276eda3d —
+  no edits to existing classes.
+
+- Tests: compaction_test pins the estimate arms (with-tools vs without; the
+  wire-tools component counted once, not per-message); agent_loop pins the
+  threading (the s8-shape zero-usage estimate now covers the tools) —
+  update existing estimate pins to the new arithmetic. The rig registry
+  test (if it pins class count/shape) lives under
+  `gems/tui-split-rig/test/**` — NOT in your touch set; if it needs
+  changing, STOP and raise it in PHASE 0 (the architect rules on it).
+
+- **In-worktree gate expectations (spelled precisely — the frozen spec's
+  output-format line compresses this):** s1–s6 exit 0; **s7 exit 1** with
+  ONLY the header-shift candidates remaining (the MOTD fix is lane
+  `rebuild`'s — absent from your worktree; itemize the candidate list
+  verbatim; do not chase it); **s8 exit 1** with the header-shift candidates
+  PLUS the token-value candidates (your registry class is present but the
+  header fix is not — the s7/s8 exit-0 pair proves at INTEGRATION). Your
+  estimator's own proof is the compaction/agent_loop test pins + the s8
+  candidate list showing ONLY token-value + header-shift lines.
+
+## Frozen ACCEPTANCE CRITERIA (verify against these; never weaken them)
+
+**AC1 (the header-preserving rebuild).** [Lane `rebuild`'s deliverable — not
+yours; its gate (s7) proves at integration.] On the `:compaction` event the
+settled tart screen matches pi's settled screen modulo sanctioned classes:
+the MOTD header rows survive the rebuild at pi's positions, the kept entries
+and panel follow, and no port-only resource listing is resurrected.
+
+**AC2 (the estimator scope).** The zero-usage estimate covers the full wire
+context — message text AND the tool schemas sent on the request (pi
+estimateTokens' `toolsAdded` equivalent, compaction.ts:296-311) — counted
+once, not per-message; the usage-backed path is unchanged. Pinned by
+compaction/agent_loop tests on the estimate arms; the reported-usage path
+stays value-identical (s7's panel shows 15, both sides).
+
+**AC3 (the registry class).** `compaction-token-estimate` added to
+registry.yml: line-anchored on the panel's token row (matches both sides'
+`Compacted from <grouped> tokens` spellings), documented with the
+owner-agreed provenance (2026-10-12: each app's estimate over its own
+deliberately different context; the class forgives only the number — the
+panel bytes stay pinned by the I30 chat tests). Registry additions-only vs
+276eda3d — no edits to existing classes. Proof: s8 exits 0 cold with the
+class in place (the zero-usage panel renders identically; the number is the
+app's own measurement).
+
+**AC4 (regression).** s1–s6 all exit 0 cold; the default rake task fully
+green with run-count delta ≥ 0 (adjusted pins count); SEAM_BENCH_OK.
+
+**AC5 (scope).** The integrated diff vs 276eda3d touches exactly the union of
+the two lanes' enumerated files: chat.rb, transcript.rb, chat_test.rb,
+test/render/**, compaction.rb, loop.rb, compaction_test.rb,
+agent_loop_test.rb, gems/tui-split-rig/registry.yml. (Your lane's diff
+alone: compaction.rb, loop.rb, compaction_test.rb, agent_loop_test.rb,
+registry.yml — the scope gate checks the union at integration.)
+
+**AC6 (the comment fold).** [Lane `rebuild`'s deliverable — not yours.] The
+comment block atop `compaction_panel_rows` (transcript.rb) starts at its own
+subject — the 9 pasted skill-panel lines are gone.
+
+```gates
+- id: suite
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/parity-gate-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/parity-gate-s6
+  expect:
+    exit_code: 0
+
+- id: s7-header
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7
+  expect:
+    exit_code: 0
+
+- id: s8-estimate
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml --out tmp/parity-gate-s8
+  expect:
+    exit_code: 0
+
+- id: registry-additions-only
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    if git show 276eda3d:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml | grep -q '^<'; then exit 1; else echo REGISTRY_ADDITIONS_ONLY_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: REGISTRY_ADDITIONS_ONLY_OK
+
+- id: comment-fold
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    if grep -B22 'def compaction_panel_rows' lib/tart/render/transcript.rb | grep -q 'skill-invocation'; then exit 1; else echo COMMENT_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: COMMENT_OK
+
+- id: scope
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only 276eda3d HEAD | grep -qvE '^(lib/tart/render/chat\.rb|lib/tart/render/transcript\.rb|test/chat_test\.rb|test/render/|lib/tart/compaction\.rb|lib/tart/agent/loop\.rb|test/compaction_test\.rb|test/agent_loop_test\.rb|gems/tui-split-rig/registry\.yml)$'; then exit 1; else echo SCOPE_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
+```
+
 ## Builder Report
 
 <!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
