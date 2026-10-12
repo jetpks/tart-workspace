@@ -35,34 +35,47 @@
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section thinking-ux specification --from <file>`. -->
+# Specification — I37 thinking-ux
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+- **Objective.** Close the two visible-every-turn parity defects from the owner's live run (Grounds 1): (1) the working/compaction spinner advances on TIME (pi's 80ms Loader interval), not render frames, and the border-title status carries pi's embedded-status colors (working = the editor border color, compaction = accent spinner + muted message) with pi's message text and spacing; (2) reasoning text renders as DIM MARKDOWN through the port's existing converter — live streaming rows and the completed/replay shape share one path. Settled screens must not move: s1–s9 stay exit 0 cold (Grounds 8).
+
+- **Port shape (single-writer render slice; one lane).**
+
+  - **`Render::Chat` (lib/tart/render/chat.rb) — the spinner becomes time-gated; the status becomes structured spans.**
+    - `SPINNER_INTERVAL_SECONDS = 0.08` beside `SPINNER` (pi loader.ts:17 `DEFAULT_INTERVAL_MS`).
+    - Constructor kwarg `clock:` (a zero-arg Proc returning Float seconds; default `-> { Process.clock_gettime(Process::CLOCK_MONOTONIC) }` — the viewport.rb monotonic precedent; the UserBash constructor-seam idiom). Stored as `@clock`; the ONLY time source for the spinner.
+    - `@spinner_started_at` anchor + private `restart_spinner!` (sets it to `@clock.call`). Called at every status-KIND (re)start, mirroring pi's per-indicator frame-0 reset: `:agent_start` (pi turn_start creates the working indicator, interactive-mode.ts:3427-3433), `:compaction_start` (pi constructs CompactionStatusIndicator, :3681), and the `:compaction` result's `@compaction_reason = nil` (pi clearStatusIndicator → the next working indicator restarts, :3694). `@frames` and its `render_frame` increment are DELETED (chat.rb:224/:365 — zero remaining consumers, Grounds 7).
+    - `spinner_glyph` = `SPINNER[frame_index % SPINNER.size]` where `frame_index = ((@clock.call - @spinner_started_at) / SPINNER_INTERVAL_SECONDS).floor` (nil anchor → index 0). Observable equivalence to pi's interval tick: the frame displayed at time t is `floor((t − anchor)/80ms) mod 10` whatever the render cadence — computed at render, no timer task (itemized mechanism note: pi's setInterval advances + requestRender; the port derives from the clock at each already-animated frame).
+    - `BUSY_FRAME_SECONDS`/`@kernel.animate` UNCHANGED — the busy render cadence stays (the live region re-renders per delta; the spinner changes at most every 80ms under it).
+    - **Status text.** The working message is the constant `"Working"` (pi `defaultWorkingMessage`, interactive-mode.ts:487; the phase-detail vocabulary `"thinking"`/`"…"`/`"tool: <name>"` RETIRES — Grounds 4). `COMPACTION_LABELS` unchanged (the cancel-hint cut stays the standing §5.1 deviation). `status_title`'s flanking-space form (" #{…} ") retires — the segment layout below carries pi's single-space shape.
+    - **Status spans.** `status_border_segments` emits `[text, role]` pairs over the roles `:border` / `:spinner` / `:message` (replacing `:status`): `"── "` border, the spinner glyph, `" "` + message, then the existing tail/label branches UNCHANGED in arithmetic (the I34/I35 fit rules — `status_label_fit?`, the three layout branches — keep their current behavior; only the status block's internal split and spacing change). The composed row's PLAIN TEXT must equal pi's `renderTopBorder` output byte-for-byte for the same status string: `"── ⠋ Working ───…"` — ONE space each side of the status (pi renderInBorder slices the Text pad, custom-editor.ts:26-29, then `"── " + status + " " + dashes`, :60-66). The degradation paths (label collision / narrow width) degrade to the spinner glyph ALONE (pi `renderSpinnerInBorder`) in the spinner's color.
+    - **Status colors** (`editor_top_border_line`'s span mapping): working status → spinner AND message in `editor_border_color` (pi's embedded colorFn overrides BOTH constructor defaults with the editor border color — bashMode in bash mode, else the thinking-level ladder; Grounds 3); compaction status → spinner `Theme[:accent]`, message `Theme[:muted]` (pi CompactionStatusIndicator :80-96 — the plan letter's accent/muted holds here). Both resolve PER FRAME (the port already computes `editor_border_color` per render — pi's lazy `this.editor.borderColor` deref, so a mid-turn `/thinking` level change re-colors the status).
+    - The doc comments carrying the I13 cut (chat.rb `live_lines` :1455-1457) re-point at the markdown routing (Grounds 5).
+  - **`Render::Transcript` (lib/tart/render/transcript.rb) — reasoning through the markdown converter; the prose-modifier seam.**
+    - `markdown_lines(text, width, prose_fg: nil, bg: nil, prose_modifiers: nil)` — nil-fg spans (plain prose, bold/em/del runs, list-item text) gain `prose_modifiers` UNIONED into their modifiers when provided; structure spans (code/heading/link/quote/list-bullet/code-block — every span carrying a non-nil fg from `Render::Markdown::FG`) gain NOTHING. This maps pi's `defaultTextStyle {color, italic}` (applies to text tokens and inside strong/em/del, markdown.ts:382-413/:683-698; structure keeps its theme fns :477-493/:567-585/:695-697 — Grounds 5/6).
+    - `reasoning_lines(text, width)` re-implemented on that seam, signature unchanged: `text` is STRIPPED first (pi `thinking.trim()`, assistant-message.ts:125 — leading/trailing delta whitespace no longer renders blank rows), then `markdown_lines(text, width, prose_fg: Theme[:thinkingText], prose_modifiers: [:italic])`. All three callers (chat.rb `live_lines`, `enqueue_message`, `replay_assistant`) convert at once — the settled-shape discipline (live and replay share the row builder).
+    - The stale strip comment (:294-299) is corrected: replay renders the recorded `thinking` (the field exists since I36; the strip is gone). The `reasoning_lines` doc comment (:428-431) re-points at the markdown routing (the I13 cut retires).
+  - **No other file changes.** `Render::Markdown` itself is untouched (the span vocabulary already carries everything the seam needs); `Theme` untouched (`:accent`/`:muted`/`:thinkingText`/`thinking_*`/`:bashMode` all exist); no rig, scenario, registry, bench, or golden changes (Grounds 8).
+
+- **Tests (test/chat_test.rb — the deterministic proof; `with_chat` gains a `clock:` kwarg passthrough so the spinner pins fake time with zero sleeps).**
+  1. **Spinner cadence (injected clock):** `:agent_start` + a reasoning/content delta, then draws — t=0 → glyph ⠋; t=+40ms (second draw) → ⠋ (TWO RENDERS WITHIN 80ms SHOW THE SAME FRAME — the plan's pin); t=+81ms → ⠙ (frame 1); t=+160ms → ⠸ (frame 2); repeated draws WITHOUT advancing the clock never move the glyph (the render counter is gone). Anchor resets: mid-working at a late frame, `:compaction_start` → frame 0; `:compaction` result → frame 0 again.
+  2. **Status spans + colors (cell readback):** working status — the spinner cell and a message cell both read `editor_border_color`: a non-reasoning fixture pins `Theme[:thinking_off]`, a reasoning fixture at a set level (footer_data reasoning + `set_thinking_level`) pins that level's token, and a MID-TURN level change re-colors the same status on the next draw (the lazy-deref parity). Compaction status — spinner cell `Theme[:accent]`, message cell `Theme[:muted]` (COMPACTION_LABELS text unchanged). The composed top-border row's plain text equals `"── ⠋ Working"` + `" " + "─"*(width − status_width − 4)` (pi's single-space layout; today's double spaces are gone). The narrow-width degradation renders the spinner alone in the spinner's color.
+  3. **Reasoning markdown, both paths:** live (mid-stream, before `:message_end`) and completed (`:message_end`) and replay (`replay_entries` over a recorded entry carrying markdown `thinking`): reasoning containing `**bold**`, `` `code` ``, and a `- item` list renders — the bold cell carries `:bold` + `Theme[:thinkingText]` (+ `:italic`), the code cell `Theme[:md_code]` (no thinkingText), the list marker `Theme[:md_list_bullet]`, plain prose `Theme[:thinkingText]` + `:italic`; no raw `**`/backtick markers survive into the rendered rows (the live-markdown precedent pin); a leading/trailing-newline reasoning strip renders no blank edge rows. Plain-prose regression: the existing shape pins (`["", " pondering", "", " hi"]`, reasoning-only no-trailing-blank) stay green UNCHANGED.
+  4. **Re-pointed pins (fix the pin, not the property — Grounds 11):** :260-280's `Theme[:dim]` spinner assertion → the working border-color assertion; :234's `"tool: grep"` → `"Working"`; :1776-1791's comment block re-pointed (assertions unchanged). Additive only elsewhere.
+
+- **Output format.** Raw evidence to scratch: file list + wc; the new/changed test list with verbatim run tails; suite counts before/after; the s1–s9 exit codes; the PHASE 0 disagreement list (the Grounds 3-7 premises are checkable against repos/pi — cite what you read). STATUS line last.
+
+- **Tool guidance.** Verification (tart): `bundle install --quiet && bundle exec rake`, `bundle exec ruby bench/seam_bench.rb`; parity gates: `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml --out tmp/<short-out>` (s1–s9 must stay exit 0 in YOUR tree — SHORT out-dirs; allow 60 s+ each, both apps boot). pi sources: `packages/tui/src/components/loader.ts` (frames/interval/reset), `packages/coding-agent/src/modes/interactive/components/status-indicator.ts` (kinds, renderInBorder/renderSpinnerInBorder, constructor defaults, CompactionStatusIndicator), `packages/coding-agent/src/modes/interactive/components/custom-editor.ts` (:26-66 renderTopBorder spacing/degradation), `packages/coding-agent/src/modes/interactive/interactive-mode.ts` (:487 defaultWorkingMessage, :651 embedWorkingStatus, :2346-2359 the embedded colorFn, :4516-4521 updateEditorBorderColor, :3509-3516 streaming updateContent), `packages/coding-agent/src/modes/interactive/components/assistant-message.ts` (:99-176 the thinking Markdown + defaultTextStyle), `packages/tui/src/components/markdown.ts` (:382-413 applyDefaultTextStyle, :477-493/:567-585/:683-698 where the default style does and does not reach). Read chat.rb's render_frame/on_agent_event/status_border_segments/editor_top_border_line/editor_border_color and transcript.rb's markdown_lines/reasoning_lines before designing.
+
+- **Boundaries.** May touch exactly: `lib/tart/render/chat.rb`, `lib/tart/render/transcript.rb`, `test/chat_test.rb`. Must not: `lib/tart/render/markdown.rb` (the converter's span vocabulary is sufficient — the seam lives in transcript.rb), `lib/tart/render/{editor,footer,motd,viewport,selection,model_menu,picker,autocomplete,kill_ring,text,panel,user_bash,bash_block,file_blocks,tool_block,slash_source}.rb`, `lib/tart/theme.rb`, `lib/tart/agent/**`, `lib/tart/core/**`, `lib/tart/{compaction,commands,identity,prompts,skills,models,settings,print,tools}.rb`, `bin/tart`, `test/support/**`, any test file other than `test/chat_test.rb`, `bench/**`, `gems/tui-split-rig/**` (no scenario/registry/probe change — Grounds 8/OQ-3), any golden. Out of scope: Grounds 9's cuts (retry indicator, hideThinking/click-to-collapse, the extension setWorkingMessage seam, OSC-8/latex/table markdown, rig work). No placeholders; search before implementing.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision thinking-ux`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: render
+  repo: tart
+  touch:
+    - lib/tart/render/chat.rb
+    - lib/tart/render/transcript.rb
+    - test/chat_test.rb
 ```
 
 ## Acceptance Criteria
