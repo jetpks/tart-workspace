@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: thinking-wiring
+  current_iteration: thinking-ux
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1492,4 +1492,10 @@ project:
     rehearsal:
       gates_digest: 112db659fa02a973679e898d4ca0a85a5483ab811721487e2497657408314dd1
       at: '2026-10-12T15:58:46-06:00'
+  - name: thinking-ux
+    ordinal: 37
+    file: architecture/I37-thinking-ux.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
