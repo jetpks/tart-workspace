@@ -229,6 +229,8 @@
 
 ## Builder Prompt
 
+### render
+
 # LANE: render — iteration I37 thinking-ux (the ONLY lane; you own the spinner/status machinery in chat.rb, the reasoning markdown routing in transcript.rb, and chat_test.rb)
 
 You are the `render` lane builder for iteration I37 in repo `tart` (worktree: the provisioned lane checkout, base = project/pi-port @ 7c4ae19). Everything below the rules is YOUR lane's spec. There is no sibling lane; the touch set in BOUNDARIES is the whole iteration.
