@@ -720,15 +720,55 @@ STATUS: COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section editor-multiline verdict --from <file>`. -->
+# Verdict — I35 editor-multiline
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify editor-multiline`)?
+**CONTINUE** — judged cold 2026-10-12 in a fresh session (the dispatch session did not judge).
+
+## Post-flight (mechanical, by command)
+
+`architect verify` 8/8 PASS (both lanes: frozen untouched / no builder commits / report exists / in-bounds); `git diff e63a05a HEAD -- architecture/I35-editor-multiline.md` append-only (Builder Prompt + Builder Report); `git -C wt log 8131f438..` empty in both lanes. Evidence transcribed at 9ad145ca (core) + de2ad0bc (rig).
+
+## Cold gate runs
+
+- **Base (repos/tart @ 8131f438):** 11/15 PASS — the 4 failures are exactly the RED-at-base BY DESIGN gates (s10 scenario absent → exit 2; visual-machinery; option-a-wired).
+- **Core lane worktree:** 12/15 — suite/bench/s1–s8 PASS; s9 exit 1 (environmental, see ruling 1); s10 absent (rig-owned, by design).
+- **Integrated tree (after merge, teardown): 15/15 PASS** — `SUITE_OK` (667 runs, 2746 assertions, 0 failures, 0 errors, 1 skips; base 629/2595 → +38 runs), `SEAM_BENCH_OK`, s1–s10 all exit 0 (s10: byte-identical settled screens with the wrapped, grown editor box), `VISUAL_MACHINERY_OK`, `OPTION_A_OK`, `SCOPE_OK`, `REGISTRY_ADDITIONS_ONLY_OK`.
+
+## PHASE 0 rulings (core)
+
+1. **s9 exit 1 "pre-existing pi ctrl+g oracle drift, byte-identical at base" — MODIFY (facts ACCEPT, root cause REJECTED).** Re-verified at base by this session: s9 in an equal-depth base worktree (rig lane, clean tree) reproduces the builder's signature EXACTLY (`{parity-run-path: 6, unknown-candidate: 1, staged-path-wrap-fragment: 3, footer-provider-prefix: 2}`) — but the single unknown-candidate is the staged-skills path wrap fragment (`-d`), i.e. the known deep-path sensitivity (I34 verdict: depth-118 fails byte-identically, depth-94 green), NOT the ctrl+g line — both apps print `ctrl+g for external editor` at base (verified in both captures). s9 exits 0 at base AND integrated at repos/tart depth. The builder's stash-controlled experiment was sound; the attribution was wrong. No lane defect.
+2. **D1 — backslash + shift+enter should SUBMIT in pi (editor.ts:899-906, `shouldSubmitOnBackslashEnter` :1353-1358) — MODIFY: spec-literal stands, recorded as an itemized sanctioned deviation.** Verified against source this session: pi's newline-key path checks the inverse idiom first. The frozen spec's dispatch ruling is unconditional, so the builder correctly built the spec's letter and flagged the conflict rather than silently resolving it. Backlog candidate (one arm in chat.rb's enter case); not new lane work now.
+3. **D2 — new motion ops (cursor_up/down, page_scroll) keep history browsing — ACCEPT.** Verified: pi's moveCursor/moveToVisualLine/pageScroll never exit browsing; without it, down-through-a-recalled-multi-line-entry could not reach the last-row history arm.
+4. **D3 — composed border rows (span lines in a paragraph, style deviation itemized) — ACCEPT.** The spec explicitly authorized this house judgment; `Editor.scroll_border` is pi's createScrollBorder verbatim (verified against :279-296) and s10 byte-parity pins the layout.
+5. **D4 — autocomplete confirm precedes the backslash arm — ACCEPT.** pi's list consumes enter before the editor (:906-917 order); base list behavior unchanged.
+6. **D5 — `split("\n", -1)` for JS split semantics — ACCEPT.** Plain correctness, found by test.
+7. **D6 — README also documents Ctrl+U/K and Ctrl+Y/Alt+Y — ACCEPT.** Their boundary behavior (newline-kill merges) is this iteration's deliverable; README is the lane's sanctioned touch.
+
+## PHASE 0 rulings (rig)
+
+8. **Grounds line-number drift (:538 not :556-557; createScrollBorder :279-296 not :323-341; custom-editor.ts:45) — ACCEPT.** This session read the live functions at exactly the builder's corrected numbers; substance of every premise verified (also independently: the P/S/T/U table at :1583-1611, up/down dispatch :925-950, pageScroll :1961-1973, wordWrapLine backtracking :131-234 — the port is verbatim-faithful at each).
+9. **RED-at-base control — ACCEPT.** Re-run cold by this session in the rig worktree: exit 1, editor-family candidates only (pi's wrapped rows 2-3, the 2 box-growth shift rows, the fake-cursor position), registry untouched.
+
+## Acceptance Criteria integrity
+
+Frozen sections unchanged since freeze e63a05a2 (`architect verify` PASS both lanes; diff append-only).
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | 28 direct-class tests green (wrap chunks/backtracking/forced breaks, visual map, sticky-column clamp-restore, logical home/end, wrapping motions); `VISUAL_MACHINERY_OK`; verbatim-vs-source verified by judge | §8 | PASS |
+| AC2 | newline keys through dispatch, backslash idiom, paste normalize/filter/splice, submit joins+trims, multi-line recall with draft restore, slash line-0 gate — all unit-pinned; marker compaction CUT itemized (never silent) | §8 | PASS |
+| AC3 | kill/yank boundary arms + word ops across lines unit-pinned; I26 lastAction and I06/I26 assertions survive (suite green, +38 runs); s1–s9 exit 0 cold on the integrated tree | §8 | PASS |
+| AC4 | box growth/window cap/cursor-visibility/↑↓ borders unit-pinned (list 5); `s10_editor_wrap` exit 0 cold on the integrated tree — byte-identical settled wrapped/grown box; RED-at-base control confirmed by judge | §8 | PASS |
+| AC5 | page_up/page_down → `page_scroll(∓1)` with no list guard; `Viewport#scroll_page` deleted, zero callers; wheel re-pointed family green; divergences itemized in Grounds 8; `OPTION_A_OK` | §5.1/§8 | PASS |
+| AC6 | 667 runs / 0 failures (+38); `SEAM_BENCH_OK`; scope gate PASS (diff = exactly the 8 declared files vs 8131f438); registry byte-unchanged; pi citations carried, D1–D7 itemized | §5.1 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+## Judge notes
+
+- **Open question 8 (Grounds 8) — RULED: PIN the divergence.** Tart keeps bare pageUp/pageDown = editor paging (pi's ctrl+pageUp behavior), transcript stays wheel-only; restoring fullscreen-pi's bare-key transcript paging would require porting the alt-screen input-listener precedence layer (tui.ts:1063-1080, tui-alt-screen.ts:281/:750-760 consume-before-editor) — a new precedence seam, not a keybinding swap — for a need the wheel already covers. Recorded as a standing sanctioned deviation (BRIEF §5.1 discipline); the owner may reopen on live-run pain. No new lane work.
+- **Architect-applied integration fix (recorded):** chat.rb's retirement comment cited the dead method by name, tripping the frozen `option-a-wired` grep (comment-only; the functional rebind was correct — arms at :817-818, no `def scroll_page` anywhere). The comment was reworded pre-merge so the fix rides the lane commit; zero behavior change, `ruby -c` clean, and the FULL gate suite was re-run cold on the integrated tree afterward (15/15). No criterion relaxed — the AC's property (rebind landed, method gone, no callers) is what the gate asserts.
+- **Report gap (noted, non-blocking):** the core lane's Gates table omits the three grep gates (visual-machinery would have caught the comment trip pre-report); the frozen gate commands were otherwise honored.
+- **Backlog recorded:** D1's backslash+shift+enter submit idiom (pi :899-906); pi's empty-default `tui.editor.historyPrevious/historyNext` bindings (Grounds 8 item 3); large-paste marker compaction (Grounds 6/11).
+
+## Iteration
+
+**CONTINUE** — the owner's live-run show-stopper (BRIEF §8) is closed pi-faithfully: the visual-line model, growth rules, newline family, and OPTION A rebind all land verbatim against editor.ts, pinned unit-side and rig-side (s10 exit 0 cold), with settled bytes elsewhere unmoved (s1–s9 exit 0 cold) and every deviation itemized — merged core 23fe6da1 + rig a5c05948 on project/pi-port, worktrees and lane branches torn down.

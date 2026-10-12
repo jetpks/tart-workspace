@@ -1424,7 +1424,7 @@ project:
     ordinal: 35
     file: architecture/I35-editor-multiline.md
     freeze_sha: e63a05a2d9c47c0f7c78026d1c670bfa6938ee1f
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
