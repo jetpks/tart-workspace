@@ -958,11 +958,119 @@ subject — the 9 pasted skill-panel lines are gone.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I31-compaction-residuals-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence compaction-residuals --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### rebuild
+
+### Lane `rebuild` — deliverables
+
+- `lib/tart/render/chat.rb`: `enqueue_motd` now captures the header-container
+  shape (`@header_rows` = Spacer(1) + identity header lines + Spacer(1), 7
+  rows) at enqueue time; the `:compaction` arm restores those exact rows via
+  `enqueue_region(@header_rows)` right after `wipe_transcript`, before the
+  kept-entry replay; `clear_transcript` nils the capture (/resume keeps its
+  itemized header-less screen; /new re-captures on its re-render).
+- Ruling (spec allowed preserve-or-re-render pending verification): verbatim
+  preservation of the boot MOTD region would drag the port-only
+  `[Context]`/`[Skills]` sections back onto the settled screen (unsanctioned
+  candidate; s7 could not exit 0); `enqueue_motd` re-render would do the same
+  and swap tart-mode's random art. Capture-and-restore of the container shape
+  is byte-faithful to pi (headerContainer = Spacer + BuiltInHeader + Spacer,
+  interactive-mode.ts:1075-1077; sibling of chatContainer, :633-639;
+  compaction_end clears chatContainer only, :3701) and excludes sections.
+- Boot-screen bytes unchanged in both section states (the pre-existing MOTD
+  byte tests — `test_motd_renders_pi_header_bytes_in_pi_mode`,
+  `test_motd_renders_the_tart_header`, sections tests — pass unmodified).
+- `lib/tart/render/transcript.rb`: pasted skill-panel comment lines deleted;
+  the comment atop `compaction_panel_rows` opens at its own subject. Note:
+  the spec said "9 pasted lines" but its own line range (365-373 pasted,
+  compaction comment at 376) spans 11 — the pasted sentence completes at
+  "+ the full-width bg."; I cut at the sentence boundary (11 lines) rather
+  than orphan 2 half-lines.
+- `test/chat_test.rb`: `test_compaction_rebuilds_kept_entries_then_the_panel`
+  pins adjusted (header survives: `PI_NOTICE_LINE` + `PI_ONBOARDING_LINE`
+  asserted present and ordered above the kept entries; `[Context]`-absent pin
+  stands; kept-entries/panel-LAST/footer-invalidate/history/border pins
+  stand). Tests run the default pi identity, so the pins name pi's header
+  bytes; the tart-identity header arm is covered by the existing MOTD tests.
+
+### Process notes (full disclosure)
+
+- Worktree confusion, self-caught: early in the lane I ran rake/rig
+  verifications against `repos/tart` (the main checkout) instead of this
+  worktree, and one throwaway debug file was written to the worktree. Both
+  corrected: all results below are from this worktree post-fix; the throwaway
+  file is deleted; the main checkout verified untouched (clean `git status`,
+  0 mentions of the new ivar).
+- One real defect found and fixed mid-lane: my first `enqueue_motd`
+  composition doubled the closing Spacer when no resource sections render
+  (`test_motd_renders_pi_header_bytes_in_pi_mode` caught it: `lines[7]`
+  gained a blank). Final composition keeps boot bytes identical to pre-lane
+  in both section states; full suite green after the fix.
+
+### Gate results (this worktree, cold)
+
+| gate | result |
+|---|---|
+| suite | exit 0, stdout `SUITE_OK` — `565 runs, 2220 assertions, 0 failures, 0 errors, 1 skips` (baseline pre-lane: 565 runs / 2217 assertions, same 1 pre-existing skip; delta 0) |
+| bench | exit 0, stdout `SEAM_BENCH_OK` |
+| s1-parity | exit 0 |
+| s2-parity | exit 0 |
+| s3-parity | exit 0 |
+| s4-parity | exit 0 |
+| s5-parity | exit 0 |
+| s6-parity | exit 0 |
+| s7-header | **exit 0** (pre-lane baseline in this worktree: exit 1, 14x unknown-candidate) |
+| s8-estimate | exit 1 — expected; ONLY the token-value candidates remain (lane `estimate`'s), see below |
+| registry-additions-only | exit 0, `REGISTRY_ADDITIONS_ONLY_OK` |
+| comment-fold | exit 0, `COMMENT_OK` |
+| scope | exit 0, `SCOPE_OK` (HEAD = 276eda3d, no commits made) |
+
+### s7 evidence (tmp/parity-gate-s7/report.md)
+
+- pre-lane baseline run: `14x unknown-candidate` (the 7 header rows missing
+  at top + 7 stray blanks at bottom — the measured vertical shift).
+- post-lane: `0x unknown-candidate`; remaining classes all sanctioned:
+  `2x parity-run-path`, `2x footer-provider-prefix`; style differences: none.
+- pi.capture vs tart.capture: top 13 rows byte-identical (`diff` of the first
+  13 lines: empty). tart.capture rows 1-7 = ` ▀▀█  v1.1.0` / ` █▀ █ escape
+  interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o more` /
+  ` Press ctrl+o to show full startup help and loaded resources.` / blank /
+  ` Pi can explain its own features and look up its docs. Ask it how to use
+  or extend Pi.` / blank / blank — art + help + onboarding ONLY, no
+  `[Context]`/resource listings.
+
+### s8 residual (tmp/parity-gate-s8/report.md) — verbatim unknown-candidate list
+
+- 2x unknown-candidate (the token row only):
+  - `- Compacted from 1,490 tokens (ctrl+o to expand) -> unknown-candidate` (pi)
+  - `+ Compacted from 75 tokens (ctrl+o to expand) -> unknown-candidate` (tart)
+- sanctioned remainder: `2x parity-run-path`, `2x footer-provider-prefix`.
+
+### Diff surface (uncommitted, vs 276eda3d = HEAD)
+
+```
+ lib/tart/render/chat.rb       | 24 ++++++++++++++++++++++--
+ lib/tart/render/transcript.rb | 11 -----------
+ test/chat_test.rb             | 24 ++++++++++++++--------
+ 3 files changed, 38 insertions(+), 21 deletions(-)
+```
+
+Exactly the lane's enumerated files; no commits; no git write commands; no
+files outside the territory touched; `gems/**`, `lib/tart/agent/**`,
+`lib/tart/compaction.rb`, and the other lane's tests untouched.
+
+### AC check
+
+- AC1: s7 exit 0 cold + chat pins (header survives at pi's positions,
+  `[Context]` absent, kept entries chronological, panel LAST, footer
+  invalidated not reset, history not duplicated, `:compaction_start` label
+  pins untouched) — met.
+- AC4: s1-s6 exit 0, rake green (delta 0), SEAM_BENCH_OK — met.
+- AC5 (lane half): diff = chat.rb, transcript.rb, chat_test.rb only
+  (test/render/** untouched — no render-test changes needed) — met.
+- AC6: comment-fold gate `COMMENT_OK` — met.
+- AC2/AC3: lane `estimate`'s; s8 residual itemized above for the architect.
+
+STATUS: COMPLETE
 
 ## Verdict
 
