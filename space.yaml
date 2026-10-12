@@ -1157,24 +1157,26 @@ project:
       - test/render/model_menu_test.rb
       base_sha: fcf232f49d1694c60492fb710d5c5af48d6ad4db
       worktree: build/I27-model-menus-model/wt
-      integration_branch:
+      integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
       variant: false
       dispatched_at: '2026-10-11T20:36:15-06:00'
       effort: high
+      integrate_sha: e719d22235e47af315393f6b261d013f8c4317c4
     - name: rig
       repo: tart
       touch_set:
       - gems/tui-split-rig/**
       base_sha: fcf232f49d1694c60492fb710d5c5af48d6ad4db
       worktree: build/I27-model-menus-rig/wt
-      integration_branch:
+      integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
       variant: false
       dispatched_at: '2026-10-11T20:36:14-06:00'
       effort: high
+      integrate_sha: f58447a85acc2bf228aab1b1e16d738bdbe9bc7e
     rehearsal:
       gates_digest: f162e34724d691d933904eaa1f364d2e3c454c987d4417f1eac165a10d0dddae
       at: '2026-10-11T20:08:21-06:00'
