@@ -80,51 +80,151 @@
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse thinking-ux` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze thinking-ux` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria — I37 thinking-ux
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC1 — the spinner advances on time, not renders (pi's 80ms Loader).** With an injected clock: two renders within 80ms of the anchor show the SAME frame; the displayed glyph at time t is `SPINNER[floor((t − anchor)/0.08) % 10]` regardless of how many renders happened since; renders alone (clock frozen) never advance it; ≥80ms advances exactly `floor(elapsed/80ms)` steps. The anchor resets to frame 0 at each status-kind (re)start — `:agent_start`, `:compaction_start`, and the `:compaction` result's return to working. `@frames` (the per-render counter) is gone from chat.rb. The busy animation window (`BUSY_FRAME_SECONDS`) is unchanged. Unit-pinned; the tripwires are RED at base BY DESIGN.
 
-**AC1.** ...
+**AC2 — the border title carries pi's embedded-status colors as separate spans, with pi's text and spacing.** Working status: the spinner cell AND the message cell read `editor_border_color` — the thinking-level ladder token for the fixture's level (off-default fixtures pin `Theme[:thinking_off]`; a set level pins that token), bashMode in bash mode — and a mid-turn thinking-level change re-colors the status on the next draw (pi's lazy borderColor deref). The working message is exactly `"Working"` (the phase-detail vocabulary is retired). Compaction status: spinner `Theme[:accent]`, message `Theme[:muted]`, `COMPACTION_LABELS` text unchanged. The composed top-border row's plain text is byte-pi-shaped — `"── ⠋ Working "` + dashes to width, ONE space each side (the double flanking spaces are gone) — and the narrow/label-collision degradations render the spinner glyph alone in the spinner's color. Unit-pinned via cell fg readback + row-text equality.
+
+**AC3 — reasoning renders as dim markdown through ONE path (live, completed, and replay).** Reasoning text routes through the markdown converter at `Theme[:thinkingText]` + italic prose: bold runs render `:bold` + thinkingText (+ italic), inline code `Theme[:md_code]`, list markers `Theme[:md_list_bullet]`, plain prose thinkingText + italic — with no raw `**`/backtick markers surviving into rendered rows — and the SAME shapes render mid-stream (before `:message_end`), at completion, and on replay of a recorded entry. Structure spans gain no prose styling; the reasoning text is stripped before rendering (no blank edge rows from delta whitespace). Plain-prose reasoning keeps today's row shapes (the existing blank/spacing pins stay green unchanged). The I13 "markdown-of-reasoning is cut" ruling RETIRES (the owner's live finding is the ruling; comments re-pointed).
+
+**AC4 — quality, scope, settled parity.** Suite fully green with run-count delta > 0 (re-pointed pins replaced, not deleted); `SEAM_BENCH_OK`; s1–s9 all exit 0 cold (settled screens unmoved — no mock scenario streams reasoning and the spinner never settles); the integrated diff touches exactly the declared 3-file set (scope gate against the pre-iteration tip `7c4ae19`); house style throughout (pi citations carried; deviations itemized in the report: the plan-letter color ruling (working = border color — OQ-1), the "Working" message retirement (OQ-2), the computed-at-render mechanism note).
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse thinking-ux` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/i37-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/i37-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/i37-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/i37-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/i37-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/i37-s6
+  expect:
+    exit_code: 0
+
+- id: s7-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/i37-s7
+  expect:
+    exit_code: 0
+
+- id: s8-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml --out tmp/i37-s8
+  expect:
+    exit_code: 0
+
+- id: s9-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s9_startup_help.yml --out tmp/i37-s9
+  expect:
+    exit_code: 0
+
+- id: spinner-time
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'SPINNER_INTERVAL_SECONDS' lib/tart/render/chat.rb && grep -q 'clock' lib/tart/render/chat.rb && grep -q 'CLOCK_MONOTONIC' lib/tart/render/chat.rb && echo SPINNER_TIME_OK
+  expect:
+    exit_code: 0
+    stdout_match: SPINNER_TIME_OK
+
+- id: frames-retired
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    if grep -q '@frames' lib/tart/render/chat.rb; then exit 1; fi && echo FRAMES_RETIRED_OK
+  expect:
+    exit_code: 0
+    stdout_match: FRAMES_RETIRED_OK
+
+- id: status-colors
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    grep -q '"Working"' lib/tart/render/chat.rb && grep -q 'Theme\[:accent\]' lib/tart/render/chat.rb && grep -q 'Theme\[:muted\]' lib/tart/render/chat.rb && grep -q 'editor_border_color' lib/tart/render/chat.rb && echo STATUS_COLORS_OK
+  expect:
+    exit_code: 0
+    stdout_match: STATUS_COLORS_OK
+
+- id: reasoning-md
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'prose_modifiers' lib/tart/render/transcript.rb && grep -q 'reasoning_lines' lib/tart/render/chat.rb && echo REASONING_MD_OK
+  expect:
+    exit_code: 0
+    stdout_match: REASONING_MD_OK
+
+- id: scope
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only 7c4ae19 HEAD | grep -qvE '^(lib/tart/render/chat\.rb|lib/tart/render/transcript\.rb|test/chat_test\.rb)$'; then exit 1; else echo SCOPE_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
 
 ## Builder Prompt
