@@ -97,34 +97,164 @@ I28 + I29):
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section compaction-panel specification --from <file>`. -->
+# Specification — I30 compaction-panel
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+- **Objective.** Port pi's compaction render to close the s7/s8 settled-screen
+  divergence (BRIEF §8 full settled-screen parity — the owner's done bar): pi renders
+  compaction as a customMessageBg `[compaction]` panel AND rebuilds the whole
+  transcript from the post-compaction kept entries on the live path; the port renders
+  a dim `✻ compacted` line over an un-wiped scrollback (Grounds 2-3, 5, 7). Deliver:
+  (a) the panel component (collapsed + expanded, riding the existing skill-panel
+  family + the ctrl+o global expand state); (b) the live rebuild (clear + re-render
+  kept entries + panel last); (c) the replay panel (compaction entries render as the
+  panel on resume); (d) the agent-side seams the render needs — the `:compaction`
+  event's `entries:` payload and the recorder's `usage` persistence (pi
+  CompactionEntry parity) — plus the I29-ruled switch window tier. Why now: s7/s8 are
+  the only red rigs left, their candidate lists ARE this spec (Grounds 7), and every
+  other queued render item is sequenced behind the chat.rb single-writer lane this
+  iteration owns.
+
+- **THE FROZEN CONTRACT (both lanes build against this; PHASE 0 is the place to
+  dispute it, never to silently drift it).** The `:compaction` event payload becomes
+  exactly: `emit(type: :compaction, reason:, tokens_before:, summary:, entries:)`
+  where `entries` is an Array of replay-entry Hashes — the SAME shape
+  `Agent::Session.load_entries` / `Transcript#replay_entries` consume (message
+  entries with `type`/`message` keys, bashExecution entries, etc.) — holding the
+  post-compaction KEPT context entries in chronological order (the entries after the
+  cut point, i.e. from `first_kept_entry_id` onward; NOT the system messages, NOT
+  the summary message — pi's `renderSessionEntries(entries.slice(1))` equivalent,
+  Grounds 3). The panel lane's chat tests inject events in exactly this shape; the
+  agent lane's loop tests assert emission in exactly this shape. No other keys are
+  added to the event; `usage` does NOT ride the event (nothing renders it — the cost
+  notice is default-off in pi, Grounds 3 — it persists on the recorder entry only).
+
+- **Lane `agent`** (repo `repos/tart`; touch: `lib/tart/agent/loop.rb`,
+  `lib/tart/agent/session.rb`, `test/agent_loop_test.rb`, `test/session_test.rb`):
+  1. **The `entries:` payload** (the frozen contract above). Derive the kept entries
+     on the loop/recorder side — the recorder holds the chronological entry list and
+     the compaction entry records `first_kept_entry_id`; verify the cleanest
+     derivation (recorder projection vs loop-side collection) and build it. Do not
+     reshape the existing replay-entry format.
+  2. **`usage` persistence** (pi CompactionEntry parity, Grounds 4):
+     `Recorder#append_compaction` persists the summarization call's usage (the
+     I29 `Preparation#usage` — the gem `Message#tokens`) on the entry in pi's
+     persisted `Usage` shape — READ pi's `Usage` interface + the gem's `Tokens`
+     readers first and map faithfully (pi's entry keys are camelCase — the standing
+     I07/I08 format rule); `estimated_tokens_after` is NOT persisted (pi doesn't).
+     The `:compaction` EVENT SHAPE otherwise stays the frozen I12 contract
+     (additive key only).
+  3. **The switch window tier** (the I29-ruled residual, Grounds 6):
+     `switch_model`'s re-resolve consults the boot chain's known-models tier —
+     catalog-declared window → `@chat.model&.context_window` →
+     `Settings::MODEL_CONTEXT_WINDOWS` — so switching to a known-models-table entry
+     without a declared window resolves the table's window instead of nil
+     (threshold disabled). Reuse `Settings.resolve_context_window` if it fits;
+     itemize the tier set you land. Tests: agent_loop pins the payload shape (the
+     kept-entry semantics + a two-message cut fixture) + the usage persistence
+     round-trip; session_test pins the entry shape; the switch tier pins a
+     known-models entry resolving the table window + the footer denominator refresh.
+     No MockLLM changes expected (existing idioms); `test/support/**` is NOT in your
+     touch set — if you find you need it, STOP and report the conflict in PHASE 0.
+
+- **Lane `panel`** (repo `repos/tart`; touch: `lib/tart/render/chat.rb`,
+  `lib/tart/render/transcript.rb`, `test/chat_test.rb`, `test/render/**` (new files
+  only if a direct-class pin needs a home), `gems/tui-split-rig/**`):
+  1. **The panel component** (pi compaction-summary-message.ts, Grounds 2): rides
+     the existing skill-panel family (transcript.rb:347-377 — same
+     `custom_message_bg` Box shape, bold `custom_message_label` `[compaction]` span,
+     prose over `custom_message_text`, bg on every span). Collapsed content row:
+     `Compacted from <grouped> tokens (ctrl+o to expand)` — `custom_message_text`
+     fg with the `ctrl+o` key in `dim` (pi composes three fg runs; match the span
+     split). Expanded: `**Compacted from <grouped> tokens**` header + blank line +
+     the summary, markdown-rendered over the panel (the skill panel's
+     markdown-over-prose-override machinery). The number uses pi's
+     `toLocaleString()` comma grouping — search the repo for the existing grouping
+     helper before writing one (the footer's token counters likely have it). The
+     panel joins the ctrl+o GLOBAL expand family (`@tool_output_expanded` — the
+     I25/I06 machinery): toggling re-renders collapsed/expanded in place. MouseRegion
+     click-to-toggle stays CUT (the standing skill-panel deviation — mouse owns
+     selection).
+  2. **The live rebuild** (pi compaction_end, Grounds 3): the `:compaction` handler
+     becomes: clear the transcript (WITHOUT the /new footer-usage reset — pi
+     invalidates, never resets; split the clear if `clear_transcript` conflates
+     them), replay the event's `entries` through the existing `replay_entries`
+     machinery (pi's own load/rebuild reuse precedent, Grounds 3), then enqueue the
+     panel region LAST. The MOTD/[Context] header is wiped by the clear and NOT
+     re-rendered (s7's @@ -8 candidate). Editor history must not duplicate
+     (`replay_user` feeds `@history_sink`, transcript.rb:407 — measure and handle:
+     pi's rebuild path does not re-populate history). The dim `✻ compacted` line and
+     its blank region are REPLACED (s7's ✻ candidate); the `:compaction_start`
+     border-status machinery is untouched (the frozen I12 contract).
+  3. **The replay panel** (pi renderSessionEntries compactionSummary, Grounds 2):
+     the resume path renders a persisted compaction entry as the panel ( Spacer(1) +
+     the panel at its chronological position with the global expand state) —
+     replacing the bare-markdown render (transcript.rb:395-402). The "compacted N
+     times" resume notice: verify against pi's resume path whether it survives
+     alongside the panels (grep pi for the notice's source; if pi has no such line
+     post-panel, cut it and itemize — it predates the panel port).
+  4. **The rig**: s7 AND s8 exit 0 cold (the deliverable's proof — Grounds 7);
+     s8's style_unknown empty-dim candidate is expected to vanish with the ✻-line
+     removal — if it survives, root-cause it against the capture (do not sanction it
+     away). Registry additions-only vs a622ee03. s1–s6 must stay exit 0 (the rebuild
+     must not leak into non-compaction turns). Tests: chat tests pin the rebuild
+     (cleared transcript, kept entries re-rendered, panel last, MOTD gone, footer
+     usage NOT reset, history not duplicated), the panel's collapsed/expanded bytes
+     (both states + the ctrl+o toggle), the replay panel, and the grouped number.
+
+- **Output format.** Raw evidence to scratch: file list + wc; the render table
+  (pi mechanic → port seam, before/after: panel/rebuild/replay/usage/tier); verbatim
+  test tails + suite counts; s1–s8 exit codes from YOUR worktree run (s7+s8 expected
+  0, s1–s6 expected 0); the s8 style_unknown disposition; itemized
+  deviations/cuts. PHASE 0 disagreements mandatory (a labeled PHASE 0 section —
+  the I28 report's deviation-table framing was a reporting defect; don't repeat it).
+  STATUS line last.
+
+- **Tool guidance.** Verification (from repos/tart): `bundle install --quiet &&
+  bundle exec rake`, `bundle exec ruby bench/seam_bench.rb`; parity:
+  `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml
+  --out tmp/<out>`. pi sources: `packages/coding-agent/src/modes/interactive/
+  components/compaction-summary-message.ts` (the whole file), `interactive-mode.ts`
+  (:3686-3725 compaction_end, :3903-3904 + :4086-4110 renderSessionEntries,
+  :4118-4130 the cost notice), `core/session-manager.ts` (:85-101 CompactionEntry,
+  :1265-1290 appendCompactionEntry), `core/settings-defaults.ts:27` — read before
+  coding; cite what you port. The gem at
+  ~/.local/share/mise/installs/ruby/4.0.7/lib/ruby/gems/4.0.0/gems/ruby_llm-2.1.0/
+  (tokens.rb readers) for the usage mapping.
+
+- **Boundaries.** Lane `agent` must not touch anything outside its four files — in
+  particular `lib/tart/render/**` ALL (chat.rb/transcript.rb are lane `panel`'s
+  single-writer territory), `test/chat_test.rb`, `gems/**`, `test/support/**`,
+  `lib/tart/models.rb`, `lib/tart/settings.rb` (READ `Settings.resolve_context_window`
+  / `MODEL_CONTEXT_WINDOWS` freely; if a change there is genuinely required, STOP and
+  raise it in PHASE 0 instead of touching). Lane `panel` must not touch anything
+  outside its set — in particular `lib/tart/agent/**` (loop.rb/session.rb are lane
+  `agent`'s), `test/agent_loop_test.rb`, `test/session_test.rb`,
+  `lib/tart/models.rb`, `lib/tart/settings.rb`, `lib/tart/compaction.rb`,
+  `bin/tart`. No placeholders; search before implementing. Out of scope, itemize if
+  tempted: the compaction_cost notice (no settings seam — Grounds 3),
+  estimated_tokens_after persistence (pi doesn't persist it), MouseRegion
+  click-to-toggle, the compaction FAILURE render paths (pi's aborted/errorMessage
+  arms — the port's failure handling is I08-era and unmeasured by any rig scenario;
+  queue, do not build), the footer ↑/↓ count divergence (sanctioned
+  footer-provider-prefix class, existing debt), pi's `systemMessage` on the
+  CompactionEntry (out of lane, session format extension beyond usage).
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision compaction-panel`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: agent
+  repo: tart
+  touch:
+    - lib/tart/agent/loop.rb
+    - lib/tart/agent/session.rb
+    - test/agent_loop_test.rb
+    - test/session_test.rb
+- name: panel
+  repo: tart
+  touch:
+    - lib/tart/render/chat.rb
+    - lib/tart/render/transcript.rb
+    - test/chat_test.rb
+    - test/render/**
+    - gems/tui-split-rig/**
 ```
 
 ## Acceptance Criteria
