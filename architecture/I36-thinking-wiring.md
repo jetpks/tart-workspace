@@ -246,10 +246,170 @@
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I36-thinking-wiring-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section thinking-wiring prompt --append --lane <lane> --from build/I36-thinking-wiring-<lane>/prompt.md`. -->
+### core
+
+# LANE: core — iteration I36 thinking-wiring (the ONLY lane; you own lib/tart + bin/tart + the named tests + one rig staging file)
+
+You are the `core` lane builder for iteration I36 in repo `tart` (worktree: the provisioned lane checkout, base = project/pi-port @ a5c05948). Everything below the rules is YOUR lane's spec. There is no sibling lane; the touch set in BOUNDARIES is the whole iteration.
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo. Silent compliance
+is a failure. Silent scope additions are a failure. If you have no
+disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them.
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed in BOUNDARIES. No placeholder implementations — search the codebase before implementing;
+full implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive collection/enumerable
+forms); well-factored and DRY-ish; terse but clear; pragmatic, not clever — the
+smallest change that does the job, no abstraction it doesn't need. Consistency
+with the surrounding code is part of correctness here: a change that works but
+fights the house style (or introduces an inconsistency a careful reader of this
+repo would never write) is not done. Tests stay simple and terse, exercising
+public behavior, no mock/stub of the class under test. Verify your work by
+running the acceptance criteria's gate commands and record the verbatim output. Do NOT commit and do NOT run any
+git write command (commit/add/branch/reset/checkout) — the architect commits
+and merges after verification, and verifies you made no commits. Do NOT delete
+lock files or escalate privileges if a command fails; record the exact error
+and continue. Do NOT use `run_in_background` (or shell `&`) for your own work — this
+process terminates when you end your turn and reaps its own children, so
+backgrounded work is SIGTERMed and its output lost while the run still exits
+0; run long commands serially in the foreground instead. Give every
+potentially long command an explicit timeout; if a
+runtime will not start unattended (interactive prompt, server with no timeout),
+record the exact failure in your report and route around it — never busy-wait
+or retry in a loop. When done, write your report to the scratch file given to
+you, build/I36-thinking-wiring-core/report.md (an absolute path outside
+your worktree: /Users/eric/architect/spaces/20261009-pi-port/build/I36-thinking-wiring-core/report.md),
+with RAW results only — tables, numbers, command output — no interpretation, no
+"promising". Every status claim must be backed by a command result from this
+run. Keep the report compact — tables and numbers, not prose. Do not title the
+report — the architect's tooling supplies the `### <lane>` heading when it
+transcribes; keep any headings inside the report at `###` or deeper. End it with
+exactly one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them)
+| BLOCKED (exact blocker + what you tried). Verdicts belong to the architect
+and the human. Persist until your lane is fully handled end-to-end; do not stop
+at the first blocker. NEVER edit files under the space's architecture/
+directory or build/I36-thinking-wiring-core/prompt.md.
+
+=== GROUNDING CONTEXT (verified by the architect — check it, then build) ===
+
+THE DEFECT (owner live run 2026-10-12): tart sends NO thinking/reasoning
+parameter, so fireworks glm-5p3-flash runs its server-default thinking budget —
+tart turn 1 = 45,076 thinking tokens (8m48s) where pi's same session = 11,764
+(2m33s); tart turn 2 burned another ~40K re-thinking. Live A/B
+(tmp/repro_thinking_budget.rb): no param → 453 completion tokens/7.7s;
+reasoning_effort:"high" → 24 tokens/1.0s. Two factors: (1) the level never
+reaches the wire; (2) loop.rb strip_thinking_replay (:560-580) wipes thinking
+from every recorded assistant message (memory AND session file), so every
+follow-up re-thinks from scratch — pi REPLAYS prior thinking, which is why its
+turn 2+ re-think is 7–727 tokens.
+
+LIVE PROBES (architect-run 2026-10-12; raw outputs in the space's tmp/ — do
+NOT re-run them, they cost money): (a) fireworks streams reasoning deltas ONLY
+under `reasoning_content` (32 delta hits, zero for reasoning/reasoning_text) —
+pi's replay signature for this provider; (b) a tool-call continuation WITH
+`reasoning_content` replay on the assistant message returns HTTP 200, as does
+the both-fields shape (ruby_llm's native format_thinking) — the I05 400
+("Extra inputs are not permitted, field: 'messages[n].reasoning'") does NOT
+reproduce today; (c) through ruby_llm 2.1.0 itself, `chat.with_thinking(effort:
+:low)` puts reasoning_effort:"low" on the wire and a follow-up turn after a
+thinking reply with NATIVE replay completes 200. The port still pins the
+pi-faithful shape (replay under reasoning_content ONLY): pi sends exactly that,
+and that shape survived the strict window the gem's extra `reasoning` field
+did not (I05).
+
+pi's resolution code (repos/pi, packages/ai/src): streamSimple clamps the
+session level then derives reasoningEffort, "off"→undefined
+(openai-completions.ts:745-755); the generic branch (fireworks:
+supportsReasoningEffort TRUE, thinkingFormat "openai" — :1645-1648) sends
+`reasoning_effort = thinkingLevelMap[level] ?? level` (:969-972) and, when no
+effort (off), the map's String `off` value only (:973-976).
+getSupportedThinkingLevels (models.ts:1224-1233): map value null → level
+unsupported; xhigh/max need a PRESENT entry; clampThinkingLevel (:1235-1254):
+exact if supported, else forward-then-backward through the ladder
+["off","minimal","low","medium","high","xhigh","max"] (= the port's
+Settings::THINKING_LEVELS order). All gated on model.reasoning. Replay: deltas
+key thinking blocks by the carried signature ∈ {reasoning_content, reasoning,
+reasoning_text} (:611-627); requests send assistantMsg[signature] (:1340-1352).
+Catalog map for glm-5p3-flash (live): {off:null, minimal:null, low:"low",
+medium:null, high:"high", xhigh:null, max:"max"}; the owner's pi override maps
+every level to a String (off→"low"). Both floor "off" to effort "low" — the
+override directly, the catalog through the clamp.
+
+ruby_llm 2.1.0 request surface (gem source — verified): render_payload sets
+payload[:reasoning_effort] from the resolved thinking config
+(protocols/chat_completions/chat.rb:57, :85-86); with_thinking()/with_thinking(
+false) are registry-driven (Thinking::Controls raises for unregistered models —
+unusable under assume_model_exists:) and once set cannot be unset — so the
+spec's seam is Chat#before_request (chat.rb:909-914): hooks run LAST in
+Protocol#render (protocol.rb:143-155), mutating the symbol-keyed payload Hash
+in place (:695-698) before serialization, on BOTH the streaming and sync paths.
+format_thinking replays BOTH :reasoning AND :reasoning_content on assistant
+messages (chat.rb:417-431) — the hook deletes :reasoning. Message#to_h
+serializes thinking (message.rb:268-269); Message.new coerces a String thinking
+back (message.rb:323-330) — resume replay works once the strip is gone.
+MockLLMServer#captured_requests already returns parsed request bodies — the
+request-pin instrument (test/support/mock_llm_server.rb:81-86; DO NOT change
+that file).
+
+=== SPECIFICATION (I36 core lane) ===
+
+# Specification — I36 thinking-wiring
+
+- **Objective.** Close the live-run hang (BRIEF §7): the resolved thinking level must reach the wire — for OpenAI-compat providers, `reasoning_effort` resolved through the model's `thinkingLevelMap` exactly as pi's generic branch does (clamp, off-floor, non-reasoning sends nothing) — and the I05 `strip_thinking_replay` deviation is replaced by pi's replay protocol: prior assistant thinking persists (memory, session file, resume) and replays on later requests under the provider-accepted field (`reasoning_content`), with ruby_llm's duplicate `reasoning` field dropped at the request seam. Settled screens must not move: s1–s9 stay exit 0 cold.
+
+- **Port shape.**
+  - **`Tart::Models` (lib/tart/models.rb) — the map + pi's resolution, pure functions.**
+    - `build_model` parses `thinkingLevelMap` from models.json entries: hash of level-name → String|nil, symbolized keys (`:thinking_level_map`); `validate_model_fields` gains the shape check (hash; values String or null; unknown level keys tolerated — pi's Partial-Record default).
+    - `supported_thinking_levels(map:, reasoning:)` → Array (pi getSupportedThinkingLevels, models.ts:1224-1233): `["off"]` when not reasoning; else the ladder filtered — a `nil` (null) map value means unsupported, `xhigh`/`max` require a present (non-nil) entry.
+    - `clamp_thinking_level(level, map:, reasoning:)` → String (pi clampThinkingLevel, models.ts:1235-1254): exact level if supported; else forward-then-backward scan through `Settings::THINKING_LEVELS` order; unknown level → first supported, else `"off"`.
+    - `resolve_reasoning_effort(level, map:, reasoning:)` → String|nil (pi openai-completions.ts:745-755 + :969-976): nil unless reasoning; clamped = clamp(level); `nil` (send nothing) when clamped == "off" and the map's `off` is not a String; else the map's value for the clamped level, falling back to the level itself (`map[clamped] || clamped`), and for clamped "off" the map's String `off` value.
+  - **`Settings` (lib/tart/settings.rb) — the known-models tier.** `THINKING_LEVEL_MAPS` beside `MODEL_CONTEXT_WINDOWS`/`MODEL_REASONING` (same documented class — ids with no registry entry that the owner's daily-driver declares): glm-5p3-flash → the owner's effective pi map (every level a String: off→"low", minimal→"low", low→"low", medium→"medium", high→"high", xhigh→"xhigh", max→"max"). `known_thinking_level_map(model_id)` reader. The boot facts compose catalog-entry-first, known-tables-second (one helper, used by `bin/tart` interactive boot, `lib/tart/print.rb` boot, and the switch path): reasoning = entry's flag when a catalog entry exists, else `Settings.model_reasoning_capable`; map = entry's map when present, else the known table.
+  - **`Agent::Loop` (lib/tart/agent/loop.rb) — the request seam.** Constructor kwargs `thinking_level:` (String, default `"medium"` — pi DEFAULT_THINKING_LEVEL), `model_reasoning:` (Boolean), `thinking_level_map:` (Hash|nil); `attr_reader :thinking_level`; public `set_thinking_level(level)` (stores; the surface calls it); `switch_model` gains `model_reasoning:`/`thinking_level_map:` kwargs re-resolving the facts alongside the window (the I27 seam's shape). At construction the loop installs ONE `@chat.before_request` hook: (a) `effort = Models.resolve_reasoning_effort(@thinking_level, map: @thinking_level_map, reasoning: @model_reasoning)` → `payload[:reasoning_effort] = effort` or `payload.delete(:reasoning_effort)`; (b) replay normalization: each assistant entry in `payload[:messages]` loses `:reasoning` (ruby_llm's duplicate field; `:reasoning_content` stays — pi's signature replay). Reading the level at request time means mid-session changes apply to the NEXT request with no gem state to reset. **`strip_thinking_replay` is DELETED** with its comment block (the deviation note moves to the hook): recorded assistant messages keep their thinking — the session file (`Message#to_h` already serializes it), resume replay, and the display replay all regain it. `with_thinking` is never called (its no-arg/false forms are registry-driven and unusable under `assume_model_exists:`; its set-state cannot be unset).
+  - **`Render::Chat` (lib/tart/render/chat.rb) — the surface seam.** `apply_thinking_selection` additionally calls `@agent&.set_thinking_level(level)` (the `/thinking` command, shift+tab cycle, and the menu all land there); `available_thinking_levels` gates by pi's rule through `Models.supported_thinking_levels` using the runtime map — `footer_data` gains the boot map and the `@runtime_model` switch overlay carries the entry's map (retiring the I27 "xhigh/max never filter" deviation; the no-map fallback = pi's map-less rule: off..high); `apply_model_selection` passes the switched entry's `model_reasoning:`/`thinking_level_map:` into `switch_model` (known-table fallback for the degenerate boot entry). The chat.rb:218-221 comment citing `strip_thinking_replay` re-points at the request-seam normalization. No render/byte changes: the level ladder, footer, border, and status rows render exactly as today.
+  - **`bin/tart` + `lib/tart/print.rb` — boot wiring.** Both `Agent::Loop.new` sites pass `thinking_level: Settings.resolve_thinking_level(settings)` plus the composed facts; `footer_data` gains the resolved `thinking_level_map` (the surface's ladder source). `build_chat` itself is unchanged.
+  - **Rig staging symmetry (gems/tui-split-rig/lib/tui_split_rig/runner.rb).** The staged models.json mock-2 entry (reasoning:true — both apps' staging sites, `stage_pi_agent`/`stage_tart_home`) gains the same full-string `thinkingLevelMap`; mock-1 (reasoning:false) stays map-less. Inert for the pinned scenarios (settled screens unchanged), keeps the parity environment exercising the same catalog shape both sides. No new scenario, no registry change.
+  - **README.** Document `thinkingLevelMap` in the models.json schema note + the wire behavior (level → reasoning_effort via the map; off-floor on models that cannot turn thinking off).
+
+- **Tests (the deterministic proof; MockLLMServer's captured request bodies are the instrument).**
+  1. `test/models_test.rb`: thinkingLevelMap parse (string/null values, symbolized) + validation errors; the resolution table as direct-function cases — the owner's override map (off→"low" floor, medium→"medium"), the live-catalog map ({off:null,…} → off floors to "low", minimal clamps to "low", medium clamps to "high", xhigh clamps forward to "max"), map-less (off sends nothing; xhigh/max clamp down to "high"), non-reasoning (no level ever sends), `supported_thinking_levels` per shape (the menu ladders).
+  2. `test/agent_loop_test.rb`: surgery on `test_thinking_replay_is_suppressed_on_followup_requests` → the replay protocol pin (follow-up request bodies carry the assistant `reasoning_content`, NOT `reasoning`; the tool-continuation completes); NEW request pins through the real chat: `reasoning_effort` present with the resolved value per level (drive `set_thinking_level` between turns — the NEXT request changes); the off-floor (map with off:null → "low"); non-reasoning facts → NO `reasoning_effort` key; `switch_model` re-resolves the map; the scripted-400 worker-error test untouched. NEW session pin: a thinking reply's recorded entry in the session file carries the thinking text (no strip).
+  3. `test/chat_test.rb`: `set_thinking_level`/cycle reaches an injected agent seam (spy); `available_thinking_levels` gates by the runtime map (footer_data/boot + switch overlay).
+  4. `test/settings_test.rb`: `known_thinking_level_map` + the composition helper's tiering (catalog entry wins; known table when absent).
+  5. Additive only elsewhere; existing pins that flip meaning are re-pointed, not deleted.
+
+- **Output format.** Raw evidence to scratch: file list + wc; the new/changed test list with verbatim run tails; suite counts before/after; the s1–s9 exit codes; the PHASE 0 disagreement list (the grounding premises are checkable against repos/pi + the gem — cite what you read). STATUS line last.
+
+- **Tool guidance.** Verification (tart): `bundle install --quiet && bundle exec rake`, `bundle exec ruby bench/seam_bench.rb`; parity gates: `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml --out tmp/<short-out>` (s1–s9 must stay exit 0 in YOUR tree — SHORT out-dirs, deep paths trip the pre-existing footer-cwd truncation sensitivity; allow 60 s+ each, both apps boot). pi sources: `packages/ai/src/api/openai-completions.ts` (:745-755 clamp→effort, :969-976 the generic branch, :611-627 delta signatures, :1340-1352 replay), `packages/ai/src/models.ts` (:1224-1254 supported/clamp), `packages/coding-agent/src/core/defaults.ts` (:4-12 ladder order), `model-config.ts` (:38/:54 map schema). The gem (ruby_llm 2.1.0): `protocols/chat_completions/chat.rb` (:57/:85-86 render_payload effort, :329 format_message, :417-431 format_thinking), `protocol.rb` (:143-155/:695-698 hook application), `chat.rb` (:909-914 before_request, :669-687 with_thinking), `thinking.rb` (Controls — why with_thinking()/false are unusable), `message.rb` (:258-279 to_h, :323-330 coerce_thinking). Read loop.rb's switch_model + chat.rb's apply_thinking_selection/available_thinking_levels/footer_data before designing.
+
+- **Boundaries.** May touch exactly: `lib/tart/models.rb`, `lib/tart/settings.rb`, `lib/tart/agent/loop.rb`, `lib/tart/render/chat.rb`, `lib/tart/print.rb`, `bin/tart`, `test/models_test.rb`, `test/settings_test.rb`, `test/agent_loop_test.rb`, `test/chat_test.rb`, `README.md`, `gems/tui-split-rig/lib/tui_split_rig/runner.rb`. Must not: `lib/tart/agent/{bridge,session,status,system_prompt,context_files}.rb` (session recording rides Message#to_h unchanged), `lib/tart/render/{transcript,footer,editor,motd,viewport,selection,model_menu,picker,autocomplete,kill_ring,text,panel,user_bash,bash_block,file_blocks,tool_block,markdown,slash_source}.rb`, `lib/tart/{compaction,commands,identity,prompts,skills,theme,tools}.rb`, `lib/tart/tools/**`, `lib/tart/core/**`, `lib/tart/mcp*`, `test/support/mock_llm_server.rb` (it already captures bodies; no server change needed), `bench/**`, `gems/tui-split-rig/{bin,test}/**`, any scenario yml, `gems/tui-split-rig/registry.yml`, any golden. Out of scope: pi's other thinking dialects (zai/deepseek/together/openrouter/ant-ling/string-thinking), thinkingBudget fields, samplingParamsByThinkingLevel, encrypted reasoning_details preservation, the thinking-UX render slice (spinner/markdown — the NEXT iteration), `with_thinking(false)` off-controls. No placeholders; search before implementing.
+
+=== ACCEPTANCE CRITERIA (frozen — judge your work against these) ===
+
+**AC1 — the resolved thinking level reaches the wire, pi's resolution exactly.** For every model call (interactive, tool-continuation, and print mode), the request body carries `reasoning_effort` with `Models.resolve_reasoning_effort`'s value: the map's value for the clamped level, else the level itself; a level that clamps to "off" sends the map's String `off` value when one exists (the null-off floor clamps upward instead — off→"low" on the catalog map), and sends NO `reasoning_effort` key when the resolved effort is nil (non-reasoning models; map-less off). Unsupported levels clamp through pi's forward-then-backward scan; a mid-session `set_thinking_level` changes the NEXT request; `switch_model` re-resolves map+reasoning from the switched entry. Mock-asserted per level through the real chat (captured request bodies). The wiring tripwires are RED at base BY DESIGN (the resolution machinery is this iteration's deliverable).
+
+**AC2 — pi's replay protocol replaces the strip.** Recorded assistant messages KEEP their thinking: in memory (`strip_thinking_replay` is gone), in the session file (a thinking reply's entry carries the thinking text), and on resume. Follow-up and tool-continuation request bodies replay that thinking under `reasoning_content` with ruby_llm's duplicate `reasoning` field ABSENT (the request-seam normalization; pi's signature replay — the delta-carried field for the daily driver, live-verified). The continuation completes (the I05 400 class cannot recur through the port's own payload shape). The live evidence (A/B bound, delta-signature discovery, two-turn with/without replay, the gem-path probe) is recorded in the iteration Grounds. The replay tripwire is RED at base BY DESIGN.
+
+**AC3 — the level machinery is live end to end, not display-only.** `/thinking <level>`, shift+tab cycle, the selector menu, the boot setting, and a model switch all flow to the loop seam and apply to the next request without restart; the menu ladder offers exactly `Models.supported_thinking_levels` for the runtime model (the I27 "xhigh/max never filter" deviation retires; a non-reasoning model still offers off alone). Unit-pinned (surface seam spy + ladder gating).
+
+**AC4 — quality, scope, settled parity.** Suite fully green with run-count delta > 0 (re-pointed pins replaced, not deleted); `SEAM_BENCH_OK`; the integrated diff touches exactly the declared set (scope gate against the pre-iteration tip `a5c05948`); s1–s9 all exit 0 cold (settled screens unmoved — the wire param renders nothing); house style throughout (pi/gem citations carried, deviations itemized in the report: the replay-field pin, the dialect cuts, the known-map tier).
+
+The frozen gate commands (run them verbatim from repos/tart): `bundle install --quiet && bundle exec rake && echo SUITE_OK`; `bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1` (SEAM_BENCH_OK); `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s{1..9}_*.yml --out tmp/i36-s<N>` (each exit 0); the request-wiring/replay-protocol/map-parse/ladder-gating tripwire greps; the scope gate `git diff --name-only a5c05948 HEAD` confined to the declared set. The four tripwires are RED at base BY DESIGN — they go green on YOUR tree.
 
 ## Builder Report
 
