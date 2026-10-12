@@ -100,34 +100,132 @@ agent seams landed). All captures below are this session's cold gate runs under
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section compaction-residuals specification --from <file>`. -->
+# Specification — I31 compaction-residuals
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+- **Objective.** Close the two root-caused residuals from I30's verdict (BRIEF
+  §8 full settled-screen parity): (a) the compaction rebuild wipes the MOTD
+  while pi keeps its header container (Grounds 1-2) — s7's entire 14-candidate
+  unknown set is one 7-row shift; (b) the zero-usage estimator counts message
+  text only and misses the wire tool schemas (Grounds 4) — s8's `67 vs 1,482`
+  is ~20× under-reporting of tart's own context, plus a sanctioned residue
+  needing its documented registry class. Deliver: the header-preserving
+  rebuild, the estimator-scope fix, the `compaction-token-estimate` registry
+  class (owner-agreed, Grounds 5), and the comment-artifact fold. Target:
+  **s7 AND s8 exit 0 cold** with s1–s6 untouched.
+
+- **Lane `rebuild`** (repo `repos/tart`; touch: `lib/tart/render/chat.rb`,
+  `lib/tart/render/transcript.rb`, `test/chat_test.rb`, `test/render/**`):
+  1. **The header-preserving rebuild.** pi's `compaction_end` clears the CHAT
+     container and its MOTD header container survives untouched
+     (interactive-mode.ts:3686-3725 — read it; the capture is the oracle).
+     The port's transcript is one buffer, so the rebuild must leave the
+     header rows on screen: preserve the MOTD region through the wipe, or
+     re-render the header block — VERIFY which is faithful (measure what pi's
+     header contains in a loaded-resources session vs the rig capture; the
+     rig stages only settings.json, and pi's settled header shows art + help
+     + `Pi can explain…` ONLY). The `[Context]`/resource listings must NOT
+     reappear (Grounds 3 — port-only listings; their long-term home is the
+     queued startup-help flip, out of scope here). Everything else I30 landed
+     stays: kept entries chronologically, panel LAST, footer invalidate (not
+     reset), history not duplicated, `:compaction_start` untouched.
+  2. **The comment fold** (Grounds 6): fix the pasted 9-line skill-panel
+     comment atop `compaction_panel_rows` (transcript.rb ≈:365-373) — the
+     method's comment starts at its own subject.
+  3. Tests: adjust the I30 rebuild pins for the header's presence (MOTD rows
+     survive the rebuild; `[Context]` not resurrected; kept entries + panel
+     last + footer-not-reset pins stand). No rig changes in THIS lane (the
+     registry class is lane `estimate`'s).
+
+- **Lane `estimate`** (repo `repos/tart`; touch: `lib/tart/compaction.rb`,
+  `lib/tart/agent/loop.rb`, `test/compaction_test.rb`,
+  `test/agent_loop_test.rb`, `gems/tui-split-rig/registry.yml`):
+  1. **The estimator scope** (pi estimateTokens parity, Grounds 4): the
+     chars/4 estimate must cover the FULL wire context — the message text AND
+     the tool schemas the chat sends on every request (pi's
+     `system.toolsAdded` equivalent; the port's tools live on the chat/loop,
+     not in a message — thread them into `Compaction.prepare`, currently
+     `prepare(@chat.messages, @compaction_settings)` at loop.rb:323). Read pi
+     compaction.ts:296-311 (the system arm: content + sections + toolsAdded)
+     and map the port's equivalent faithfully; cite what you port. The
+     usage-backed path (estimate through the last valid assistant usage) is
+     UNCHANGED — only the estimate arms grow the tools component. Do not
+     reshape `Preparation`; `tokens_before` semantics stay "the context the
+     summarization replaces".
+  2. **The registry class** (Grounds 5): add `compaction-token-estimate` to
+     registry.yml — a line-anchored pattern matching the panel's token row on
+     both sides (`Compacted from [\d,]+ tokens`), with the comment block
+     documenting the owner-agreed provenance (2026-10-12 direction: each
+     app's estimate over its own deliberately different context; the panel
+     bytes stay pinned by chat tests — the class forgives only the number).
+     Additions-only vs 276eda3d (no edits to existing classes).
+  3. Tests: compaction_test pins the estimate arms (with-tools vs without;
+     the wire-tools component counted once, not per-message); agent_loop
+     pins the threading (the s8-shape zero-usage estimate now covers the
+     tools) — update existing estimate pins to the new arithmetic. The rig
+     registry test (if it pins class count/shape) updates in
+     `gems/tui-split-rig/test/**` — WAIT: that dir is NOT in this lane's
+     touch set; if a rig test needs changing, STOP and raise it in PHASE 0
+     (it is lane-crossing into I32's parallel territory — the architect
+     rules on it).
+
+- **Output format.** Raw evidence to scratch: file list + wc; the render
+  table (pi mechanic → port seam, before/after); verbatim test tails + suite
+  counts; s1–s8 exit codes from YOUR worktree run (lane `rebuild`: s7 expected
+  exit 0 in-worktree — the header fix is wholly render-side; s8 expected exit
+  1 in-worktree with ONLY the token-value candidates remaining, itemized;
+  lane `estimate`: s7 expected exit 0 (no estimate change on the reported
+  path), s8 expected exit 1 in-worktree with the token candidates STILL
+  UNKNOWN (the registry class lands in your worktree, but the header fix is
+  lane `rebuild`'s — the s8 exit 0 proves at INTEGRATION); the in-worktree
+  candidate lists verbatim). Itemized deviations/cuts. PHASE 0 disagreements
+  mandatory (a labeled PHASE 0 section). STATUS line last.
+
+- **Tool guidance.** Verification (from repos/tart): `bundle install --quiet
+  && bundle exec rake`, `bundle exec ruby bench/seam_bench.rb`; parity:
+  `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml
+  --out tmp/<out>`. pi sources: `packages/coding-agent/src/modes/interactive/
+  interactive-mode.ts:3686-3725` (compaction_end), `src/core/compaction/
+  compaction.ts:296-311` (estimateTokens, the system arm) — read before
+  coding; cite what you port. This session's captures (the byte oracle):
+  `repos/tart/tmp/parity-gate-s7/run-1/{pi,tart}.capture` and
+  `tmp/parity-gate-s8/…` (READ them; the header rows and the shift are
+  measured facts, Grounds 1).
+
+- **Boundaries.** Lane `rebuild` must not touch anything outside its set — in
+  particular `lib/tart/agent/**` ALL, `lib/tart/compaction.rb`,
+  `test/compaction_test.rb`, `test/agent_loop_test.rb`, `gems/**` (the
+  registry is lane `estimate`'s), `bin/tart`, `lib/tart/identity.rb`,
+  `lib/tart/settings.rb`, `lib/tart/agent/system_prompt.rb` (a PARALLEL
+  iteration I32 is building in identity/settings/prompt territory right now —
+  touching those files fails both iterations). Lane `estimate` must not touch
+  anything outside its set — in particular `lib/tart/render/**` ALL (lane
+  `rebuild`'s single-writer territory), `test/chat_test.rb`,
+  `test/render/**`, `gems/tui-split-rig/**` EXCEPT `registry.yml` (I32's
+  parallel territory — runner/lib/test/scenarios), `bin/tart`,
+  `lib/tart/identity.rb`, `lib/tart/settings.rb`. No placeholders; search
+  before implementing. Out of scope, itemize if tempted: the
+  loaded-resources-under-ctrl+o flip (queued backlog), the `[Context]` MOTD
+  section's existence (port feature, on the work list), the compaction
+  failure render paths (still unmeasured), `@last_assistant_text` on rebuild
+  (I30 itemized, unmeasured), the footer ↑/↓ value divergence (covered by
+  the existing footer class).
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision compaction-residuals`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: rebuild
+  repo: tart
+  touch:
+    - lib/tart/render/chat.rb
+    - lib/tart/render/transcript.rb
+    - test/chat_test.rb
+    - test/render/**
+- name: estimate
+  repo: tart
+  touch:
+    - lib/tart/compaction.rb
+    - lib/tart/agent/loop.rb
+    - test/compaction_test.rb
+    - test/agent_loop_test.rb
+    - gems/tui-split-rig/registry.yml
 ```
 
 ## Acceptance Criteria
