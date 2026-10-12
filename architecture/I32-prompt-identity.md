@@ -9,11 +9,98 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section prompt-identity grounds --from <file>`. -->
+# Grounds — I32 prompt-identity
+
+Measured this session (2026-10-12, the I30 judging session) at base 276eda3d
+(`project/pi-port` tip after I30; I31 lands before this iteration builds —
+see the fast-follow note in the Specification).
+
+1. **The port already contains the faithful prompt — unwired.** `lib/tart/
+   agent/system_prompt.rb` is a section-for-section port of pi's
+   `system-prompt.ts`: verbatim PREAMBLE ("You are an expert coding assistant
+   operating inside pi, a coding agent harness…"), `<tools>` (TOOL_SNIPPETS
+   covers all 7 port tools), `<rules>` (build_rules — the loadout-conditional
+   bullets incl. the edit-oldText discipline), `<docs>` (docs_paths param),
+   `<addendum>`, `<project_context>` (context_files param), `<skills>`
+   (reader-gated), `<cwd>`. `test/system_prompt_test.rb` pins the composition
+   against goldens. `Agent::SystemPrompt.build` is called from exactly ONE
+   place in the repo: its own tests. The live seam is `bin/tart:389`
+   `system_prompt(workdir, skills)` — a 203-char custom string ("You are a
+   coding assistant working in … keep answers brief") + the skills block —
+   feeding BOTH interactive (:199) and print (:232). No ruling in
+   ARCHITECT.md or BRIEF ever sanctioned the terse prompt; it is greenfield
+   scaffolding that calcified. The owner ruled this session: take pi's
+   harness prompt, identity-branded.
+
+2. **The missing seam: project context.** pi discovers context files
+   (resource-loader.ts:175-280: candidates `AGENTS.override.md`, `AGENTS.md`,
+   `AGENTS.MD`, `CLAUDE.md`, `CLAUDE.MD` per directory, ancestor walk,
+   worktree-shadowing) and injects them as `<project_context>`. The port has
+   ZERO context-file discovery — the user's AGENTS.md (persona, language
+   idioms, project rules) never reaches the model. The `context_files`
+   parameter already exists in SystemPrompt; the discovery is the missing
+   half. Highest-leverage §3 daily-driver gap in the port.
+
+3. **Owner rulings, 2026-10-12 (this session, recorded for the builders).**
+   (1) **Branding follows Identity — white-labelable out of the box**: any
+   identity value works (`foo` renders "inside foo" and loads `FOO_` vars);
+   it is not "support pi and tart", it is "configure the identity any way and
+   it works". (2) **`<docs>` paths KEEP pi's for now** (they are the spec the
+   port implements). (3) **The `PI_*` env-var rule follows Identity**: pi
+   mode → `PI_`, tart mode → `TART_`, `foo` → `FOO_`.
+
+4. **Identity today** (identity.rb, I16): VALUES locked `%w[pi tart]`
+   (anything else raises); DEFAULT pi; ENV_KEY `TART_IDENTITY`; SETTINGS_KEY
+   `identity`; pi mode renders ORACLE_VERSION "1.1.0" (the oracle's
+   package.json), tart mode Tart::VERSION. The parity scenarios stage NO
+   identity (tart runs in pi mode — that is why the rigs pass); `s1_tart.yml`
+   stages `TART_IDENTITY: tart` (scenario_test.rb:22 pins it).
+
+5. **Measured wire facts (this session's s8 request logs).** pi: role
+   `system`, 2,930 content chars, 4 tools (2,841 tool JSON). tart: role
+   `developer`, 203 content chars, 7 tools (4,971 tool JSON — MORE than pi).
+   The `<tools>`/`<rules>` sections therefore differ BY LOADOUT at the same
+   identity — loadout parity (4 vs 7) is a standing tart superset, queued,
+   NOT this iteration; the prompt golden is pinned at the SAME loadout.
+   pi's `PI_*` session envs are real behavior (bash.ts:221 exposes session
+   metadata as `PI_*` envs to bash, default true; the rule text at bash.ts:47)
+   — the port's bash sets none; the rule text is prompt parity only, the
+   exposure feature is queued (itemize).
+
+6. **The env-knob inventory (grep this session — every `TART_` literal in
+   lib/ + bin/):** settings.rb:63-67 (ENV map: defaultModel/defaultProvider/
+   apiBase/apiKey/modelReasoning → `TART_MODEL`/`TART_PROVIDER`/
+   `TART_API_BASE`/`TART_API_KEY`/`TART_MODEL_REASONING`), settings.rb:118
+   (`TART_CONTEXT_WINDOW`), identity.rb:17 (`TART_IDENTITY` — the bootstrap),
+   loop.rb:311 (`TART_CONTEXT_WINDOW` — the loop's env tier), models.rb:123-
+   126 (`TART_MODEL`/`TART_PROVIDER`), bin/tart:345/:425-426 (`TART_API_KEY`/
+   `TART_API_BASE`), bin/tart:443 + motd.rb:154 (`TART_MCP_CONFIG`). pi reads
+   NO mcp-config env (grep clean) — `TART_MCP_CONFIG` is a port-only knob;
+   it stays launcher-owned with `TART_IDENTITY` (the identity key cannot
+   depend on its own output; itemize both).
+
+7. **The rig staging seam.** runner.rb:242-246 stages tart's env with
+   `TART_*` literals. With identity-driven keys, the parity scenarios (tart
+   in pi mode, default) need `PI_*` keys staged or the mock connection
+   breaks — the runner becomes prefix-aware (staging follows the scenario's
+   identity). Verify the runner's parent-env hygiene: the operator's real
+   machine exports `PI_API_KEY` (they run real pi) — the staged env must not
+   inherit parent `PI_*`/`TART_*` values.
+
+8. **Why a fast-follow (sequencing ruling, this session).** I31 (dispatched
+   in parallel with this spec) edits loop.rb (the estimator threading) and
+   chat.rb/transcript.rb; this iteration must also edit loop.rb:311 (the env
+   key) and chat_test.rb (MOTD-identity pins). Same-file overlap across
+   parallel lanes is the merge-conflict spec defect the loop refuses to
+   hand-resolve — so this iteration is the sanctioned fast-follow pattern:
+   provisioned off the post-I31 `project/pi-port` tip, dispatched after I31
+   integrates. Its builders see I31's tree; its gates prove on the integrated
+   tree.
+
+9. **Control (this session, base 276eda3d).** Suite 565 runs / 2217
+   assertions / 0 failures / 1 pre-existing skip; s1–s6 exit 0; s7/s8 exit 1
+   (I31's residuals — green on this iteration's base after I31 lands);
+   s1_tart exit 0. All regression claims are against this baseline.
 
 ## Specification
 
