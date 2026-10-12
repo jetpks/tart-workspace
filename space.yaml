@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: whole-screen-selection
+  current_iteration: compaction-usage
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1200,9 +1200,19 @@ project:
   - name: compaction-usage
     ordinal: 29
     file: architecture/I29-compaction-usage.md
-    freeze_sha:
+    freeze_sha: 45ffeb612a060acf9d868efcbd6a8a1f459397fe
     verdict: pending
-    lanes: []
+    lanes:
+    - name: usage
+      repo: tart
+      touch_set:
+      - lib/tart/compaction.rb
+      - lib/tart/agent/loop.rb
+      - test/compaction_test.rb
+      - test/agent_loop_test.rb
+      - test/support/mock_llm_server.rb
+      - test/parity/mock_llm_extension_test.rb
+      - gems/tui-split-rig/**
     rehearsal:
       gates_digest: e754ec1025f839d5648073b3bb826e9ae9d1223866da7196b9b3713c34a10d73
       at: '2026-10-11T22:16:33-06:00'
