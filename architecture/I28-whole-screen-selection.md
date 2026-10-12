@@ -69,34 +69,108 @@ I27 + the owner-directed `build_surface` wiring fix):
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section whole-screen-selection specification --from <file>`. -->
+# Specification — I28 whole-screen-selection
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+- **Objective.** Close the last unported interaction surface on the road to BRIEF §8
+  (full settled-screen parity, the owner's done bar): pi's fullscreen app owns text
+  selection over EVERY rendered row — the owner selects in the editor area and footer
+  today and tart drops those clicks (Grounds 2-3). Deliver: (a) whole-screen selection
+  (row coverage + line readers + highlight over the editor/footer rows, copy-on-release
+  over all of them); (b) ctrl+x copy-selection-or-last-assistant (pi `app.message.copy`,
+  Grounds 1b); (c) the two I27-verdict chat.rb menu parity residuals (the ✓/· default
+  cross-resolution, the thinking-level gating) — chat.rb is single-writer, so they ride
+  here rather than a third wave (Grounds 1c). Why now: the Selection machine is already
+  pi-complete at its own layer; the remaining work is coverage and composition, all in
+  chat.rb + the two widget builders it composes with.
+
+- **Deliver whole-screen selection.** `content_point` maps clicks over EVERY screen
+  row (pi getSelectionPoint :1148's non-scrollview branch: plain terminal row/col,
+  clamped); the transcript keeps its scroll-buffer mapping (pi getScrollSelectionPoint
+  :1138 — unchanged); rows below map by area. The line reader answers plain text for
+  editor-area rows (the border rows and the input row(s) — what pi reads from
+  previousScreen) and footer rows (the two footer lines). pi reads the last-rendered
+  screen buffer (Grounds 2) — the port has no previousScreen accessor in live mode
+  as far as measured: VERIFY whether the render stack exposes the composed rows (the
+  edit-box build and Footer#widget compose the exact text pi's screen would hold);
+  if it does, prefer that; otherwise compose per-area readers and ITEMIZE the
+  deviation (composition vs screen-buffer read — same bytes, different source).
+  Double-click word / triple-click line / drag extension / copy-on-release must work
+  over every row, and the HIGHLIGHT must render over editor and footer rows too (the
+  transcript's `highlight_row` pass extended to those rows — the editor block is
+  chat.rb-composed, the footer widget is footer.rb's). At rest (no selection) the
+  settled screens are byte-identical to base: s1–s6 exit 0 cold is the regression
+  guard — selection adds zero chrome at rest.
+- **Deliver ctrl+x** (`app.message.copy`, pi interactive-mode :3116 +
+  handleCopyCommand :6848+ — READ pi's handler first): copies the ACTIVE selection's
+  text when one exists, else the last assistant message's text; the confirmation
+  flash matches pi's exact shape (verify: pi flashConfirmation's message + duration).
+  Wired in edit_input alongside the ctrl+l/ctrl+s routes.
+- **Deliver the model-menu marker cross-resolution** (I27 verdict residual): the ✓
+  current and · default markers must match the runtime model when the boot pair's
+  provider is a native WIRE slug (TART_PROVIDER=openai) while the catalog keys the
+  model under a non-native provider key (mock) — cross-resolve the wire provider back
+  to the catalog provider that serves the same model id (verify pi's equivalent: pi
+  boots `--model mock/mock-1` and its footer pair matches the catalog key directly —
+  pi has no wire-slug translation layer; itemize the port's cross-resolution as the
+  port-specific seam it is).
+- **Deliver the thinking-level gating** (I27 verdict residual): the thinking menu's
+  available levels gate on the runtime model's reasoning capability (pi
+  agent-session.ts:2657 `getAvailableThinkingLevels` → `getSupportedThinkingLevels`:
+  non-reasoning model → `[off]` alone); the runtime switch must re-gate (switching to
+  a reasoning:false catalog model shrinks the menu). The `/thinking <level>` bad-arg
+  error lists the GATED set (pi interactive-mode :5146-5155 uses the available levels
+  in its error). Verify the port's runtime-model reasoning source: footer_data's boot
+  fact, the runtime_model entry (I27's switch seam), or the known-models table —
+  thread whatever pi's session carries; itemize the source choice.
+- **Tests.** Direct-class tests for any Selection-machine additions (whole-screen
+  readers stay behind the injected line_reader seam — the machine should not know
+  about areas); chat_test pins: press/drag/release over editor and footer rows
+  (selection text + highlight), double/triple over a footer row, ctrl+x both branches
+  (selection active / last assistant), the marker cross-resolution under an env-boot
+  footer pair, the thinking gating (non-reasoning runtime model → `[off]`, reasoning →
+  all). Model assertions on pi's observable behavior; no mocks beyond the existing
+  test idioms.
+- **Boundaries.** Touch: `lib/tart/render/chat.rb`, `lib/tart/render/selection.rb`,
+  `lib/tart/render/footer.rb`, `test/chat_test.rb`,
+  `test/render/selection_test.rb` (new, only if the machine layer needs direct-class
+  pins). Must not: everything else — in particular `lib/tart/compaction.rb`,
+  `lib/tart/agent/loop.rb`, `test/compaction_test.rb`, `test/agent_loop_test.rb`,
+  `test/support/mock_llm_server.rb`, `test/parity/**`, `gems/tui-split-rig/**` (ALL
+  sibling iteration I29 compaction-usage's territory — a PARALLEL iteration is
+  building there right now; touching it fails both iterations),
+  `lib/tart/render/editor.rb`, `lib/tart/render/transcript.rb`,
+  `lib/tart/render/model_menu.rb`, `lib/tart/models.rb`, `lib/tart/settings.rb`,
+  `lib/tart/commands.rb`, `bin/tart`, `lib/tart/theme.rb`, `lib/tart/tui.rb`. No
+  placeholders; search before implementing. Out of scope, itemize if tempted: pi's
+  selection auto-scroll during drag at scrollview edges (the 50 ms timer — the port's
+  transcript wheel/scroll seam differs; queue, do not build), URL click-through
+  (pi pressedUrl — the port has no URL detection), the rig's menu-probe staging
+  (TART_PROVIDER=mock — the cross-resolution makes it moot).
+
+- **Tool guidance.** Verification (from repos/tart): `bundle install --quiet &&
+  bundle exec rake`, `bundle exec ruby bench/seam_bench.rb`; parity:
+  `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml
+  --out tmp/<out>`. pi sources: `repos/pi/packages/tui/src/tui-alt-screen.ts`
+  (selection family, :82-1500) and `repos/pi/packages/coding-agent/src/modes/
+  interactive/interactive-mode.ts` (:3108-3130 key bindings, :6840+ the copy
+  command) and `repos/pi/packages/coding-agent/src/core/agent-session.ts`
+  (:2657 getAvailableThinkingLevels) — read before coding; cite what you port.
+
+- **Output format.** Raw evidence to scratch: file list + wc; the surface table
+  (pi mechanic → port seam, before/after, per area: transcript/editor-border/input/
+  footer); verbatim test tails + suite counts; the at-rest settled-screen check
+  (s1–s6 exit codes from YOUR worktree run); itemized deviations. PHASE 0
+  disagreements mandatory. STATUS line last.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision whole-screen-selection`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: selection
+  repo: tart
+  touch:
+    - lib/tart/render/chat.rb
+    - lib/tart/render/selection.rb
+    - lib/tart/render/footer.rb
+    - test/chat_test.rb
+    - test/render/selection_test.rb
 ```
 
 ## Acceptance Criteria
