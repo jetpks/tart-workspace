@@ -35,34 +35,55 @@
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section editor-multiline specification --from <file>`. -->
+# Specification — I35 editor-multiline
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+- **Objective.** Close the owner's live-run show-stopper (BRIEF §8; Grounds 1): port pi's visual-line model into `Tart::Render::Editor` — logical lines × wrapped visual rows, cursor as a logical position with pi's visual navigation — render multi-row editor content in the bordered box with the box height following content (bounded by pi's layout rules), insert/keep real newlines, keep every existing op working across wrapped rows, and rebind pageUp/pageDown per the pre-ruled OPTION A (Grounds 8). Settled bytes elsewhere must not move: s1–s9 stay exit 0 cold (their settled screens carry the EMPTY one-row editor box); the new s10 scenario pins the wrapped-editor parity the rig can see cheaply.
+
+- **Port shape (single-writer surface work; read editor.ts's cursor-motion family before designing — Grounds 5).**
+
+  - **Editor state (lib/tart/render/editor.rb).** `@lines` (Array of strings, always ≥ 1) + `@cursor_line`/`@cursor_col` replace `@input`/`@cursor` as the state; `@preferred_visual_col` (sticky column, nil = unset) joins them; `@scroll_offset` (the visible-window top over visual rows) updates at render (pi editor.ts:364-373, :509-511). Readbacks: `input` stays the joined text (`lines.join("\n")` — the chat/autocomplete/submit callers keep working); `cursor` stays the derived FLAT char offset over the joined text (the existing test readback; `cursor_line`/`cursor_col` added alongside, pi `getCursor`'s shape); `text` joins too (pi `getText`). A `rows_reader` constructor seam (default `-> { 24 }`, chat wires `-> { screen_height }`) feeds pi's `maxVisibleLines = max(5, floor(rows * 0.3))` (:556-557) — ONE source for both the render window and page_scroll.
+  - **The wrap + visual map (pure class functions).** Port `wordWrapLine` (editor.ts:131-234) as `Editor.word_wrap_line(line, width)` → chunks `[{text:, start:, end_}]` in ORIGINAL-line char offsets, with the wrap-opportunity backtracking and forced breaks; char-unit (the recorded grapheme simplification), width-aware per char via `TUI.text_width` (CJK-width honest; the CJK break-opportunity rule cut, itemized). `build_visual_line_map(width)` → `[{line:, start_col:, length:}]` and `find_visual_line_at(map, line, col)` mirror editor.ts:1836-1892 (a cursor at `length` belongs to the LAST segment of its logical line). Do NOT reuse motd.rb's `wrap_single_line` (utils.ts semantics — wrong chunk contract).
+  - **Render surface.** `input_rows(inner)` replaces `input_spans` as the editor's render op: layout the visual rows (pi `layoutText` :997-1079), window to `max_visible_rows` keeping the cursor row visible (clamped per :566-578, mutating `@scroll_offset`), and return one `TUI.line` per row with the fake cursor as the existing reversed-span motif on the row containing the cursor (reversed grapheme / reversed trailing space at end-of-input; the end-of-input space may occupy the reserved width−1 column, :583-597). Wrap width = the caller's inner width (chat keeps `viewport_width − 1`, pi's reserved cursor column, :546-551). Expose the windowed row count for the area-height math.
+  - **Cursor-motion ops.** `move_left`/`move_right` wrap across logical-line boundaries; `move_start`/`move_end` go to LOGICAL line start/end (editor.ts:1613-1620); `move_word_backward`/`move_word_forward` cross lines at boundaries (end-of-line → start of next, col-0 → end of previous); `cursor_up`/`cursor_down` implement pi's full dispatch (Grounds 5: history gating on the first/last VISUAL line — empty/browsing/col-0 for up, browsing-only for down; home/end at the respective extreme; else one visual row through the sticky-column move); the sticky column is `computeVerticalMoveColumn`'s P/S/T/U table verbatim (editor.ts:1583-1611) inside `move_to_visual_line` (:1476-1558) WITHOUT the paste-marker snap (inert in a char-unit port — Grounds 5; itemized). `page_scroll(direction)` (editor.ts:1961-1973): pageSize = max(5, floor(rows*0.3)) via the sticky move. Every op preserves the I26 lastAction discipline and exits history browsing exactly as today.
+  - **Editing ops across lines.** `insert(text)` stays the typing op (:type_word); `insert_paste(text)` is the paste op (pi handlePaste minus markers, Grounds 6: exit history, `last_action = nil`, normalize \r\n|\r → \n + \t → 4 spaces, filter non-printables except \n, multi-line splice with the cursor at the end of the inserted tail); `add_new_line` splits at the cursor (:1328-1348); `delete_backward`/`delete_forward` merge with the previous/next line at boundaries (pi handleBackspace/handleForwardDelete); the kill ops gain the boundary arms — `delete_to_line_start`/`delete_to_line_end` kill the logical prefix/suffix and, at a boundary, kill the `"\n"` by merging lines (editor.ts:1626-1690, retiring editor.rb's "N/A" comments); word-deletes kill the `"\n"` at boundaries (:1692-1775); `yank` inserts multi-line text (insertYankedText :2044-2068); `yank_pop` deletes the previously yanked span across lines (deleteYankedText :2073-2108).
+  - **History + queries.** `add_to_history` unchanged (full multi-line text, trimmed); `navigate_history` drafts `[lines, cursor_line, cursor_col]`, recalls by splitting the entry, cursor at start (up) / end (down) (editor.ts:454-503); `clear` resets to `[""]`/0/0; `replace_token` keeps its flat-string line-0 contract (slash completions are line-0-only); `bash_mode?` reads line 0's prefix; `slash_token` gates to `cursor_line.zero?` (pi isSlashMenuAllowed, editor.ts:2178-2188) and reads line 0 only; the empty-editor test is `lines == [""]` (pi isEditorEmpty).
+  - **chat.rb wiring.** `editor_content_lines` renders `@editor.input_rows(inner)` + the autocomplete rows (unchanged placement); `editor_area_rows` = `[2 + windowed_input_rows + @autocomplete.rows, height − 1].min` (the box grows; the dock spacer still yields first; the transcript still floors at 1 — pi chat-viewport shrink rules, Grounds 4). Key dispatch: `enter` with shift or alt, and `ctrl+j`, route to `add_new_line` BEFORE the plain-enter path (the autocomplete confirm keeps pi's fall-through: a "/"-prefix completion applies then submits); plain `enter` when the char before the cursor is `\` deletes it and inserts a newline (editor.ts:906-917); otherwise submit (submit reads the joined text, trims — pi submitValue :1378-1392; the commands/user-bash/steering paths take the text unchanged). `page_up`/`page_down` rebind to `@editor.page_scroll(∓1)` per the ruling (Grounds 8) — no autocomplete guard (pi's editor pages even with the list open; editor.ts:960-967 fall-through), `Viewport#scroll_page` is deleted with the retired mapping, and the `mark_scrollbar_activity` arms on those keys go with it. The ↑/↓ scroll borders: when the window hides rows, compose the top/bottom border rows pi-exactly — the centered ` ↑ N more ` / ` ↓ N more ` label (createScrollBorder editor.ts:323-341, narrow fallbacks included) over dashes in the BORDER style; with an embedded working status, compose status-left + label-centered degrading to spinner-only on collision (custom-editor.ts:36-66). House judgment between a full-width composed title and a manually composed border row — where the gem's single title_style cannot express pi's per-segment styling, keep the bytes/layout and itemize the style deviation (unmeasured by the current rig; the label composition itself is unit-pinned).
+  - **README.** Update the keybindings table (Up/Down now visual-line navigation with history at the extremes; Shift+Enter/Ctrl+J newline; the backslash-enter idiom; PageUp/PageDown editor paging).
+
+- **Tests (the deterministic proof).** New direct-class coverage in `test/render/editor_multiline_test.rb` + additive surgery in `test/render/editor_test.rb`/`test/chat_test.rb` (re-point the Grounds-9 family to the wheel seam; new pins cell-readback through the session buffer where the property is visual):
+  1. wrap rendering at a narrow width — typed past EOL lands on visual row 2+ (chunk boundaries, cursor row/cell mapping, the reserved width−1 column);
+  2. cursor up/down across wrapped rows with sticky columns — the P/S/T/U table's reachable rows (shorter target clamps then restores the preferred column; non-last-segment clamp to length−1);
+  3. home/end to LOGICAL line start/end across wrapped rows (Grounds 5's correction, with the citation in the test comment);
+  4. kill-to-line-start/end on wrapped rows — logical prefix/suffix kills + the boundary `"\n"` kills/merges; word-deletes at boundaries; yank/yank_pop across lines (multi-line ring text);
+  5. box growth/clamping — the area grows with wrapped rows (cell readback: content on rows 2+), the maxVisible window caps it, the cursor row stays visible while typing past the cap, the ` ↑ N more `/` ↓ N more ` borders compose, the transcript cedes rows and re-renders clean;
+  6. multi-line history recall — a multi-line entry recalls all rows, cursor at start/end per direction, the draft restores, the recalled entry edits and submits as text;
+  7. newline insertion — shift+enter, alt+enter, ctrl+j, the backslash-enter workaround, and multi-line paste (normalization + filtering);
+  8. the OPTION A pin — pageUp/pageDown page the EDITOR's visual rows (sticky column, clamped), the transcript does NOT move, `Viewport` has no `scroll_page`, and the wheel still pans the transcript (re-pointed I12-era family);
+  9. slash/autocomplete stays line-0-only; bash mode; ctrl+d-on-empty across the multi-line shape; submit joins+trims.
+- **Rig (the frozen instrument).** New scenario `gems/tui-split-rig/scenarios/s10_editor_wrap.yml` (the s9 post_settle_keys precedent): one tiny text turn, then a long literal typed via `post_settle_keys` (no Enter — the capture shows the SETTLED screen with the wrapped, grown editor box and the fake cursor; keep the literal simple ASCII so tmux key-tokenization is safe). RED at base BY DESIGN (today's tart clips to one row — the I14 wave-1 tripwire precedent); exit 0 demands byte-identical settled screens. Registry additions-only if genuinely forced, each evidenced.
+
+- **Output format.** Raw evidence to scratch: file list + wc; the new-test list with verbatim run tails; the suite counts before/after; the s1–s10 exit codes (s10's base-exit-1 control run included); the PHASE 0 disagreement list (the Grounds 2-8 premises are checkable against repos/pi — cite what you read). STATUS line last.
+
+- **Tool guidance.** Verification (tart): `bundle install --quiet && bundle exec rake`, `bundle exec ruby bench/seam_bench.rb`; parity gates: `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml --out tmp/<short-out>` (s1–s10; SHORT out-dirs — deep paths trip the pre-existing footer-cwd truncation sensitivity). pi sources: `repos/pi/packages/tui/src/components/editor.ts` (the whole cursor-motion + render family), `packages/coding-agent/src/modes/interactive/components/custom-editor.ts` (border composition), `packages/coding-agent/src/modes/interactive/chat-viewport.ts` (dock), `packages/tui/src/keybindings.ts` (defaults), `packages/tui/src/tui.ts` + `tui-alt-screen.ts` (the Grounds-8 precedence facts). The gem: ratatui_ruby 1.5.0 key events carry `code` + `modifiers` (shift+enter = code "enter", modifiers ["shift"] — verified in the gem's event/key.rb). Read editor.rb's I26 ops and chat.rb's edit_input dispatch before designing.
+
+- **Boundaries.** May touch exactly: `lib/tart/render/editor.rb`, `lib/tart/render/chat.rb`, `lib/tart/render/viewport.rb` (the scroll_page deletion only), `test/render/editor_test.rb`, `test/render/editor_multiline_test.rb`, `test/chat_test.rb`, `README.md`, `gems/tui-split-rig/scenarios/s10_editor_wrap.yml`, `gems/tui-split-rig/registry.yml` (additions-only). Must not: `lib/tart/render/{autocomplete,kill_ring,selection,transcript,motd,footer,user_bash,model_menu,picker,text,panel,bash_block,file_blocks,tool_block}.rb` (kill_ring needs nothing — text in/text out; autocomplete rides the unchanged `slash_token`/`replace_token` seams), `lib/tart/agent/**`, `lib/tart/{theme,settings,commands,models}.rb`, `bin/tart`, `bench/**`, `gems/tui-split-rig/{lib,bin,test}/**` (the rig lane owns the rig), any existing scenario yml, any golden. Out of scope: Grounds 11's list. No placeholders; search before implementing.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision editor-multiline`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/render/editor.rb
+    - lib/tart/render/chat.rb
+    - lib/tart/render/viewport.rb
+    - test/render/editor_test.rb
+    - test/render/editor_multiline_test.rb
+    - test/chat_test.rb
+    - README.md
+- name: rig
+  repo: tart
+  touch:
+    - gems/tui-split-rig/scenarios/s10_editor_wrap.yml
+    - gems/tui-split-rig/registry.yml
 ```
 
 ## Acceptance Criteria
