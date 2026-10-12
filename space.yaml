@@ -1342,7 +1342,7 @@ project:
       - gems/tui-split-rig/test/**
       - gems/tui-split-rig/scenarios/**
       base_sha: 64d30afb6f34508565dd483379e3532f4dd4e681
-      worktree: build/I32-prompt-identity-prompt/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
