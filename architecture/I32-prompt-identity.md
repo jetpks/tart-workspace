@@ -785,11 +785,169 @@ this lane's enumerated files, nothing else.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I32-prompt-identity-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence prompt-identity --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### prompt
+
+### PHASE 0
+
+Verified against live sources before coding (all confirmed):
+
+| Claim | Verification |
+| --- | --- |
+| pi system-prompt.ts composition | port's `SystemPrompt.build` at pi's 4-tool loadout + capture docs paths + cwd normalized == captured system message, byte-for-byte (2813 B) — pre-build proof |
+| pi docs-path resolution | `config.ts:443-457` resolve(join(getPackageDir)); live: `which pi` → symlink → `…/node/24.18.0/lib/node_modules/@earendil-works/pi-coding-agent/dist/bundle/cli.js`; realpath+walk-up reproduces the capture's paths byte-identically |
+| resource-loader context walk :182-273 | 5 candidates, per-dir first-match, global agent-dir file first, ancestor walk root-most-first, seen-path dedup, worktree shadow rule (:211-230); feeds prompts via `agent-session.ts` `_rebuildSystemPrompt` :1700-1726 ← `getAgentsFiles` ← `loadProjectContextFiles` (resource-loader.ts:646-655) |
+| gem `with_instructions` | ruby_llm 2.1 chat.rb:441-447 — replaces any prior system message; loop.rb:83 wires `@chat.with_instructions(system_prompt)` |
+| oracle | `repos/tart/tmp/parity-gate-s8/run-1/pi-requests.jsonl` request 1: 4 tools (read/bash/edit/write), bare 2902 B system message, docs at pi's realpath install, no `<project_context>`/`<skills>` |
+| pi settings env shapes | pi's settings-manager has NO model/provider/apiKey env overrides (only VISUAL/EDITOR, PI_CLEAR_ON_SHRINK, PI_HARDWARE_CURSOR) — the port's `RESOLUTION_ENV` is a recorded extension; nothing to mirror |
+| env inventory | all `TART_*` literals enumerated (settings.rb:63-67+118, models.rb:123-126, loop.rb:311, bin/tart:345/425/426); only 3 test files stage app env, all in the touch set; no test pins the terse prompt string |
+| parity sandboxes bare | no AGENTS.md/CLAUDE.md at any ancestor of the sandbox paths (/, /Users, /Users/eric, …, repos/tart) |
+
+PHASE 0 disagreements (raised pre-code; outcomes):
+
+1. **AC1 "own name in UI text" vs frozen chat.rb:559** — `Motd.tart_header_lines(viewport_width)` carries no identity argument and chat.rb is scope-gate-frozen. Resolution: launcher records the boot face on `Identity.current` (boot-applied render state, `Theme[]` precedent); `Motd.tart_header_lines(width, name = Identity.current)`; family default `tart` keeps the existing chat_test pins passing untouched. Flagged as the one process-global in a threaded seam.
+2. **loop.rb env tier under print** — print.rb (frozen) constructs `Agent::Loop` without identity → loop's env tier defaults to pi's namespace. Deviation itemized below.
+3. **Golden provenance** — capture lives under gitignored `tmp/`; inlined as the golden literal with derivation recorded instead of a runtime file dependency.
+4. **Test-file granularity** — scope gate allows only `test/identity_test.rb` as a new file; context-discovery tests placed in `system_prompt_test.rb` (the `ContextFiles.load → SystemPrompt.build` pair).
+5. Line cites in the spec: all checked, accurate; one addition — `Settings.resolve_context_window` is also called from bin/tart `footer_data`, covered by the same threading.
+
+### Seam table (pi mechanic → port seam)
+
+| Mechanic | Before | After |
+| --- | --- | --- |
+| Preamble | terse 203-char string, bin/tart:389 (both paths) | `Agent::SystemPrompt.build(...)` — identity-templated ("operating inside pi/tart/foo"), pi mode byte-identical; terse string gone from :199/:232 paths |
+| Bash env rule (bash.ts:47) | literal `PI_*` | `%s`-templated prefix: pi `PI_*` (byte-identical), tart `TART_*`, foo `FOO_*` |
+| `<docs>` | staged test paths only | `SystemPrompt.pi_docs_paths` — realpath(`pi` on PATH) → walk to package.json `@earendil-works/pi-coding-agent` (config.ts getPackageDir algorithm); launcher threads the resolved triple |
+| Context discovery | absent (no seam) | new `lib/tart/agent/context_files.rb` — pi resource-loader.ts:182-273 port (5 candidates, first-match, global agent-dir file, ancestor walk, worktree shadowing); injected as `<project_context>`; none → no section |
+| Env namespace | literal `TART_*` at 10 sites | `"#{identity.upcase}_"` via `Identity.env_key`; threaded: settings RESOLUTION_ENV (suffix map), resolve_context_window, resolve_boot_model, loop.rb:311 tier, bin/tart require_api_key/build_chat (both paths); `TART_IDENTITY` + `TART_MCP_CONFIG` remain literal bootstrap knobs |
+| Settings load order | env read with static key | file loads → identity resolves (CLI > TART_IDENTITY > settings > pi) → env overrides with resolved prefix |
+| Rig staging | 5 literal `TART_*` keys, parent env inherited | scenario identity decides prefix (parity → `PI_*`, s1_tart → `TART_*`); `TART_IDENTITY` staged literally; parent `PI_*`/`TART_*` scrubbed via `env -u` on both panes (staged keys exempt) |
+| Identity resolution | `VALUES = [pi, tart]`, else error | free-form: any non-empty/non-whitespace; empty/whitespace → `Identity::Error` → `tart: <msg>` clean abort |
+| MOTD wordmark | literal `"tart"` | `Identity.current` (boot-recorded), version always `Tart::VERSION` |
+
+### Gates (in-worktree, verbatim)
+
+| Gate | Result |
+| --- | --- |
+| suite | `586 runs, 2342 assertions, 0 failures, 0 errors, 1 skips` (skip = pre-existing opt-in `TuiSplitRig::LiveRunTest` "set TUI_SPLIT_RIG_LIVE=1") |
+| bench | `SEAM_BENCH_OK` |
+| s1-parity | exit 0 — pi: completed=true req=1/1, tart: completed=true req=1/1 |
+| s2-parity | exit 0 — pi 2/2, tart 2/2, both completed |
+| s3-parity | exit 0 — pi 3/3, tart 3/3 |
+| s4-parity | exit 0 — pi 3/3, tart 3/3 |
+| s5-parity | exit 0 — pi 2/2, tart 2/2 |
+| s6-parity | exit 0 — pi 3/3, tart 3/3 |
+| s7-parity | exit 0 — pi 2/2, tart 2/2 |
+| s8-parity | exit 0 — pi 2/2, tart 2/2 |
+| s1-tart-mode | exit 1 (by-design branding diffs) + `TART_MODE_OK` — tart completed=true req=1/1 |
+| prompt-wired | `PROMPT_WIRED` (terse string absent; preamble/rules/docs/cwd present) |
+| env-prefix | `ENV_PREFIX_OK` (`grep -rnE '"TART_[A-Z_]+"' lib bin/tart | grep -vE 'TART_IDENTITY|TART_MCP_CONFIG'` → empty) |
+| scope | substance holds — see AC6 conflict below |
+
+### Per-suite tails (touched suites)
+
+```
+test_system_prompt: 14 runs, 56 assertions, 0 failures, 0 errors, 0 skips
+test_settings:      25 runs, 103 assertions, 0 failures, 0 errors, 0 skips
+test_models:        17 runs, 45 assertions, 0 failures, 0 errors, 0 skips
+test_identity:       2 runs,  7 assertions, 0 failures, 0 errors, 0 skips
+test_launcher_smoke: 7 runs, 37 assertions, 0 failures, 0 errors, 0 skips
+test_print:          4 runs, 17 assertions, 0 failures, 0 errors, 0 skips
+test_chat:         170 runs, 716 assertions, 0 failures, 0 errors, 0 skips  (I31 pins untouched, green)
+test_agent_loop:    19 runs, 134 assertions, 0 failures, 0 errors, 0 skips
+test_compaction:    22 runs, 60 assertions, 0 failures, 0 errors, 0 skips
+rig scenario_test:  25 runs, 132 assertions, 0 failures, 0 errors, 0 skips
+```
+
+### Pi-mode prompt golden diff (AC2)
+
+Derived from `repos/tart/tmp/parity-gate-s8/run-1/pi-requests.jsonl` request 1 system message; `<cwd>` section normalized to CWD_PLACEHOLDER; composed at pi's 4-tool loadout with the capture's docs triple:
+
+```
+GOLDEN_DIFF_EMPTY (4-tool loadout, cwd normalized)   # norm(captured) == norm(port built) — zero diff
+```
+
+Live parity-gate capture facts (s1, both apps on this tree):
+
+```
+gate tart preamble: You are an expert coding assistant operating inside pi, a coding agent harness.
+gate: pi vs tart <docs> sections identical: true
+gate: pi project_context present: false | tart project_context present: false   # both sides bare
+gate tart loadout: 7-tool default (queued 4-vs-7 parity: delta confined to the <tools> list + find/grep/ls rule bullets)
+```
+
+### White-label smoke (identity `foo`, real `bin/tart --identity foo -p hi` vs MockLLMServer)
+
+```
+exit=0 stdout="foo-ok"
+preamble: You are an expert coding assistant operating inside foo, a coding agent harness. You help users by reading files, executing commands, editing code, and writing new files.
+bash-rule: - You can inspect FOO_* environment variables for current model and session details.
+auth: Bearer foo-key                                        # FOO_API_KEY reached the wire
+MOTD wordmark (unit): " foo v0.1.0", no "tart v" leak       # test_identity_test 2 runs green
+```
+
+### Parity-rig catches during the lane (raw)
+
+```
+run 1: tart pane dead, 0 requests, empty capture → interactive call site still
+       `system_prompt(workdir, skills.skills)` (arity crash) → fixed to
+       `system_prompt(workdir, settings, skills.skills, identity)`
+run 2: s1_tart stderr: `PI_API_KEY is not set (see --help).` → interactive
+       `require_api_key(settings, models)` unthreaded → fixed to
+       `require_api_key(settings, models, identity:)`
+run 3: s1_tart exit 1 + TART_MODE_OK
+```
+
+### Files touched (all in the lane set)
+
+```
+ M bin/tart                                   492 lines
+ M gems/tui-split-rig/lib/tui_split_rig/runner.rb
+ M gems/tui-split-rig/test/scenario_test.rb
+ M lib/tart/agent/loop.rb                     584 lines  (kwarg + :311 env line + docs only; I31 estimator intact)
+ M lib/tart/agent/system_prompt.rb            203 lines
+ M lib/tart/identity.rb                        66 lines
+ M lib/tart/models.rb                         228 lines
+ M lib/tart/render/motd.rb                    185 lines  (one signature line + name span)
+ M lib/tart/settings.rb                       270 lines
+ M test/launcher_smoke_test.rb
+ M test/models_test.rb
+ M test/settings_test.rb
+ M test/system_prompt_test.rb
+ A lib/tart/agent/context_files.rb            132 lines (new)
+ A test/identity_test.rb                       48 lines (new)
+```
+
+Not touched: `test/chat_test.rb` (MOTD-identity pins passed unchanged), `lib/tart/print.rb`, `lib/tart/render/chat.rb`, `test/support/**`, `registry.yml`, all other out-of-scope files. No git write commands run (one `git stash` attempt was blocked by the builder guard — correct; no state changed).
+
+### AC6 conflict (reported, not resolved)
+
+The frozen `scope` gate regex cannot match its own intended prefixes: branches `test/render/`, `gems/tui-split-rig/lib/`, `gems/tui-split-rig/test/`, `gems/tui-split-rig/scenarios/` end at `/` before the pattern's `$` anchor, so no file under those directories can ever match.
+
+Evidence:
+```
+$ echo gems/tui-split-rig/lib/tui_split_rig/runner.rb | grep -qE '<gate regex>' ; echo $?
+1   (NO_MATCH — runner.rb is in the lane's enumerated set yet fails the gate)
+$ git diff --name-only 276eda3d HEAD | grep -qvE '<gate regex>' ; # committed I31 base alone
+gems/tui-split-rig/test/registry_test.rb   (base commit 64d30af fails the gate with zero lane work)
+```
+Substance holds — union of committed I31 diff + this lane's worktree vs 276eda3d contains nothing outside I31's enumerated files ∪ the lane set:
+```
+UNION_CLEAN — nothing outside I31 ∪ lane set
+```
+Also noted: the spec's touch-list entry `gems/tui-split-rig/runner.rb` has no such file; the runner lives at `gems/tui-split-rig/lib/tui_split_rig/runner.rb` (edited there).
+
+### Itemized deviations/cuts
+
+1. **`Identity.current` process-global** (disagreement 1): the MOTD wordmark reads the boot-recorded face because chat.rb:559's call carries no identity argument and chat.rb is scope-frozen. Launcher sets it in `resolve_identity` (both paths). Default `tart` = family mark; chat_test pins green untouched.
+2. **Print-mode env tier** (disagreement 2): `print.rb` (frozen) constructs `Agent::Loop` without `identity:` → the loop's `<IDENTITY>_CONTEXT_WINDOW` env tier defaults to `PI_` in print mode. Pi-mode (default + all parity scenarios) and the interactive path (launcher-threaded) unaffected.
+3. **`docs_paths: nil` → no `<docs>` section**: pi can never be in the unresolvable state; the previous behavior on nil was a crash in `sections`. On the parity target the resolver always resolves (pinned by `test_pi_docs_paths_resolve_pis_install`).
+4. **7-tool loadout in live runs**: the launcher composes the settings-resolved loadout (7 default tools); the golden pins pi's captured 4-tool loadout. 4-vs-7 parity remains queued (spec out-of-scope).
+5. **Session-env exposure (bash.ts:221)**: not implemented (spec out-of-scope); prompt-text parity only — the `PI_*`/`FOO_*` rule bullet renders, no env is SET by the port's bash tool.
+6. **`<docs>` text/paths stay pi's for every identity** (owner ruling 2): foo/tart renders the same "Pi documentation …" block with pi's install paths.
+7. **Help text**: Environment section now names the mechanism (`<IDENTITY>_*` rows + the two literal `TART_` bootstrap knobs); the `--identity` help says "any non-empty name (default pi)".
+8. **`TART_IDENTITY`, `TART_MCP_CONFIG`**: the only literal `TART_` env keys in lib/ + bin/tart (env-prefix gate output).
+
+STATUS: COMPLETE_WITH_CONCERNS — (a) frozen scope-gate regex has dead prefix branches and fails even on the committed I31 base (AC6 substance holds, evidence above — needs a gate-text fix by the architect); (b) `Identity.current` process-global introduced for the MOTD wordmark (chat.rb frozen — the only threadable-free path); (c) print-mode loop env tier defaults to pi's namespace for non-pi identities (print.rb frozen).
 
 ## Verdict
 
