@@ -368,7 +368,7 @@ architect-read).
   ac: AC6
   cwd: repos/tart
   cmd: |-
-    if grep -B12 'def compaction_panel_rows' lib/tart/render/transcript.rb | grep -q 'skill-invocation'; then exit 1; else echo COMMENT_OK; fi
+    if grep -B22 'def compaction_panel_rows' lib/tart/render/transcript.rb | grep -q 'skill-invocation'; then exit 1; else echo COMMENT_OK; fi
   expect:
     exit_code: 0
     stdout_match: COMMENT_OK
