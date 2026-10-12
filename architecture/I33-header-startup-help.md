@@ -253,6 +253,40 @@ and the human. Persist until your lane is fully handled end-to-end; do not stop
 at analysis or partial fixes.
 
 === SPECIFICATION (I33 core — the whole iteration is this lane) ===
+
+### core
+
+# CONTINUE — lane core, iteration I33 header-startup-help (same lane, same session, same rules)
+
+Your previous builder process was killed EXTERNALLY at ~12:03 local (EPIPE on
+the output stream — the operator stopped the dispatch harness from the
+architect side). It was not a defect in your work and not a failing command.
+Your last completed action was a bash grep of
+`gems/tui-split-rig/test/live_run_test.rb` (the TUI_SPLIT_RIG_LIVE skip
+guard). All of your worktree edits are intact and uncommitted, exactly as
+required. Your scratch report was NOT yet written — that is the missing piece.
+
+This message resumes the same session. Your original lane prompt remains in
+force in full: boundaries (touch set), tool guidance, no git write commands,
+no run_in_background / shell `&`, explicit timeouts on long commands, raw
+results only, every status claim backed by a command result from this run.
+
+Finish the lane end-to-end:
+
+1. Re-orient cheaply — `git status` in the worktree to see what you already
+   changed. Do NOT redo work that is already done; do not rewrite files that
+   are already in their final state.
+2. Complete whatever implementation and verification remained when the
+   process died, including running the acceptance criteria's gate commands
+   and recording their verbatim output.
+3. Write the report exactly as the original prompt requires — RAW results
+   only (tables, numbers, command output), compact, no title, headings at
+   `###` or deeper — to
+   /Users/eric/architect/spaces/20261009-pi-port/build/I33-header-startup-help-core/report.md
+   (absolute path, outside your worktree). End it with exactly one status
+   line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them) | BLOCKED
+   (exact blocker + what you tried).
+
 ## Specification
 
 **Objective.** The startup-help flip — ctrl+o's second half (BRIEF §8: full settled-screen parity; the §8 instrument decides). Today the global ctrl+o toggle sweeps only the transcript's expandable tool blocks (chat.rb `set_tool_output_expanded`); pi's toggle ALSO flips (a) the built-in header compact↔expanded (the full 19-line startup hint list) and (b) the loaded-resource sections' compact↔expanded bodies (pi `setToolsExpanded`, interactive-mode.ts:4557-4576). The port's header/sections are static rows pushed once at boot (chat.rb `enqueue_motd`), cut + itemized since I24. This iteration ports the flip end-to-end and opens the chat.rb queue (the single-writer backlog line). It also lands the two things the new instrument forces: pi's `showStatus` transcript-row semantics (a persistent dim row at the chat tail, reused in place — the port currently paints "Tool output: expanded" into the editor border title, a settled-screen divergence the moment a scenario sends ctrl+o) and the I32 fold-in `Identity.current` retirement (chat.rb opens this iteration).
