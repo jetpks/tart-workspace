@@ -385,10 +385,284 @@ architect-read).
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I31-compaction-residuals-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section compaction-residuals prompt --append --lane <lane> --from build/I31-compaction-residuals-<lane>/prompt.md`. -->
+### rebuild
+
+# Lane dispatch — I31 compaction-residuals, lane `rebuild`
+
+**You are lane `rebuild`.** You are ONE of TWO parallel lane agents dispatched
+together (the other is lane `estimate` of the SAME iteration, isolated in its
+own worktree — its territory is `lib/tart/compaction.rb`,
+`lib/tart/agent/loop.rb`, `test/compaction_test.rb`,
+`test/agent_loop_test.rb`, and `gems/tui-split-rig/registry.yml`, which you
+must NEVER touch). Your lane's territory, exhaustively:
+
+- **Touch (exactly these files):** `lib/tart/render/chat.rb`,
+  `lib/tart/render/transcript.rb`, `test/chat_test.rb`, `test/render/**`.
+- **Must not touch:** everything else — in particular `lib/tart/agent/**`
+  ALL, `lib/tart/compaction.rb`, `test/compaction_test.rb`,
+  `test/agent_loop_test.rb`, `gems/**` ALL (the rig registry is lane
+  `estimate`'s), `bin/tart`, `lib/tart/identity.rb`, `lib/tart/settings.rb`,
+  `lib/tart/agent/system_prompt.rb`, `lib/tart/models.rb`,
+  `lib/tart/render/motd.rb`, `test/support/**`.
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you
+have with this spec, with reasons, citing real files in this repo. Silent
+compliance is a failure. Silent scope additions are a failure. If you have no
+disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them (notably: pi's compaction_end clear semantics — read
+interactive-mode.ts:3686-3725 and determine WHAT pi's header container holds
+vs the chat container; and the rig captures at
+`tmp/parity-gate-s7/run-1/{pi,tart}.capture` — read them, the 7-row shift is
+a measured fact).
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property
+the AC asserts, build the right thing and raise the conflict in your report —
+name the AC, the conflict, and the evidence. This is not permission to skip
+work or weaken a criterion: the conflict is reported, never silently
+resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed above. No placeholder
+implementations — search the codebase before implementing; full
+implementations only. Write IDIOMATIC, house-consistent code: read the
+neighbouring code and match its conventions (naming, guards, predicates,
+error/persistence idioms, the language's expressive collection/enumerable
+forms); well-factored and DRY-ish; terse but clear; pragmatic, not clever —
+the smallest change that does the job, no abstraction it doesn't need.
+Consistency with the surrounding code is part of correctness here: a change
+that works but fights the house style (or introduces an inconsistency a
+careful reader of this repo would never write) is not done. Tests stay simple
+and terse, exercising public behavior, no mock/stub of the class under test.
+Verify your work by running the acceptance criteria's gate commands and
+record the verbatim output. Do NOT commit and do NOT run any git write
+command (commit/add/branch/reset/checkout) — the architect commits and merges
+after verification, and verifies you made no commits. Do NOT delete lock
+files or escalate privileges if a command fails; record the exact error and
+continue. Do NOT use `run_in_background` (or shell `&`) for your own work —
+this process terminates when you end your turn and reaps its own children, so
+backgrounded work is SIGTERMed and its output lost while the run still exits
+0; run long commands serially in the foreground instead. Give every
+potentially long command an explicit timeout (the parity rig runs take tens
+of seconds each — allow 120s+ each). IMPORTANT tmux discipline: a
+`tmux kill-server` from you kills every other agent's live sessions on the
+shared server — NEVER run it; kill only sessions you created by exact name
+(the runner's sessions are token-scoped). If a runtime will not start
+unattended, record the exact failure in your report and route around it —
+never busy-wait or retry in a loop. When done, write your report to the
+scratch file given to you below (an absolute path OUTSIDE your worktree),
+with RAW results only — tables, numbers, command output — no interpretation,
+no "promising". Every status claim must be backed by a command result from
+this run. Keep the report compact — tables and numbers, not prose. Do not
+title the report; keep any headings inside the report at `###` or deeper.
+End it with exactly one status line: STATUS: COMPLETE |
+COMPLETE_WITH_CONCERNS (list them) | BLOCKED (exact blocker + what you
+tried). Verdicts belong to the architect and the human. Persist until your
+lane is fully handled end-to-end; do not stop at analysis or partial fixes.
+
+Your scratch report (write RAW results here, never inside your worktree):
+/Users/eric/architect/spaces/20261009-pi-port/build/I31-compaction-residuals-rebuild/report.md
+
+## Your lane's specification (lane `rebuild` ONLY — lane `estimate`'s
+## deliverables are NOT yours)
+
+- **Objective (iteration context).** Close I30's two root-caused residuals:
+  the MOTD wipe (the compaction rebuild clears the header pi keeps — s7's
+  entire 14-candidate unknown set is one 7-row vertical shift) and the s8
+  estimator scope (lane `estimate`'s). YOUR lane owns the header-preserving
+  rebuild and the comment fold.
+
+- Deliver **the header-preserving rebuild**: pi's `compaction_end` clears the
+  CHAT container and its MOTD header container survives untouched
+  (interactive-mode.ts:3686-3725 — read it; the capture is the oracle). The
+  port's transcript is one buffer, so the rebuild must leave the header rows
+  on screen: preserve the MOTD region through the wipe, or re-render the
+  header block — VERIFY which is faithful (measure what pi's header contains
+  in a loaded-resources session vs the rig capture; the rig stages only
+  settings.json, and pi's settled header shows art + help + `Pi can
+  explain…` ONLY). The `[Context]`/resource listings must NOT reappear —
+  port-only listings (the registry's staged-settings-path comment: "the
+  [Context] heading itself stays a candidate"; their long-term home is the
+  queued startup-help flip, out of scope here). Everything else I30 landed
+  stays: kept entries chronologically, panel LAST, footer invalidate (not
+  reset), history not duplicated, `:compaction_start` untouched.
+
+- Deliver **the comment fold**: transcript.rb ≈:365-373 — the comment block
+  atop `compaction_panel_rows` opens with 9 pasted lines of the SKILL-panel's
+  comment before the actual compaction-panel comment starts (line 376). The
+  method's comment starts at its own subject; the pasted lines are deleted.
+
+- Tests: adjust the I30 rebuild pins for the header's presence (MOTD rows
+  survive the rebuild; `[Context]` not resurrected; kept entries + panel
+  last + footer-not-reset pins stand). No rig changes in THIS lane.
+
+- **In-worktree gate expectations (spelled precisely — the frozen spec's
+  output-format line compresses this):** s1–s6 exit 0; **s7 exit 0** (the
+  header fix is wholly render-side — all 14 unknowns are yours to close);
+  **s8 exit 1** with ONLY the token-value candidates remaining (lane
+  `estimate`'s estimator + registry class are absent from your worktree —
+  itemize the remaining candidate list verbatim; do not chase it). The s7/s8
+  exit-0 pair proves at INTEGRATION.
+
+## Frozen ACCEPTANCE CRITERIA (verify against these; never weaken them)
+
+**AC1 (the header-preserving rebuild).** On the `:compaction` event the
+settled tart screen matches pi's settled screen modulo sanctioned classes:
+the MOTD header rows (art, startup-help lines, `Pi can explain…`) survive the
+rebuild at pi's positions, the kept entries and panel follow, and no
+port-only resource listing (`[Context]` et al.) is resurrected by the
+rebuild. The I30 pins stand unchanged otherwise: kept entries chronological,
+panel LAST, footer invalidated not reset, history not duplicated,
+`:compaction_start` untouched. Proof: the s7 gate exits 0 cold + the
+chat-test pins (MOTD survives, `[Context]` absent, rebuild pins).
+
+**AC2 (the estimator scope).** [Lane `estimate`'s deliverable — not yours;
+its gate (s8) proves at integration.] The zero-usage estimate covers the
+full wire context — message text AND the tool schemas sent on the request
+(pi estimateTokens' `toolsAdded` equivalent, compaction.ts:296-311) — counted
+once, not per-message; the usage-backed path is unchanged. Pinned by
+compaction/agent_loop tests on the estimate arms; the reported-usage path
+stays value-identical (s7's panel shows 15, both sides).
+
+**AC3 (the registry class).** [Lane `estimate`'s deliverable — not yours.]
+`compaction-token-estimate` added to registry.yml: line-anchored on the
+panel's token row (matches both sides' `Compacted from <grouped> tokens`
+spellings), documented with the owner-agreed provenance (2026-10-12: each
+app's estimate over its own deliberately different context; the class
+forgives only the number — the panel bytes stay pinned by the I30 chat
+tests). Registry additions-only vs 276eda3d — no edits to existing classes.
+Proof: s8 exits 0 cold with the class in place.
+
+**AC4 (regression).** s1–s6 all exit 0 cold; the default rake task fully
+green with run-count delta ≥ 0 (adjusted pins count); SEAM_BENCH_OK.
+
+**AC5 (scope).** The integrated diff vs 276eda3d touches exactly the union of
+the two lanes' enumerated files: chat.rb, transcript.rb, chat_test.rb,
+test/render/**, compaction.rb, loop.rb, compaction_test.rb,
+agent_loop_test.rb, gems/tui-split-rig/registry.yml. (Your lane's diff alone:
+chat.rb, transcript.rb, chat_test.rb, test/render/** — the scope gate checks
+the union at integration.)
+
+**AC6 (the comment fold).** The comment block atop `compaction_panel_rows`
+(transcript.rb) starts at its own subject — the 9 pasted skill-panel lines
+are gone.
+
+```gates
+- id: suite
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/parity-gate-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/parity-gate-s6
+  expect:
+    exit_code: 0
+
+- id: s7-header
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7
+  expect:
+    exit_code: 0
+
+- id: s8-estimate
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml --out tmp/parity-gate-s8
+  expect:
+    exit_code: 0
+
+- id: registry-additions-only
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    if git show 276eda3d:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml | grep -q '^<'; then exit 1; else echo REGISTRY_ADDITIONS_ONLY_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: REGISTRY_ADDITIONS_ONLY_OK
+
+- id: comment-fold
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    if grep -B22 'def compaction_panel_rows' lib/tart/render/transcript.rb | grep -q 'skill-invocation'; then exit 1; else echo COMMENT_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: COMMENT_OK
+
+- id: scope
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only 276eda3d HEAD | grep -qvE '^(lib/tart/render/chat\.rb|lib/tart/render/transcript\.rb|test/chat_test\.rb|test/render/|lib/tart/compaction\.rb|lib/tart/agent/loop\.rb|test/compaction_test\.rb|test/agent_loop_test\.rb|gems/tui-split-rig/registry\.yml)$'; then exit 1; else echo SCOPE_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
+```
 
 ## Builder Report
 
