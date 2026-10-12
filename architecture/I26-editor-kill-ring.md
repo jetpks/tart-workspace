@@ -715,11 +715,138 @@ Your scratch report (write RAW results here, never inside the worktree):
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I26-editor-kill-ring-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence editor-kill-ring --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### editor
+
+### Files (lane editor + lane rig)
+
+```
+ M gems/tui-split-rig/lib/tui_split_rig/runner.rb    | 66 ++++++-
+ M gems/tui-split-rig/lib/tui_split_rig/scenario.rb  | 41 ++++-
+ M lib/tart/render/chat.rb                           |  6 +
+ M lib/tart/render/editor.rb                         | 89 ++++-
+ M test/chat_test.rb                                 | 85 + (0 deletions)
+?? gems/tui-split-rig/bin/pending-probe              (new)
+?? gems/tui-split-rig/scenarios/s7_compaction.yml    (new)
+?? lib/tart/render/kill_ring.rb                      (new)
+?? test/render/kill_ring_test.rb                     (new)
+```
+
+`git status --short` shows exactly the sanctioned files; nothing else modified.
+
+### Binding table (pi keybindings.ts:85-141 → port chat.rb edit_input)
+
+| pi action | pi default | port before | port after |
+|---|---|---|---|
+| cursorLineStart | home, ctrl+a | chat.rb:626 ctrl+a | unchanged (regression-pinned) |
+| cursorLineEnd | end, ctrl+e | chat.rb:627 ctrl+e | unchanged (regression-pinned) |
+| cursorLeft/Right | left/ctrl+b, right/ctrl+f | chat.rb:622-623, 628-629 | unchanged |
+| cursorWordLeft/Right | alt+left/ctrl+left/alt+b, … | chat.rb:622-623, 628-629 | unchanged |
+| pageUp/pageDown | pageUp/ctrl+pageUp, … | chat.rb:610-617 | unchanged |
+| deleteCharBackward | backspace | chat.rb:618-621 | unchanged |
+| deleteCharForward | delete, ctrl+d | chat.rb:621, 630-643 | unchanged |
+| deleteWordBackward | ctrl+w, **alt+backspace** | both bound at base (chat.rb:618, 643) | unchanged; now a kill op; regression-pinned |
+| deleteWordForward | **alt+d**, alt+delete | both bound at base (chat.rb:621, 638) | unchanged; now a kill op; regression-pinned |
+| deleteToLineStart | ctrl+u | unbound (fell to insert_printable) | chat.rb: `when "u"` → delete_to_line_start |
+| deleteToLineEnd | ctrl+k | unbound | chat.rb: `when "k"` → delete_to_line_end |
+| yank | ctrl+y | unbound | chat.rb: `when "y"` ctrl branch → yank |
+| yankPop | alt+y | unbound | chat.rb: `when "y"` alt branch → yank_pop |
+| jumpForward/jumpBackward, undo, newLine, copy | ctrl+], ctrl+-, shift+enter/ctrl+j, ctrl+c(selection) | unbound | unbound — out of scope per spec |
+
+Phase 0 finding: Grounds 3 claimed alt+backspace/alt+d were missing — chat.rb bound both at base (line refs above). No binding work existed for them; pinned by tests instead.
+
+### Suite + bench (AC5)
+
+```
+$ bundle exec rake
+Finished in 21.200126s, 21.9810 runs/s, 86.6033 assertions/s.
+466 runs, 1836 assertions, 0 failures, 0 errors, 1 skips
+
+$ bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+SEAM_BENCH_OK
+```
+
+New tests: 15 (test/render/kill_ring_test.rb) + 6 (test/chat_test.rb binding cases) = 21 → run-count delta +21 over base.
+
+```
+$ bundle exec ruby test/render/kill_ring_test.rb | tail -1
+15 runs, 36 assertions, 0 failures, 0 errors, 0 skips
+
+$ bundle exec ruby test/chat_test.rb -n '/ctrl_u_kills|ctrl_k_kills|alt_y_cycles|alt_y_is_a_no_op|ctrl_a_and_ctrl_e|alt_backspace/' | tail -1
+6 runs, 13 assertions, 0 failures, 0 errors, 0 skips
+```
+
+test/chat_test.rb diff: `git diff --numstat` → 85 added, 0 deleted (byte-wise: the new binding cases only).
+
+### Gate commands (verbatim exits, this worktree, post-change)
+
+| gate | exit | output |
+|---|---|---|
+| kill-ring-class | 0 | KILL_RING_OK |
+| editor-ops | 0 | EDITOR_OPS_OK |
+| bindings-wired | 0 | BINDINGS_OK |
+| ctrld-tripwire | 0 | CTRLD_OK |
+| s1-parity (tmp/parity-gate-s1) | 0 | — |
+| s2-parity | 0 | — |
+| s3-parity | 0 | — |
+| s4-parity | 0 | — |
+| s5-parity | 0 | — |
+| s6-parity | 0 | — |
+| s7-baselined | run exits 1 (see below) | — |
+| registry-additions-only | 0 | diff vs 16f20fd registry.yml empty (additions-only holds: zero changes) |
+
+Environmental note: three runs exited 2 with `failure: leftover tui-split-rig-* tmux sessions` — the sibling rig lane's sessions (`tui-split-rig-pi-s4_bash_variants-r1-69ab`, `tui-split-rig-pi-s2_tool_turn-r1-0bda`, `tui-split-rig-pi-probe_tool_pending-r1-fb78`) on the shared tmux server; clean re-runs of the same commands all passed. One earlier s3-s6 exit-1 burst was self-inflicted: out-dir names longer than the gates' pushed the `run-\d+/` anchor past the 120-col truncation; gate-exact out dirs all exit 0.
+
+### s7_compaction (AC6)
+
+Scenario seam added: `context_window:` (pi staged models.json `contextWindow` + port `TART_CONTEXT_WINDOW`) and `compaction:` (staged verbatim into pi `settings.json` and the port's `<sandbox>/.tart/settings.json` — both read pi's camelCase keys). s7 uses `context_window: 512`, `compaction: {keepRecentTokens: 10}`.
+
+```
+$ gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7
+exit=1   (no rig failure; both apps completed; pi requests 2/2, tart requests 2/2)
+```
+
+The `/compact` route was ruled out first: the runner sends exactly one prompt then settles once (runner.rb run_app) — no mid-sequence key injection. Threshold trigger used; verified trigger math on both sides (pi compaction.ts:268 + agent-session.ts:3081 post-turn; port compaction.rb:200 + loop.rb:253). First attempt with default keepRecentTokens 20000 was a no-op on both apps (findCutPoint kept everything, cut 0 → prepare nil, request count stayed 1) — hence the `compaction:` seam.
+
+Candidate list (the panel-port work list, 11 text + 1 style):
+
+| sign | candidate line |
+|---|---|
+| - | (blank) |
+| - | `The mock reply is fixed and short; the threshold then fires.` |
+| - | (blank) |
+| - | (blank) |
+| - | `[compaction]` |
+| + | `[Context]` |
+| - | `Compacted from 15 tokens (ctrl+o to expand)` |
+| + | `settings.json` |
+| + | `hello` |
+| + | `The mock reply is fixed and short; the threshold then fires.` |
+| + | `✻ compacted (threshold, 15 tokens)` |
+| ~ style | `"" pi= tart=[fg=rgb:126;136;142,false]"  "` |
+
+pi renders a collapsed `[compaction]` panel ("Compacted from 15 tokens (ctrl+o to expand)"); the port renders the `[Context]` summary message expanded inline (including the staged settings.json read and the raw summary body) plus a "✻ compacted (threshold, 15 tokens)" line. Existing registry classes absorbed the path noise (parity-run-path 3x, footer-provider-prefix 2x); the render differences above stay unknown-candidates deliberately — they are the work list, so registry.yml gets zero new classes this lane.
+
+### Pending-state probe (AC6)
+
+```
+$ gems/tui-split-rig/bin/pending-probe --out tmp/pending-probe
+probe: pi -> …/tmp/pending-probe/pi
+probe: tart -> …/tmp/pending-probe/tart
+exit=0
+```
+
+Mid-flight capture (mock request 1 landed; scripted `bash sleep 6` tool call pending; captured between requests 1 and 2):
+
+- pi pane (styled capture line 13): `ESC[1mESC[38;2;222;224;225m$ sleep 6 ESC[0m ESC[48;2;52;56;58m` — the pending tool block paints bg rgb(52,56,58) = pi's `toolPendingBg` (tool-execution.ts:90-91), with an elapsed timer row ` Elapsed 1.0s`.
+- tart pane (plain): `⠇ tool: bash ────…` border status only — no pending tool block is drawn; the block lands at completion (completion-only enqueue).
+
+Evidence files: `tmp/pending-probe/{pi,tart}/run-1` out dirs were transient; captures under `tmp/pending-probe/pi/pi.capture[.styled]`, `tmp/pending-probe/tart/tart.capture[.styled]` (this worktree's tmp/, not committed).
+
+### Registry diff
+
+`git show 16f20fd:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml` → empty (exit 0). Zero additions, zero removals.
+
+STATUS: COMPLETE_WITH_CONCERNS — (1) the rig's `assert_clean_sessions!` counts the sibling lane's tmux sessions as its own failure on the shared default tmux server; concurrent lanes can flake each other's gates (observed 3x exit 2, all clean on re-run). (2) s7's baseline candidate list depends on the scenario seams added to runner/scenario (`context_window:`, `compaction:`); the /compact slash route cannot ride the one-prompt runner. (3) Grounds 3's alt+backspace/alt+d premise was stale — both were already bound at base; covered by regression pins, no binding change.
 
 ## Verdict
 
