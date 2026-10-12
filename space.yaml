@@ -1278,7 +1278,7 @@ project:
     ordinal: 31
     file: architecture/I31-compaction-residuals.md
     freeze_sha: 40304df32f5b1bbe10ccdb7882616461fa768c0d
-    verdict: pending
+    verdict: continue
     lanes:
     - name: rebuild
       repo: tart
@@ -1341,6 +1341,14 @@ project:
       - gems/tui-split-rig/lib/**
       - gems/tui-split-rig/test/**
       - gems/tui-split-rig/scenarios/**
+      base_sha: 64d30afb6f34508565dd483379e3532f4dd4e681
+      worktree: build/I32-prompt-identity-prompt/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      dispatched_at: '2026-10-12T03:04:48-06:00'
+      effort: high
     rehearsal:
       gates_digest: ef999cc06c96a7f88f4c75faaf1817f0fbce6f9964ba6cb8bb616bf0e367f456
       at: '2026-10-12T02:03:22-06:00'

@@ -1231,3 +1231,23 @@ exit 0 cold, zero style differences), the diff is mechanism-faithful to pi
 the single gate FAIL is the spec's own authoring, ruled and remediated, not
 a builder defect. Merged: rebuild 2950409e, estimate 4657114d, ruling fix
 64d30af on project/pi-port.
+
+## Acceptance Criteria
+
+| AC# | Raw result | Brief § | Verdict |
+|-----|------------|---------|---------|
+| AC1 | s7 exit 0 cold, 0 unknown-candidates, style diffs none; chat pins: header survives above kept entries, `[Context]` not resurrected, I30 pins stand (suite green) | §8 | **PASS** |
+| AC2 | estimate arms cover the wire tools counted once (byte-exact wire-JSON pin; once-not-per-message pin; usage-backed path unchanged — s7 panel 15 both sides) | §8 | **PASS** |
+| AC3 | `compaction-token-estimate` added additions-only with owner-agreed provenance; s8 exit 0 cold — token rows classified (pi 1,482 / tart 1,256, each its own measurement) | §8 | **PASS** |
+| AC4 | s1–s6 exit 0; suite 569 runs / 2231 assertions / 0 failures / 1 pre-existing skip (delta +4); SEAM_BENCH_OK | §8 | **PASS** |
+| AC5 | scope gate exit 1: diff vs 276eda3d = the 8 lane files + `gems/tui-split-rig/test/registry_test.rb` (the ruled one-word fix, 64d30af) | §8 | **FAIL** (letter — see ruling 1: jointly-unsatisfiable authoring defect; both lanes' own worktree diffs verified exactly in-bounds) |
+| AC6 | COMMENT_OK; architect-read: the compaction-panel comment opens at its own subject (11 pasted lines deleted) | §8 | **PASS** |
+
+## Iteration
+
+**CONTINUE** — both I30 residuals are closed at the instrument (s7 + s8
+exit 0 cold, zero style differences), the diff is mechanism-faithful to pi
+(header container model + estimateTokens' system arm) and house-idiomatic;
+the single gate FAIL is the spec's own authoring, ruled and remediated, not
+a builder defect. Merged: rebuild 2950409e, estimate 4657114d, ruling fix
+64d30af on project/pi-port.
