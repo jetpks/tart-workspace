@@ -848,6 +848,116 @@ Evidence files: `tmp/pending-probe/{pi,tart}/run-1` out dirs were transient; cap
 
 STATUS: COMPLETE_WITH_CONCERNS — (1) the rig's `assert_clean_sessions!` counts the sibling lane's tmux sessions as its own failure on the shared default tmux server; concurrent lanes can flake each other's gates (observed 3x exit 2, all clean on re-run). (2) s7's baseline candidate list depends on the scenario seams added to runner/scenario (`context_window:`, `compaction:`); the /compact slash route cannot ride the one-prompt runner. (3) Grounds 3's alt+backspace/alt+d premise was stale — both were already bound at base; covered by regression pins, no binding change.
 
+### rig
+
+### Files (both lanes)
+
+```
+ lib/tart/render/kill_ring.rb                      (new, 54 lines)
+ lib/tart/render/editor.rb                         (modified, +110/-20)
+ lib/tart/render/chat.rb                           (modified, +12)
+ test/chat_test.rb                                 (modified, +101/-0 — additions only)
+ test/render/kill_ring_test.rb                     (new, 5 tests)
+ test/render/editor_kill_ring_test.rb              (new, 16 tests)
+ gems/tui-split-rig/scenarios/s7_compaction.yml    (new)
+ gems/tui-split-rig/scenarios/probe_tool_pending.yml (new)
+ gems/tui-split-rig/bin/tool-pending-probe         (new, executable)
+ gems/tui-split-rig/lib/tui_split_rig/scenario.rb  (modified: optional context_window)
+ gems/tui-split-rig/lib/tui_split_rig/runner.rb    (modified: boot_session split, staging, 7 methods public)
+ gems/tui-split-rig/test/scenario_test.rb          (modified: +5 load/staging pins)
+ gems/tui-split-rig/registry.yml                   (modified: +1 class, additions only)
+```
+
+`git diff --stat`: 7 files, 352 insertions(+), 20 deletions(-). Untracked tmp/ artifacts only otherwise. No commits made.
+
+### Editor binding table (pi keybindings.ts editor defaults → port)
+
+| pi binding (defaultKeys) | port before | port after |
+|---|---|---|
+| cursorUp "up" / cursorDown "down" | history_previous/next (single-line mapping) | unchanged |
+| cursorLeft "left,ctrl+b" / cursorRight "right,ctrl+f" | chat.rb move_left/right | unchanged |
+| cursorWordLeft "alt+left,ctrl+left,alt+b" / cursorWordRight | move_word_backward/forward | unchanged |
+| cursorLineStart "home,ctrl+a" / cursorLineEnd "end,ctrl+e" | move_start/end | unchanged (regression-pinned, chat_test) |
+| pageUp "pageUp,ctrl+pageUp" / pageDown | viewport scroll_page | unchanged |
+| deleteCharBackward "backspace" / deleteCharForward "delete,ctrl+d" | delete_backward/forward | unchanged |
+| deleteWordBackward "ctrl+w,alt+backspace" | chat.rb:618,643 → delete_word_backward | now a kill (prepend, accumulate) |
+| deleteWordForward "alt+d,alt+delete" | chat.rb:621,630-642 → delete_word_forward | now a kill (append, accumulate) |
+| deleteToLineStart "ctrl+u" | **unbound** | chat.rb `when "u"` → delete_to_line_start |
+| deleteToLineEnd "ctrl+k" | **unbound** | chat.rb `when "k"` → delete_to_line_end |
+| yank "ctrl+y" | **unbound** | chat.rb `when "y"` ctrl → yank |
+| yankPop "alt+y" | **unbound** | chat.rb `when "y"` alt → yank_pop |
+| undo "ctrl+-" / jumpForward "ctrl+]" / jumpBackward "ctrl+alt+]" / newLine "shift+enter,ctrl+j" / copy "ctrl+c" | unbound | still unbound — spec out-of-scope set |
+
+Phase-0 premise check: alt+backspace and alt+d were ALREADY bound at base (chat.rb base lines 618-621, 630-643) — Grounds 3 stale there; regression pins added instead of wiring. After this lane the only unbound editor defaults are the spec's own out-of-scope set.
+
+### Gate outputs (verbatim tails)
+
+- `bundle install --quiet && bundle exec rake` → `478 runs, 1872 assertions, 0 failures, 0 errors, 1 skips` (baseline pre-lane: `445 runs, 1787 assertions` — delta +33 runs, 0 deletions; skip = pre-existing opt-in live test)
+- `bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1` → `SEAM_BENCH_OK`
+- kill-ring-class / editor-ops / bindings-wired / ctrld-tripwire greps → `KILL_RING_OK`, `EDITOR_OPS_OK`, `BINDINGS_OK`, `CTRLD_OK`
+- `git show 16f20fd:gems/tui-split-rig/registry.yml | diff - registry.yml | grep '^<'` → no `<` lines → `REGISTRY_ADDITIONS_ONLY_OK`
+- Direct-class: `kill_ring_test.rb` 5 runs / `editor_kill_ring_test.rb` 16 runs, 0 failures. chat binding tests: 15 runs 0 failures.
+
+### s1–s6 parity (AC3)
+
+| run | exit (worktree, long gate dir) | exit (--out /tmp/i26-gates, short) |
+|---|---|---|
+| s1_text_turn | 0 | — |
+| s2_tool_turn | 0 | — |
+| s3_tool_turn_files | 1 | 0 |
+| s4_bash_variants | 1 (one pass exit 2, see flakes) | 0 |
+| s5_bash_truncation | 1 | 0 |
+| s6_long_calls | 0 | — |
+| base s3 @ /tmp/i26-base (git archive 16f20fd, short path) | 0 | — |
+
+The worktree failures are ONE line each: pi's footer cwd line truncates with "…" (`.../parity-gate-s3_tool_turn_files/ru...`) where the port wraps (`+.../run-1`) — out-dir path depth + long scenario names tip past the 120-col pane. Same scenarios, short `--out`, exit 0. Base-tree run confirms pre-existing sensitivity, not a lane regression. The architect's gates run cwd repos/tart (short paths).
+
+### s7 baseline (exit 1 by design)
+
+Command: `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7_compaction` → exit 1, both apps completed 2/2 requests (turn + summarization), boot ~1.1s / reply ~1.1s.
+
+Trigger mechanism (spec's sanctioned fallback — /compact cannot ride the runner): the runner sends exactly ONE prompt and `/compact` on a one-small-turn session fails BOTH apps (live probe /tmp/i26-compact-probe: pi `Error: Compaction failed: Nothing to compact (session too small)`, tart `nothing to compact (session too small)`). s7 sets `context_window: 10` — a new optional Scenario field the runner applies to pi's staged models.json AND tart's `TART_CONTEXT_WINDOW` env, plus zeroed compaction knobs (`{enabled: true, reserveTokens: 0, keepRecentTokens: 0}`) staged into pi's agent settings.json and the tart staged HOME's `.tart/settings.json` (pi settings-manager.ts:822; tart settings.rb compaction_kwargs). Both apps compact after the first completed turn.
+
+Trigger-route asymmetry discovered (itemized, real divergence): pi's threshold check is usage-backed (agent-session.ts:3050-3100, mock usage 15 tokens vs window 10); the port's is estimate-backed (loop.rb threshold_exceeded?, chars/4 over messages). Both fire at window 10; at realistic windows they diverge.
+
+Candidate list (the compaction-summary-panel port's work list), from `summary.json` attribution:
+
+| line (pi − / tart +) | classification |
+|---|---|
+| `- [compaction]` | unknown-candidate — pi's customMessageBg panel label (custom-message compaction-summary-message.ts) |
+| `- Compacted from 15 tokens (ctrl+o to expand)` | unknown-candidate — pi's collapsed panel body |
+| `+✻ compacted (threshold, 15 tokens)` | unknown-candidate — the port's dim scrollback line (chat.rb) |
+| `+ [Context]` | unknown-candidate — port-only MOTD loaded-resources listing of the staged settings file (staged by s7's knob staging; pi renders no line for its own) |
+| `- ` ×3, `- first turn reply…` / `+ hello compact`, `+ first turn reply…` | unknown-candidate — row-shift artifacts of the panel-vs-line height difference |
+| sandbox path pair | parity-run-path (sanctioned) |
+| `+…/home/tart/.tar` / `+t/settings.json` | parity-run-path + staged-settings-path (new pin) |
+| footer `?/10 (auto)` pair | footer-provider-prefix (sanctioned) |
+| style: `~ "" pi= tart=[fg=rgb:126;136;142,false]"` | unknown style candidate (port trailing-space fg on the wrapped settings path) |
+
+Styled-byte evidence for the head candidate: pi's panel rows carry `48;2;58;48;85` = #3a3055 = customMessageBg (theme.rb:55); tart's settled capture has no such bg.
+
+### Pending-state probe (toolPendingBg)
+
+Command: `gems/tui-split-rig/bin/tool-pending-probe --out tmp/i26-probe` → exit 0, 17 frames per app (0.5s cadence, `sleep 6` tool call mid-flight frames 02-12).
+
+| app | mid-flight (frames 02-12) | completion (frames 13+) |
+|---|---|---|
+| pi | tool rows present; `$ sleep 6` row carries bg `48;2;52;56;58` = #34383a (toolPendingBg, dark.json:37 okhsl(229 5% 24%)) | pending bg gone; `48;2;37;65;49` = #254131 (toolSuccessBg) |
+| tart | NO tool rows at all (completion-only enqueue, chat.rb `:tool_execution_end` → enqueue_tool_block) | tool block appears directly in success colors |
+
+Raw bytes: pi frame 05 `` $ sleep 6 `` styled: `` [1m[38;2;222;224;225m$ sleep 6[0m[48;2;52;56;58m ``; tart frame 13 same row with `[48;2;37;65;49m`. The port never renders toolPendingBg — the mid-flight enqueue divergence is evidenced, not gated.
+
+### Rig robustness findings (environmental, itemized)
+
+1. Shared tmux server across parallel lane agents: a foreign/leftover `tui-split-rig-*` session (e.g. `tui-split-rig-probe-pi-3b34`, created by another process mid-window) trips `assert_clean_sessions!` → spurious exit 2 (observed once on s4, once on a base-tree s5 run). One `tmux kill-server` from any agent kills every agent's live sessions (observed: my probe's sessions vanished mid-run). Gate runs need a quiet server.
+2. The footer cwd wrap/truncate divergence at out-dir path depth > ~110 chars is pre-existing (base tree reproduces) and orthogonal to this lane.
+
+### Conflicts (none requiring arbitration beyond the Phase-0 items)
+
+Phase-0 items 2 (word-deletes become kills — required for AC2's pi-modeled accumulate pins, pi editor.ts:1692-1772) and 3 (/compact fallback to threshold triggering — spec-sanctioned, evidence above) were resolved as described; no AC satisfied at the cost of a worse artifact.
+
+STATUS: COMPLETE_WITH_CONCERNS — (1) s3/s4/s5 exit 1 from this deep worktree purely on the pre-existing footer-cwd wrap artifact; exit 0 at short paths and from base at short paths; the architect's gates run from repos/tart root. (2) Gate runs are flaky while other agents share the tmux server (leftover-session exit 2); a quiet server gave the recorded green pass. (3) pi-vs-port compaction trigger arithmetic diverges (usage-backed vs estimate-backed) — itemized for a future lane, unmeasured by s7 at window 10.
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
