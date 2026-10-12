@@ -816,11 +816,101 @@ echo "concurrent exits: $e1 $e2"
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I27-model-menus-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence model-menus --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### model
+
+Lane: model (I27 model-menus)
+
+### Files (touch list respected — `git status --short` at end of run)
+
+```
+ M bin/tart                                (458 lines)
+ M lib/tart/agent/loop.rb                  (548)
+ M lib/tart/commands.rb                    (219)
+ M lib/tart/render/chat.rb                 (1240)
+ M lib/tart/settings.rb                    (264)
+ M test/agent_loop_test.rb                 (476)
+ M test/chat_test.rb                       (3330)
+ M test/commands_test.rb                   (267)
+ M test/settings_test.rb                   (355)
+?? lib/tart/models.rb  (new)               (227)
+?? lib/tart/render/model_menu.rb (new)     (358)
+?? test/models_test.rb (new)               (188)
+?? test/render/model_menu_test.rb (new)    (233)
+```
+
+`git diff --stat | tail -1` → `9 files changed, 740 insertions(+), 91 deletions(-)` (untracked news above excluded from stat). Scope check: `git diff --name-only | grep -E "selection|editor|transcript|compaction|theme|tui|parity|gems/"` → no match (SCOPE_OK). AC5: the diff touches exactly the two lanes' enumerated files. Note: I briefly added a require to `lib/tart.rb` (not enumerated) and reverted it; the Models requires live in `commands.rb` and `chat.rb` instead.
+
+### Gates (frozen commands, run verbatim, this run)
+
+| command | result |
+|---|---|
+| `bundle install --quiet && bundle exec rake && echo SUITE_OK` | exit 0, `523 runs, 2023 assertions, 0 failures, 0 errors, 1 skips`, `SUITE_OK` |
+| `bundle exec ruby bench/seam_bench.rb 2>&1 \| tail -1` | `SEAM_BENCH_OK` |
+| `test -f lib/tart/models.rb && grep -q 'module Models\|class Models' lib/tart/models.rb && test -f test/models_test.rb && echo MODELS_OK` | `MODELS_OK` |
+| `test -f lib/tart/render/model_menu.rb && test -f test/render/model_menu_test.rb && grep -q 'to select' lib/tart/render/model_menu.rb && echo MENU_OK` | `MENU_OK` |
+| `grep -q '"model"' lib/tart/commands.rb && grep -q 'model_menu\|ModelMenu\|Menu' lib/tart/render/chat.rb && echo MODEL_CMD_OK` | `MODEL_CMD_OK` |
+| `grep -q 'when "l"' lib/tart/render/chat.rb && grep -q 'when "s"' lib/tart/render/chat.rb && echo CTRL_KEYS_OK` | `CTRL_KEYS_OK` |
+
+### Suite counts
+
+- Full suite: `523 runs, 2023 assertions, 0 failures, 0 errors, 1 skips` (the 1 skip and the two `bin/tart` already-initialized warnings are pre-existing at HEAD).
+- Run-count delta: +51 test methods over HEAD (52 added: models 16, model_menu 21, chat 9, commands 2, settings 3, agent_loop 1; 1 removed — see "pre-existing defect" below).
+- Per-file tails (this run): `test/models_test.rb + test/render/model_menu_test.rb` → `21 runs, 68 assertions, 0 failures, 0 errors, 0 skips`; `test/commands_test.rb + test/settings_test.rb + test/agent_loop_test.rb` → `17 runs, 74 assertions, 0 failures, 0 errors, 0 skips`.
+- Pre-existing defect fixed in-lane (chat_test is lane territory; the standing lesson on runs-vs-`def test_` reconciliation): HEAD's `test/chat_test.rb` carried a byte-identical duplicate of `test_bash_mode_border_renders_the_bash_mode_token` (lines 2058 + 2204) — the second definition shadowed the first. Dropped the copy; source tests now reconcile with run count (523/523, no duplicate names).
+
+### Command / keybinding table (pi → port)
+
+| pi binding/command (source) | before | after |
+|---|---|---|
+| `/model [term]` (slash-commands; interactive-mode.ts handleModelCommand :5192-5216) | absent (cut builtin) | `Commands::BUILTINS["model"]`, args: true, argument_hint `<provider/model>`; no-arg → model menu; exact catalog ref → direct switch + `Model: <id>` border status; unknown arg → menu pre-seeded (initialSearchInput) |
+| bare `/thinking` (handleThinkingCommand :5145-5163, showThinkingSelector :5168-5183) | cycled (stand-in) | opens the Thinking Level menu (cycle stand-in removed from the dispatcher) |
+| `/thinking <level>` / bad arg | set / error text | unchanged (exact set via `thinking:` callable; pi's showError text) |
+| `app.model.select` ctrl+l (keybindings.ts:49) | unwired | `edit_input` `when "l"` ctrl → `open_model_menu` |
+| `app.models.save` / `app.thinking.save` ctrl+s (keybindings.ts:119, :37) | unwired | menu branch intercept + `when "s"` ctrl → `ModelMenu#select_as_default` → on_select_as_default → apply + Settings write; closes the menu (pi selectLevel → done()) |
+| `tui.select.cancel` escape/ctrl+c in selectors | n/a | menu `handle`: esc closes; ctrl+c closes; menu keys never reach the editor while open |
+| `app.thinking.cycle` shift+tab (keybindings.ts:33-35) | NOT wired (verified: no shift handling in edit_input at HEAD; cycle only reachable via bare /thinking) | `when "tab"` shift → `cycle_thinking_level` (the cycle genuinely "stays") |
+| click-to-select (select-list.ts:109-134 press/release) | n/a | left press moves selection + records row; release on the same row selects + closes; `menu_list_top` maps terminal rows; wheel still scrolls the transcript behind the menu |
+| `session.setModel { persist }` | n/a | `Chat#switch_model` / `apply_model_selection(persist:)` → `Agent::Loop#switch_model` seam |
+| ctrl+s persistence (settings-manager.ts setDefaultModelAndProvider :713-720) | Settings had no write surface | `Settings.save(root, updates)` — deep-merges over current file contents (unknown keys preserved verbatim), pretty-prints; first write surface |
+
+Ported menu surface (one component family, `Render::ModelMenu`, variant :thinking/:model — unified, spec-invited choice; pi ships two classes over one SelectList shape): bordered block, title row "Thinking Level" + shift+tab hint (thinking), fuzzy Input over `value + description` (thinking) / `getModelSelectorSearchText` text `provider provider/id provider id name` (model-search.ts:15-19), up/down wrap, enter selects, ✓ current marker (preselect on the current row), `· default` badge, (n/N) scroll indicator at the 10-row window, current-first / default-second / by-provider sort (pi sortModels), `  Model Name: <name>` line, LEVEL_DESCRIPTIONS table + muted description column, help line `Enter to select · Ctrl+S to set as default · Escape/Ctrl+C to cancel`, mounted in place of the editor (picker precedent; done restores the editor).
+
+### models.json boot resolution (as built)
+
+| priority | source | notes |
+|---|---|---|
+| 1 | `TART_MODEL` (+`TART_PROVIDER`) / `TART_PROVIDER` alone | env pair wins; TART_MODEL alone keeps the settings provider |
+| 2 | models.json `"default": "<provider/model-id>"` | **port extension** — pi's models.json schema (model-config.ts:44-66) has no default key and pi's resolver puts the settings saved-default FIRST (findInitialModel :511-580, step 3 before first-available :579-585). Deviation itemized per the spec's "itemize any deviation": the port prefers a declared catalog default over its compiled-in `Settings::DEFAULTS` fireworks model. Resolution goes through `Config#resolve` (exact reference match) |
+| 3 | `Settings.defaultModel` / `defaultProvider` | unchanged fallback |
+
+- Env keys against the resolved provider: `TART_API_KEY` / `TART_API_BASE` > the resolved provider's models.json `apiKey`/`baseUrl` > Settings `apiKey`/`apiBase` (build_chat; also feeds `require_api_key`).
+- **Live-verified ruby_llm constraint:** `Chat#with_model` (gem chat.rb:609-620) re-resolves via `Models.resolve` → `Provider.resolve!` (models.rb:203, provider.rb:608-611) which raises for any non-registered provider slug. Consequence: models.json provider KEYS are endpoint configs (baseUrl/apiKey/api), not wire providers; `Models.wire_provider(key)` passes native slugs through and maps everything else onto the port's single chat-completions seam (`WIRE_PROVIDER = "openai"`). Verified end-to-end: fake-HOME boot with `~/.tart/models.json` (JSONC comment + trailing comma) against a MockLLMServer → `exit=0 stdout="catalog answer"`, clean stderr.
+- Error surface (pi model-config.ts:145-170, error-as-field): `Models.load` never raises — parse/schema/read failures set `Config#error` naming the path, catalog empty; bin/tart reports it (warn in print mode, command_line in interactive); boot proceeds on Settings defaults.
+
+### Live verification records
+
+- `Chat#with_model(model_id, provider:, protocol:, assume_model_exists:)` — gem chat.rb:609-620 read + exercised: swaps `@model`/`@provider`/`@connection` in place, sets `@protocol` to the passed value (nil would let the openai provider pick :responses) → the seam passes `protocol: :chat_completions, assume_model_exists: true`, matching bin/tart build_chat.
+- `test_switch_model_swaps_the_runtime_chat_and_re_resolves_the_window` (agent_loop_test, MockLLMServer): after `switch_model("glm-5.3", provider: "openai", context_window: 200_000)` — `chat.model.id == "glm-5.3"`, `agent.context_window == 200_000`, and a real request round-trips on the switched chat (`"switched"`).
+
+### Items cut (declared, per spec's itemize requirement)
+
+- Model catalog network refresh (pi refreshModelCatalogs) — tart reads the static `~/.tart/models.json` only.
+- scopedModels / all-scoped tab toggle (model-selector tab scope switch).
+- pi's isDefaultSearch query boost (filter-ranking nicety) and the "Only showing models… /login" hint line.
+- **Stretch: ctrl+p / shift+ctrl+p model cycling — CUT.** pi derives cycle order from scopedModels + runtime model history; the port carries neither (declared in PHASE 0, not silent).
+- Select-list wheel-over-list (wheel keeps scrolling the transcript behind the menu).
+- Degenerate catalog extension (added, not cut): with no/empty/invalid models.json the model menu offers the single boot model so ctrl+s set-as-default works out of the box.
+
+### Concerns
+
+1. `switch_model` to an entry with no `contextWindow` declared leaves the previous context window in place (loop seam keeps the old value on nil); the footer denominator overlay likewise only overlays present fields. Switching between catalog models with and without declared windows can show a stale denominator until the next `/new`.
+2. `Settings.save` treats an unparseable existing settings.json as empty (the read_file idiom) — a corrupt file plus a ctrl+s save rewrites it from the merged updates; the corrupt content is not otherwise preserved.
+3. The models.json `"default"` key is a port extension (see precedence table) — pi's schema has no such key; flagged here rather than silently resolved.
+4. A native non-openai provider slug (e.g. `anthropic`) passes through as the wire provider, but the port's context only configures the openai endpoint keys — a native provider with its own api is beyond the carried protocol (standing reduction).
+
+Process notes: no git writes performed (one `git stash` attempt was blocked by the builder guard before any state change; nothing was committed). All long commands ran serially in the foreground with explicit timeouts; no backgrounding. Scratch report only — no lane files outside the touch list.
+
+STATUS: COMPLETE
 
 ## Verdict
 
