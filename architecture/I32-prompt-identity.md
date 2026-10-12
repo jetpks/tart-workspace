@@ -100,7 +100,10 @@ see the fast-follow note in the Specification).
 9. **Control (this session, base 276eda3d).** Suite 565 runs / 2217
    assertions / 0 failures / 1 pre-existing skip; s1–s6 exit 0; s7/s8 exit 1
    (I31's residuals — green on this iteration's base after I31 lands);
-   s1_tart exit 0. All regression claims are against this baseline.
+   s1_tart exits 1 BY DESIGN (measured this session: tart-mode renders tart's
+   own MOTD face vs pi's — 10 unknown-candidate branding lines; the scenario's
+   property is tart-mode completion, not parity). All regression claims are
+   against this baseline, all measured this session.
 
 ## Specification
 
