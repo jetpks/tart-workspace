@@ -862,11 +862,156 @@ if git show a622ee03:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I30-compaction-panel-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence compaction-panel --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### agent
+
+### Lane: agent — I30 compaction-panel agent seams
+
+### PHASE 0 (mandatory — disagreements + pre-code verification)
+
+**Spec verification against live sources (read before coding):**
+- pi `Usage` interface is NOT in session-manager.ts — imported from `packages/ai/src/types.ts:446`: required `input/output/cacheRead/cacheWrite/totalTokens/cost{input,output,cacheRead,cacheWrite,total}`, optional `cacheWrite1h?/reasoning?`. `CompactionEntry.usage?: Usage` (session-manager.ts:99); `appendCompaction` (:1265-1290) persists it as given; JSON drops `undefined` → absent-when-nil.
+- Gem `Tokens` readers (tokens.rb:35-37): `input, output, cache_read, cache_write, cache_write_by_ttl, thinking, server_tool_use, reported_cost` — no total reader. `Message#tokens` is ALWAYS a `Tokens` (never nil).
+- pi rebuild: `interactive-mode.ts:3698-3705` — `buildContextEntries()` + `renderSessionEntries(entries.slice(1))`; `buildContextEntries` (session-manager.ts:475-513) = `[compaction, kept-from-firstKeptEntryId (system-skipped), after]`.
+- `Settings.resolve_context_window(explicit:, model:)` (settings.rb:115-128) fits the switch tier; loop.rb already transitively loads settings via lib/tart.rb; added explicit require.
+
+**Disagreements: none blocking.** Itemized interpretations (in `itemized deviations` below): usage-when-nothing-reported → key omitted (not zero-filled); `cost` cut; `entries: []` recorder-nil; string-keyed payload; nil counts omitted. One expectation-fix discovered mid-build (not a spec issue): the gem's chat_completions protocol reports unexplained cache-write as literal `0` (`protocols/chat_completions/chat.rb:191-195`, `|| 0`) — the persisted `cacheWrite: 0` is the reader's value, mapped faithfully; first test draft wrongly expected it absent.
+
+**Derivation ruling (spec asked to verify):** recorder projection wins over loop-side collection — pi puts buildContextEntries on the session manager; the loop holds only entry ids (`@entry_ids`), not entry hashes; loop-side collection would re-derive `message.to_h` and duplicate the recorder's id/parent/timestamp data. Built as `Recorder#context_entries` (pi buildContextEntries parity), with the file-walk in `Session.context_messages` extracted into shared `Session.context_entries(entries)` (behavior-identical; existing session tests pin it).
+
+### Files touched (exactly the lane territory; no commits made)
+
+| file | wc -l | delta vs a622ee0 |
+|---|---|---|
+| lib/tart/agent/loop.rb | 577 | +29/−12 lines changed |
+| lib/tart/agent/session.rb | 484 | +73/−20 (net) |
+| test/agent_loop_test.rb | 567 | +56 |
+| test/session_test.rb | 434 | +52 |
+
+`git status --short` verbatim: only these 4 ` M` entries. No gems/**, no render/**, no MockLLM, no settings.rb/models.rb/compaction.rb/bin/tart changes.
+
+### Deliverable 1 — the `entries:` payload (frozen contract)
+
+Mechanism → code:
+
+| step | code |
+|---|---|
+| projection (pi buildContextEntries) | `Session.context_entries(entries)` — extracted from `context_messages`'s walk (latest compaction → `[compaction, kept-from-firstKeptEntryId, after]`, system-skipped) |
+| recorder projection (as-loaded shape) | `Recorder#context_entries` = `Session.context_entries(JSON.parse(JSON.generate(@entries)))` — same JSON serialization the file gets, so output ≡ `load_entries` read-back |
+| loop slice (pi entries.slice(1)) | `entries = @recorder ? @recorder.context_entries.drop(1) : []` in `run_compaction`, after `append_compaction` |
+| emit | `emit(type: :compaction, reason:, tokens_before: preparation.tokens_before, summary:, entries:)` |
+
+Before/after of the event:
+
+| | payload |
+|---|---|
+| before | `{type:, reason:, tokens_before:, summary:}` |
+| after | `{type:, reason:, tokens_before:, summary:, entries:}` — additive only, no other keys (key-set pinned in test) |
+
+`entries` = string-keyed message/bashExecution entry Hashes (the `load_entries` shape), chronological, from `firstKeptEntryId` onward, no system entries, no summary message (the leading compaction entry is the `.drop(1)`). Pinned end-to-end:
+
+```
+test_compaction_event_carries_the_kept_replay_entries (real overflow cut,
+kept tail [first answer, second question]):
+  keys == %i[type reason tokens_before summary entries]   ✓
+  reason :overflow, summary carries the summary text      ✓
+  roles %w[assistant user], contents exact, chronological ✓
+  entries == Session.load_entries(recorder.path)[2, 2]    ✓ (payload IS the recorded slice)
+  persisted compaction usage == {"input"=>10,"output"=>5,"cacheWrite"=>0,"totalTokens"=>15} ✓
+  refute persisted.key?("estimatedTokensAfter")           ✓
+  4/4 mock requests (turn, overflow, summary, retry)      ✓
+```
+
+### Deliverable 2 — usage persistence (pi CompactionEntry parity)
+
+Usage mapping table (gem Tokens reader → pi Usage key, persisted via `Session.compaction_usage`):
+
+| pi Usage key (types.ts:446) | gem source (tokens.rb) | note |
+|---|---|---|
+| `input` | `Tokens#input` | omitted when unreported |
+| `output` | `Tokens#output` | omitted when unreported |
+| `cacheRead` | `Tokens#cache_read` | omitted when unreported |
+| `cacheWrite` | `Tokens#cache_write` | chat_completions maps unexplained writes to literal 0 (protocol `|| 0`) — persists as 0 |
+| `cacheWrite1h` | `Tokens#cache_write_by_ttl["1h"]` | optional; omitted unless reported |
+| `reasoning` | `Tokens#thinking` | optional; omitted unless reported |
+| `totalTokens` | `Compaction.calculate_context_tokens(tokens)` | component sum — the port's whole formula (gem has no total reader) |
+| `cost{...}` | — | CUT (see deviations); no pricing layer, no carried endpoint reports one |
+| (nothing reported) | — | returns nil → `usage` key omitted (pi's usage-undefined entries) |
+
+Wiring: `Preparation#usage` (the summarization reply's `Message#tokens`, already carried) → `Session.compaction_usage` → `Recorder#append_compaction(usage:)` → `Session.compaction_entry(usage:)` → entry `usage` key when non-nil. `estimated_tokens_after` NOT persisted. Entry keys camelCase (standing I07/I08 rule).
+
+session_test pins:
+```
+test_compaction_usage_maps_the_gem_tokens_to_pis_usage_shape:
+  Tokens.new(input:10, output:5, cache_read:4, cache_write:2, thinking:3, cache_write_by_ttl:{"5m"=>1,"1h"=>2})
+    == {"input"=>10,"output"=>5,"cacheRead"=>4,"cacheWrite"=>2,"cacheWrite1h"=>2,"reasoning"=>3,"totalTokens"=>21} ✓
+  Tokens.new → nil ✓;  nil → nil ✓
+test_recorder_persists_the_summarization_usage_on_the_compaction_entry:
+  load_entries round-trip: entries[2]["usage"] == {"input"=>10,"output"=>5,"totalTokens"=>15} ✓
+  refute estimatedTokensAfter ✓;  nil usage → key absent ✓
+```
+
+### Deliverable 3 — the switch window tier (I29 residual)
+
+Tier table landed (`Loop#switch_model`, via `Settings.resolve_context_window(explicit: context_window, model: @chat.model)`):
+
+| tier | source |
+|---|---|
+| 1. explicit | catalog-declared window kwarg (chat.rb caller, frozen signature unchanged) |
+| 2. env | `TART_CONTEXT_WINDOW` (the loop's standing tier) |
+| 3. model | `@chat.model&.context_window` (gem registry resolution) |
+| 4. known-models | `Settings::MODEL_CONTEXT_WINDOWS[model&.id]` (NEW — the boot chain's table) |
+
+settings["contextWindow"] tier NOT consulted (the loop holds no settings; boot-only — matches the spec's itemized set; threading settings would touch the frozen switch_model signature called by lane panel's chat.rb:1429).
+
+```
+test_switch_model_swaps_the_runtime_chat_and_re_resolves_the_window (extended):
+  glm-5p3-flash, no declared window → agent.context_window == 1_048_573 (table) ✓
+  mock-2 (not in table) → nil (threshold disabled, unchanged I29 pin) ✓
+```
+
+### Gates (verbatim)
+
+```
+$ bundle install --quiet && bundle exec rake && echo SUITE_OK
+557 runs, 2155 assertions, 0 failures, 0 errors, 1 skips
+SUITE_OK
+   (run-count delta vs a622ee0: +4 — agent_loop 17→18, session 17→20;
+    runs 557 == `grep -rc "^\s*def test_"` total 557 — no buried tests;
+    the 1 skip is the pre-existing live-pi rig test
+    TuiSplitRig::LiveRunTest#test_s1_end_to_end_against_installed_pi_and_this_tart)
+
+$ bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+SEAM_BENCH_OK
+
+$ grep -q 'entries:' lib/tart/agent/loop.rb && echo PAYLOAD_OK
+PAYLOAD_OK
+
+$ gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/gate-s1
+summary.json exit_code: 0    (healthy path unshifted)
+
+$ ... s7_compaction.yml --out tmp/gate-s7   → exit_code 1 (expected in-lane:
+  diff shows pi `[compaction]` panel vs port `✻ compacted (threshold, 15 tokens)`
+  — lane panel's render; the live compaction ran through the new payload,
+  tart completed=true requests 2/2)
+$ ... s8_zero_usage_compaction.yml --out tmp/gate-s8 → exit_code 1 (same-lane reason;
+  the empty-dim style_unknown candidate is panel+integration work)
+
+per-file: agent_loop_test 18 runs 131 assertions 0F; session_test 20 runs 100 assertions 0F
+```
+
+Rig registry: no gems/** changes from this lane (additions-only check is the architect's, on the integrated tree).
+
+### Itemized deviations / cuts
+
+1. `cost` cut from the persisted Usage: the port carries no pricing layer and no carried endpoint reports `Tokens#reported_cost`; a fabricated zero-cost would lie (gem cost.rb:19-20's own false-zero doctrine). pi's Usage declares cost required — recorded honest-subset deviation.
+2. Unreported counts omitted rather than zero-filled (pi providers always report; the port persists the reported subset). Exception: a gem-mapped `cacheWrite` literal 0 persists as 0 (the reader's value).
+3. Nothing-reported usage (s8's zero-usage path) → no `usage` key (pi's usage-undefined parity), never `{"totalTokens"=>0}`.
+4. `entries: []` when the recorder is nil (nothing recorded → nothing to replay; pi has no recorder-less mode).
+5. Payload entries are string-keyed (the `load_entries` shape the frozen contract names), though the recorder's in-memory entries are symbol-keyed — the projection round-trips through the same JSON serializer, pinned by equality with `load_entries` output.
+6. Kept entries with no recorded entry (unrecorded seed messages at the cut point) contribute nothing to `entries` (`firstKeptEntryId` falls back to the compaction id — pi's `?? id`); the recorded chain is the replay source, as in pi.
+7. s7/s8 remain exit 1 in this worktree by design (panel render is lane `panel`'s); not chased, per dispatch.
+
+STATUS: COMPLETE
 
 ## Verdict
 
