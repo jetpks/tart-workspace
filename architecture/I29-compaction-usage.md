@@ -70,34 +70,107 @@ I27 + the `build_surface` wiring fix):
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section compaction-usage specification --from <file>`. -->
+# Specification — I29 compaction-usage
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+- **Objective.** Bring the compaction trigger arithmetic to pi's exact usage-backed
+  shape (BRIEF §3 daily-driver reliability + the owner's 2026-10-12 usage ruling,
+  Grounds 1-2): the port already carries pi's estimate family and live usage flow
+  (Grounds 3) — the remaining deltas are the trigger's Case structure, the
+  stop-reason guard, the result fields the panel fast-follow renders off, the rig's
+  missing Case-3 instrument, and the I27 nil-window switch residual. Why now: the
+  compaction-panel port (the fast-follow iteration) renders off this arithmetic —
+  its spec needs these seams measured and true first; and a daily-driver session
+  must not falsely trigger (or fail to trigger) compaction because the port
+  re-derives context size pi reads directly off the just-completed turn.
+
+- **Deliver the direct-first trigger** (pi agent-session.ts ~:3049-3100): the
+  threshold check reads the just-completed assistant message's DIRECT usage first
+  (`calculateContextTokens(message.tokens)`); Case 3 (error stop-reason OR
+  zero/absent usage) falls back to `estimate_context_tokens` over the chat
+  messages; the stale pre-compaction guard stays inside the fallback (the port's
+  `@pre_compaction_messages` set is the standing equivalent of pi's
+  timestamp-vs-compaction-entry check — keep it, itemize the divergence). The
+  overflow trigger (:263) is untouched. Behavior-identical for the healthy path
+  (the mock's 15-token usage today) — the parity gates are the guard.
+- **Deliver the stop-reason guard** (pi getAssistantUsage :146-156): `assistant_usage`
+  skips aborted/error messages. VERIFY the gem's `Message` surface for a stop-reason
+  observable (ruby_llm 2.1.0 — gem source at
+  ~/.local/share/mise/installs/ruby/4.0.7/lib/ruby/gems/4.0.0/gems/ruby_llm-2.1.0/):
+  if the gem exposes it, port the guard; if it does not, itemize the cut with the
+  gem citation (never fake an unobservable guard).
+- **Sweep the arithmetic function-by-function** (pi compaction.ts ↔ the port's
+  compaction.rb): `calculateContextTokens` (the gem's Tokens lacks `totalTokens` —
+  the standing itemization stays), `estimateContextTokens`, `estimateTokens` shapes,
+  `shouldCompact`, DEFAULT settings, and the `compact()` result flow — pi's
+  `CompactionResult` carries `estimatedTokensAfter?` and `usage?` (the summarization
+  call's own usage): verify whether pi's implementation POPULATES them; if it does,
+  carry the fields on the port's preparation result (data only — the RENDER is the
+  panel fast-follow's, do not touch render); if pi leaves them unset, itemize as cut.
+  `estimateProjectedContextTokens` (pi's context-edit projection) is CUT (the port
+  has no projection system) — itemize, do not build.
+- **Deliver the rig's Case-3 instrument**: a MockLLM usage-suppression knob
+  (scenario-level — responses without usage) + a scenario or probe extension
+  proving BOTH apps compact under the zero-usage path (the Case-3 fallback parity:
+  both apps' trigger fires on the estimate, both compact, the settled parity holds).
+  s7's existing behavior is the template. s1–s6 must stay exit 0 (the healthy path
+  is untouched — regression guard); s7 stays exit 1 (the panel is the fast-follow,
+  not here); registry additions-only vs 8c7a438.
+- **Deliver the I27 nil-window switch residual** (loop.rb seam): switching to a
+  catalog entry that declares no contextWindow re-resolves the window instead of
+  keeping the stale one (resolve from the chat's model — the gem's model registry /
+  the port's known-models table, whichever the boot path already uses — verify and
+  itemize the source); a footer-denominator refresh test pins it. Read pi's
+  switchModel for the reference behavior first (does pi re-resolve when the model
+  carries no window?).
+- **Tests.** Direct-class compaction tests pin the trigger Case structure
+  (direct-usage path, zero-usage fallback path, the stale guard inside the fallback)
+  with the existing MockLLM idioms (zero-usage via the new knob — the knob is the
+  mock's, not the class's); agent_loop tests pin the trigger wiring + the
+  nil-window re-resolve; mock_llm_server's knob gets its own test. No mocks of the
+  class under test.
+- **Boundaries.** Touch: `lib/tart/compaction.rb`, `lib/tart/agent/loop.rb`,
+  `test/compaction_test.rb`, `test/agent_loop_test.rb`,
+  `test/support/mock_llm_server.rb`,
+  `test/parity/mock_llm_extension_test.rb` (only if the knob's test belongs there —
+  the mock's test home), `gems/tui-split-rig/**`. Must not: everything else — in
+  particular `lib/tart/render/**` ALL (chat.rb, selection.rb, footer.rb are sibling
+  iteration I28 whole-screen-selection's territory — a PARALLEL iteration is
+  building there right now; touching it fails both iterations), `bin/tart`,
+  `lib/tart/models.rb`, `lib/tart/settings.rb`, `lib/tart/commands.rb`,
+  `test/chat_test.rb`, `test/render/**`, `lib/tart/session*`. No placeholders;
+  search before implementing. Out of scope, itemize if tempted: the compaction
+  PANEL (the [compaction] customMessageBg rendering — the fast-follow iteration's),
+  pi's projection system, own-client token counting (parked by the owner ruling).
+
+- **Tool guidance.** Verification (from repos/tart): `bundle install --quiet &&
+  bundle exec rake`, `bundle exec ruby bench/seam_bench.rb`; parity:
+  `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml
+  --out tmp/<out>`. pi sources: `repos/pi/packages/coding-agent/src/core/compaction/
+  compaction.ts` (the full arithmetic) and `repos/pi/packages/coding-agent/src/core/
+  agent-session.ts` (~:3049-3100 the trigger Cases; :2657 the thinking-level gate is
+  I28's, not yours). The gem source at
+  ~/.local/share/mise/installs/ruby/4.0.7/lib/ruby/gems/4.0.0/gems/ruby_llm-2.1.0/
+  (chat.rb, message.rb, tokens.rb) — verify the Message surface live before building
+  on it; cite what you port.
+
+- **Output format.** Raw evidence to scratch: file list + wc; the function-by-function
+  arithmetic table (pi function → port method, before/after, per delta); the trigger
+  Case table (direct/Case-3/stale-guard paths with test names); the gem
+  Message-surface verification (the exact methods, live-checked); the Case-3 rig
+  proof (probe/scenario output, both apps compact); verbatim test tails + suite
+  counts; itemized cuts. PHASE 0 disagreements mandatory. STATUS line last.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision compaction-usage`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: usage
+  repo: tart
+  touch:
+    - lib/tart/compaction.rb
+    - lib/tart/agent/loop.rb
+    - test/compaction_test.rb
+    - test/agent_loop_test.rb
+    - test/support/mock_llm_server.rb
+    - test/parity/mock_llm_extension_test.rb
+    - gems/tui-split-rig/**
 ```
 
 ## Acceptance Criteria
