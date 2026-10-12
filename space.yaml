@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: compaction-usage
+  current_iteration: whole-screen-selection
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1183,13 +1183,27 @@ project:
   - name: whole-screen-selection
     ordinal: 28
     file: architecture/I28-whole-screen-selection.md
-    freeze_sha:
+    freeze_sha: 4731d1d0b47ec3afca60603e2ec041ee99f9da03
     verdict: pending
-    lanes: []
+    lanes:
+    - name: selection
+      repo: tart
+      touch_set:
+      - lib/tart/render/chat.rb
+      - lib/tart/render/selection.rb
+      - lib/tart/render/footer.rb
+      - test/chat_test.rb
+      - test/render/selection_test.rb
+    rehearsal:
+      gates_digest: 3f930f1bbe2997327517ff82515f557cafc83fa70ce1a69edcda9529d86557b1
+      at: '2026-10-11T22:15:12-06:00'
   - name: compaction-usage
     ordinal: 29
     file: architecture/I29-compaction-usage.md
     freeze_sha:
     verdict: pending
     lanes: []
+    rehearsal:
+      gates_digest: e754ec1025f839d5648073b3bb826e9ae9d1223866da7196b9b3713c34a10d73
+      at: '2026-10-11T22:16:33-06:00'
   integration_branch: project/pi-port
