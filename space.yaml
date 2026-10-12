@@ -1288,7 +1288,7 @@ project:
       - test/chat_test.rb
       - test/render/**
       base_sha: 276eda3df8161122936cb0f0c19d405df66334be
-      worktree: build/I31-compaction-residuals-rebuild/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
@@ -1305,7 +1305,7 @@ project:
       - test/agent_loop_test.rb
       - gems/tui-split-rig/registry.yml
       base_sha: 276eda3df8161122936cb0f0c19d405df66334be
-      worktree: build/I31-compaction-residuals-estimate/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
