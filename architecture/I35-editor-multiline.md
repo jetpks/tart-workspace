@@ -561,6 +561,163 @@ s9: exit 1 in this tree AND at base (verified by `git stash push` → rerun → 
 
 STATUS: COMPLETE_WITH_CONCERNS (s9 exits 1 in this tree — byte-identical pre-existing base failure, pi `ctrl+g for external editor` oracle drift, evidence above; D1 is a fidelity cut baked into the spec's dispatch ruling — flagged for the architect; D2 is my reading of the browsing-exit discipline for the new ops, itemized)
 
+### rig
+
+## Files (git status --porcelain at end of run)
+
+```
+?? gems/tui-split-rig/scenarios/s10_editor_wrap.yml
+```
+
+| file | state | wc | vs base 8131f438799d6f56c4487d577702589cdd3f4b01 |
+|---|---|---|---|
+| gems/tui-split-rig/scenarios/s10_editor_wrap.yml | A | 29 | new |
+| gems/tui-split-rig/registry.yml | — | — | UNCHANGED (byte-identical to HEAD, see diff below) |
+
+No other file touched. No commits made (no git write command run).
+
+## Scenario yml (verbatim)
+
+```yaml
+# S10 — the editor wrap/growth flip (I35): one tiny text turn, then ONE
+# long literal typed into the editor via post_settle_keys (the s9
+# precedent) — NO Enter: the capture shows the SETTLED screen with the
+# WRAPPED, GROWN editor box and the fake cursor at the end of the typed
+# text. pi wraps the input across visual rows and grows its editor box to
+# the windowed row count (the visual-line model, layoutLines wrapped at
+# the inner width; the box height is capped at max(5, floor(rows/3)) —
+# packages/tui/src/components/editor.ts:538 — and hidden rows surface as
+# ` ↑ N more ` / ` ↓ N more ` border labels, editor.ts:277-293
+# createScrollBorder + custom-editor.ts:45). The port at base renders ONE
+# clipped row (render/editor.rb: input beyond one row clips at the inner
+# width) — the candidate list IS the visual-line editor work list, and the
+# scenario exits 0 on the integrated tree once the port's editor lands
+# (the I14 wave-1 tripwire precedent: RED at base BY DESIGN).
+#
+# The literal is simple ASCII words + spaces: tmux send-keys types the
+# token literally (no braces/semicolons/control chars that tmux would
+# re-tokenize; no @/# — the editor's autocomplete trigger characters,
+# editor.ts:254), long enough to wrap past the rig's 120-col geometry onto
+# >= 3 editor rows. Newlines are NOT typed: tmux's encoding of
+# shift+enter through the pane is not dependable, and newlines are
+# unit-pinned in the core lane.
+name: s10_editor_wrap
+prompt: "hi"
+expected_requests: 1
+post_settle_keys: ["the quick brown fox jumps over the lazy dog while every long line typed here wraps onto another editor row and the small box grows taller above the quiet footer where both apps must agree byte for byte on the settled screen without pressing enter and every extra word keeps the wrap honest"]
+responses:
+  - type: stream
+    content: "Fixed short reply; the wrap happens in the editor, not the turn."
+```
+
+Literal stats: 289 chars, `[a-z ]` only (verified `grep -vc '^[a-z ]*$'` → 0), no double spaces. 289 > 2×119 → ≥3 editor rows at the 120-col pane. Loader check: `Scenario.load` → name/prompt/expected_requests/post_settle_keys(1, len 289)/responses ok.
+
+## PHASE 0 — verification performed before authoring (no blocking disagreements)
+
+| claim in spec | checked against | result |
+|---|---|---|
+| runner post_settle_keys path "runner.rb:126-131" | gems/tui-split-rig/lib/tui_split_rig/runner.rb | `@scenario.post_settle_keys.each` at :126, send-keys + re-settle per token — exact match |
+| yml-only lane feasible | gems/tui-split-rig/lib/tui_split_rig/scenario.rb:110-116 | `post_settle_keys` parses list of strings; no runner change needed |
+| house style s9 | gems/tui-split-rig/scenarios/s9_startup_help.yml | header comment + name/prompt/expected_requests/post_settle_keys/responses shape copied |
+| pi editor cap `max(5, floor(rows/3))` | space pi checkout packages/tui/src/components/editor.ts | `Math.max(5, Math.floor(terminalRows * 0.3))` — VERIFIED, actual line :538 (spec cited :556-557) |
+| pi ` ↑ N more `/` ↓ N more ` labels | same checkout | `createScrollBorder(direction: "↑"|"↓", ...)` editor.ts:277-293; top-border overflow label custom-editor.ts:45 — VERIFIED (spec cited editor.ts:323-341) |
+| tart base one-row clip | lib/tart/render/editor.rb (input_spans comment) | "Input beyond one row clips at the editor's inner width" — RED-at-base design holds |
+| toolchain | live | pi on PATH (mise node bundle), tmux (/opt/homebrew/bin/tmux), bundle, ruby 4.0.7 |
+| base | `git rev-parse HEAD` | 8131f438799d6f56c4487d577702589cdd3f4b01 |
+
+Disagreement: none blocking. One note: the spec's editor.ts line citations (:556-557, :323-341) are drifted vs the live checkout (:538 cap, :277-293 createScrollBorder, custom-editor.ts:45); substance verified, the yml header cites the verified line numbers.
+
+## Gate runs (both apps boot; recorded verbatim)
+
+```
+$ gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s10_editor_wrap.yml --out tmp/i35-s10
+out dir: /Users/eric/architect/spaces/20261009-pi-port/build/I35-editor-multiline-rig/wt/tmp/i35-s10
+EXIT: 1
+
+$ gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s10_editor_wrap.yml --out tmp/i35-s10-r2
+out dir: /Users/eric/architect/spaces/20261009-pi-port/build/I35-editor-multiline-rig/wt/tmp/i35-s10-r2
+EXIT: 1
+```
+
+Exit 1 = unknown-candidate lines exist (the designed RED control at base; rig_failure=nil in both — no rig error).
+
+## Per-run facts
+
+| run dir | exit | rig_failure | pi completed/requests | tart completed/requests | reply settle ms (pi/tart) |
+|---|---|---|---|---|---|
+| tmp/i35-s10 | 1 | nil | true / 1 | true / 1 | 1113 / 1123 |
+| tmp/i35-s10-r2 | 1 | nil | true / 1 | true / 1 | present, no timeout either app |
+
+## Candidate table — run 1 (run 2 identical, see stability)
+
+Diff classes: `{"unknown-candidate" => 4, "parity-run-path" => 2, "footer-provider-prefix" => 2}`
+
+| # | sign | candidate line (verbatim) | classification evidence |
+|---|---|---|---|
+| 1 | `-` | `small box grows taller above the quiet footer where both apps must agree byte for byte on the settled screen without` | pi wrapped editor row 2 (see capture rows) |
+| 2 | `-` | `pressing enter and every extra word keeps the wrap honest` | pi wrapped editor row 3 |
+| 3 | `+` | `` (empty) | box-growth shift row: pi's box top border sits 2 rows higher; tart has blank rows there |
+| 4 | `+` | `` (empty) | same |
+| style | `~` | first editor content row: pi runs `[default]"the quick … and the"`, tart runs `[default]"the quick … and the" + [attrs=reversed]" "` | fake-cursor trailing space position: pi's cursor rides its 3rd wrapped row, tart's rides its single clipped row |
+
+Verbatim candidate list (summary.json):
+
+```
++
++
+-small box grows taller above the quiet footer where both apps must agree byte for byte on the settled screen without
+-pressing enter and every extra word keeps the wrap honest
+```
+
+Verbatim style_unknown (1):
+
+```
+[style]~ "the quick brown fox jumps over the lazy dog while every long line typed here wraps onto another editor row and the" pi=[false]"the quick brown fox jumps over the lazy dog while every long line typed here wraps onto another editor row and the" tart=[false]"the quick brown fox jumps over the lazy dog while every long line typed here wraps onto another editor row and the" [attrs=reversed]" " -> unknown-candidate
+```
+
+Editor-family check: all 4 text candidates + 1 style candidate are the wrap/box-growth rows (pi's wrapped rows 2-3, the 2 empty shift rows, the fake-cursor position). No MOTD/footer/path/tool candidate surfaced (those classes stayed sanctioned: 2 parity-run-path, 2 footer-provider-prefix).
+
+## Capture geometry (screen rows 34-40 of 40, run 1)
+
+```
+pi capture:
+34 ──────────… (top border)
+35 the quick brown fox jumps over the lazy dog while every long line typed here wraps onto another editor row and the
+36 small box grows taller above the quiet footer where both apps must agree byte for byte on the settled screen without
+37 pressing enter and every extra word keeps the wrap honest
+38 ──────────… (bottom border)
+39 /Users/…/tmp/i35-s10/run-1/sandbox/pi (lane/I3…      [parity-run-path]
+40 ↑10 ↓5 0.0%/33k (auto)                                                                    (mock) mock-1 [footer-provider-prefix]
+
+tart capture:
+36 ──────────… (top border, 2 rows LOWER than pi's)
+37 the quick brown fox jumps over the lazy dog while every long line typed here wraps onto another editor row and the
+38 ──────────… (bottom border)
+39 /Users/…/tmp/i35-s10/run-1/sandbox/tart              [parity-run-path]
+40 ↑10 ↓5 0.0%/33k (auto)                                                                                     mock-1 [footer-provider-prefix]
+```
+
+Fake cursor: pi styled row 37 ends `\e[7m \e[0m` (reversed trailing space at end of typed text, 3rd wrapped row); tart styled row 37 ends `\e[7m \e[0m` (same, single clipped row). Both show the cursor at end-of-input; the divergence is the wrap itself.
+
+## Stability (flake discipline)
+
+Run 2 vs run 1: exit 1 = 1; classes identical (`unknown-candidate: 4, parity-run-path: 2, footer-provider-prefix: 2`); candidate list byte-identical (same 2 del rows verbatim, same 2 empty ins rows); style_unknown 1 = 1; rig_failure nil both; both apps completed=true, requests=1 both.
+
+## Registry diff
+
+```
+$ git show HEAD:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml && echo "REGISTRY UNCHANGED"
+REGISTRY UNCHANGED
+```
+
+Zero changes of any kind — no additions needed, none forced (the candidate rows are new-content wrap/growth territory, no path-noise class required).
+
+## Boundary check
+
+`git status --porcelain` shows exactly one untracked file: `gems/tui-split-rig/scenarios/s10_editor_wrap.yml`. Nothing under gems/tui-split-rig/{lib,bin,test}/, no existing scenario yml, nothing under lib/ or test/, no golden touched. tmp/i35-s10* are rig run artifacts only.
+
+STATUS: COMPLETE
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
