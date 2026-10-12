@@ -1184,7 +1184,7 @@ project:
     ordinal: 28
     file: architecture/I28-whole-screen-selection.md
     freeze_sha: 4731d1d0b47ec3afca60603e2ec041ee99f9da03
-    verdict: pending
+    verdict: continue
     lanes:
     - name: selection
       repo: tart

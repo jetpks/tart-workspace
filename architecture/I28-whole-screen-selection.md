@@ -603,15 +603,75 @@ STATUS: COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section whole-screen-selection verdict --from <file>`. -->
+# Verdict — I28 whole-screen-selection
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify whole-screen-selection`)?
+Judged 2026-10-12 in a fresh session (this session dispatched nothing). Integrated
+`selection` → project/pi-port at 355c05ea (pre-I29); all 13 frozen gates PASS cold on
+that tree; combined post-I29 tree 553 runs / 2134 assertions / 0 failures / SEAM_BENCH_OK.
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+## Post-flight (all confirmed with evidence this session)
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+Frozen region untouched (`git diff 4731d1d0 HEAD` appends Builder Prompt/Report only);
+no builder commits (`log project/pi-port..` empty in the worktree); worktree status =
+exactly the 5 declared files; report transcribed verbatim (8cff1d1a).
+
+## Disagreement rulings (the lane's report carried them in the deviations table,
+not under a PHASE 0 banner — content present, framing defect noted, not silent
+compliance)
+
+1. **previousScreen analog (composition, not screen-buffer read)** — ACCEPT. The spec
+   pre-authorized the fork; the gem exposes no live buffer readback, deviation itemized
+   with the builder citation. Same bytes, different source.
+2. **ctrl+x selection gate dropped (pi gates the selection branch on
+   `!getCopyOnSelect()`)** — ACCEPT the shipped letter, and the defect is the
+   CRITERION's authoring (mine): AC3 froze the copy-on-select-OFF variant while the
+   port's copy-on-select is unconditionally on, making pi's literal branch dead code.
+   The builder reported the conflict with evidence (pi :6641-6645 — re-verified against
+   pi source this session) and shipped the AC's letter; lane not penalized. Shipped
+   behavior is a harmless superset (release already copied; ctrl+x re-copies the
+   selection). Revisit only if a copy-on-select setting ever lands.
+3. **Flash composited at render + kernel-timer clear** — ACCEPT (mechanism divergence,
+   message/duration byte-verified: pi `flash("Copied!")`, DEFAULT_DURATION_MS 1000 —
+   confirmed in pi source this session).
+4. **Editor border-row highlight cut (gem-native Block composes borders)** — ACCEPT,
+   itemized residual. The reader ANSWERS border text (AC1's pin passes); highlight
+   renders over input/suggestion/footer rows. Border-cell inverse video queued behind
+   a gem seam that doesn't exist.
+5. **Blank-row highlight absent** — ACCEPT (consistent with the transcript's
+   pre-existing blank-row behavior).
+6. **thinkingLevelMap absent from the catalog schema** — ACCEPT cut (xhigh/max never
+   filter; schema work out of scope).
+7. **/thinking gate intercepts in `Chat#submit`, not the frozen Commands::Handler** —
+   ACCEPT (commands.rb sealed; idle-path-only matches the standing I27 steering
+   deviation).
+8. **Stored level not re-clamped on model switch (pi clamps at setModel)** — noted,
+   beyond AC4's letter; queued as wave-2 polish with the I27 residuals it rode with.
+9. **rubocop incident** — process note only; no repo formatter exists; final diff
+   carries no default-config formatting (verified in the read).
+10. Out-of-scope list honored (auto-scroll timer, URL click-through, rig staging).
+
+## Per-AC
+
+- **AC1 PASS** — whole-screen mapping landed (`content_point`'s below-transcript
+  branch, negative synthetic rows); reader composed per area with the deviation
+  itemized; press/drag/release + selection_text pinned over editor-border, input, and
+  footer rows (coverage tripwire + suite green).
+- **AC2 PASS** — double/triple/drag/copy over all rows pinned; highlight renders over
+  editor content + footer rows (border cells itemized, ruling 4); at-rest byte-parity:
+  s1–s6 exit 0 cold, s7 exit 1, registry additions-only.
+- **AC3 PASS** — both branches + error line + flash pinned; flash shape verified
+  against pi source this session; letter-vs-spirit conflict ruled (ruling 2).
+- **AC4 PASS** — ✓/· cross-resolution pinned under an env-boot wire-slug pair;
+  thinking gate `[off]` alone + gated-set error + runtime re-gate + cycle no-op.
+- **AC5 PASS** — SCOPE_OK (gated on the pre-I29 window; the combined tree is I29's
+  window to measure).
+- **AC6 PASS** — 544 runs / 2110 assertions (+18 vs base 526), SEAM_BENCH_OK.
+
+## Call
+
+**CONTINUE** — the last unported interaction surface is closed: every screen row now
+selects, highlights, and copies; ctrl+x and both menu residuals landed byte-checked
+against pi. Decisive: s1–s6 exit 0 cold with zero at-rest chrome added.
+
+Carry-ins: border-cell highlight (ruling 4), stored-level re-clamp (ruling 8),
+ctrl+x gate letter (ruling 2) — all small, all logged in ARCHITECT.md.
