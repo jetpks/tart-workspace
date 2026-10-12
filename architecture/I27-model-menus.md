@@ -433,11 +433,12 @@ models; the tmux hardening lets two scenarios run CONCURRENTLY with both exiting
   cmd: |-
     gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/conc-a > tmp/conc-a.log 2>&1 &
     p1=$!
+    sleep 6
     gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/conc-b > tmp/conc-b.log 2>&1 &
     p2=$!
     wait $p1; e1=$?
     wait $p2; e2=$?
-    if [ "$e1" -eq 0 ] && [ "$e2" -eq 0 ]; then echo CONCURRENT_OK; else echo "concurrent exits: $e1 $e2"; exit 1; fi
+    if [ "$e1" -eq 0 ] && [ "$e2" -eq 0 ]; then echo CONCURRENT_OK; else echo "concurrent exits: $e1 $e2 (b started 6s into a's run — a's live sessions must be invisible to b)"; exit 1; fi
   expect:
     exit_code: 0
     stdout_match: CONCURRENT_OK
