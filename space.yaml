@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: editor-multiline
+  current_iteration: thinking-wiring
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1460,4 +1460,10 @@ project:
     rehearsal:
       gates_digest: bba0a7f6596d6b247280cdaf5b52cb3d732ab2a5c4f00b56c0b58acfca2b7078
       at: '2026-10-12T14:25:19-06:00'
+  - name: thinking-wiring
+    ordinal: 36
+    file: architecture/I36-thinking-wiring.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
