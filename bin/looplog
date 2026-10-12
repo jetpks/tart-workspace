@@ -227,7 +227,11 @@ class Renderer
     ex = @exchange
     output = (ex ? ex[:output] : 0) + u["output"].to_i
     cache = (ex ? ex[:cache_read] : 0) + u["cacheRead"].to_i
-    cost = (ex ? ex[:cost] : 0.0) + u.dig("cost", "total").to_f
+    # cost is nested ({total: …}) in run.jsonl-shaped events but a plain
+    # Float in the artifact transcripts — accept both.
+    cost_value = u["cost"]
+    cost_value = cost_value["total"] if cost_value.is_a?(Hash)
+    cost = (ex ? ex[:cost] : 0.0) + cost_value.to_f
     started = ex ? ex[:started_at] : nil
     @exchange = nil
     elapsed = started && rec["ts"] ? (rec["ts"] - started) / 1000 : nil
@@ -363,22 +367,24 @@ end
 
 # --- entry -----------------------------------------------------------------------
 
-space = nil
-replay = false
-all = false
-list = false
-args = ARGV.dup
-until args.empty?
-  case (arg = args.shift)
-  when "--list"   then list = true
-  when "--replay" then replay = true
-  when "--all"    then all = true
-  when "--space"  then space = args.shift
-  else abort "usage: looplog [--list] [--replay] [--all] [--space PATH]  (unknown: #{arg})"
+if $PROGRAM_NAME == __FILE__
+  space = nil
+  replay = false
+  all = false
+  list = false
+  args = ARGV.dup
+  until args.empty?
+    case (arg = args.shift)
+    when "--list"   then list = true
+    when "--replay" then replay = true
+    when "--all"    then all = true
+    when "--space"  then space = args.shift
+    else abort "usage: looplog [--list] [--replay] [--all] [--space PATH]  (unknown: #{arg})"
+    end
   end
+
+  space ||= space_root(Dir.pwd)
+  abort "looplog: no space root upward from #{Dir.pwd} (or pass --space PATH)" unless space
+
+  Follower.new(space: space, replay: replay, all: all, list_only: list).run
 end
-
-space ||= space_root(Dir.pwd)
-abort "looplog: no space root upward from #{Dir.pwd} (or pass --space PATH)" unless space
-
-Follower.new(space: space, replay: replay, all: all, list_only: list).run
