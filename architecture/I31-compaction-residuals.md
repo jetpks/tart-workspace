@@ -1158,15 +1158,76 @@ STATUS: COMPLETE_WITH_CONCERNS — (1) `gems/tui-split-rig/test/registry_test.rb
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section compaction-residuals verdict --from <file>`. -->
+# Verdict — I31 compaction-residuals
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify compaction-residuals`)?
+Judged 2026-10-12 in a fresh session (dispatched nothing). Post-flight
+confirmed first-hand, not via `architect verify` alone: frozen region
+untouched since freeze 40304df3 (single hunk at the Builder Prompt
+placeholder, line 385+); zero builder commits in either worktree (both HEAD
+= 276eda3d); worktree diffs exactly the declared files (rebuild 3,
+estimate 5); the main checkout was clean pre-integration (rebuild's
+self-caught checkout confusion left no trace — verified). Evidence
+transcribed verbatim: rebuild a317b69f, estimate cf486d1a.
+
+## Disagreement rulings
+
+1. **estimate PHASE 0 #1 — registry_test.rb one-word fix: ACCEPT.**
+   `SANCTIONED_NON_PATH` needs `"compaction-token-estimate"` added
+   (registry_test.rb:14), a file outside both lanes' frozen touch sets —
+   exactly the lane-crossing the Specification told the lane to STOP and
+   raise. AC4 (suite fully green) and AC5 (exact file enumeration) were
+   jointly unsatisfiable as frozen: the rig's own test pins registry class
+   names, so AC3's class cannot land green without it. Spec-authoring
+   defect, not a lane defect. Applied as architect-ruled integration
+   remediation (tart 64d30af) per the I13/I14 inline-fix precedent — and it
+   HAD to land now, else I32's staged freeze inherits a red suite at base.
+   The scope gate's letter takes the FAIL for it (below); the lanes are not
+   penalized (letter-vs-spirit clause — the lane built the AC's stated
+   property and reported the conflict with evidence). Carry-in for every
+   future freeze: a scope enumeration must include every file the spec's
+   own required artifacts force.
+2. **estimate PHASE 0 #2 — s8 "token candidates STILL UNKNOWN" wording:
+   ACCEPT the lane's reading.** The spec sentence described the
+   in-worktree sequencing expectation (prove-at-integration), not the
+   post-classification composition. With the class present the token rows
+   classify as `2x compaction-token-estimate` — that IS AC3 working. At
+   integration s8 exits 0 cold; intent fully served.
+3. **rebuild ruling — preserve vs re-render: ACCEPT.** Capture-and-restore
+   of the header-container shape (`@header_rows`) is byte-faithful to pi's
+   sibling-container model (interactive-mode.ts:633-639, :1075-1077;
+   compaction_end clears chatContainer only, :3701) and is the only option
+   that keeps the port-only `[Context]` listings dead and tart-mode's
+   random art stable. Verified in the s7 capture: top rows = art + help +
+   `Pi can explain…` only.
+4. **rebuild note — spec said 9 pasted comment lines, the range spans 11:
+   ACCEPT.** Sentence-boundary cut is correct; authoring nit, zero gate
+   consequence (the tripwire greps -B22).
+
+## Process defects logged (not penalized)
+
+- rebuild's report lacked a labeled PHASE 0 section — its disagreements
+  were raised inline under deliverables/process notes instead. Substance
+  present, so not silent compliance, but the format discipline slipped.
+- rebuild's early-lane worktree confusion (rake/rig run against the main
+  checkout) — self-caught, corrected, disclosed; main checkout verified
+  clean by this session.
+
+## Acceptance Criteria
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | s7 exit 0 cold, 0 unknown-candidates, style diffs none; chat pins: header survives above kept entries, `[Context]` not resurrected, I30 pins stand (suite green) | §8 | **PASS** |
+| AC2 | estimate arms cover the wire tools counted once (byte-exact wire-JSON pin; once-not-per-message pin; usage-backed path unchanged — s7 panel 15 both sides) | §8 | **PASS** |
+| AC3 | `compaction-token-estimate` added additions-only with owner-agreed provenance; s8 exit 0 cold — token rows classified (pi 1,482 / tart 1,256, each its own measurement) | §8 | **PASS** |
+| AC4 | s1–s6 exit 0; suite 569 runs / 2231 assertions / 0 failures / 1 pre-existing skip (delta +4); SEAM_BENCH_OK | §8 | **PASS** |
+| AC5 | scope gate exit 1: diff vs 276eda3d = the 8 lane files + `gems/tui-split-rig/test/registry_test.rb` (the ruled one-word fix, 64d30af) | §8 | **FAIL** (letter — see ruling 1: jointly-unsatisfiable authoring defect; both lanes' own worktree diffs verified exactly in-bounds) |
+| AC6 | COMMENT_OK; architect-read: the compaction-panel comment opens at its own subject (11 pasted lines deleted) | §8 | **PASS** |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+## Iteration
+
+**CONTINUE** — both I30 residuals are closed at the instrument (s7 + s8
+exit 0 cold, zero style differences), the diff is mechanism-faithful to pi
+(header container model + estimateTokens' system arm) and house-idiomatic;
+the single gate FAIL is the spec's own authoring, ruled and remediated, not
+a builder defect. Merged: rebuild 2950409e, estimate 4657114d, ruling fix
+64d30af on project/pi-port.
