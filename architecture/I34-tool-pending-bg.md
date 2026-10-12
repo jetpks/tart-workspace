@@ -434,11 +434,133 @@ and the human. Persist until your lane is fully handled end-to-end; do not stop
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I34-tool-pending-bg-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence tool-pending-bg --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+### Phase 0 disagreements (flagged before implementation; none blocked)
+
+| # | Disagreement / premise check | Evidence |
+|---|---|---|
+| 1 | `Panel.tool_panel_bg`'s comment (panel.rb:84-86, "the pending bg never reaches the scrollback — the port's blocks enqueue at completion") goes FACTUALLY STALE after I34: the pending bg now reaches the scrollback mid-flight. panel.rb is outside this lane's touch set — the comment cannot be corrected here. Comment-only, zero behavior impact. | `sed -n '82,86p' lib/tart/render/panel.rb` — "the pending bg never reaches the scrollback"; ground truth post-I34: probe frames show `48;2;52;56;58` in tart mid-flight captures (below) |
+| 2 | All other premises verified against live sources, no disagreement: theme.rb:67 `tool_pending_bg: "#34383a"` (SGR `48;2;52;56;58`), toolTitle :61, tool_error_bg :69; chat.rb:413-421 base shape; transcript.rb I33 rebuild (`flush_scrollback` records `{start:, size:, builder:}`, `set_tool_output_expanded` threads the row delta); bash_block.rb:46-47 "Spacer blank stays PLAIN"; ruby_llm `configuration.rb` `option :tool_concurrency, false` (sequential default confirmed in the installed gem); pi interactive-mode.ts:3520-3670 (pendingTools Map, message_end abort arm → "Operation aborted" finalize loop, agent_end clears) + tool-execution.ts:90-91/:271-277 (`toolPendingBg` while isPartial); loop.rb:495-511 events carry the full call on both edges. Baseline suite 606 runs / 2487 assertions / 0F / 0E / 1 skip, `SEAM_BENCH_OK` — matches Grounds 7. | commands in Gate results |
+
+### File inventory (wc)
+
+| File | Lines | Status vs ecc6b2b |
+|---|---|---|
+| lib/tart/render/transcript.rb | 742 | M (+227/-89 region per diff --stat) |
+| lib/tart/render/chat.rb | 1603 | M |
+| lib/tart/render/bash_block.rb | 197 | M |
+| lib/tart/render/file_blocks.rb | 232 | M |
+| lib/tart/render/tool_block.rb | 58 | M |
+| test/chat_test.rb | 4194 | M (additive: 2-line helper signature extension + 9 tests + 1 private helper) |
+| test/render/transcript_test.rb | 264 | new |
+| gems/tui-split-rig/bin/tool-pending-probe | 132 | M (additive --gate) |
+
+`git status --short` = exactly those 8 entries. `git diff --name-only ecc6b2b | grep -qvE '<touch-set>'` → false → `SCOPE_OK`. No commits made (`git log` untouched).
+
+### Gate results (this session, final tree)
+
+| Gate | Command | Result |
+|---|---|---|
+| suite (before) | `bundle install --quiet && bundle exec rake` | `606 runs, 2487 assertions, 0 failures, 0 errors, 1 skips` (pre-existing live-env skip) |
+| suite (after) | `bundle exec rake` | exit 0 — `629 runs, 2595 assertions, 0 failures, 0 errors, 1 skips` (delta +23 runs, +108 assertions) |
+| bench | `bundle exec ruby bench/seam_bench.rb 2>&1 \| tail -1` | `SEAM_BENCH_OK` |
+| s1-parity | rig run s1_text_turn --out tmp/i34-s1 | exit 0 |
+| s2-parity | rig run s2_tool_turn --out tmp/i34-s2 | exit 0 |
+| s3-parity | rig run s3_tool_turn_files --out tmp/i34-s3 | exit 0 |
+| s4-parity | rig run s4_bash_variants --out tmp/i34-s4 | exit 0 |
+| s5-parity | rig run s5_bash_truncation --out tmp/i34-s5 | exit 0 |
+| s6-parity | rig run s6_long_calls --out tmp/i34-s6 | exit 0 |
+| s7-parity | rig run s7_compaction --out tmp/i34-s7 | exit 0 |
+| s8-parity | rig run s8_zero_usage_compaction --out tmp/i34-s8 | exit 0 |
+| s9-parity | rig run s9_startup_help --out tmp/i34-s9 | **exit 1 from this worktree — PRE-EXISTING deep-path sensitivity, NOT this diff** (evidence below) |
+| tool-pending-gate | `gems/tui-split-rig/bin/tool-pending-probe --gate --out tmp/i34-tp` | exit 0, stdout ends `TOOL_PENDING_GATE_OK` |
+| evidence mode | `gems/tui-split-rig/bin/tool-pending-probe --out tmp/i34-tp-evidence` | exit 0, per-frame digest (unchanged format) |
+| pending-machinery | the spec's 4-grep chain | `PENDING_MACHINERY_OK` |
+| scope | working-tree file set vs ecc6b2b | `SCOPE_OK` (exactly the declared touch set) |
+
+### s9 deep-path evidence (base vs worktree, controlled)
+
+This worktree's absolute path is ~35 chars deeper than repos/tart; the gate spec itself warns "deep paths trip the pre-existing footer-cwd truncation sensitivity". Controlled runs of the UNMODIFIED base tree (git archive ecc6b2b extracted outside the worktree; no git write in this worktree):
+
+| Tree | AGENTS.md capture-row length | s9 exit |
+|---|---|---|
+| base @ /tmp/i34-base | 51 | 0 |
+| base @ <space>/build/xx | 92 | 0 |
+| base @ <space>/build/xxxx (**= repos/tart integration depth, 94**) | 94 | **0** |
+| base @ <space>/build/I34-tool-pending-bg-core/wb (same depth as wt) | 118 | **1** |
+| this worktree (I34 tree) @ wt | 118 | **1** |
+
+The base-deep and worktree-deep failures are the SAME failure: `difference lines: 14 (sanctioned: 12, unknown-candidate: 2)` with the identical unknown-candidate pair — `- ctrl+g for external editor` (pi-only header row exposed by the one-row scroll shift) and the `[Context]` path-wrap blank. Conclusion: environmental at depth 118; the integration run at depth 94 is green at base (and the only content deltas my diff makes require tool events, which s9 — prompt "hi", no tools — never emits; the pending machinery's only s9-reachable code is the `@pending_tool&.region&.equal?` no-op in `flush_scrollback`).
+
+### Probe gate (AC5) — verbatim tails
+
+Default evidence mode (exit 0; digest format unchanged — same lines as the I26 probe):
+
+```
+pi frame 02: tool-mark-rows=1 bg=[48;2;33;59;73mx1,[48;2;52;56;58mx2,[48;2;79;142;179mx1
+... (frames 02-12 identical shape)
+pi frame 13: tool-mark-rows=1 bg=[48;2;33;59;73mx1,[48;2;37;65;49mx2,[48;2;79;142;179mx1
+tart frame 02: tool-mark-rows=1 bg=[48;2;33;59;73mx1,[48;2;52;56;58mx2,[48;2;79;142;179mx1
+... (frames 02-12 identical shape)
+tart frame 13: tool-mark-rows=1 bg=[48;2;33;59;73mx1,[48;2;37;65;49mx2,[48;2;79;142;179mx1
+frames at .../wt/tmp/i34-tp-evidence
+evidence-mode exit=0
+```
+
+tart's mid-flight SGR signature is now frame-for-frame identical to pi's: pending `48;2;52;56;58`x2 frames 02–12 (17-frame captures both apps), settle `48;2;37;65;49`x2 (toolSuccessBg) from frame 13.
+
+Gate mode (exit 0):
+
+```
+frames at .../wt/tmp/i34-tp
+TOOL_PENDING_GATE_OK
+gate exit=0
+```
+
+RED-at-base tripwire verified: `git show ecc6b2b:lib/tart/render/transcript.rb | grep -c 'def enqueue_pending_tool_block'` → 0; `git show ecc6b2b:gems/tui-split-rig/bin/tool-pending-probe | grep -c -- '--gate'` → 0 (both exit 1 at base, as AC5 specifies).
+
+### Pending/replay test list (verbatim run tails)
+
+`bundle exec ruby test/render/transcript_test.rb` (direct-class, 14 tests):
+
+```
+Pending shapes: pending_bash_renders_the_call_rows_under_the_pending_bg /
+pending_write_renders_the_call_rows_alone / pending_read_renders_the_collapsed_call /
+pending_generic_renders_the_mark_line_alone / pending_bash_guards_nil_args_to_the_placeholder_header
+Settle: flushed_pending_settles_byte_identical_to_the_control /
+queued_pending_settles_byte_identical_to_the_control /
+flushed_settle_threads_the_row_delta_to_later_blocks /
+generic_settle_drops_the_registration_and_matches_the_control
+Lifecycle: orphaned_pending_finalizes_as_the_error_block /
+finalize_without_a_pending_registration_appends /
+second_pending_supersedes_and_the_stale_end_appends / reset_clears_the_pending_registration
+Replay: replay_entries_render_final_blocks_only
+14 runs, 60 assertions, 0 failures, 0 errors, 0 skips
+```
+
+`bundle exec ruby test/chat_test.rb -n "/pending|mid_flight|residue|orphan|resume_replays_render/"` (event-driven, 9 tests):
+
+```
+test_pending_block_paints_mid_flight (AC1 — 4 rows, header cell bg=#34383a fg=toolTitle bold)
+test_flushed_pending_settles_byte_identical_to_the_control (AC2 drained — transcript_lines + buffer_content == control)
+test_queued_pending_settles_byte_identical_to_the_control (AC2 fast path — no pending rows ever painted)
+test_ctrl_o_mid_flight_and_the_settled_toggle (AC4 — constant-size rebuild; finalize reads the flipped state; round-trips)
+test_interrupt_finalizes_the_orphaned_pending_block (AC4 — "Operation aborted" under toolErrorBg; "interrupted" line stays)
+test_error_finalizes_the_orphaned_pending_block_with_the_message (AC4 — error arm)
+test_resume_replays_render_no_pending_bg (AC3 — zero pending-bg spans on replay)
+test_pending_shapes_per_family (AC1 — write/read/generic call-row-only)
+test_sequential_multi_tool_turn_leaves_no_residue (AC4 — byte-identical to the end-only control)
+9 runs, 48 assertions, 0 failures, 0 errors, 0 skips
+```
+
+All 9 chat tests sit BEFORE chat_test.rb's `private` (:3871) — the silently-skipped-tests latent does not apply.
+
+### chat_test.rb surgery check
+
+`git diff ecc6b2b -- test/chat_test.rb` removed lines = only the 2-line `tool_start` helper body (replaced by the arguments-carrying signature; existing call sites unchanged). Everything else is additions.
+
+STATUS: COMPLETE_WITH_CONCERNS — (1) s9-parity exits 1 from THIS worktree at any out-dir: pre-existing deep-path sensitivity, reproduced byte-identically on the unmodified base tree at the same path depth (118-char capture rows) and green on base at the integration depth 94 (repos/tart) — the architect's gate run from repos/tart is expected green; (2) panel.rb:84-86's tool_panel_bg comment ("the pending bg never reaches the scrollback") is now stale and lives outside this lane's touch set — one-line architect-owned fix; (3) documented caveat (spec-sanctioned, Grounds 6b-unreachable): a second enqueue_pending_tool_block while one is live supersedes the registration; the superseded block renders on under the pending bg (its end falls back to the append) — pinned by test_second_pending_supersedes_and_the_stale_end_appends.
 
 ## Verdict
 
