@@ -425,10 +425,200 @@ transcript.rb, chat_test.rb, test/render/**, gems/tui-split-rig/**.
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I30-compaction-panel-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section compaction-panel prompt --append --lane <lane> --from build/I30-compaction-panel-<lane>/prompt.md`. -->
+### agent
+
+# Lane dispatch — I30 compaction-panel, lane `agent`
+
+**You are lane `agent`.** You are ONE of TWO parallel lane agents dispatched together
+(the other is lane `panel` of the SAME iteration, isolated in its own worktree — its
+territory is `lib/tart/render/chat.rb`, `lib/tart/render/transcript.rb`,
+`test/chat_test.rb`, `test/render/**`, and `gems/tui-split-rig/**`, which you must
+NEVER touch). Your lane's territory, exhaustively:
+
+- **Touch (exactly these files):** `lib/tart/agent/loop.rb`,
+  `lib/tart/agent/session.rb`, `test/agent_loop_test.rb`, `test/session_test.rb`.
+- **Must not touch:** everything else — in particular `lib/tart/render/**` ALL
+  (chat.rb/transcript.rb are lane `panel`'s single-writer territory — a parallel lane
+  is building there right now; touching it fails both lanes), `gems/**`,
+  `test/chat_test.rb`, `test/render/**`, `test/support/**` (if you find you need a
+  MockLLM change, STOP and raise it in PHASE 0 instead of touching),
+  `lib/tart/models.rb`, `lib/tart/settings.rb` (READ `Settings.resolve_context_window`
+  and `MODEL_CONTEXT_WINDOWS` freely; if a change there is genuinely required, STOP
+  and raise it in PHASE 0), `lib/tart/compaction.rb`, `bin/tart`.
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo. Silent compliance
+is a failure. Silent scope additions are a failure. If you have no
+disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them (notably: pi's persisted `Usage` interface shape — read
+pi's session-manager.ts Usage/appendCompactionEntry and the gem's tokens.rb
+READERS live before mapping; and the cleanest kept-entries derivation from the
+recorder's chronological list + `first_kept_entry_id`).
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed above. No placeholder
+implementations — search the codebase before implementing; full implementations
+only. Write IDIOMATIC, house-consistent code: read the neighbouring code and
+match its conventions (naming, guards, predicates, error/persistence idioms,
+the language's expressive collection/enumerable forms); well-factored and
+DRY-ish; terse but clear; pragmatic, not clever — the smallest change that does
+the job, no abstraction it doesn't need. Consistency with the surrounding code
+is part of correctness here: a change that works but fights the house style (or
+introduces an inconsistency a careful reader of this repo would never write) is
+not done. Tests stay simple and terse, exercising public behavior, no
+mock/stub of the class under test. Verify your work by running the acceptance
+criteria's gate commands and record the verbatim output. Do NOT commit and do
+NOT run any git write command (commit/add/branch/reset/checkout) — the
+architect commits and merges after verification, and verifies you made no
+commits. Do NOT delete lock files or escalate privileges if a command fails;
+record the exact error and continue. Do NOT use `run_in_background` (or shell
+`&`) for your own work — this process terminates when you end your turn and
+reaps its own children, so backgrounded work is SIGTERMed and its output lost
+while the run still exits 0; run long commands serially in the foreground
+instead. Give every potentially long command an explicit timeout (the parity
+rig runs take tens of seconds each — allow 120s+ each). IMPORTANT tmux
+discipline: a `tmux kill-server` from you kills every other agent's live
+sessions on the shared server — NEVER run it; kill only sessions you created by
+exact name (the runner's sessions are token-scoped). If a runtime will not
+start unattended, record the exact failure in your report and route around it —
+never busy-wait or retry in a loop. When done, write your report to the scratch
+file given to you below (an absolute path OUTSIDE your worktree), with RAW
+results only — tables, numbers, command output — no interpretation, no
+"promising". Every status claim must be backed by a command result from this
+run. Keep the report compact — tables and numbers, not prose. Do not title the
+report; keep any headings inside the report at `###` or deeper. End it with
+exactly one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them)
+| BLOCKED (exact blocker + what you tried). Verdicts belong to the architect
+and the human. Persist until your lane is fully handled end-to-end; do not stop
+at analysis or partial fixes.
+
+Your scratch report (write RAW results here, never inside the worktree):
+/Users/eric/architect/spaces/20261009-pi-port/build/I30-compaction-panel-agent/report.md
+
+## Your lane's specification (lane `agent` ONLY — lane `panel`'s deliverables are NOT yours)
+
+- **Objective (iteration context).** Port pi's compaction render to close the s7/s8
+  settled-screen divergence: pi renders compaction as a customMessageBg `[compaction]`
+  panel AND rebuilds the transcript from the post-compaction kept entries; the port
+  renders a dim `✻ compacted` line. Lane `panel` builds the render; YOUR lane builds
+  the agent-side seams the render needs — the event payload, the entry persistence,
+  the switch window tier.
+
+- **THE FROZEN CONTRACT (lane `panel` builds its consumer against this; never drift
+  it).** The `:compaction` event payload becomes exactly:
+  `emit(type: :compaction, reason:, tokens_before:, summary:, entries:)` where
+  `entries` is an Array of replay-entry Hashes — the SAME shape
+  `Agent::Session.load_entries` / the transcript's `replay_entries` consume (message
+  entries with `type`/`message` keys, bashExecution entries, etc.) — holding the
+  post-compaction KEPT context entries in chronological order (the entries after the
+  cut point, i.e. from `first_kept_entry_id` onward; NOT the system messages, NOT the
+  summary message — pi's `renderSessionEntries(entries.slice(1))` equivalent). No
+  other keys are added; `usage` does NOT ride the event (nothing renders it — the
+  cost notice is default-off in pi; it persists on the recorder entry only).
+
+- Deliver **the `entries:` payload** (the frozen contract): derive the kept entries
+  on the loop/recorder side — the recorder holds the chronological entry list and
+  the compaction entry records `first_kept_entry_id`; verify the cleanest derivation
+  (recorder projection vs loop-side collection) and build it. Do not reshape the
+  existing replay-entry format. Pinned by agent_loop tests on a real two-message cut
+  fixture (the kept-entry semantics, chronological order, no system/summary leakage).
+
+- Deliver **`usage` persistence** (pi CompactionEntry parity): `Recorder#
+  append_compaction` persists the summarization call's usage (the `Preparation#usage`
+  the loop already carries — the gem `Message#tokens`) on the entry in pi's persisted
+  `Usage` shape — READ pi's `Usage` interface (session-manager.ts) + the gem's
+  `Tokens` readers (tokens.rb) first and map faithfully; pi's entry keys are camelCase
+  (the standing I07/I08 format rule); `estimated_tokens_after` is NOT persisted (pi
+  doesn't). The `:compaction` EVENT SHAPE otherwise stays the frozen I12 contract
+  (additive key only). session_test pins the persisted entry shape round-trip.
+
+- Deliver **the switch window tier** (the I29-ruled residual): `switch_model`'s
+  re-resolve consults the boot chain's known-models tier — catalog-declared window →
+  `@chat.model&.context_window` → `Settings::MODEL_CONTEXT_WINDOWS` — so switching to
+  a known-models-table entry without a declared window resolves the table's window
+  instead of nil (threshold disabled). Reuse `Settings.resolve_context_window` if it
+  fits; itemize the tier set you land. Pinned by an agent_loop test (a known-models
+  entry resolves the table window; the footer denominator refreshes).
+
+- **Out of scope, itemize if tempted:** anything in `lib/tart/render/**`, the
+  compaction_cost notice, `estimated_tokens_after` persistence, pi's `systemMessage`
+  on the CompactionEntry, MockLLM changes.
+
+- **Tool guidance.** Verification (from your worktree root):
+  `bundle install --quiet && bundle exec rake` (expect fully green, run-count delta
+  > 0 from your new tests); `bundle exec ruby bench/seam_bench.rb` (expect
+  SEAM_BENCH_OK). pi sources (READ before coding; cite what you port):
+  `repos/pi/packages/coding-agent/src/core/session-manager.ts` (:85-101
+  CompactionEntry + the Usage interface, :1265-1290 appendCompactionEntry),
+  `repos/pi/packages/coding-agent/src/modes/interactive/interactive-mode.ts`
+  (:3686-3725 compaction_end — the rebuild's entries.slice(1) semantics),
+  `repos/pi/packages/coding-agent/src/core/settings-defaults.ts:27`. The gem at
+  ~/.local/share/mise/installs/ruby/4.0.7/lib/ruby/gems/4.0.0/gems/ruby_llm-2.1.0/
+  (tokens.rb readers) for the usage mapping.
+
+- **Output format.** Raw evidence to scratch: file list + wc; the payload derivation
+  table (mechanism → code, before/after); the usage mapping table (gem Tokens reader
+  → pi Usage key); the tier table; verbatim test tails + suite counts; itemized
+  deviations/cuts. PHASE 0 disagreements mandatory (a labeled PHASE 0 section).
+  STATUS line last.
+
+## Acceptance Criteria (frozen — verify against these)
+
+**AC1 (the panel).** [lane `panel`'s — listed for context; you build none of it]
+The compaction panel renders pi's bytes: the customMessageBg Box family, collapsed =
+bold `customMessageLabel` `[compaction]` + the `customMessageText` prose +
+`dim` `ctrl+o` key; expanded = markdown header + summary; comma-grouped number; the
+ctrl+o GLOBAL expand state; MouseRegion click-to-toggle stays cut. Replay renders
+persisted compaction entries as this panel.
+
+**AC2 (the live rebuild).** [lane `panel`'s render + YOUR payload] On the
+`:compaction` event (the frozen payload), the surface clears the transcript, re-renders
+the event's kept entries chronologically, and appends the panel LAST. Proof:
+s7_compaction exits 0 cold + chat-test pins.
+
+**AC3 (the agent seams — YOURS).** The `:compaction` event payload is exactly
+`reason/tokens_before/summary/entries` with `entries` = the kept post-compaction
+replay-entry Hashes in chronological order (no system, no summary message) — asserted
+by agent_loop tests on a real cut fixture. The recorder persists the summarization
+call's `usage` on the compaction entry in pi's CompactionEntry `Usage` shape
+(camelCase keys); `estimated_tokens_after` is NOT persisted. `switch_model`'s
+re-resolve consults the known-models tier (a known-models-table entry with no declared
+window resolves the table's window; the footer denominator refreshes). Pinned by
+agent_loop + session tests.
+
+**AC4 (the zero-usage path).** s8_zero_usage_compaction exits 0 cold on the
+integrated tree (the Case-3 path renders identically through the panel + rebuild);
+s8's style_unknown empty-dim candidate is resolved.
+
+**AC5 (regression).** s1–s6 all exit 0 cold on the integrated tree; the rig registry
+is additions-only vs a622ee03; the default rake task is fully green with run-count
+delta > 0; the seam bench prints SEAM_BENCH_OK.
+
+**AC6 (scope).** The integrated diff vs a622ee03 touches exactly the union of the two
+lanes' enumerated files.
+
+Gate commands you can run to self-verify (frozen; run from YOUR worktree — note the
+rig gates judge the INTEGRATED tree; in YOUR worktree s7/s8 stay exit 1 because the
+panel render is the sibling lane's, do NOT chase them):
+
+```
+bundle install --quiet && bundle exec rake && echo SUITE_OK     # expect exit 0, SUITE_OK, run delta > 0
+bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1             # expect SEAM_BENCH_OK
+grep -q 'entries:' lib/tart/agent/loop.rb && echo PAYLOAD_OK    # expect PAYLOAD_OK
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/gate-s1   # exit 0 (regression guard — your loop changes must not shift the healthy path)
+```
 
 ## Builder Report
 
