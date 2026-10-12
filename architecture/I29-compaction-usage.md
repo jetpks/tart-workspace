@@ -175,51 +175,135 @@ I27 + the `build_surface` wiring fix):
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse compaction-usage` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze compaction-usage` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria — I29 compaction-usage
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC1 (direct-first trigger).** The threshold trigger reads the just-completed
+assistant message's direct usage first; Case 3 (error/zero/absent usage) falls back
+to the estimate over the messages; the stale pre-compaction guard stays inside the
+fallback. Pinned by direct-class tests naming all three paths. The healthy path is
+behavior-identical to base (the parity gates are the guard).
 
-**AC1.** ...
+**AC2 (stop-reason + arithmetic sweep).** `assistant_usage` skips aborted/error
+messages IFF the gem exposes a stop-reason observable (live-verified against
+ruby_llm 2.1.0; itemized as cut with the gem citation if unobservable). The
+function-by-function compaction.ts↔compaction.rb sweep is delivered in the report
+with every delta ruled ported/cut/itemized; pi's `estimatedTokensAfter?`/`usage?`
+result fields are carried on the port's preparation result if pi populates them
+(data only — render is the panel fast-follow's); the projection is cut, itemized.
+
+**AC3 (Case-3 rig instrument).** The rig's MockLLM gains a scenario-level
+usage-suppression knob, and a scenario or probe proves BOTH apps compact under the
+zero-usage path (both apps' triggers fire on the estimate, both compact). s1–s6
+exit 0 cold (the healthy path unshifted); s7 still exits 1; registry additions-only
+vs 8c7a438.
+
+**AC4 (nil-window switch).** Switching to a catalog entry with no declared
+contextWindow re-resolves the window (from the chat's model — the source verified
+against the gem's registry / the port's boot path and itemized) instead of keeping
+the stale one; a test pins the footer denominator refresh.
+
+**AC5 (scope discipline).** The integrated diff touches exactly the enumerated
+files. Sealed (sibling iteration I28's territory + the rest): lib/tart/render/**
+ALL (chat.rb, selection.rb, footer.rb), bin/tart, models.rb, settings.rb,
+commands.rb, test/chat_test.rb, test/render/**.
+
+**AC6 (suite + bench).** The default rake task fully green (run-count delta > 0 —
+new tests) and the seam bench prints `SEAM_BENCH_OK`.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse compaction-usage` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/parity-gate-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/parity-gate-s6
+  expect:
+    exit_code: 0
+
+- id: s7-still-baselined
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    test -f gems/tui-split-rig/scenarios/s7_compaction.yml || exit 1
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7
+    test $? -eq 1
+  expect:
+    exit_code: 0
+
+- id: registry-additions-only
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    if git show 8c7a438:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml | grep -q '^<'; then exit 1; else echo REGISTRY_ADDITIONS_ONLY_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: REGISTRY_ADDITIONS_ONLY_OK
+
+- id: scope
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only 8c7a438 HEAD | grep -qvE '^(lib/tart/compaction.rb|lib/tart/agent/loop.rb|test/compaction_test.rb|test/agent_loop_test.rb|test/support/mock_llm_server.rb|test/parity/mock_llm_extension_test.rb|gems/tui-split-rig/)'; then exit 1; else echo SCOPE_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
 
 ## Builder Prompt
