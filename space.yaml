@@ -1481,6 +1481,14 @@ project:
       - test/chat_test.rb
       - README.md
       - gems/tui-split-rig/lib/tui_split_rig/runner.rb
+      base_sha: a5c05948150f576048bb7233f8c2af85054d8477
+      worktree:
+      integration_branch: project/pi-port
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
+      integrate_sha: 7a18a3950e000339eb2c94185018cb3d3a3a781a
     rehearsal:
       gates_digest: 112db659fa02a973679e898d4ca0a85a5483ab811721487e2497657408314dd1
       at: '2026-10-12T15:58:46-06:00'
