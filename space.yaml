@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: tool-pending-bg
+  current_iteration: editor-multiline
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1420,4 +1420,10 @@ project:
     rehearsal:
       gates_digest: 2062718cf6fd4e344a0ef17ea4960d2306e32a8062a9a63ef68c8655cdcb8810
       at: '2026-10-12T13:00:36-06:00'
+  - name: editor-multiline
+    ordinal: 35
+    file: architecture/I35-editor-multiline.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
