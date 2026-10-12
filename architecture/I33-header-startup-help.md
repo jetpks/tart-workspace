@@ -73,7 +73,7 @@ Mechanism facts (pi source, verified this session): the header is `BuiltInHeader
 
 ```lanes
 - name: core
-  repo: repos/tart
+  repo: tart
   touch:
     - lib/tart/render/chat.rb
     - lib/tart/render/motd.rb
