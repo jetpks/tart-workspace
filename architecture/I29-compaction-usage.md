@@ -308,10 +308,218 @@ new tests) and the seam bench prints `SEAM_BENCH_OK`.
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I29-compaction-usage-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section compaction-usage prompt --append --lane <lane> --from build/I29-compaction-usage-<lane>/prompt.md`. -->
+### usage
+
+# Lane dispatch — I29 compaction-usage, lane `usage`
+
+**You are lane `usage`.** You are ONE of TWO parallel lane agents dispatched together
+(the other is lane `selection` of sibling iteration I28 whole-screen-selection,
+isolated in its own worktree — its territory is `lib/tart/render/chat.rb`,
+`lib/tart/render/selection.rb`, `lib/tart/render/footer.rb`, `test/chat_test.rb`, and
+`test/render/selection_test.rb`, which you must NEVER touch). Your lane's territory,
+exhaustively:
+
+- **Touch (exactly these files):** `lib/tart/compaction.rb`,
+  `lib/tart/agent/loop.rb`, `test/compaction_test.rb`, `test/agent_loop_test.rb`,
+  `test/support/mock_llm_server.rb`, `test/parity/mock_llm_extension_test.rb` (only if
+  the usage knob's test belongs there — the mock's test home), and
+  `gems/tui-split-rig/**` (the whole rig).
+- **Must not touch:** everything else — in particular `lib/tart/render/**` ALL
+  (chat.rb, selection.rb, footer.rb are the sibling iteration I28's territory — a
+  PARALLEL iteration is building there right now; touching it fails both lanes),
+  `bin/tart`, `lib/tart/models.rb`, `lib/tart/settings.rb`, `lib/tart/commands.rb`,
+  `test/chat_test.rb`, `test/render/**`. Files outside this list belong to other
+  agents or are sealed — touching them fails your lane AND the sibling's.
+
+Execute the architect spec below. Operating rules:
+
+PHASE 0 — Before any code: reply with your plan and EVERY disagreement you have
+with this spec, with reasons, citing real files in this repo. Silent compliance
+is a failure. Silent scope additions are a failure. If you have no
+disagreements, state what you checked before concluding the spec is sound.
+Verify the named APIs/formats/versions against the live dependencies before
+planning around them (notably: the ruby_llm 2.1.0 `Message` surface for a
+stop-reason observable — gem source at
+~/.local/share/mise/installs/ruby/4.0.7/lib/ruby/gems/4.0.0/gems/ruby_llm-2.1.0/
+(message.rb, chat.rb, tokens.rb) — verify LIVE before building on it; and pi's
+compact() result-field population).
+
+PHASE 1 — Treat the shared contracts (schemas/interfaces) named in the spec,
+and the repo's existing public interfaces, as FROZEN: do not change them —
+other lanes depend on them. You have no access to the space's architecture/
+directory; the architect owns it. The ACCEPTANCE CRITERIA below are frozen —
+verify your work against them; never weaken or work around them. If an AC's
+letter can only be satisfied by making the artifact worse than the property the
+AC asserts, build the right thing and raise the conflict in your report — name
+the AC, the conflict, and the evidence. This is not permission to skip work or
+weaken a criterion: the conflict is reported, never silently resolved.
+
+PHASE 2 — Build YOUR LANE ONLY: exactly the files listed above. No placeholder
+implementations — search the codebase before implementing; full implementations
+only. Write IDIOMATIC, house-consistent code: read the neighbouring code and
+match its conventions (naming, guards, predicates, error/persistence idioms,
+the language's expressive collection/enumerable forms); well-factored and
+DRY-ish; terse but clear; pragmatic, not clever — the smallest change that does
+the job, no abstraction it doesn't need. Consistency with the surrounding code
+is part of correctness here: a change that works but fights the house style (or
+introduces an inconsistency a careful reader of this repo would never write) is
+not done. Tests stay simple and terse, exercising public behavior, no
+mock/stub of the class under test. Verify your work by running the acceptance
+criteria's gate commands and record the verbatim output. Do NOT commit and do
+NOT run any git write command (commit/add/branch/reset/checkout) — the
+architect commits and merges after verification, and verifies you made no
+commits. Do NOT delete lock files or escalate privileges if a command fails;
+record the exact error and continue. Do NOT use `run_in_background` (or shell
+`&`) for your own work — this process terminates when you end your turn and
+reaps its own children, so backgrounded work is SIGTERMed and its output lost
+while the run still exits 0; run long commands serially in the foreground
+instead. Give every potentially long command an explicit timeout (the parity
+rig runs take tens of seconds each — allow 120s+ each). IMPORTANT tmux
+discipline: a `tmux kill-server` from you kills every other agent's live
+sessions on the shared server — NEVER run it; kill only sessions you created by
+exact name (the runner's sessions are token-scoped). If a runtime will not
+start unattended, record the exact failure in your report and route around it —
+never busy-wait or retry in a loop. When done, write your report to the scratch
+file given to you below (an absolute path OUTSIDE your worktree), with RAW
+results only — tables, numbers, command output — no interpretation, no
+"promising". Every status claim must be backed by a command result from this
+run. Keep the report compact — tables and numbers, not prose. Do not title the
+report; keep any headings inside the report at `###` or deeper. End it with
+exactly one status line: STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them)
+| BLOCKED (exact blocker + what you tried). Verdicts belong to the architect
+and the human. Persist until your lane is fully handled end-to-end; do not stop
+at analysis or partial fixes.
+
+Your scratch report (write RAW results here, never inside the worktree):
+/Users/eric/architect/spaces/20261009-pi-port/build/I29-compaction-usage-usage/report.md
+
+## Your lane's specification (lane `usage` ONLY — the sibling iteration's deliverables are NOT yours)
+
+- **Objective.** Bring the compaction trigger arithmetic to pi's exact usage-backed
+  shape: the port already carries pi's estimate family and live usage flow
+  (compaction.rb's estimate family; the footer's usage-backed accounting; the rig's
+  MockLLM already emits usage and both apps' settled footers render `0.0%/33k`) —
+  the remaining deltas are the trigger's Case structure, the stop-reason guard, the
+  result fields the compaction-panel fast-follow renders off, the rig's missing
+  Case-3 instrument, and the I27 nil-window switch residual. Why now: the
+  compaction-panel port (the fast-follow iteration) renders off this arithmetic —
+  its spec needs these seams measured and true first; and a daily-driver session
+  must not falsely trigger (or fail to trigger) compaction because the port
+  re-derives context size pi reads directly off the just-completed turn.
+
+- Deliver **the direct-first trigger** (pi agent-session.ts ~:3049-3100): the
+  threshold check reads the just-completed assistant message's DIRECT usage first
+  (`calculate_context_tokens(message.tokens)`); Case 3 (error stop-reason OR
+  zero/absent usage) falls back to `estimate_context_tokens` over the chat messages;
+  the stale pre-compaction guard stays inside the fallback (the port's
+  `@pre_compaction_messages` set is the standing equivalent of pi's
+  timestamp-vs-compaction-entry check — keep it, itemize the divergence). The
+  overflow trigger (agent/loop.rb:263) is untouched. Behavior-identical for the
+  healthy path (the mock's 15-token usage today) — the parity gates are the guard.
+- Deliver **the stop-reason guard** (pi getAssistantUsage :146-156): `assistant_usage`
+  skips aborted/error messages. VERIFY the gem's `Message` surface for a stop-reason
+  observable: if the gem exposes it, port the guard; if it does not, itemize the cut
+  with the gem citation (never fake an unobservable guard).
+- **Sweep the arithmetic function-by-function** (pi compaction.ts ↔ the port's
+  compaction.rb): `calculateContextTokens` (:140 — the gem's Tokens lacks totalTokens,
+  the standing itemization stays), `estimateContextTokens` (:196), `estimateTokens`
+  shapes, `shouldCompact` (:292), DEFAULT settings (:120), and the compact() result
+  flow — pi's `CompactionResult` carries `estimatedTokensAfter?` and `usage?` (the
+  summarization call's own usage): verify whether pi's implementation POPULATES
+  them; if it does, carry the fields on the port's preparation result (data only —
+  the RENDER is the panel fast-follow's, do not touch render); if pi leaves them
+  unset, itemize as cut. `estimateProjectedContextTokens` (:222, the context-edit
+  projection) is CUT (the port has no projection system) — itemize, do not build.
+- Deliver **the rig's Case-3 instrument**: a MockLLM usage-suppression knob
+  (scenario-level — responses without usage) + a scenario or probe extension proving
+  BOTH apps compact under the zero-usage path (both apps' triggers fire on the
+  estimate, both compact, the settled parity holds). s7's existing behavior is the
+  template. s1–s6 must stay exit 0 (the healthy path is untouched — regression
+  guard); s7 stays exit 1 (the panel is the fast-follow, not here); registry
+  additions-only vs 8c7a438.
+- Deliver **the I27 nil-window switch residual** (loop.rb seam): switching to a
+  catalog entry that declares no contextWindow re-resolves the window instead of
+  keeping the stale one (resolve from the chat's model — the gem's model registry /
+  the port's known-models table, whichever the boot path already uses — verify and
+  itemize the source); a footer-denominator refresh test pins it. Read pi's
+  switchModel for the reference behavior first (does pi re-resolve when the model
+  carries no window?).
+- Tests: direct-class compaction tests pin the trigger Case structure (direct-usage
+  path, zero-usage fallback path, the stale guard inside the fallback) with the
+  existing MockLLM idioms (zero-usage via the new knob — the knob is the mock's, not
+  the class's); agent_loop tests pin the trigger wiring + the nil-window re-resolve;
+  the knob gets its own test. No mocks of the class under test.
+- **Boundaries for this lane:** the touch list above is exhaustive. Out of scope,
+  itemize if tempted: the compaction PANEL (the [compaction] customMessageBg
+  rendering — the fast-follow iteration's), pi's projection system, own-client token
+  counting (parked by the owner's ruling).
+- **Tool guidance.** Verification (from repos/tart): `bundle install --quiet &&
+  bundle exec rake`, `bundle exec ruby bench/seam_bench.rb`; parity:
+  `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml
+  --out tmp/<out>`. pi sources: repos/pi/packages/coding-agent/src/core/compaction/
+  compaction.ts (the full arithmetic) and repos/pi/packages/coding-agent/src/core/
+  agent-session.ts (~:3049-3100 the trigger Cases; :2657 the thinking-level gate is
+  the sibling iteration's, not yours). The gem source at
+  ~/.local/share/mise/installs/ruby/4.0.7/lib/ruby/gems/4.0.0/gems/ruby_llm-2.1.0/
+  (chat.rb, message.rb, tokens.rb) — verify the Message surface live before building
+  on it; cite what you port.
+- **Output format.** Raw evidence to scratch: file list + wc; the
+  function-by-function arithmetic table (pi function → port method, before/after,
+  per delta); the trigger Case table (direct/Case-3/stale-guard paths with test
+  names); the gem Message-surface verification (the exact methods, live-checked);
+  the Case-3 rig proof (probe/scenario output, both apps compact); verbatim test
+  tails + suite counts; itemized cuts. PHASE 0 disagreements mandatory. STATUS line
+  last.
+
+## Acceptance Criteria (frozen — verify against these)
+
+**AC1 (direct-first trigger).** The threshold trigger reads the just-completed
+assistant message's direct usage first; Case 3 (error/zero/absent usage) falls back
+to the estimate over the messages; the stale pre-compaction guard stays inside the
+fallback. Pinned by direct-class tests naming all three paths. The healthy path is
+behavior-identical to base (the parity gates are the guard).
+
+**AC2 (stop-reason + arithmetic sweep).** `assistant_usage` skips aborted/error
+messages IFF the gem exposes a stop-reason observable (live-verified against
+ruby_llm 2.1.0; itemized as cut with the gem citation if unobservable). The
+function-by-function compaction.ts↔compaction.rb sweep is delivered in the report
+with every delta ruled ported/cut/itemized; pi's `estimatedTokensAfter?`/`usage?`
+result fields are carried on the port's preparation result if pi populates them
+(data only — render is the panel fast-follow's); the projection is cut, itemized.
+
+**AC3 (Case-3 rig instrument).** The rig's MockLLM gains a scenario-level
+usage-suppression knob, and a scenario or probe proves BOTH apps compact under the
+zero-usage path (both apps' triggers fire on the estimate, both compact). s1–s6
+exit 0 cold (the healthy path unshifted); s7 still exits 1; registry additions-only
+vs 8c7a438.
+
+**AC4 (nil-window switch).** Switching to a catalog entry with no declared
+contextWindow re-resolves the window (from the chat's model — the source verified
+against the gem's registry / the port's boot path and itemized) instead of keeping
+the stale one; a test pins the footer denominator refresh.
+
+**AC5 (scope discipline).** The integrated diff touches exactly the enumerated
+files. Sealed: lib/tart/render/** ALL (chat.rb, selection.rb, footer.rb), bin/tart,
+models.rb, settings.rb, commands.rb, test/chat_test.rb, test/render/**.
+
+**AC6 (suite + bench).** The default rake task fully green (run-count delta > 0 —
+new tests) and the seam bench prints `SEAM_BENCH_OK`.
+
+Gate commands you can run to self-verify (frozen; run them from YOUR worktree):
+
+```
+bundle install --quiet && bundle exec rake && echo SUITE_OK     # expect exit 0, SUITE_OK
+bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1             # expect SEAM_BENCH_OK
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/gate-s1      # exit 0
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/gate-s2      # exit 0
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/gate-s3  # exit 0
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/gate-s4  # exit 0
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/gate-s5 # exit 0
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/gate-s6     # exit 0
+gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/gate-s7; test $? -eq 1 && echo S7_STILL_1
+if git show 8c7a438:gems/tui-split-rig/registry.yml | diff - gems/tui-split-rig/registry.yml | grep -q '^<'; then exit 1; else echo REGISTRY_ADDITIONS_ONLY; fi
+if git diff --name-only 8c7a438 HEAD | grep -qvE '^(lib/tart/compaction.rb|lib/tart/agent/loop.rb|test/compaction_test.rb|test/agent_loop_test.rb|test/support/mock_llm_server.rb|test/parity/mock_llm_extension_test.rb|gems/tui-split-rig/)'; then exit 1; else echo SCOPE_OK; fi
+```
 
 ## Builder Report
 
