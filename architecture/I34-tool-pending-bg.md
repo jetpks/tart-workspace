@@ -29,34 +29,38 @@
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section tool-pending-bg specification --from <file>`. -->
+# Specification — I34 tool-pending-bg
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+- **Objective.** Close the last known mid-flight rendering divergence in the BRIEF §8 program (Grounds 1): enqueue the tool block at `:tool_execution_start` in a PENDING state — the call rows under `Theme[:tool_pending_bg]` (#34383a) — then replace it in place at `:tool_execution_end` with the final block (success/error bg). Exactly one block per tool call at settle; settled bytes unchanged (the s1–s9 pins must not move); replay (resume) renders final blocks only, by construction. The instrument already exists (the I26 probe) — this iteration promotes it to a deterministic gate and freezes that promotion.
+
+- **Port shape (single-writer surface work; the I33 discipline is mandatory reading).**
+  - **Transcript gains the pending surface** (lib/tart/render/transcript.rb): `enqueue_pending_tool_block(name, args)` pushes the pending region through the scrollback queue (order preserved vs queued submissions/statuses — never spliced ahead); the pending region's range registers at drain time in ascending start order exactly like `@expandable_blocks` (Grounds 4 — the stale-start cure); `finalize_tool_block(name, args, result, duration)` replaces the live pending registration IN PLACE with the SAME rows today's `enqueue_tool_block` composes (same dispatch, same builders, same `@tool_output_expanded` read at replacement time) and registers the final block in the expandable registry at the updated start; with NO live pending registration it falls back to today's append (the replay path never engages the pending machinery — `replay_entries`/`enqueue_tool_block` untouched). `finalize_pending_as_error(text)` finalizes an orphaned pending block pi's way (Grounds 2): the call rows + the error text rows under `Theme[:tool_error_bg]`. Both drain cases must hold: pending already flushed → replace `@transcript[start, size]` and thread the row delta to every later registration; pending still queued → swap the queued entry in place (the queue is mutated only under the coordinator's mutex — a drain-and-repush is acceptable, house judgment). `reset` clears the pending registration with the buffer (transcript.rb:312-319 — a stale registration surviving a reset is the I33-class latent).
+  - **chat.rb wiring**: `:tool_execution_start` keeps `@tool = event[:tool_call].name` (footer border, unchanged) and adds the pending enqueue; `:tool_execution_end` routes through the finalize (the frozen I17 `duration:` contract rides through unchanged); the `:agent_end` interrupted arm finalizes any orphaned pending block with "Operation aborted" and the error arm with the error's message (pi interactive-mode.ts:3573-3586 — the existing `interrupted`/`error:` scrollback lines stay; the finalization is additive). Guard nil arguments the way `enqueue_tool_block` does (transcript.rb:195).
+  - **Pending row shapes** (Grounds 5 — the settled families truncated to the call; the builders thread a bg or gain pending variants, house judgment, module-function style): bash → Spacer blank + pending pad + `$ <command>` (`Panel.padded_fg_rows`, fg `toolTitle`, bold — the measured bytes) + pending pad; write → its `write_call_rows` between the pads; read → `read_call_rows(args, width, false, bg:)` (the compact classification gate is `!expanded` — the pending call renders collapsed); generic → the wrapped `  ⎿ <name>` row (`ToolBlock.tool_line(name, nil)`) between the pads. No output rows, no `Took` row, no expand hint. The Spacer blank stays PLAIN (bash_block.rb:46).
+  - **ctrl+o mid-flight** must corrupt nothing: the pending block may ride the expandable registry with a constant-size builder (toggle rebuilds it identically) or sit outside it (toggle never touches it) — either is acceptable; after finalize the block toggles normally. A second `enqueue_pending_tool_block` while one is live (unreachable under sequential execution, Grounds 6b) appends sanely and is documented.
+
+- **Tests (the deterministic mid-flight proof, unit half).** New direct-class tests (test/render/ — drive the public surface, no stubs) + event-driven tests through chat_test.rb's existing `tool_start`/`tool_end` helpers (extended to carry arguments on start; additive surgery only): (1) pending visible — bash start → draw → the four pending rows with `style.bg == Theme[:tool_pending_bg]`, header span bold + toolTitle fg; (2) drained replace — start → draw → end → the transcript is BYTE-IDENTICAL (rows and position) to a control chat that received only `tool_end`, no pending bg anywhere; (3) fast path — start → end with no draw between → same byte-identity, no pending rows ever in the buffer; (4) ctrl+o mid-flight — start → draw → toggle → pending rows intact and the registry still resolves → end → the final block toggles both ways; (5) interrupt orphan — start → draw → `:agent_end(interrupted: true)` → the block finalized under `tool_error_bg` with "Operation aborted", the existing `interrupted` warning line still present, no pending bg; (6) replay pin — `replay_entries` over a recorded tool entry renders final blocks only, zero pending-bg spans; (7) per-family pending shapes — write/read/generic call-row-only under the pending bg; (8) sequential multi-tool turn — two start/end pairs → two blocks in order, no residue.
+
+- **Rig (the deterministic mid-flight proof, live half — the frozen instrument).** `gems/tui-split-rig/bin/tool-pending-probe` gains a `--gate` mode (additive; the default evidence mode is UNCHANGED — still exit 0 with the frame digest): per app, PASS iff (a) at least one pre-settle frame shows ≥1 tool-mark row AND contains the pending-bg SGR `48;2;52;56;58`, and (b) the settled frame shows exactly one tool-mark row AND zero occurrences of that SGR; both apps must pass (pi = the oracle control); on pass print `TOOL_PENDING_GATE_OK` and exit 0, else print the per-frame digest of the failing condition and exit 1. No registry changes expected (additions-only if genuinely forced, each evidenced).
+
+- **Output format.** Raw evidence to scratch: file list + wc; the pending/replay test list with verbatim run tails; the suite counts before/after; the probe gate command line + exit code + digest tail (both modes); the s1–s9 exit codes; PHASE 0 disagreements mandatory (the Grounds 2/4/5/6 premises are checkable against repos/pi and the gem). STATUS line last.
+
+- **Tool guidance.** Verification (tart): `bundle install --quiet && bundle exec rake`, `bundle exec ruby bench/seam_bench.rb`; parity gates: `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml --out tmp/<out>` (s1–s9 exit 0; short out-dirs — deep paths trip the pre-existing footer-cwd truncation sensitivity); the new gate: `gems/tui-split-rig/bin/tool-pending-probe --gate --out tmp/<out>` (allow 120 s+; runs both apps ~30 s). pi sources: repos/pi/packages/coding-agent/src/modes/interactive/components/tool-execution.ts + interactive-mode.ts:3520-3670; the gem: ruby_llm 2.1.0 configuration.rb:257 (sequential default). Read transcript.rb's I33 rebuild block before designing (Grounds 4).
+
+- **Boundaries.** May touch exactly: `lib/tart/render/{chat,transcript,bash_block,file_blocks,tool_block}.rb`, `test/chat_test.rb`, `test/render/**`, `gems/tui-split-rig/**`. Must not: `lib/tart/agent/loop.rb` (events already carry the payload), `lib/tart/theme.rb` (token exists), `lib/tart/render/panel.rb` (the pending bg is `Theme[:tool_pending_bg]` read directly — a helper, if wanted, lives in tool_block.rb), the wave-sealed render files (editor/motd/viewport/selection/footer/user_bash/kill_ring/model_menu), `bin/tart`, `test/**` beyond the two named homes, any golden or scenario yml. Out of scope: user-bash streaming, partial-result streaming, compaction-panel work, settled-block byte changes, new scenarios. No placeholders; search before implementing.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision tool-pending-bg`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/render/chat.rb
+    - lib/tart/render/transcript.rb
+    - lib/tart/render/bash_block.rb
+    - lib/tart/render/file_blocks.rb
+    - lib/tart/render/tool_block.rb
+    - test/chat_test.rb
+    - test/render/**
+    - gems/tui-split-rig/**
 ```
 
 ## Acceptance Criteria
