@@ -1358,7 +1358,27 @@ project:
   - name: header-startup-help
     ordinal: 33
     file: architecture/I33-header-startup-help.md
-    freeze_sha:
+    freeze_sha: 98cbc743adb17b41a9c0f611415ab34da9b2841a
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: repos/tart
+      touch_set:
+      - lib/tart/render/chat.rb
+      - lib/tart/render/motd.rb
+      - lib/tart/render/transcript.rb
+      - lib/tart/identity.rb
+      - bin/tart
+      - test/chat_test.rb
+      - test/identity_test.rb
+      - test/render/motd_test.rb
+      - gems/tui-split-rig/lib/tui_split_rig/runner.rb
+      - gems/tui-split-rig/lib/tui_split_rig/scenario.rb
+      - gems/tui-split-rig/scenarios/s9_startup_help.yml
+      - gems/tui-split-rig/registry.yml
+      - gems/tui-split-rig/test/scenario_test.rb
+      - gems/tui-split-rig/test/registry_test.rb
+    rehearsal:
+      gates_digest: cacef7694e686cc8bf2b5b8242aaacea28c0af60da14fe50571277ae12042632
+      at: '2026-10-12T10:57:27-06:00'
   integration_branch: project/pi-port
