@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: compaction-usage
+  current_iteration: compaction-panel
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1195,7 +1195,7 @@ project:
       - test/chat_test.rb
       - test/render/selection_test.rb
       base_sha: 8c7a4381a081d0e70dba54fadb5d7dd090d98572
-      worktree: build/I28-whole-screen-selection-selection/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
@@ -1223,7 +1223,7 @@ project:
       - test/parity/mock_llm_extension_test.rb
       - gems/tui-split-rig/**
       base_sha: 8c7a4381a081d0e70dba54fadb5d7dd090d98572
-      worktree: build/I29-compaction-usage-usage/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: accounts/fireworks/models/glm-5p3-flash
@@ -1234,4 +1234,10 @@ project:
     rehearsal:
       gates_digest: e754ec1025f839d5648073b3bb826e9ae9d1223866da7196b9b3713c34a10d73
       at: '2026-10-11T22:16:33-06:00'
+  - name: compaction-panel
+    ordinal: 30
+    file: architecture/I30-compaction-panel.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
