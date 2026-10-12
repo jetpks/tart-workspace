@@ -1135,7 +1135,31 @@ project:
   - name: model-menus
     ordinal: 27
     file: architecture/I27-model-menus.md
-    freeze_sha:
+    freeze_sha: 0a113b963abca8664c24e40629efd8fe7f6da071
     verdict: pending
-    lanes: []
+    lanes:
+    - name: model
+      repo: tart
+      touch_set:
+      - lib/tart/models.rb
+      - lib/tart/settings.rb
+      - lib/tart/commands.rb
+      - lib/tart/render/chat.rb
+      - lib/tart/render/model_menu.rb
+      - lib/tart/render/footer.rb
+      - lib/tart/agent/loop.rb
+      - bin/tart
+      - test/chat_test.rb
+      - test/commands_test.rb
+      - test/settings_test.rb
+      - test/agent_loop_test.rb
+      - test/models_test.rb
+      - test/render/model_menu_test.rb
+    - name: rig
+      repo: tart
+      touch_set:
+      - gems/tui-split-rig/**
+    rehearsal:
+      gates_digest: f162e34724d691d933904eaa1f364d2e3c454c987d4417f1eac165a10d0dddae
+      at: '2026-10-11T20:08:21-06:00'
   integration_branch: project/pi-port
