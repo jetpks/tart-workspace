@@ -1359,7 +1359,7 @@ project:
     ordinal: 33
     file: architecture/I33-header-startup-help.md
     freeze_sha: 03c7da9e3c500ce2a5d16f51b703981d182a4880
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
@@ -1379,7 +1379,7 @@ project:
       - gems/tui-split-rig/test/scenario_test.rb
       - gems/tui-split-rig/test/registry_test.rb
       base_sha: 8638aa7212480b3beb97c1423d540dd298a631e6
-      worktree: build/I33-header-startup-help-core/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
