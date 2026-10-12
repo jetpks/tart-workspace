@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: compaction-residuals
+  current_iteration: prompt-identity
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1301,7 +1301,31 @@ project:
   - name: prompt-identity
     ordinal: 32
     file: architecture/I32-prompt-identity.md
-    freeze_sha:
+    freeze_sha: 8702bfbd062d902c91029cf512c2acb0125c434f
     verdict: pending
-    lanes: []
+    lanes:
+    - name: prompt
+      repo: tart
+      touch_set:
+      - bin/tart
+      - lib/tart/identity.rb
+      - lib/tart/agent/system_prompt.rb
+      - lib/tart/agent/context_files.rb
+      - lib/tart/settings.rb
+      - lib/tart/models.rb
+      - lib/tart/render/motd.rb
+      - test/system_prompt_test.rb
+      - test/settings_test.rb
+      - test/models_test.rb
+      - test/launcher_smoke_test.rb
+      - test/print_test.rb
+      - test/identity_test.rb
+      - test/chat_test.rb
+      - gems/tui-split-rig/runner.rb
+      - gems/tui-split-rig/lib/**
+      - gems/tui-split-rig/test/**
+      - gems/tui-split-rig/scenarios/**
+    rehearsal:
+      gates_digest: ef999cc06c96a7f88f4c75faaf1817f0fbce6f9964ba6cb8bb616bf0e367f456
+      at: '2026-10-12T02:03:22-06:00'
   integration_branch: project/pi-port
