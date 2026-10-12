@@ -292,8 +292,10 @@ scrubs parent `PI_*`/`TART_*` inheritance. Proof: the env-prefix gate + the
 staging tests + the parity scenarios green.
 
 **AC5 (regression).** The default rake task fully green with run-count
-delta > 0; s1–s8 AND s1_tart all exit 0 cold on the integrated tree;
-SEAM_BENCH_OK.
+delta > 0; s1–s8 all exit 0 cold on the integrated tree; s1_tart (the
+tart-mode scenario — branding diffs vs pi are BY DESIGN, exit 1) completes:
+tart boots, connects through the identity-correct env namespace, and
+completes its expected requests; SEAM_BENCH_OK.
 
 **AC6 (scope).** The integrated diff vs 276eda3d (the pre-I31 tip — this
 iteration's tree carries I31's merged work) touches exactly I31's union ∪
@@ -386,9 +388,10 @@ this lane's enumerated files, nothing else.
   ac: AC5
   cwd: repos/tart
   cmd: |-
-    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_tart.yml --out tmp/parity-gate-s1tart
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_tart.yml --out tmp/parity-gate-s1tart; ec=$?; if [ "$ec" -gt 1 ]; then exit 1; fi; ruby -rjson -e 's = JSON.parse(File.read("tmp/parity-gate-s1tart/summary.json"))["runs"][0]["apps"]["tart"]; abort "tart incomplete" unless s["completed"] && s["requests"] == s["expected_requests"]; puts "TART_MODE_OK"'
   expect:
     exit_code: 0
+    stdout_match: TART_MODE_OK
 
 - id: prompt-wired
   ac: AC2
