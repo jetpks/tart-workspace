@@ -428,11 +428,101 @@ The frozen gate commands (run them verbatim from repos/tart): `bundle install --
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I37-thinking-ux-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence thinking-ux --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### render
+
+### Files touched (git diff --name-only 7c4ae19; working tree, no commits)
+
+| file | base lines | now lines |
+|---|---|---|
+| lib/tart/render/chat.rb | 1720 | 1810 |
+| lib/tart/render/transcript.rb | 742 | 767 |
+| test/chat_test.rb | 4477 | 4739 |
+
+`git diff --name-only 7c4ae19` → the 3 files above, nothing else. `git diff --name-only 7c4ae19 HEAD` → empty (no commits made; no git write commands run).
+
+### Suite counts (bundle install --quiet && bundle exec rake)
+
+| gate | base @ 7c4ae19 | this tree |
+|---|---|---|
+| rake | 692 runs, 2820 assertions, 0 failures, 1 skip | 705 runs, 2899 assertions, 0 failures, 0 errors, 1 skips |
+| seam_bench (tail -1) | SEAM_BENCH_OK | SEAM_BENCH_OK |
+| delta | — | +13 runs (13 new tests), +79 assertions; 3 pins re-pointed (kept, not deleted) |
+
+Verbatim tails (this tree):
+- `bundle exec rake` → `705 runs, 2899 assertions, 0 failures, 0 errors, 1 skips`
+- `bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1` → `SEAM_BENCH_OK`
+- `bundle exec ruby test/chat_test.rb` → `211 runs, 947 assertions, 0 failures, 0 errors, 0 skips`
+
+### New tests (test/chat_test.rb)
+
+| # | test | line |
+|---|---|---|
+| 1 | test_spinner_advances_on_time_not_renders | 302 |
+| 2 | test_spinner_reanchors_at_every_status_kind_restart | 329 |
+| 3 | test_working_status_spans_read_the_editor_border_color | 349 |
+| 4 | test_working_status_reads_the_bash_mode_token_in_bash_mode | 365 |
+| 5 | test_working_status_recolors_with_a_mid_turn_thinking_level_change | 379 |
+| 6 | test_compaction_status_reads_accent_spinner_and_muted_message | 399 |
+| 7 | test_working_border_row_matches_pis_single_space_layout | 414 |
+| 8 | test_narrow_width_degrades_the_status_to_the_spinner_alone | 424 |
+| 9 | test_label_collision_degrades_the_status_to_the_spinner_alone | 436 |
+| 10 | test_reasoning_renders_as_dim_markdown_mid_stream | 1965 |
+| 11 | test_reasoning_renders_as_dim_markdown_at_completion | 1978 |
+| 12 | test_reasoning_renders_as_dim_markdown_on_replay | 1989 |
+| 13 | test_reasoning_delta_whitespace_strips_to_no_blank_edge_rows | 2031 |
+
+`with_chat` gained a `clock:` kwarg passthrough (only forwarded when given, so existing callers are untouched).
+
+Re-pointed pins (assertions kept alive, per test item 4 of the spec):
+- :234 `assert_includes editor_area(...), "tool: grep"` → `"Working"` ("the border status is pi's constant working message while the tool runs").
+- :271-272 `fg_cell?(..., Theme[:dim])` → `Theme[:thinking_off]` ("the working status renders the editor border color"; fixture is non-reasoning → off token).
+- :1776-1791 test_live_region_renders_markdown_mid_stream comment block re-pointed to the I37 markdown routing; assertions unchanged (still green: 211-run tail above).
+
+Plain-prose regression pins stayed green UNCHANGED: `["", " pondering", "", " hi"]` (test_blank_line_between_the_reasoning_block_and_the_content), reasoning-only no-trailing-blank (test_reasoning_only_message_gets_no_trailing_blank), and the region-padding matrix (test_leading_blank_separates_every_scrollback_region).
+
+### Rig parity gates (gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml --out tmp/i37-s<N>, cold)
+
+| scenario | exit |
+|---|---|
+| s1_text_turn | 0 |
+| s2_tool_turn | 0 |
+| s3_tool_turn_files | 0 |
+| s4_bash_variants | 0 |
+| s5_bash_truncation | 0 |
+| s6_long_calls | 0 |
+| s7_compaction | 0 |
+| s8_zero_usage_compaction | 0 |
+| s9_startup_help | 0 |
+
+s7 re-run after the last (test-only) edits: exit 0.
+
+### Tripwire greps (final tree)
+
+- spinner-time: SPINNER_INTERVAL_SECONDS ×2, CLOCK_MONOTONIC ×2, @clock ×3 in chat.rb → GREEN
+- frames-retired: `grep -c "@frames" lib/tart/render/chat.rb` → 0 (exit 1) → GREEN
+- status-colors: "Working" ×1, Theme[:accent] ×3, Theme[:muted] ×2, editor_border_color ×7 in chat.rb → GREEN
+- reasoning-md: prose_modifiers ×5 in transcript.rb, reasoning_lines ×2 in chat.rb → GREEN
+
+### PHASE 0 disagreements / spec-letter notes
+
+1. **Spinner glyph letters in the spec's test item are off by one against AC1's own formula.** AC1: glyph at t is `SPINNER[floor((t−anchor)/0.08) % 10]`. floor(160/80)=2 → SPINNER[2]=⠹ (the test item says "t=+160ms → ⠸ (frame 2)"; ⠸ is SPINNER[3]). Same for the re-anchor test's late frame: floor(0.40/0.08)%10=5 → SPINNER[5]=⠴ (not ⠼=SPINNER[4]). Built to the AC formula (both repos' frame tables verified: tart chat.rb SPINNER ≡ pi loader.ts DEFAULT_FRAMES = ⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏); tests pin ⠹/⠴ accordingly. First run failed on exactly these two expectations, confirming the letters, not the code, were wrong.
+2. **Branch-3 (narrow width) degradation vs "branches UNCHANGED in arithmetic".** pi custom-editor.ts:66-67 re-renders renderSpinnerInBorder BEFORE the prefix math (statusWidth := 1); the port's base branch 3 kept the full status. The port-shape letter's "only the status block's internal split and spacing change" read literally would keep the full status in branch 3 and violate AC2 ("the narrow/label-collision degradations render the spinner glyph alone in the spinner's color"). Implemented pi's behavior: same fit rules (status_label_fit?, the three branch conditions byte-identical), degraded status input to branch 3, then the unchanged prefix arithmetic. Itemized per PHASE 1.
+3. No other disagreements. Grounds premises verified against repos/pi before coding: loader.ts:16-17 (frames + DEFAULT_INTERVAL_MS=80), setIndicator→currentFrame=0 + restartAnimation, setMessage does NOT restart (loader.ts:53-56); status-indicator.ts:26-33 (renderInBorder pad-slice/trimEnds), :31-33 (renderSpinnerInBorder), WorkingStatusIndicator `colorFn ?? accent / colorFn ?? muted`, CompactionStatusIndicator :80-96 accent/muted; custom-editor.ts:36-67 ("── " + status + " " + dashes, single spaces; label-collision + narrow degradation); interactive-mode.ts:487 (defaultWorkingMessage "Working"), :651 (embedWorkingStatus: true), :2346-2359 (embedded colorFn = editor.borderColor ?? thinking ladder), :4516-4521 (updateEditorBorderColor bashMode/ladder), :3427-3433 (turn_start creates the working indicator), :3681 (CompactionStatusIndicator construct), :3694 (clearStatusIndicator); assistant-message.ts:99-176 (thinking .trim()ed, joined "\n\n", Markdown + defaultTextStyle {color: thinkingText, italic: true}); markdown.ts:382-413 (applyDefaultStyle), :477-493/:567-585/:683-698 (where the default style does/doesn't reach). Port premises: @frames at exactly chat.rb :224/:365/:1400/:1423/:1426 with zero other consumers; reasoning_lines callers exactly chat.rb live_lines + transcript.rb enqueue_message/replay_assistant; no other test file pins markdown_lines/reasoning_lines (test/render/transcript_test.rb has none); transcript.rb:294-299 stale strip comment confirmed against replay_assistant (:610-625 reads message["thinking"]); Theme[:accent/:muted/:thinkingText/:thinking_*/:bashMode/:md_code/:md_list_bullet] all exist (md_list_bullet and md_code share the violet value #a798d7, so the AC's marker assertion holds through the md_fg :light_magenta → :md_code mapping); rig scenarios carry no reasoning deltas (grep) and the status border renders only while @busy || @compaction_reason, so settled screens cannot move (s1–s9 exit 0 confirms).
+
+### Deviations itemized (house-style record)
+
+- Working status color = the editor border color for BOTH spinner and message (not the constructor-default accent/muted) — pi's embedded colorFn, interactive-mode.ts:2346-2359 (OQ-1); bashMode arm pinned by test 4.
+- Working message = the constant "Working"; the I04-era "thinking"/"…"/"tool: <name>" vocabulary retired (OQ-2) — pin re-pointed at :234.
+- Mechanism note: pi's setInterval advances the frame then requestRender; the port derives the same frame from the monotonic clock at each already-animated frame (BUSY_FRAME_SECONDS cadence unchanged, no timer task) — AC1's observable equivalence.
+- status_spans splits the composed "<glyph> <message>" positionally (one clock read in status_title; a second read in the splitter could race a frame tick).
+- markdown_lines prose_modifiers keys on the CONVERTER's span.fg being nil (pre-md_fg) — md_fg(nil)→nil and non-nil never becomes nil, so this is exactly AC3's "nil-fg spans gain / structure spans gain nothing".
+
+### Environment notes
+
+- ruby 4.0.7 (2026-09-15) arm64-darwin23; no lock files touched; no background processes; all commands foreground with explicit timeouts.
+- Pre-existing stderr noise (unrelated to this diff, suite green at base and now): an Async::Task "Terminal is not initialized" warning from test_escape_cancels_the_running_user_bash under full-suite ordering; that test passes cleanly in isolation (1 runs, 0 failures).
+
+STATUS: COMPLETE
 
 ## Verdict
 
