@@ -1378,6 +1378,14 @@ project:
       - gems/tui-split-rig/registry.yml
       - gems/tui-split-rig/test/scenario_test.rb
       - gems/tui-split-rig/test/registry_test.rb
+      base_sha: 8638aa7212480b3beb97c1423d540dd298a631e6
+      worktree: build/I33-header-startup-help-core/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      dispatched_at: '2026-10-12T11:01:19-06:00'
+      integrate_sha: 69701b613ca9246aacfbc44d5dc5089e01e1c0dc
     rehearsal:
       gates_digest: cacef7694e686cc8bf2b5b8242aaacea28c0af60da14fe50571277ae12042632
       at: '2026-10-12T10:57:27-06:00'
