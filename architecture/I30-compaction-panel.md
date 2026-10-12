@@ -1184,15 +1184,141 @@ COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section compaction-panel verdict --from <file>`. -->
+# Verdict — I30 compaction-panel (judged 2026-10-12, fresh session; dispatched nothing)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify compaction-panel`)?
+## Post-flight (verified this session, not just `architect verify`)
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+Both lanes: frozen sections untouched (git diff 1589b66c..HEAD on the iteration
+file shows only appended Builder Prompt/Report + the scaffold-comment removal),
+no builder commits (`git -C <wt> log a622ee03..` empty both), scratch reports
+present + raw-only, `git status` in each worktree exactly the declared touch
+sets. Evidence transcribed verbatim (3b5f7202 agent, 105ac8eb panel). Integrated
+agent→panel into `project/pi-port` (99b9859d, 276eda3d), no conflicts.
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+## Gates (run cold on the integrated tree, this session)
+
+13/15 PASS: suite (565 runs / 2217 assertions / 0 failures / 1 pre-existing
+skip, +12 runs vs base 553), bench, both tripwires, s1–s6, registry
+additions-only (zero changes), scope (diff vs a622ee03 = exactly the lane
+union, 7 files, 487+/49−). FAIL: s7-panel (exit 1), s8-zero-usage (exit 1) —
+root-caused below.
+
+## Per-AC rulings
+
+**AC1 (the panel) — PASS.** Byte oracle: panel report's probe diffed the
+chat-test-rendered rows against pi's capture (`PANEL_PLAIN_BYTES_MATCH`,
+`PANEL_STYLED_BYTES_MATCH`); the integrated s7 capture confirms rows
+byte-identical to pi's (styled SGR runs included). Chat tests pin
+collapsed/expanded/toggle/replay/grouped number; replay panel lands at the
+chronological position. MouseRegion cut itemized.
+
+**AC2 (the live rebuild) — FAIL.** The gate measured exactly what it says and
+the answer was wrong — but the mechanism is a letter-vs-spirit defect in the
+criterion's authoring, not the builder's work. The rebuild itself is proven in
+the integrated s7 capture: kept entries re-rendered chronologically, panel
+LAST, `✻` gone, footer `?` (invalidate, not reset), history not duplicated.
+The failure is the MOTD wipe the AC's letter mandates: pi's settled screen
+RETAINS its header (rows 2–8 — a separate container `chatContainer.clear()`
+never touches), while the spec (Grounds 3) conflated tart's `[Context]`
+candidate with the whole MOTD and mandated wiping it → a clean 7-row vertical
+shift (7 pi-side header candidates + 7 tart trailing blanks = the entire 14
+unknown-candidate set; the 4 remaining are the sanctioned parity-run-path +
+footer-provider-prefix classes). Lane `panel` flagged this conflict with
+evidence in its report (baseline rows 1–7 all `:same`; "pi's header is a
+separate container it never clears") and built the AC's stated property — the
+sanctioned path; the defect is Grounds 3 / AC2's authoring. Residual → I31:
+the rebuild must preserve the header region (pi's shape), not wipe it.
+
+**AC3 (the agent seams) — PASS.** Payload pinned end-to-end on a real overflow
+cut (key set exactly `type/reason/tokens_before/summary/entries`; `entries ==
+Session.load_entries(path)[2,2]` — the payload IS the recorded kept slice);
+usage persisted in pi's camelCase Usage shape (round-trip pinned;
+`estimatedTokensAfter` refuted); switch tier resolves the known-models table
+window (1_048_573) with the mock-2 nil pin unchanged.
+
+**AC4 (the zero-usage path) — FAIL.** Two causes, both root-caused against
+captures: (i) the same MOTD shift as AC2; (ii) `tokens_before` 67 (tart) vs
+1,482 (pi) — the zero-usage estimate over each app's OWN context: pi's harness
+prompt is ~6 KB, tart's developer prompt ~130 chars (a founding port identity
+decision). Proof the render is faithful: s7, where usage IS reported, shows
+`Compacted from 15 tokens` on BOTH sides — the panel renders whatever the
+estimator hands it, grouping included. The style_unknown empty-dim candidate
+is RESOLVED — vanished with the ✻-line removal ("style differences: none" on
+the integrated run; root-caused by elimination, no registry change). The AC's
+prose property ("Case-3 path renders identically through the panel + rebuild")
+holds for the render; the exit-0 letter encodes an impossibility (identical
+numbers require identical context sizes). Letter-vs-spirit, criterion
+authoring defect. Residual → I31: an owner ruling on disposition — a
+documented registry class for app-context-derived token values (the same
+family as footer-provider-prefix's usage values), or accept s8 as
+structurally-green-only. NOT sanctioned away silently here.
+
+**AC5 (regression) — PASS.** s1–s6 exit 0 cold (the rebuild leaks into no
+other turn); registry additions-only (zero diffs vs a622ee03); suite green
+with +12 runs; SEAM_BENCH_OK.
+
+**AC6 (scope) — PASS.** Integrated diff vs a622ee03 touches exactly the union
+of the two lanes' enumerated files (SCOPE_OK; verified by hand: 7 files, no
+strays).
+
+## PHASE 0 rulings
+
+Lane `agent`: (1) `cost` cut from persisted Usage — ACCEPT (no pricing layer,
+no endpoint reports cost; the gem's own false-zero doctrine, cost.rb:19-20 —
+a fabricated zero would lie). (2) unreported counts omitted, not zero-filled
+— ACCEPT (pi's JSON drops undefined; subset persistence is the faithful map).
+(3) chat_completions' literal `cacheWrite: 0` persists as 0 — ACCEPT (the
+reader's value; protocol `|| 0` cited). (4) nothing-reported → no `usage` key
+— ACCEPT (pi's usage-undefined parity; exactly s8's path). (5) `entries: []`
+when recorder-nil — ACCEPT. (6) string-keyed payload via the JSON round-trip
+— ACCEPT (the frozen contract named the `load_entries` shape; pinned equal to
+read-back). (7) unrecorded seed entries contribute nothing (pi's `?? id`
+fallback) — ACCEPT. (8) recorder projection over loop-side collection —
+ACCEPT (pi puts buildContextEntries on the session manager; avoids
+re-deriving `to_h` in the loop; extraction behavior-identical, pinned by
+existing session tests). (9) mid-build cacheWrite expectation fix — ACCEPT
+(root-caused against the live gem protocol; the test now pins the reader's
+truth). No scope creep; `test/support/**` respected.
+
+Lane `panel`: (a) `grouped_tokens` placed in transcript.rb, not text.rb —
+ACCEPT (territory-correct; text.rb outside the enumerated set; flagged not
+touched — right call). (b) locale pinned to en-US comma grouping — ACCEPT
+(pi's toLocaleString is runtime-locale-dependent; every capture renders
+en-US; s8's `1,487` form reproduced). (c) collapsed = label row + inner
+spacer + hint row, not one row — ACCEPT (pi's source + capture are the
+oracle; the AC prose's one-row reading was my compression, not a property).
+(d) `update_footer: false` gating on the rebuild — ACCEPT (load-bearing: the
+reseed sink would clear `@usage_stale` and kill pi's post-compaction `?`).
+(e) `@last_assistant_text` untouched by the rebuild — ACCEPT, itemized (pi's
+compaction_end never touches its copy source; unmeasured by any scenario;
+queued for observation). (f) s7 footer `↑20 ↓10` vs `↑10 ↓5` — ACCEPT
+(pre-existing footer-provider-prefix class, out of scope per spec). (g)
+"Session compacted N times" KEPT — ACCEPT (verified against pi :4209-4225,
+renders after renderSessionEntries — the spec's "verify, cut if absent"
+resolved to keep; exactly the verification asked for). (h) the MOTD-wipe
+conflict — ACCEPT as a proper letter-vs-spirit flag (ruled in AC2 above);
+the lane built the AC's stated property and reported the conflict with
+evidence — not penalized.
+
+## Style pass
+
+Idiomatic and house-consistent throughout (pi-citation comment idiom, keyword
+args, expandable-registry reuse, the `wipe_transcript`/`clear_transcript`
+split mirroring pi's container boundary). One defect, cosmetic:
+`lib/tart/render/transcript.rb` — the comment block atop
+`compaction_panel_rows` (≈ :365-373) begins with 9 pasted lines of the
+SKILL-panel's comment before the actual compaction-panel comment starts.
+Flagged; fold into I31's touch (it is inside the residual's file).
+
+## Call
+
+**CONTINUE** — the panel, rebuild machinery, replay, and agent seams all
+landed byte-true (s7's only unknown candidates are the 7-row MOTD shift; the
+panel rows themselves match pi's captures byte-for-byte, styled included),
+the suite is green at +12 runs, and scope is exact. Two precise residuals
+carry to I31: (1) the rebuild must preserve pi's header region instead of
+wiping the MOTD (criterion-authoring defect, AC2); (2) the s8 zero-usage
+`tokens_before` value divergence needs an owner ruling on disposition —
+documented registry class vs structural-green-only (criterion-authoring
+defect, AC4). Diff vs BRIEF §8 (full settled-screen parity): one closing
+step remains, not a restart.

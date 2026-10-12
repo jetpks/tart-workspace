@@ -1238,7 +1238,7 @@ project:
     ordinal: 30
     file: architecture/I30-compaction-panel.md
     freeze_sha: 1589b66c4ba5112bb7247b015d487262cbedd71f
-    verdict: pending
+    verdict: continue
     lanes:
     - name: agent
       repo: tart
