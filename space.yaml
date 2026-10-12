@@ -1411,11 +1411,12 @@ project:
       - gems/tui-split-rig/**
       base_sha: ecc6b2b1d433d58b50a213617aeb8ed489b89e0f
       worktree: build/I34-tool-pending-bg-core/wt
-      integration_branch:
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: e260a0bec3bc08320acec6faa3824cdddb392ef8
     rehearsal:
       gates_digest: 2062718cf6fd4e344a0ef17ea4960d2306e32a8062a9a63ef68c8655cdcb8810
       at: '2026-10-12T13:00:36-06:00'
