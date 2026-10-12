@@ -1110,10 +1110,25 @@ project:
       - lib/tart/render/chat.rb
       - test/chat_test.rb
       - test/render/**
+      base_sha: 16f20fdb56479c2c9af9b2667d16ce27b904a616
+      worktree: build/I26-editor-kill-ring-editor/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      integrate_sha: 22cf564ba3931556dbc97e8d9d6ec96910c7a316
     - name: rig
       repo: tart
       touch_set:
       - gems/tui-split-rig/**
+      base_sha: 16f20fdb56479c2c9af9b2667d16ce27b904a616
+      worktree: build/I26-editor-kill-ring-rig/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: accounts/fireworks/models/glm-5p3-flash
+      variant: false
+      dispatched_at: '2026-10-11T17:50:49-06:00'
+      integrate_sha: c51b360f29ee0e189676fff881e9520a1a14b4ef
     rehearsal:
       gates_digest: f3705936f875ac91d59d29db8fb7b9da590fe2acb893afe236423a0c352f000b
       at: '2026-10-11T17:48:18-06:00'
