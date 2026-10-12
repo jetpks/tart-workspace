@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: editor-kill-ring
+  current_iteration: model-menus
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1132,4 +1132,10 @@ project:
     rehearsal:
       gates_digest: f3705936f875ac91d59d29db8fb7b9da590fe2acb893afe236423a0c352f000b
       at: '2026-10-11T17:48:18-06:00'
+  - name: model-menus
+    ordinal: 27
+    file: architecture/I27-model-menus.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
