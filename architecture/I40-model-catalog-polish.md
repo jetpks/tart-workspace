@@ -850,15 +850,87 @@ STATUS: COMPLETE_WITH_CONCERNS
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section model-catalog-polish verdict --from <file>`. -->
-
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify model-catalog-polish`)?
+- **Disagreement rulings** — every PHASE 0 item ruled, none silent; each citation
+  re-verified cold against pi source this session (thinking-selector.ts:69-73,
+  agent-session.ts:2477-2496/:2610-2634/:2670-2679, sdk.ts:268-279,
+  settings-manager.ts:757-770, models.ts:1224-1254):
+  1. **The forced conflict (✓-floor deletion vs the :2433 pin's :2444 assertion) —
+     ACCEPT.** The letter is internally contradictory: AC3 + the `floor-gone` gate +
+     AC6 (suite fully green) require the floor's deletion, but the I28 pin
+     `test_thinking_menu_gates_to_off_for_a_non_reasoning_runtime_model` asserts
+     `assert_includes rows, "✓ off"` — which pins the FLOOR's exact behavior (its
+     fixture stages stored "medium" on a non-reasoning model; the ✓ rendered only
+     because the floor rewrote medium→off). pi's letter is exact equality
+     (thinking-selector.ts:69-73, re-read this session:
+     `` level === currentLevel ? "✓ " : "  " ``) — an out-of-set current marks NO
+     row; the Grounds THEMSELVES flagged the floor as a wrong-pi-citation residue
+     to align (Grounds §1 item 1). ACs + the frozen gate dominate the test-file
+     "untouched" wording; the amendment is minimal (one assertion + its comment;
+     the gating assertions — item set `["off"]`, preselect → "off", `refute
+     "minimal"` — keep their semantics; the :2412 cross-resolution pin is
+     untouched, confirmed hunk-by-hunk in the diff). BRIEF §8 in tension beside
+     chat_test.rb:2444: pi-exactness wins over a stale pin.
+  2. **The omitted terminal `?? DEFAULT` tier — ACCEPT (as the letter's own shape,
+     recorded).** The letter's level-for-switch formula is two-tier (declared
+     default || session-level reader); pi's `_getThinkingLevelForModelSwitch`
+     (:2677) ends `?? DEFAULT_THINKING_LEVEL`. The divergence is reachable only
+     when the surface holds NO level fact at all — no real boot produces one
+     (bin/tart's clamped `resolve_thinking_level` always lands a ladder member in
+     footer_data and the loop ctor; pi's own sdk cascade :268-274 is likewise
+     never nil at boot). Fixture-only corner; nil rides the clamp's unknown-rung
+     branch. Spec-authored shape, not a builder error; recorded as an
+     unreachable-in-practice divergence.
+  3. **Process note (one stash/stash-pop pair to re-confirm base counts) — ACCEPT,
+     no impact.** Verified by command: `git log 9beb6a6a..HEAD` empty, stash list
+     empty, working tree at exactly the six lane files.
+- **Open-question rulings (Grounds §5):**
+  - **OQ-1 — the declared-default tier: PORT (the plan-letter default AFFIRMED).**
+    pi :2676-2677 `getDefaultThinkingLevel() ?? this.thinkingLevel` is
+    unambiguous, and settings-manager.ts:758-760 makes it file-declared-only; the
+    port's `declared_thinking_level` mirrors both facts exactly (fresh disk read
+    per call, project-over-user via the {load} precedence, off-vocabulary → nil,
+    the baked DEFAULTS never counts — 6 settings pins). Clamp-only would diverge
+    from pi exactly when a declared default differs from the session level.
+    BRIEF §8.
+  - **OQ-2 — session-file `thinking_level_change`/`model_change` entries: CUT
+    AFFIRMED, backlog candidate.** The port's session format has carried
+    session/message/compaction only since I07 (recorded reduction); the entries
+    are session-format work with resume-replay ripple, outside model-menu parity.
+    Recorded for the backlog (session-format lane).
+  - **OQ-3 — badge-ref semantics under env boot: the I28-frozen shape STANDS**
+    (resolved-boot-pair badge + the ambiguous-bare-id keep — standing itemized
+    deviations; `boot_model_ref` untouched by this diff). The declared-reader
+    mechanism generalizes if the owner wants alignment later.
+- **The s9 lane-worktree deep-path exit 1: the I34/I36/I39 precedent APPLIES —
+  independently reconfirmed this session.** Deep worktree: exit 1 (recurred);
+  the SAME tree exported to a shallow path: exit 0; base at canonical depth
+  (repos/tart): s1–s9 exit 0 cold (`S_COLD_OK` in this session's gate run). The
+  artifact is depth-environmental, not the diff; the integrated-tree run is the
+  record (re-run post-integrate below).
+- **Acceptance Criteria integrity** — frozen sections unchanged since freeze
+  (`architect verify`: (a) PASS, (b) PASS, (d) PASS; the raw `git diff
+  8dbe6fec..HEAD -- <iteration file>` shows exactly one hunk — the post-freeze
+  Builder Prompt append). Verify (c) "scratch report exists" FAILed on path
+  layout only: the report was archived at `build/I40-model-catalog-polish/
+  core-report.md` instead of `build/I40-model-catalog-polish-core/report.md`;
+  copied to the canonical path and transcribed byte-count-verified (143 lines).
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | `apply_model_selection` composes declared-default || session-reader, clamps through the switched entry's facts, stores both states (`@thinking_level` in the mutex block; `set_thinking_level` AFTER `switch_model`), one status row only; 5 switch pins + order pin + no-status-row pin green; SWITCH_TIER_OK in the lane worktree | §8 | PASS |
+| AC2 | `footer_data` clamps `thinking_level:` + adds raw `default_thinking_level:`; `boot_thinking_kwargs` clamps for print; `print_mode` drops its explicit unclamped level; launcher pin (staged xhigh + map-less → high/xhigh) green; BOOT_FACT_OK; glm pins green (clamped == raw in-set) | §8 | PASS |
+| AC3 | display floor deleted; ✓ rides exact equality (`current == level`); new out-of-set pin + the amended :2433 pin green; NO_FLOOR_OK in the lane worktree | §8 | PASS |
+| AC4 | I28 pins preserved (:2412 untouched; :2433 gating assertions kept, amendment ruled above); s1–s9 exit 0 cold — base canonical depth this session + integrated tree re-run below (lane-worktree s9 = the ruled environmental artifact); probe PROBE_OK on base and in the worktree, stdout + 8 frame files + s9 report archived under `build/I40-model-catalog-polish/` | §8 | PASS |
+| AC5 | integrated diff = exactly the six frozen lane files (worktree status; verify in-bounds PASS); report itemizes every cut + the OQ dispositions | §5/§8 | PASS |
+| AC6 | suite 777 runs / 3122 assertions / 0 failures / 1 pre-existing skip (re-run cold in the lane worktree by the judge — Δ +14/+30 over base 763/3092); SEAM_BENCH_OK (re-run cold) | §8 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+- **Report blemishes (immaterial, logged honest-history):** the report claims
+  "all 12 frames present" — the archive and the gate's own matrix hold EIGHT
+  frame files ({pi,tart}×{model,thinking}×{menu,selected}); "keeping the pin's
+  gating assertions byte-identical" — one assertion's MESSAGE string changed
+  ("the gate's floor preselects" → "the preselect lands on index 0"), semantics
+  unchanged. Neither reaches an AC.
+- **Iteration** — **CONTINUE.** The diff is faithful to the Specification's
+  letter at every ported seam (each pi citation re-verified cold at judge), the
+  pin matrix is the deliverable's other half and it is green, and the one
+  spec-internal contradiction was resolved minimally in AC3's favor.

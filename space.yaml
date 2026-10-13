@@ -1574,7 +1574,7 @@ project:
     ordinal: 40
     file: architecture/I40-model-catalog-polish.md
     freeze_sha: 8dbe6feca82710005ba80fa7f991c612b2c5ae86
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
@@ -1585,6 +1585,13 @@ project:
       - test/chat_test.rb
       - test/settings_test.rb
       - test/launcher_smoke_test.rb
+      base_sha: 9beb6a6a0fa7d49db983dc67fb09878e5ad40f54
+      worktree: build/I40-model-catalog-polish-core/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: 19157ee24e7d883afa5b968f8670a446c92b847e8e55e1d5e89d88b2ae01d3de
       at: '2026-10-12T20:29:57-06:00'
