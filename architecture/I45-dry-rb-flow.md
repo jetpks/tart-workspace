@@ -1858,15 +1858,194 @@ STATUS: COMPLETE_WITH_CONCERNS
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section dry-rb-flow verdict --from <file>`. -->
+# Verdict — I45 dry-rb-flow (judge session, fresh, 2026-10-13)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify dry-rb-flow`)?
+Mechanical post-flight (cold, this session): `architect verify` 4/4 PASS
+(frozen untouched / zero builder commits / report exists / in-bounds —
+touched set = exactly the 12 declared files, untracked-inclusive);
+freeze-diff vs 68c2b63d9b9372698074253a845a96e0ef804542 = a single
+append-only hunk at :804+ (the post-freeze Builder Prompt + Builder Report
+provenance sections, nothing else); `git log 4c2e6a9a..` in the lane
+worktree EMPTY. Evidence transcribed verbatim (164/164 lines, commit
+3ac7e510). Judge read the full 12-file diff line by line against B1/B2.
+
+Gate run cold in the lane worktree (tmp/i45-gate-lane-cold.txt):
+**20/24 PASS, 4 FAIL — every FAIL adjudicated below, none a builder
+defect**. Suite **868 runs / 3713 assertions / 0 failures / 0 errors / 1
+pre-existing skip** (base 846/3641 — +22 pins, the new flow_test 19 +
+agent_loop_test 3); SEAM_BENCH_OK; s1–s8 + s10 exit 0 cold; TART_MODE_OK
+(s1_tart exit 1 by design, gate accepts ≤1); both probe gates OK;
+SESSION_GOLDEN_OK (all seven frozen digests); FLOW_PRESENCE_OK;
+MCP_TAXONOMY_OK (verbatim frozen literal — all seven rows);
+NO_SILENT_SWALLOW_OK (verbatim frozen golden incl. session digest
+0b220daa…); NO_NEW_WALLS_OK (client.rb 17 raises → exactly 1, the bare
+cleanup re-raise; mcp.rb's rescue walls gone; bridge 3 / loop 2 rescues
+unchanged; safe_execute byte-untouched); SCOPE_OK (vacuous in an
+uncommitted worktree by construction — the real proof is verify's
+in-bounds PASS + the integrated re-run below).
+
+The four FAILs, judge-verified independently this session:
+
+- **deps-flow — FROZEN-GATE AUTHORING DEFECT (D1), intent GREEN.** The
+  frozen literal's final step `require "dry/monads/result"` raises
+  `NameError: uninitialized constant Dry::Monads::Result::Transformer`
+  under dry-monads 1.11.0 (zeitwerk-managed: result.rb:9 includes
+  Transformer before any loader setup; a standalone require never runs
+  the loader). Judge reproduced the NameError verbatim under `bundle
+  exec` in the lane worktree and confirmed `require "dry/monads"`
+  (the umbrella) works. The gate is un-satisfiable AS WRITTEN on ANY
+  tree, perfect or not — 1.11.0 is the latest release, so no `~> 1.11`
+  resolution escapes it. Its three substantive assertions (gemspec
+  declares dry-monads ~> 1.11, lock carries it, bundle installs) PASS,
+  and the intent (Result machinery loadable by tart's flow files) is
+  pinned non-vacuously by FLOW_PRESENCE_OK + the green suite. The
+  Grounds §3 transcription drifted from the spec-time probe (p1.rb
+  line 2 is the umbrella require). Frozen literal NOT amended; defect
+  recorded for the human.
+- **step-classification — FROZEN-GATE AUTHORING DEFECT (D2), intent
+  GREEN.** The frozen script calls `mk.call(events2)`/`mk.call(events3)`
+  but only `events` is ever initialized → NameError before the
+  context-length/transport assertions. Latent at rehearsal because the
+  first abort (RED via its intended mechanism at base) short-circuits
+  the script before the undefined variable is reached. Judge verified
+  the minimally-corrected equivalent (ONLY `events2 = []` /
+  `events3 = []` added, byte-otherwise the frozen script) prints
+  STEP_CLASSIFICATION_OK in the lane worktree — all six classifications
+  hold; the same three payload classes are double-pinned as suite tests
+  (flow_test + agent_loop_test, green). The spec session's pre-freeze
+  fix traded the bare-`mk.call` bug for this one. Frozen literal NOT
+  amended; defect recorded.
+- **wire-bodies — WORKTREE-PATH ARTIFACT, zero byte moves (judge
+  re-proven).** In-worktree digest b63b9de9… vs frozen 2ece7d4b…: the
+  gate's gsub normalizes only the canonical `tmp/i45-wire/run-1/sandbox`
+  suffix, so the deep worktree prefix leaks into the body (I44
+  judge-proven binding). Judge re-ran the three-way control fresh this
+  session: `git archive 4c2e6a9a` extracted to tmp/i45-base-tree vs the
+  lane worktree, identical rig run, root-normalized digests — BASE
+  `6f6ba57c…` == CHANGED `6f6ba57c…`, and the tool-declarations digest
+  `7360fd1e…` matches the frozen canonical literal in BOTH. ZERO wire
+  bytes moved by this diff; the decider is the canonical-path run on
+  the integrated tree (below).
+- **s9-parity — WORKTREE DEEP-PATH ARTIFACT (8th precedent:
+  I34/I36/I39/I40/I42/I43/I44).** Judge read the rig report: 6×
+  parity-run-path + 4× staged-path-wrap-fragment + 2× unknown-candidate
+  (the wrap-continuation fragments of the same absolute-path lines) +
+  2× footer-provider-prefix (sanctioned class) — every diff line is the
+  absolute worktree path or its wrap; zero content differences. The
+  gate-calibration note pre-declared this does not fail the iteration
+  when the integrated tree exits 0 at canonical depth (below).
+
+## Disagreement rulings
+
+Every PHASE 0 item and all five spec OQs, ruled by the plan letter:
+
+**Builder PHASE 0 items D1–D6:**
+
+1. **D1 (the deps-flow literal is structurally impossible) — ACCEPT.**
+   Judge-reproduced NameError + umbrella-require confirmation (above).
+   The flow files' `require "dry/monads"` (umbrella) deviation from
+   Specification §1's literal `dry/monads/result` is the only working
+   form of the letter's intent under the pinned gem; five flow files
+   carry it, `lib/tart.rb` gains no global require (contract held).
+   The one-word gate fix stays UNMADE (frozen); recorded for the human.
+2. **D2 (step-classification undefined events2/events3) — ACCEPT.**
+   Judge-reproduced NameError; judge-ran corrected equivalent OK. The
+   classifications are the criterion's substance and are pinned twice
+   in the suite.
+3. **D3 (mcp_test round-trip unwrap) — ACCEPT.** Grounds §5's
+   "everything else green untouched" was internally inconsistent with
+   B2's own Result API — `Success` has no `map`/`all?`/`[]`. The
+   re-point to `.value!` + an additive `assert tools.success?` is the
+   minimal mechanical unwrap; every assertion VALUE unchanged (judge
+   read the diff). Required by the contract, not drift.
+4. **D4 (Success(array) splats in deconstruct) — ACCEPT.** Correct
+   dry-monads idiom; the guard + `value!` form at array-payload seams
+   is sanctioned by the flow contract §4's own both-styles allowance.
+   Recorded as an idiom note for future dry-rb entries.
+5. **D5 (module_function needs extend alongside include) — ACCEPT.**
+   `include` cannot reach module_function singleton copies; `extend
+   Dry::Monads::Result::Mixin` at Tart::Mcp is the minimal correct
+   form for the callable surface (probed by the builder; verified by
+   the green taxonomy gates + suite).
+6. **D6 (three behavior notes, byte-equivalent at observables) —
+   ACCEPT, each judge-read on the diff:** double-connect now closes the
+   passed transport and returns Failure with today's message bytes
+   (base: the same close happened in the rescue-Exception cleanup
+   before the re-raise — the cleanup is preserved, the raise became the
+   B2-mandated Result); handle_request's require_transport failure now
+   hands the same ConnectionClosedError instance to emit_error (base:
+   raised into its own rescue → the same emit_error); a
+   RubyLLM::CancelledError during MCP setup arrives as a Failure into
+   tools_for's IDENTICAL warn+skip bytes (base: the same swallow via
+   rescue StandardError — no NEW swallow exists; the wall is gone and
+   the outcome shape is byte-preserved).
+
+**Spec OQs (adjudicated):**
+
+- **OQ-1 the built-ins' safe_execute stays wall-based — ACCEPT.** ENTRY
+  3's letter SHAPE names the step boundary + the MCP call surface only;
+  the {error:} conversion is pi-parity tool semantics pinned byte-exact
+  at three seams by the §2.3 golden; the MCP tool wrapper IS converted
+  (part of the call surface). no-new-walls' safe_execute-untouched
+  check PASS.
+- **OQ-2 Bridge#run returns Result; user_bash re-points — ACCEPT.**
+  Payload class = discriminator is the letter's own sentence; a Hash
+  shim would violate the no-aliasing discipline (I44 precedent). The
+  one render edit is exactly the enumerated :183-184 arm (2+/2-).
+- **OQ-3 MCP public API raises → Result — ACCEPT.** The three re-pins
+  preserve payload class + message (judge-read); the additive
+  closed-state assert strengthens the invalid-initialize pin.
+- **OQ-4 Exception-class propagation preserved — ACCEPT.** Bridge's
+  Async::Cancel arm untouched; client's Exception guard keeps cleanup +
+  bare re-raise for the non-StandardError family; CancelledError
+  re-raise in tool.rb untouched; no bare Try anywhere (judge grep).
+- **OQ-5 no new error classes — ACCEPT.** No new class definitions in
+  the diff; the four plain-RuntimeError sites stay RuntimeError
+  instances with message bytes preserved (two pinned exact in
+  flow_test).
+
+## Acceptance Criteria integrity
+
+Frozen sections unchanged since freeze — `architect verify` (a) PASS;
+the freeze-diff is append-only provenance.
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | deps-flow literal INVALID-as-written (D1, judge-reproduced; its three substantive assertions PASS) + FLOW_PRESENCE_OK + NO_NEW_WALLS_OK + judge diff-read: gemspec ~> 1.11 production dep, lock grows by exactly dry-monads, five flow files require + mixin (D1/D5 forms), Failure payloads = instances of today's classes, no new classes, no bare Try | plan ENTRY 3, Specification | PASS |
+| AC2 | step-classification literal BROKEN-as-written (D2, judge-reproduced) + corrected equivalent OK + suite double-pins green + wire-bodies path-artifact-closed (judge three-way: base == changed, tools digest = frozen) + user_bash arm byte-identical + agent_loop error paths green untouched + before_request seam no-hunk | §B1/AC2 | PASS |
+| AC3 | MCP_TAXONOMY_OK verbatim (timeout + timeout_ms, invalid initialize, method-not-found −32601, duplicate-cursor + unsupported-version via the two echo toggles, closed, non-idle) + the three re-pins judge-read (class + message preserved) + round-trips green (D3) + pages-cap/send-failure unit-pinned per the spec's own itemized allowance | §B2/AC3 | PASS |
+| AC4 | NO_SILENT_SWALLOW_OK verbatim (all six frozen literals incl. session digest 0b220daa…) + SESSION_GOLDEN_OK (7/7 digests) + wire bytes zero-moved (judge three-way control; canonical run below) | §AC4 | PASS |
+| AC5 | suite 868/3713/0F/1skip (846 base, +22 additive); SEAM_BENCH_OK; s1–s8+s10 exit 0 cold; s9 in-worktree = pre-declared deep-path artifact (8th precedent, canonical run below); TART_MODE_OK; both probes OK; in-bounds PASS; scope vacuous in-worktree, non-vacuous on the integrated run below | §AC5 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+## Residuals for the human (none block)
+
+- The two frozen-gate authoring defects (deps-flow's require literal,
+  step-classification's events2/events3) are recorded but unamended —
+  frozen sections stay as frozen; anyone re-running those two gates
+  verbatim will see them fail for non-builder reasons.
+- Judge-found (not builder-flagged): base server_tools' rescue
+  Exception also closed the client on a non-StandardError raised
+  mid-build_tools (e.g. Interrupt during pagination); the new explicit
+  branches close on every FAILURE path, but such an interrupt now
+  propagates without an explicit client.close. No pinned observable
+  covers it; B2's letter prescribes exactly the implemented shape.
+  Cleanup-candidate note, not a defect.
+- The four I44 shim sites (I44 P0-1 residual) remain as inherited —
+  untouched by this iteration, cleanup backlog unchanged.
+
+## Iteration
+
+**CONTINUE** — the diff is a faithful implementation of the frozen
+Specification at both letter surfaces (the Bridge terminal Result with
+payload-class discrimination at the step boundary; the MCP call surface
+fully Result-typed over today's exact taxonomy with message bytes
+preserved), the no-silent-swallow discipline holds at every observable
+(golden + session digests exact; wire bytes zero-moved, judge-proven
+three-way), the no-new-walls discipline holds (17 raises → 1 bare
+cleanup re-raise; mcp.rb's walls retired, not replaced), the parity
+battery is green cold with the two pre-declared worktree artifacts
+closed by judge-run controls, and the only four gate FAILs are frozen
+authoring defects (judge-reproduced) and path artifacts (judge
+re-proven) — none chargeable to the builder. The replay probe's
+byte-stability headline is un-regressed. The dry-rb wave (ENTRY 1–3)
+is complete; the program advances to ENTRY 4 (zai-provider).
