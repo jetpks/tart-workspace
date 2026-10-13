@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: model-catalog-polish
+  current_iteration: loadout-session-env
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1596,4 +1596,10 @@ project:
     rehearsal:
       gates_digest: 19157ee24e7d883afa5b968f8670a446c92b847e8e55e1d5e89d88b2ae01d3de
       at: '2026-10-12T20:29:57-06:00'
+  - name: loadout-session-env
+    ordinal: 41
+    file: architecture/I41-loadout-session-env.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
