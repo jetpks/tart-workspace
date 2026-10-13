@@ -1016,11 +1016,137 @@ file, and `lib/tart/agent/system_prompt.rb`, `lib/tart/identity.rb`,
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I41-loadout-session-env-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence loadout-session-env --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+### PHASE 0 (disagreements & verifications)
+
+**Checked before coding** (all verified against live sources this session):
+pi `packages/coding-agent/src/core/settings-manager.ts:82` (`DEFAULT_TOOL_NAMES = ["read","bash","edit","write"]`) + :104-133 (modifier/merge semantics); `src/core/tools/bash.ts:186-250` (`resolveSpawnContext`: env copy → delete the five `PI_*` → set from ctx; `exposeSessionEnvironment` defaults true, no settings key); `src/core/agent-session.ts:1565-1581` (`_applyToolLoadout` iterates the name list in order) + :911 (`selectedTools = getActiveToolNames()` feeds the prompt); `src/core/session-manager.ts:987-1080` (ephemeral shape: id always, file only when persisting); `docs/environment-variables.md:20-45` (five-var table, per-command resolution, user-bash exclusion); `src/utils/shell.ts:138-149` (getShellEnv). Port seams: `Settings.selected_tools`/`apply_tool_modifiers`/`merge_default_tools` (settings.rb:216-244, unchanged machinery); `Process.spawn(env, ..., unsetenv_others: true)` live-verified (child sees exactly the composed hash); `Session.uuidv7` (session.rb:54), `Recorder#id/#path` (session.rb:366), `Identity.env_key` (identity.rb:50), chat.rb `attr_accessor :agent` (:274), loop.rb env tier (loop.rb:358-362).
+
+**Disagreement raised (the only one): the frozen `loadout-pin` gate's `golden_tools` literal has a one-word transcription error.** Gate literal: `- edit: Make precise changes with exact text replacement...`. The REAL bytes — pi's captured request (`tmp/i41-base-s8_zero_usage_compaction/run-1/pi-requests.jsonl` request 1, byte-verified), the I32-era capture (`tmp/parity-gate-s8/run-1/pi-requests.jsonl`, identical), pi's own source (`edit.ts:44` snippet), and the port's `system_prompt.rb:34` — all say `- edit: Make precise file edits with exact text replacement...`. The gate's `<rules>` literal matches the capture byte-for-byte. Per the operating rules (AC letter vs the property it asserts), I built to the REAL captured bytes (no `system_prompt.rb` edit — it already composes them), ran the gate VERBATIM, and recorded the abort + the one-word-diff proof. The supervisor was notified mid-run (progress_update). The gate literal needs the one-word fix in the architect-owned AC; with that fix the gate passes end-to-end (proof below).
+
+No other disagreements: every named API/format/version checked out; `system_prompt.rb` needs NO edit (composes the golden bytes from the resolved list); `test/support/**` needed no edit.
+
+### Files (git diff --stat 9f8c8d7, working tree)
+
+```
+ README.md                  |   6 ++-
+ bin/tart                   |  52 +++++++++++++---
+ lib/tart/agent/loop.rb     |   6 +++
+ lib/tart/print.rb          |   7 ++-
+ lib/tart/render/chat.rb    |   2 +-
+ lib/tart/settings.rb       |   9 ++--
+ lib/tart/tools/bash.rb     |  51 +++++++++++++--
+ lib/tart/tools/registry.rb |  31 +++++++++---
+ test/agent_loop_test.rb    |  42 +++++++++++++++
+ test/bash_tool_test.rb     | 127 +++++++++++++++++++++++++++++++++++++++++
+ test/print_test.rb         |  46 ++++++++++++++
+ test/settings_test.rb      |   4 +-
+ test/system_prompt_test.rb |  44 +++++++++++++++
+ test/tools_test.rb         |  11 ++++
+ 14 files changed, 409 insertions(+), 29 deletions(-)
+```
+
+Untracked files: none. loop.rb diff = the `attr_reader :recorder` + doc comment only; chat.rb diff = the one `public` line only (verified via `git diff 9f8c8d7 --` on both).
+
+### Seam table (pi mechanic → port seam, before/after)
+
+| pi mechanic | port seam | before | after |
+|---|---|---|---|
+| `DEFAULT_TOOL_NAMES` (settings-manager.ts:82) | `Settings::DEFAULT_TOOLS` (settings.rb) | `%w[read write edit bash find grep ls]` ("recorded divergence") | `%w[read bash edit write]` (parity note) |
+| `resolveDefaultTools`/`applyToolModifiers`/`mergeDefaultTools` | `Settings.selected_tools`/`apply_tool_modifiers`/`merge_default_tools` | already pi-exact | UNCHANGED (I10 machinery) |
+| `_applyToolLoadout` name-list order (agent-session.ts:1571-1581) | `Tools::Registry.build` (registry.rb) | `TOOL_CLASSES.slice(*selected)` → receiver order (read,edit,write,bash,...) | `selected.to_h` → SELECTED order (read,bash,edit,write) |
+| `resolveSpawnContext` (bash.ts:186-208) | `Tools::Bash#session_env_for_spawn` + `spawn_and_stream(env:)` | plain ENV inheritance, no scrub, no exposure | copy of ENV → scrub the identity's five → set truthy readers at spawn; `unsetenv_others: true`; `run_user` keeps plain inheritance |
+| `ctx.sessionManager.getSessionId/getSessionFile`, `ctx.model.provider/.id`, `ctx.thinkingLevel` | launchers' readers (bin/tart): interactive `surface.agent&.recorder&.id/.path`, `surface.current_model_ref[:provider]/[:id]`, `surface.agent&.thinking_level`; print: minted `Session.uuidv7`, no file, boot pair, print level | n/a (no exposure) | SUFFIX → callable hash threaded `build_tools` → `Registry.build` → Bash |
+| loop `identity` on print path (I32 ruling 2) | `Print.run(identity:)` → `Agent::Loop.new(identity:)` | print loop always `Identity::DEFAULT` (read PI_CONTEXT_WINDOW) | resolved face forwarded; tier reads `<PREFIX>_CONTEXT_WINDOW` |
+| `current_model_ref` (chat.rb) | private → public | private | `public :..., :current_model_ref` (one line, :1945 block) |
+
+### Gate results (this worktree)
+
+| gate | result | evidence |
+|---|---|---|
+| suite | PASS | `790 runs, 3161 assertions, 0 failures, 0 errors, 1 skips` (run-count delta +13 vs base 777 — the 13 new tests; the 1 skip is the pre-existing opt-in LiveRunTest skip) |
+| bench | PASS | `SEAM_BENCH_OK` |
+| s1-parity | PASS | exit 0, `tmp/parity-gate-s1` |
+| s2-parity | PASS | exit 0, `tmp/parity-gate-s2` |
+| s3-parity | PASS | exit 0, `tmp/parity-gate-s3` |
+| s4-parity | PASS | exit 0, `tmp/parity-gate-s4` |
+| s5-parity | PASS | exit 0, `tmp/parity-gate-s5` |
+| s6-parity | PASS | exit 0, `tmp/parity-gate-s6` |
+| s7-parity | PASS | exit 0, `tmp/parity-gate-s7` |
+| s8-parity | PASS | exit 0, `tmp/parity-gate-s8` |
+| s9-parity | PASS | exit 0, `tmp/parity-gate-s9` |
+| s1-tart-mode | PASS | rig exit 1 (gate-tolerated `ec<=1`), `pi: completed=true requests=1/1`, `tart: completed=true requests=1/1`, stdout `TART_MODE_OK` |
+| loadout-pin | **FAIL (gate literal)** | verbatim output below; wire check PASSES, tools-section aborts on the one-word literal error |
+| env-pin | PASS | `7 runs, 22 assertions, 0 failures` → `ENV_PIN_OK` |
+| print-identity-pin | PASS | print `/identity/`: `2 runs, 6 assertions, 0 failures`; loop `/env_tier|recorder/`: `2 runs, 7 assertions, 0 failures` → `PRINT_IDENTITY_OK` |
+| scope | PASS | frozen HEAD-based gate: `SCOPE_OK`; non-vacuous worktree diff vs 9f8c8d7 = exactly the 14 enumerated files (list above); untracked: none |
+
+### loadout-pin gate, verbatim (frozen literal)
+
+```
+out dir: .../wt/tmp/loadout-gate-s1
+tools section diverges:
+- read: Read file contents
+- bash: Execute bash commands (ls, grep, find, etc.)
+- edit: Make precise file edits with exact text replacement, including multiple disjoint edits in one call
+- write: Create or overwrite files
+
+In addition to the tools above, you may have access to other custom tools depending on the project.
+loadout-gate exit=1
+```
+
+Same capture, gate script re-run with ONLY the errant literal word corrected to the capture (`file edits`):
+
+```
+WIRE_OK: ["read", "bash", "edit", "write"]
+LOADOUT_PIN_OK_WITH_CORRECTED_LITERAL
+```
+
+Capture-vs-gate byte diff (scripted): `RULES_MATCH_GATE` (10/10 lines); `TOOLS_DIFFER` line 2 only: gate `"- edit: Make precise changes with exact text replacement..."` vs capture `"- edit: Make precise file edits with exact text replacement..."`; both sources (`edit.ts:44`, `system_prompt.rb:34`) and both on-disk captures agree with the capture side.
+
+### Focused test evidence (verbatim tails)
+
+```
+bash_tool_test -n /session_environment/:  7 runs, 22 assertions, 0 failures, 0 errors, 0 skips
+settings_test (full):                    35 runs, 124 assertions, 0 failures, 0 errors, 0 skips
+tools_test (full):                       21 runs, 54 assertions, 0 failures, 0 errors, 0 skips
+system_prompt_test (full):               15 runs, 58 assertions, 0 failures, 0 errors, 0 skips
+print_test -n /identity/:                 2 runs,  6 assertions, 0 failures, 0 errors, 0 skips
+agent_loop_test -n /env_tier|recorder/:   2 runs,  7 assertions, 0 failures, 0 errors, 0 skips
+```
+
+New tests: tools_test `test_registry_preserves_the_selected_order` (default `%w[read bash edit write]` + modifier-resolved order); system_prompt_test `test_default_loadout_sections_are_pis_captured_bytes` (GOLDEN_TOOLS/GOLDEN_RULES inlined, derivation commented); bash_tool_test (a)-(g) seven `session_environment` tests; print_test `test_print_forwards_the_resolved_identity_to_the_loop` + `test_print_path_session_env_rides_the_resolved_identity`; agent_loop_test `test_env_tier_reads_the_identity_namespaced_context_window` + `test_recorder_reader_exposes_the_session_recorder`.
+
+### White-label smoke (REAL bin/tart -p, `--identity foo`, mock endpoint, this worktree)
+
+```
+tart exit=0
+stdout: "smoke complete\n"
+env.txt: "sid=01a13381-26e7-7fee-b8b8-eab6d0b3ba8c sfile=[] provider=openai model=accounts/fireworks/models/glm-5p3-flash level=medium\n"
+sid_uuidv7_shape=yes
+```
+
+FOO_-prefixed five via the print path: minted uuidv7 id, empty file (OQ-3), boot pair (no catalog match → env/settings pair `openai` + the default fireworks id), print level `medium`. Also proves the bash tool boots under the new default-4.
+
+`--help` Settings paragraph (verbatim, live run):
+
+```
+          defaultTools (default read bash edit write; plain names replace
+          it — e.g. ["find", "grep"] restores the search tools — +name
+          adds, -name removes, e.g. "+find" appends to the default).
+```
+
+### Deviations / cuts / notes (itemized)
+
+1. **Gate-literal conflict (AC2's loadout-pin):** the frozen `golden_tools` literal carries `Make precise changes` where pi's real captured bytes, pi's source (edit.ts:44), and the port compose `Make precise file edits`. Built to the real bytes (the AC's property); gate run verbatim fails at that one comparison; corrected-literal run passes end-to-end. Architect must fix the literal — no code change on my side can satisfy the errant letter without editing the forbidden `system_prompt.rb` and diverging from pi.
+2. **Harness-env PI_* discovery:** the session's parent environment carries live `PI_*` vars (pi's own bash-tool exposure upstream). The bash_tool hermetic tests set/restore their own vars and scope cross-prefix assertions accordingly ((d),(e),(g)); (g) asserts pi's exact prefix-scoped rule (parent PI_* minus the five, plus the five composed).
+3. **Print forwarding pin mechanics:** `Print.run` exposes no loop readback and its default compaction settings make a threshold compaction unobservable on a single seeded-less turn (cut point 0 — `find_cut_point` keeps everything under keep_recent 20000), so the forwarding pin witnesses `Agent::Loop` construction (kwargs captured, real loop delegated to — the define_singleton_method test precedent) + the tier readback in agent_loop_test (`send :resolved_context_window`, the mcp_test send precedent).
+4. **`getShellEnv` PATH-prepend:** cut (no shim bin dir; Grounds 3 itemized) — base env is `ENV.to_h`.
+5. **Process markers `AI_AGENT`/`PI_CODING_AGENT`:** out of scope (OQ-4), untouched.
+6. **Out-dir discipline:** one early s2–s4 loop used long out-dirs (`tmp/parity-gate-s2_tool_turn` etc.) → exit 1 (the Grounds 1 environmental family); re-run all at canonical `tmp/parity-gate-sN` → exit 0. No rig file touched; no tmux commands run; no git write commands run.
+
+STATUS: COMPLETE_WITH_CONCERNS (frozen loadout-pin gate's `golden_tools` literal has a one-word transcription error vs pi's real captured bytes — evidence above; gate needs the architect's one-word literal fix, everything else GREEN)
 
 ## Verdict
 
