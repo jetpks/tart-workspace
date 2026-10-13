@@ -1599,7 +1599,27 @@ project:
   - name: loadout-session-env
     ordinal: 41
     file: architecture/I41-loadout-session-env.md
-    freeze_sha:
+    freeze_sha: 8c8cd59f0579a3caccaf1844563a75d7d9af5d65
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/settings.rb
+      - lib/tart/tools/registry.rb
+      - lib/tart/tools/bash.rb
+      - lib/tart/agent/loop.rb
+      - lib/tart/render/chat.rb
+      - lib/tart/print.rb
+      - bin/tart
+      - README.md
+      - test/settings_test.rb
+      - test/tools_test.rb
+      - test/bash_tool_test.rb
+      - test/system_prompt_test.rb
+      - test/print_test.rb
+      - test/agent_loop_test.rb
+    rehearsal:
+      gates_digest: d60d20191c5bc88bf292e8fddc5b480cdbcea997f5128914e211ab176ce16eb0
+      at: '2026-10-12T21:49:45-06:00'
   integration_branch: project/pi-port
