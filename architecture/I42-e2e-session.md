@@ -848,11 +848,348 @@ disagreements mandatory (a labeled PHASE 0 section). STATUS line last
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I42-e2e-session-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence e2e-session --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# I42 e2e-session — lane `core` builder report
+
+Base: `project/pi-port` @ d1a4209 (I41 merge tip), lane worktree
+`build/I42-e2e-session-core/wt`, working tree clean at start. All gates run
+from the worktree unless marked as a control. Freeze SHA per the dispatch
+note: **b3d39a12** ( Specification/AC content byte-identical to 8155fd3a).
+
+## PHASE 0 (disagreements & verifications)
+
+**Checked before coding** (all verified against live sources this session):
+pi oracle read — `main.ts:358-448` (createSessionManager: `--no-session`
+→ inMemory, `--session`/`--resume`/`--fork` resolve BEFORE the mode split,
+default `SessionManager.create(cwd, sessionDir, …)` = records by default,
+shared by the print path); `core/session-manager.ts:1766-1786` (`open` =
+append-in-place, the standing OQ-3 fork deviation) and `:1815-1856`
+(`forkFrom`: new header + `appendFileSync` of every non-header entry
+VERBATIM — the item-4 copy); `core/tools/bash.ts:186-208`
+(`resolveSpawnContext`: `env.PI_SESSION_ID = …getSessionId()`,
+`if (sessionFile) env.PI_SESSION_FILE = sessionFile` — exposure when a
+file exists); `modes/print-mode.ts:41+` (runPrintMode over the session
+host). Port seams — `Agent::Loop.new` already accepts
+`recorder:/seed_messages:/context_window:/compaction:` (loop.rb:77-84);
+`Settings.compaction_kwargs` (settings.rb:184-191);
+`resolve_resume`/`find_session_by_id`/`require_session` (bin/tart:554-571);
+the interactive-only abort at bin/tart:206; `print_session_env`
+(bin/tart:529-540, minted-ephemeral); `Recorder#initialize`
+(session.rb:369-381) with persist-on-first-conversation-bearing-message
+(`persist`, session.rb:458-470) and `load_entries` [] contract
+(session.rb:101-112); `Compaction::COMPACTION_SUMMARY_PREFIX`
+(compaction.rb:38); threshold trigger `should_compact?` (compaction.rb:257)
++ loop env tier (loop.rb:358-372). Instrument primitives — MockLLMServer
+serves every leg as-is (`url`, `script`, `captured_requests`,
+`:stream` tool_calls, `:message`; default usage `{prompt_tokens: 10,
+completion_tokens: 5}` → window 10 + reserve 0 fires: 15 > 10 — probe 1b
+proved window 12); launcher_smoke env pattern (launcher_smoke_test.rb:264-272);
+`rg`/`fd` installed locally (no runtime downloads — the recorded deviation);
+suite glob `test/**/*_test.rb` (Rakefile) picks up the new file;
+`unsetenv_others: true` live-proven through `Open3.capture3` (child env =
+exactly the given hash + the two macOS-injected vars). Grounds probes read
+(`tmp/i42-probe1b-headless-compaction.rb`, `i42-probe2-space-launcher.rb`,
+`i42-probe2b-print-cwd.rb`) as read-only reference.
+
+**Disagreements: none blocking.** Two interpretation notes (both forced by
+the spec's own constraints; itemized in Deviations below):
+
+1. "A FRESH staged HOME per leg" + legs B/C/C2 resuming the previous leg's
+   session: a session file lives under its run's HOME, so a leg cannot see
+   a predecessor's file across DIFFERENT homes. Resolution: each leg TEST
+   re-runs the full predecessor chain as REAL subprocess runs inside its
+   own fresh staged home (1 + 2 + 3 + 4 = 10 boots across the 4 methods) —
+   lineage, parentSession links, and most-recent selection are the run's
+   true products, never copied fixtures; and leg C2's "SMALLER than leg C's
+   first request" comparison reads the same server's capture, which the AC
+   practically requires.
+2. The space-root derivation "(strip `/.git`, take the parent)" lands at
+   `<space>/repos` — one level short of the space root (verified live:
+   `File.expand_path("..", ".../repos/tart") == ".../repos"`, which fails
+   the validation markers). Implemented as walk-up-with-validation (≤ 2
+   levels: checkout → parent → grandparent, first one validating) — lands
+   on the space root in every space-rooted layout, keeps the checkout-root
+   fallback for a standalone clone. The alternative (literal one-level) put
+   the whole instrument on the fallback in ALL layouts — contradicts
+   Grounds §3's own description ("the space root resolves through
+   `git rev-parse --git-common-dir`") and was measured broken this session.
+
+`test/support/**` needed NO edit (the mock serves every leg — confirmed by
+running all four legs). No loop.rb/compaction.rb/settings.rb/tools edit
+needed (probe 1b's evidence held).
+
+## Files (git diff --stat d1a4209, working tree; untracked: test/e2e_session_test.rb)
+
+```
+ README.md                 | 23 ++++++++++++++-------
+ bin/tart                  | 39 +++++++++++++++++++++++++++---------
+ lib/tart/agent/session.rb | 18 +++++++++++++++++
+ lib/tart/print.rb         | 19 ++++++++++++++++++
+ test/print_test.rb        | 50 +++++++++++++++++++++++++++++++++++++++++++++++
+ test/session_test.rb      | 25 ++++++++++++++++++++----
+ 6 files changed, 153 insertions(+), 21 deletions(-)
+```
+
+File list + wc (the lane touch set, exactly):
+
+```
+     126 lib/tart/print.rb
+     502 lib/tart/agent/session.rb
+     596 bin/tart
+     353 README.md
+     351 test/e2e_session_test.rb   (new)
+     181 test/print_test.rb
+     451 test/session_test.rb
+    2560 total
+```
+
+`git status --short`: 6 modified + 1 untracked (the new test file). Nothing
+else. `lib/tart/agent/session.rb` diff verified line-by-line: ONLY the
+`Recorder#initialize` copy block + its doc comment (18 added lines, zero
+other moves).
+
+## Seam table (pi mechanic → port seam)
+
+| pi mechanic | port seam | change |
+|---|---|---|
+| `createSessionManager` default `SessionManager.create` (main.ts:447-448) — print rides it | `bin/tart` `print_mode` | recorder constructed ALWAYS: `Agent::Session::Recorder.new(cwd: workdir, parent_session: resume_path)`; `--resume` resolution via the SAME `resolve_resume` the interactive path uses (no id = most-recent for the workdir; path as-is; id by file-name suffix or header id); the interactive-only abort DELETED |
+| forkFrom copy loop (session-manager.ts:1847-1853) | `Recorder#initialize` copy block | non-header entries appended VERBATIM, ids merged into `@ids`, `@leaf_id` threaded from the copied tail; missing/invalid parent degrades to header-only (`load_entries` contract) |
+| print-mode session host (print-mode.ts) + `Agent::Loop` seams | `Print.run` | new kwargs `recorder: nil, seed_messages: [], context_window: nil, compaction: nil` forwarded VERBATIM to `Agent::Loop.new`; doc comments mirror the loop's |
+| `resolveSpawnContext` (bash.ts:194-197) | `print_session_env(recorder, boot, level)` | SESSION_ID → `recorder&.id`, SESSION_FILE → `recorder&.path` (LIVE lambdas); PROVIDER/MODEL/REASONING_LEVEL unchanged; minted-ephemeral note retired, comment re-anchored on bash.ts:196-197 |
+| compaction knobs on every boot (sdk clamp analog, I40) | print path | `compaction: Settings.compaction_kwargs(settings)` threaded; `context_window:` stays nil so the loop's env tier resolves `<IDENTITY>_CONTEXT_WINDOW` itself |
+
+## The instrument's own stdout (gate command `bundle exec ruby -Itest test/e2e_session_test.rb`)
+
+```
+[e2e] space root: /Users/eric/architect/spaces/20261009-pi-port
+[e2e] repo dir:    /Users/eric/architect/spaces/20261009-pi-port/repos/tart
+[e2e] staged HOME: /var/folders/.../tart-e2e-home-20261013-25771-psnmf0
+[e2e] scratch dir: /Users/eric/architect/spaces/20261009-pi-port/tmp/i42-e2e-1048
+[e2e] leg A: exit 0, 7 requests, session 2026-10-13T06-04-08-420Z_01a133dc-7563-….jsonl
+[e2e] leg B: exit 0, resumed 01a133dc-7563-…, session 2026-10-13T06-04-08-724Z_01a133dc-7694-….jsonl
+[e2e] leg C: exit 0, resumed by path, session 2026-10-13T06-04-09-014Z_01a133dc-77b6-….jsonl, compaction recorded
+[e2e] leg C2: exit 0, resumed the most-recent session (/var/folders/…/2026-10-13T06-04-09-014Z_01a133dc-77b6-….jsonl)
+… (three more per-test blocks: leg A; legs A+B; legs A+B+C) …
+4 runs, 90 assertions, 0 failures, 0 errors, 0 skips
+```
+
+Gate harness output: `E2E_SESSION_OK` (frozen gate command run verbatim —
+`tail -5` + the runs/assertions regex + the `e2e` grep). Stable across 3
+consecutive runs.
+
+## Request/payload assertion inventory (which captured request proved which leg)
+
+Leg A (7 requests; each request's `tools` array = the 7 staged tools):
+- req1 payload carries the `read` result (tool_call_id `c1`) with loop.rb's
+  first line `# frozen_string_literal: true`.
+- req2 carries `c2`'s result naming `seam_bench.rb` (pattern
+  `SEAM_BENCH_OK` over `<repo>/bench`).
+- req3 carries `c3`'s result naming `registry.rb` (glob `*.rb` over
+  `<repo>/lib/tart/tools`).
+- req4 carries `c4`'s result (bash): line 1 == the space root, line 2 ==
+  the recorded header id, line 3 == the recorded session path.
+- req5/req6 carry `c5`/`c6` results; post-run: `<scratch>/edit-me.md` ==
+  `"line one\n#{A_REPLACEMENT}\nline three\n"`, `<scratch>/summary.md` ==
+  the fixed text; stdout carries the final response; EXACTLY ONE jsonl;
+  roles `[user] + [assistant tool]×6 + [assistant]`; header cwd == root;
+  no parentSession.
+
+Leg B (1 request after A's 7):
+- payload roles (minus system/developer) == A's 14 recorded roles + `user`
+  LAST; first == A's prompt, last == B's prompt.
+- new file's header `parentSession` == A's path; entries ==
+  A's non-header entries BYTE-IDENTICAL (`assert_equal a_entries[1..], …`)
+  + `[user, assistant]`; the new leaf's parentId == A's final entry id.
+
+Leg C (2 requests):
+- req1 `tools` present (7); req2 `tools` key ABSENT (the standalone
+  summarization one-shot).
+- C's file: last entry `type == "compaction"`, `tokensBefore == 15` (≥ 10),
+  `firstKeptEntryId` a String; B's prompt present in the file (two-hop copy).
+
+Leg C2 (1 request):
+- payload includes `Compaction::COMPACTION_SUMMARY_PREFIX` ("The
+  conversation history before this point was compacted into the following
+  summary…"), excludes leg A's prompt, and
+  `JSON.generate(messages).bytesize 3592 < leg C's first request 6230`.
+- 4 session files; the newest file's header `parentSession` == C's path
+  (the resolve-time most-recent proof).
+
+## Session-file entry listings per leg (types + roles; mirror capture run)
+
+```
+LEG A (fresh print run): header(cwd=<space root>) +
+  [1]  user      "work the six-tool checklist on this tree"
+  [2]  assistant tool_calls=[c1 read]      [3]  tool  "# frozen_string_literal: true…"
+  [4]  assistant tool_calls=[c2 grep]      [5]  tool  "seam_bench.rb:12: # prints SEAM_BENCH_OK…"
+  [6]  assistant tool_calls=[c3 find]      [7]  tool  "bash.rb edit.rb find.rb …"
+  [8]  assistant tool_calls=[c4 bash]      [9]  tool  "<space root>\n<session id>\n<session file>"
+  [10] assistant tool_calls=[c5 edit]      [11] tool  "Successfully replaced 1 block(s)…"
+  [12] assistant tool_calls=[c6 write]     [13] tool  "Successfully wrote to…"
+  [14] assistant "A final"
+
+LEG B (resume by id): header(parentSession=<A's file>) +
+  [1..14]  A's lineage VERBATIM (same ids/parentIds/timestamps/contents)
+  [15] user "continue from the recorded turns (leg B)"   [16] assistant "B final"
+  request payload roles: [user, (assistant tool)×6, assistant, user]
+
+LEG C (resume by path, PI_CONTEXT_WINDOW=10 + zeroed knobs):
+  header(parentSession=<B's file>) + [1..16] B's file lineage verbatim
+  [17] user "long-run turn (leg C)"  [18] assistant "C turn"  [19] compaction
+  (summary: "C summary\n\n<read-files>…", tokensBefore=15, firstKeptEntryId String)
+  requests: [turn (tools=7), summarization (tools key ABSENT)]
+
+LEG C2 (`-r` with no id → most-recent = C): header(parentSession=<C's file>) +
+  [1..19] C's file lineage verbatim (incl. the compaction entry)
+  [20] user "post-compaction question (leg C2)"  [21] assistant "C2 final"
+  request payload roles: [user(summary-wrapped), assistant(C turn), user(C2 prompt)]
+```
+
+## Verbatim suite + bench tails
+
+```
+$ bundle install --quiet && bundle exec rake     (default task)
+Finished in 38.317418s, 20.7738 runs/s, 85.2876 assertions/s.
+796 runs, 3268 assertions, 0 failures, 0 errors, 1 skips
+```
+(base 790 runs / 3161 assertions at d1a4209 — delta +6 runs: 2 print_test
+pins + 4 e2e legs; the 1 skip is the pre-existing opt-in LiveRunTest skip.
+The `Async::Task … Terminal is not initialized` JSON warn lines in the
+suite output are pre-existing chat_test noise — their backtrace lives
+entirely in test/chat_test.rb + lib/tart/render + lib/tart/tui.rb, none
+touched by this diff.)
+
+```
+$ bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+SEAM_BENCH_OK        (exit 0)
+```
+
+## Parity gates (this worktree, canonical SHORT out dirs)
+
+| gate | exit | evidence |
+|---|---|---|
+| s1-parity (s1_text_turn) | 0 | `tmp/parity-gate-s1` |
+| s2-parity (s2_tool_turn) | 0 | `tmp/parity-gate-s2` |
+| s3-parity (s3_tool_turn_files) | 0 | `tmp/parity-gate-s3` |
+| s4-parity (s4_bash_variants) | 0 | `tmp/parity-gate-s4` |
+| s5-parity (s5_bash_truncation) | 0 | `tmp/parity-gate-s5` |
+| s6-parity (s6_long_calls) | 0 | `tmp/parity-gate-s6` |
+| s7-parity (s7_compaction) | 0 | `tmp/parity-gate-s7` |
+| s8-parity (s8_zero_usage_compaction) | 0 | `tmp/parity-gate-s8` |
+| s9-parity (s9_startup_help) | **1** | KNOWN lane-worktree deep-path artifact — see below |
+| s1-tart-mode (s1_tart) | rig 1 (gate-tolerated `ec<=1`) + `TART_MODE_OK` | both apps `completed=true requests=1/1`; diff classes `{"unknown-candidate"=>10, "parity-run-path"=>2, "footer-provider-prefix"=>2}` — byte-identical to the base run's class set (`repos/tart/tmp/parity-gate-s1tart`, same 10/2/2) |
+| e2e-session | 0, `E2E_SESSION_OK` | frozen gate command verbatim |
+
+**s9 equal-depth control (I39/I41 precedent):** lane-worktree failure diff
+classes = `{"parity-run-path"=>6, "unknown-candidate"=>2,
+"staged-path-wrap-fragment"=>4, "footer-provider-prefix"=>2}` — every
+fragment is the staged sandbox path (`…/build/I42-e2e-session-core/wt/tmp/
+parity-gate-s9/run-1/sandbox/pi/AGENTS.m` + `-d` vs `…/sandbox/tart/AGENTS`
++ `.md`) wrapping at different columns under the deep lane prefix. Control:
+the SAME command from the main checkout (`…/repos/tart`, d1a4209) exits **0**
+(its passing run still carries `staged-path-wrap-fragment: 2` — a tolerated
+class there; the lane prefix deepens the wrap into the aborting
+`unknown-candidate` fragments). No behavior class appears on either side.
+
+## The re-pinned session_test excerpt (was :139-144)
+
+```ruby
+      # The resumed run records into a NEW file, header-linked to the old.
+      # The fork is content-complete (pi forkFrom :1847-1853, I42): the
+      # parent's non-header entries copy VERBATIM — original ids/parentIds,
+      # original contents — and the new turn chains from the copied tail.
+      refute_equal first.path, resumed.path
+      entries = Agent::Session.load_entries(resumed.path)
+      header = entries.first
+      assert_equal first.path, header["parentSession"]
+
+      lineage = entries[1, 4]
+      assert_equal %w[user assistant tool assistant], lineage.map { |e| e["message"]["role"] },
+        "the copied lineage precedes the new turn"
+      assert_equal first_entries, lineage, "copied entries are byte-identical (verbatim copy)"
+
+      new_turns = entries[5..]
+      assert_equal %w[user assistant], new_turns.map { |e| e["message"]["role"] }
+      assert_equal "and then?", new_turns[0]["message"]["content"]
+      assert_equal lineage.last["id"], new_turns[0]["parentId"],
+        "the new leaf chains from the copied tail"
+
+      # Self-contained: the resumed FILE alone replays the full lineage
+      # (no re-seed from the parent needed — a second resume hop composes).
+      assert_equal %i[user assistant tool assistant user assistant],
+        Agent::Session.context_messages(resumed.path).map { |m| m[:role] }
+```
+
+(The request-payload assertions above the re-pin were copy-neutral and are
+untouched, as the Grounds predicted.)
+
+## Hermeticity evidence
+
+- Real `~/.tart/sessions`: 0 files with mtime newer than today 23:00,
+  checked BEFORE and AFTER every e2e/debug/parity run.
+- Scratch: `<root>/tmp/i42-e2e-<object_id>` created per test, removed at
+  teardown — 0 leftovers in the space's `tmp/` after the runs.
+- Subprocess env is EXACTLY `{PATH, HOME, PI_API_KEY, PI_API_BASE,
+  TART_MCP_CONFIG}` via `unsetenv_others: true` (live-proven: child
+  `ENV.keys` = the hash + macOS-injected `PKG_CONFIG_PATH`,
+  `__CF_USER_TEXT_ENCODING` only) — no live keys, no owner `TART_*` leaks.
+- Network: the MockLLMServer on 127.0.0.1 only; `rg`/`fd` resolve from
+  PATH (no downloads).
+
+## Itemized deviations / interpretation notes (no silent ones)
+
+1. **Per-leg HOME vs cross-leg resume** (PHASE 0 note 1): each leg TEST
+   owns one fresh staged HOME and re-runs its predecessor legs as real
+   subprocesses inside it (10 boots total). Chosen over fixture-copying
+   (parentSession links would dangle across homes) and over a shared class
+   home (violates "fresh per leg"). Leg C2's size comparison needs leg C's
+   first request from the same server — this design provides it.
+2. **Space-root walk-up** (PHASE 0 note 2): validated walk-up ≤ 2 levels
+   instead of the literal one-level parent (measured: the literal lands at
+   `<space>/repos` and would push every run onto the checkout-root
+   fallback). TART_E2E_SPACE override and the checkout-root fallback are
+   exactly as specified.
+3. **Standalone-clone fallback paths**: with root = checkout root, the
+   spec's literal `<root>/repos/tart/...` tool paths do not exist; the
+   instrument derives `repo_dir = <root>/repos/tart` when present else
+   `<root>` (same files, byte-identical). In every space-rooted run the
+   paths are exactly the spec's. The session cwd (header cwd, `pwd`) stays
+   root.
+4. **print_mode ordering**: resume resolution sits after the boot checks
+   (settings/diagnostics/identity/models/key/skills/context-files) and
+   immediately before recorder construction — the interactive path's
+   placement pattern (bin/tart:246). "FIRST" read as first among the
+   session-prep lines (an abort on a missing target precedes the recorder
+   birth).
+5. **bin/tart --help "Sessions:" paragraph** still reads "Interactive runs
+   are recorded by default" — left untouched per Grounds §6 ("bin/tart
+   usage text loses nothing; the abort at :206 goes"); README.md carries
+   the recording/--resume/-p truth. Flagging in case the architect wants
+   the help row updated post-freeze.
+6. **`Session.load_entries(parent_session || "")`**: the `|| ""` guard —
+   `load_entries` raises `File.exist?(nil)` on a nil parent; the guard
+   stays inside the initialize block (session.rb's other code untouched).
+7. **Leg C additive assertion**: B's prompt must appear in C's file (the
+   two-hop self-containment proof) — beyond the spec's leg-C list, within
+   its file-parse scope.
+8. **Leg C2 most-recent proof**: asserted via the new file's
+   parentSession == C's path (a literal "C is still the newest file" check
+   is naturally false after C2's own file lands).
+9. **unsetenv_others**: the launcher_smoke hash merges into the parent
+   env; the spec says "the subprocess env exactly {…}", so the instrument
+   spawns with `unsetenv_others: true` (frozen launcher_smoke_test
+   untouched).
+
+**Out of scope, not attempted** (per Boundaries): print-mode MULTI-prompt
+runs, `--no-session`, pi's append-in-place `--resume` (OQ-3 — the port's
+fork model stands), `--continue`/`--session`/`--fork` splits, session-id
+flags, process markers, live-key runs, rig scenario edits. No
+`gems/tui-split-rig/**`, `bench/**`, `*.gemspec`, `Gemfile*`,
+`test/support/**`, `lib/tart/agent/loop.rb`, `lib/tart/compaction.rb`,
+`lib/tart/settings.rb`, `lib/tart/tools/**`, `lib/tart/render/**` changes.
+
+STATUS: COMPLETE
 
 ## Verdict
 
