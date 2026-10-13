@@ -763,14 +763,14 @@ frozen test file, no `bin/tart`, no render/agent/print file.
           abort "mcp diverges: #{e.message.inspect} (want #{want3.inspect})" unless e.message == "#{path}: #{want3}"
         end
       end
-      check.call({"mcpServers" => "nope"}, %(expected an object with an "mcpServers" object))
-      check.call({"mcpServers" => {"x" => "nope"}}, %(server "x" must be an object))
-      check.call({"mcpServers" => {"x" => {"command" => "c", "args" => "nope"}}}, %(server "x": args must be an array of strings))
-      check.call({"mcpServers" => {"x" => {"command" => "c", "env" => {"a" => 1}}}}, %(server "x": env must map names to strings))
-      check.call({"mcpServers" => {"x" => {"cwd" => 3}}}, %(server "x": cwd must be a string))
-      check.call({"mcpServers" => {"x" => {"url" => "https://e/mcp"}}}, %(server "x": streamable HTTP transport is not supported (stdio only)))
-      check.call({"mcpServers" => {"x" => {"args" => []}}}, %(server "x" needs either "command" (stdio) or "url" (streamable HTTP)))
-      check.call({"mcpServers" => {"a" => "nope", "b" => {"command" => "c"}}}, %(server "a" must be an object))
+      check.call({"mcpServers" => "nope"}, %q{expected an object with an "mcpServers" object})
+      check.call({"mcpServers" => {"x" => "nope"}}, %q{server "x" must be an object})
+      check.call({"mcpServers" => {"x" => {"command" => "c", "args" => "nope"}}}, %q{server "x": args must be an array of strings})
+      check.call({"mcpServers" => {"x" => {"command" => "c", "env" => {"a" => 1}}}}, %q{server "x": env must map names to strings})
+      check.call({"mcpServers" => {"x" => {"cwd" => 3}}}, %q{server "x": cwd must be a string})
+      check.call({"mcpServers" => {"x" => {"url" => "https://e/mcp"}}}, %q{server "x": streamable HTTP transport is not supported (stdio only)})
+      check.call({"mcpServers" => {"x" => {"args" => []}}}, %q{server "x" needs either "command" (stdio) or "url" (streamable HTTP)})
+      check.call({"mcpServers" => {"a" => "nope", "b" => {"command" => "c"}}}, %q{server "a" must be an object})
       bash = Tart::Tools::Bash.new(cwd: dir)
       r = bash.execute(command: "true", timeout: -1)
       abort "bash timeout message diverges: #{r.inspect}" unless r == {error: "Invalid timeout: must be a finite number of seconds"}
