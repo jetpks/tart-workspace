@@ -246,34 +246,171 @@ itself (no rig dependency).
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section loadout-session-env specification --from <file>`. -->
+# Specification — I41 loadout-session-env
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+- **Objective.** Close the three I32 residuals + the queued superset
+  disposition (plan ENTRY 5): the boot tool loadout becomes pi's default-4
+  honoring `defaultTools` (a DELIBERATE behavior change toward BRIEF §8 —
+  Grounds 2), the bash tool exposes the session env to executed commands as
+  the identity-prefixed analog of pi's five `PI_*` vars (Grounds 3), and the
+  print path threads the resolved identity so the loop's env tier follows the
+  face (Grounds 4). One seam family: the loadout feeds the prompt + wire from
+  ONE resolved list; the env exposure feeds from the session state the
+  launcher already owns; print identity is one kwarg. Why now: the owner's
+  §8 bar is "indistinguishable" — the prompt's `<tools>`/`<rules>` and the
+  request's tool array are model-visible on EVERY turn, and pi's own docs
+  tell the model to read the session env vars.
+
+- **Lane `core`** (repo `repos/tart`; ONE lane — all three items share
+  bin/tart and the settings/registry machinery; chat.rb is single-writer):
+  1. **The loadout base.** `Settings::DEFAULT_TOOLS` becomes
+     `%w[read bash edit write]` — pi's `DEFAULT_TOOL_NAMES` order
+     (settings-manager.ts:82) — and the stale "recorded divergence" comment
+     flips to the parity note (pi's list, I41). The I10 modifier machinery
+     (`selected_tools`/`apply_tool_modifiers`/`merge_default_tools`) is
+     UNCHANGED — it already implements pi's semantics on the base.
+     Re-pin the two base-bearing modifier tests (settings_test.rb:378-380 →
+     `["+mcp"]` ⇒ `%w[read bash edit write mcp]`, `["-bash"]` ⇒
+     `%w[read edit write]`); the base-independent merge/replain pins must NOT
+     move. Document the new default + the escape hatch: README's
+     `defaultTools` row (`read bash edit write`; `+find`/plain lists restore
+     any superset) and `--help`'s Settings paragraph (name the default-4 and
+     the +/− semantics).
+  2. **The registry order.** `Tools::Registry.build` preserves the SELECTED
+     list's order (today `TOOL_CLASSES.slice(*selected)` yields the
+     receiver's order — registry.rb:53): the builtins hash is keyed in
+     `selected` order, so `Agent::Loop`'s `with_tools(*tools.values)`
+     (loop.rb:101) declares the wire tools in the resolved-list order —
+     pi `_applyToolLoadout` (agent-session.ts:1571-1581). At default
+     configuration the wire array is `["read","bash","edit","write"]` (this
+     session's capture, Grounds 1); under modifiers, the resolved list's
+     order. Pin in tools_test (order-sensitive keys assertion; the existing
+     `.sort` assertions stay green).
+  3. **The prompt at default = pi's bytes.** No system_prompt.rb change is
+     needed for composition (it already composes from the resolved
+     selected_tools, pi-ordered once the base flips). Freeze the golden:
+     a system_prompt_test pin asserting the `<tools>` and `<rules>` sections
+     built from `Settings.selected_tools({})` equal pi's captured bytes
+     VERBATIM (the Grounds 5 literals — inlined with the derivation
+     recorded in the test comment; never the port's own output). The
+     loadout-conditional bullet ("Use bash for file operations like ls, rg,
+     find") and the read → bash → edit → write guideline order are the
+     loadout-bearing bytes this pin protects.
+  4. **Session-env exposure (the port of `resolveSpawnContext`).**
+     `Tools::Bash` gains `identity:` (default `Identity::DEFAULT`) and
+     `session_env:` — a hash of SUFFIX ("SESSION_ID", "SESSION_FILE",
+     "PROVIDER", "MODEL", "REASONING_LEVEL") → callable, resolved AT SPAWN
+     TIME (pi resolves per command start — a mid-session model switch or
+     level change reaches the next command). The TOOL path (`execute` →
+     `spawn_and_stream`) composes the child env pi-exactly: base = a copy of
+     ENV; DELETE the five `<PREFIX>_<SUFFIX>` keys from the copy (inherited
+     parent values never leak — the scrub happens even when a reader nils);
+     then, for each reader returning a truthy value, set
+     `Identity.env_key(identity, suffix)`; spawn with the composed env
+     (`unsetenv_others: true` so deletions are real). `run_user` (user
+     `!`/`!!`) keeps today's plain inheritance — pi's user-bash executor
+     passes no env and never scrubs (Grounds 3). No settings toggle (pi has
+     none; exposure is always on where the launcher wires readers).
+     `Tools::Registry.build` threads `identity:` + `session_env:` through to
+     Bash (the other built-ins ignore them).
+  5. **The reader wiring (both launcher paths).** `bin/tart` composes the
+     session_env hash: INTERACTIVE — readers over the surface:
+     `surface.agent&.recorder&.id` (SESSION_ID), `surface.agent&.recorder&.path`
+     (SESSION_FILE — the recorder is persistent-shaped when present),
+     `surface.current_model_ref` (PROVIDER/MODEL — the catalog provider key
+     + id, OQ-2; make `current_model_ref` public — ONE line in chat.rb), and
+     `surface.agent&.thinking_level` (REASONING_LEVEL). `/new` and resume swap
+     `surface.agent`/the recorder — the readers are live through the
+     accessor, so the env always describes the CURRENT session (pi's
+     per-command resolution). `Agent::Loop` gains `attr_reader :recorder`
+     (ONE line; loop.rb:84's field). PRINT — readers over the boot pair
+     (`boot[:provider]`/`boot[:id]`) + the print level, with SESSION_ID a
+     minted `Session.uuidv7` and SESSION_FILE nil (OQ-3: pi's ephemeral
+     session shape; print recording is the standing I07 cut, out of scope).
+     `build_tools` gains the `identity:`/`session_env:` passthrough; both
+     call sites updated.
+  6. **The print identity tier.** `Print.run` gains `identity:` (default
+     `Identity::DEFAULT`), forwarded to `Agent::Loop.new` — the loop's env
+     tier (loop.rb:358-362) then reads `<PREFIX>_CONTEXT_WINDOW` under the
+     resolved face on the print path too. `bin/tart`'s print path passes the
+     already-resolved identity (bin/tart:206). Existing `Print.run` tests
+     pass no identity — the default keeps them green; add the forwarding pin.
+  7. **The hermetic env-exposure pin family** (bash_tool_test): (a) the five
+     vars present with correct sources when readers return values; (b) a
+     nil-ing reader leaves its var UNSET but still SCRUBS an inherited value;
+     (c) inherited parent `<PREFIX>_SESSION_ID` never reaches the child
+     (set ENV in-test, restore); (d) `run_user` does NOT expose (and does
+     NOT scrub — pi's user path); (e) identity prefixes — pi mode renders
+     `PI_*`, tart `TART_*`, foo `FOO_*`; (f) values resolve at spawn (a
+     reader whose value changes between two executes is honored twice);
+     (g) pi-mode parity shape: exactly pi's five key names, no extras.
+
+- **Output format.** Raw evidence to scratch: file list + wc; the seam table
+  (pi mechanic → port seam, before/after: default loadout, registry order,
+  session env, print identity); verbatim test tails + suite counts; s1–s9
+  exit codes from YOUR worktree at the CANONICAL out dirs (Grounds 1's
+  environmental note — long out-dir prefixes are not evidence); the loadout
+  gate output verbatim (tart's wire tools + the golden section diff); the
+  env-exposure pin output; the white-label smoke (identity `foo`: FOO_-prefixed
+  session vars through the print path); itemized deviations/cuts. PHASE 0
+  disagreements mandatory (a labeled PHASE 0 section). STATUS line last.
+
+- **Tool guidance.** Verification (from repos/tart): `bundle install --quiet
+  && bundle exec rake`, `bundle exec ruby bench/seam_bench.rb`; parity:
+  `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/
+  <s>.yml --out tmp/parity-gate-<sN>` (canonical SHORT out dirs). pi sources
+  (read before coding; cite what you port): `src/core/settings-manager.ts:
+  82-144` (DEFAULT_TOOL_NAMES + modifiers), `src/core/tools/bash.ts:186-280`
+  (resolveSpawnContext + options + the prompt coupling), `src/core/tools/
+  index.ts` + `src/core/agent-session.ts:1571-1581` (loadout order),
+  `src/core/session-manager.ts:987-1080` (session id/file), `docs/
+  environment-variables.md` (the five-var table + the user-bash exclusion),
+  `src/utils/shell.ts:138-149` (getShellEnv). Port seams: settings.rb,
+  tools/registry.rb, tools/bash.rb, agent/loop.rb, render/chat.rb
+  (current_model_ref), print.rb, bin/tart (build_tools + both paths).
+
+- **Boundaries.** Touch EXACTLY: `lib/tart/settings.rb`,
+  `lib/tart/tools/registry.rb`, `lib/tart/tools/bash.rb`,
+  `lib/tart/agent/loop.rb` (the `attr_reader :recorder` line + its doc
+  comment ONLY — the I31/I36 estimator/thinking seams in your base stay
+  intact), `lib/tart/render/chat.rb` (the `public :current_model_ref` line
+  ONLY — nothing else in chat.rb moves), `lib/tart/print.rb`, `bin/tart`,
+  `README.md`, `test/settings_test.rb`, `test/tools_test.rb`,
+  `test/bash_tool_test.rb`, `test/system_prompt_test.rb`,
+  `test/print_test.rb`, `test/agent_loop_test.rb` (additive only — the
+  recorder reader + any env-tier pins). Must NOT touch:
+  `lib/tart/agent/system_prompt.rb` (composes from the resolved list
+  already — if you believe it needs an edit, STOP and raise it in PHASE 0),
+  `lib/tart/agent/session.rb`, `lib/tart/agent/context_files.rb`,
+  `lib/tart/identity.rb`, `lib/tart/models.rb`, `lib/tart/tools.rb`,
+  `lib/tart/render/transcript.rb`, `lib/tart/compaction.rb`,
+  `lib/tart/render/motd.rb`, `test/chat_test.rb`, `test/render/**`,
+  `test/compaction_test.rb`, `test/support/**` (STOP and raise in PHASE 0 if
+  you need it), `gems/tui-split-rig/**` (NO rig edits — Grounds 7), `bench/**`,
+  `*.gemspec`, `Gemfile*`. Out of scope, itemize if tempted: print-mode
+  session RECORDING (OQ-3), the process markers `AI_AGENT`/`PI_CODING_AGENT`
+  (OQ-4), a settings toggle for exposure (pi has none), MCP env changes,
+  getShellEnv's PATH-prepend (no shim dir to prepend), any prompt-text change
+  beyond what the resolved loadout already composes.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision loadout-session-env`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/settings.rb
+    - lib/tart/tools/registry.rb
+    - lib/tart/tools/bash.rb
+    - lib/tart/agent/loop.rb
+    - lib/tart/render/chat.rb
+    - lib/tart/print.rb
+    - bin/tart
+    - README.md
+    - test/settings_test.rb
+    - test/tools_test.rb
+    - test/bash_tool_test.rb
+    - test/system_prompt_test.rb
+    - test/print_test.rb
+    - test/agent_loop_test.rb
 ```
 
 ## Acceptance Criteria
