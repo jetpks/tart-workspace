@@ -573,51 +573,254 @@ same files.
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse zai-provider` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze zai-provider` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria — I46 zai-provider
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+Gate calibration (pre-declared): **RED at base BY DESIGN** — `zai-wire`,
+`zai-catalog` (the ModelCompat shape, the catalog parse, and the hook's
+zai arm do not exist at a236876); they must be GREEN on the integrated
+tree, non-vacuously. **Regression guards (GREEN at base, must stay
+GREEN)** — `suite`, `bench`, `s1`–`s10`, `s1-tart-mode`, both probe
+gates, `wire-bodies`, `session-golden` (the fireworks wire digests and
+the session digests ARE the zero-behavior-change bar for existing
+configs; a post-build failure means a byte moved). The s-gates keep the
+CANONICAL short out dirs (I41/I44 environmental note). The KNOWN s9
+lane-worktree deep-path artifact (seven judge-proven precedents:
+I34/I36/I39/I40/I42/I43/I44) does not fail this iteration when the same
+tree exits 0 at canonical depth — the judge runs the battery on the
+integrated tree. `scope` is vacuously OK at base (empty diff vs
+a236876) and MUST be non-vacuous on the integrated run.
 
-**AC1.** ...
+**AC1 (the catalog compat subset lands).** A models.json model entry
+may carry `compat`: the five-key pi subset parses into the typed
+`Shapes::ModelCompat` (subset construction, nil defaults, enum
+constrained), `Shapes::Model#compat` rides between
+`thinking_level_map` and `provider` (to_h emission order), the legacy
+raw-hash entries read through a nil-defaulted bridge, and the catalog
+contract rejects bad compat with the enumerated error LINES at the
+enumerated paths (`expected an object` / `expected a thinking format` /
+`expected "max_tokens" or "max_completion_tokens"` / `expected a
+boolean`), interleaved in parsed order, error-as-field, UNKNOWN compat
+keys TOLERATED — the owner's live catalog object (with supportsStore +
+supportsStrictMode) loads with NO error. The three frozen entry-hash
+asserts re-pin mechanically (`compat: nil` added; shapes_test :49-57 +
+:94-111, models_test :69-71); no other frozen assert moves. Pinned by
+`zai-catalog` + the suite's new schema/shape/model pins.
+
+**AC2 (the zai dialect at the request seam — pi's exact wire).** For a
+model whose compat says `thinkingFormat: "zai"`: a reasoning model
+carries the `thinking` object on EVERY request —
+`{"type"=>"enabled","clear_thinking"=>false}` when the CLAMPED level is
+not `"off"`, `{"type"=>"disabled"}` when it is (the String-off floor
+does NOT apply on this arm); `reasoning_effort` goes out ONLY when an
+effort is present AND `supportsReasoningEffort` is true — the map's
+String value for the clamped level, else the level itself; `tool_stream:
+true` IFF `zaiToolStream` and the request carries tools; the
+instruction role is `system` (the gem's `developer` rewritten —
+developer only when the model reasons AND supportsDeveloperRole); the
+max-token key renames to `max_tokens` when compat says so (the
+compaction summarization request included — pi compaction.ts:605-607);
+a NON-reasoning zai model sends NO thinking object and NO
+reasoning_effort. For EVERY compat-less model (compat nil or a
+non-zai thinkingFormat) the hook produces TODAY'S bytes exactly — no
+thinking, no tool_stream, developer role, max_completion_tokens, the
+I36 effort map+clamp+off-floor untouched. Pinned by `zai-wire` + the
+suite's ten wire pins (Specification §5).
+
+**AC3 (threading + the byte bar).** The dialect follows the model: the
+boot kwargs (interactive + print) thread the boot entry's compat into
+the Loop, and `switch_model(compat:)` swaps it mid-session (nil
+restores the default arm). NO screen byte moves: footer/border/MOTD
+untouched (compat never reaches the render facts), the fireworks wire
+request bodies + tool declarations byte-identical
+(`2ece7d4b…`/`7360fd1e…`), the seven session-golden digests identical,
+`Settings.thinking_facts`/DEFAULTS/`resolve_boot_model` untouched. The
+README §Models documents the compat keys, the unknown-key tolerance,
+the unexpanded `$ENV` apiKey note, and the unchanged fireworks default.
+Pinned by `wire-bodies` + `session-golden` + the suite's threading pins
++ judge read of the diff.
+
+**AC4 (parity + regression + scope).** The default rake task fully
+green (run count > 868 with the new pins; the one base skip
+unchanged); `SEAM_BENCH_OK`; s1–s10 exit 0 cold at the canonical out
+dirs; `s1-tart-mode` completes (TART_MODE_OK); both probe gates OK
+(TOOL_PENDING_GATE_OK, USER_BASH_STREAM_GATE_OK); the integrated diff
+vs **a236876** touches EXACTLY the lane's declared file set — no
+settings/schema-family file beyond `schemas/models.rb`, no shape file
+beyond `shapes/model.rb`, no tools/mcp/core file, no render file
+outside the two enumerated methods, no gemspec/lock/rig/bench change,
+no test file outside the five declared (chat_test = the ONE seam
+re-pin only).
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse zai-provider` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/parity-gate-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/parity-gate-s6
+  expect:
+    exit_code: 0
+
+- id: s7-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7
+  expect:
+    exit_code: 0
+
+- id: s8-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml --out tmp/parity-gate-s8
+  expect:
+    exit_code: 0
+
+- id: s9-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s9_startup_help.yml --out tmp/parity-gate-s9
+  expect:
+    exit_code: 0
+
+- id: s10-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s10_editor_wrap.yml --out tmp/parity-gate-s10
+  expect:
+    exit_code: 0
+
+- id: s1-tart-mode
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_tart.yml --out tmp/parity-gate-s1tart; ec=$?; if [ "$ec" -gt 1 ]; then exit 1; fi; ruby -rjson -e 's = JSON.parse(File.read("tmp/parity-gate-s1tart/summary.json"))["runs"][0]["apps"]["tart"]; abort "tart incomplete" unless s["completed"] && s["requests"] == s["expected_requests"]; puts "TART_MODE_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: TART_MODE_OK
+
+- id: tool-pending-gate
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tool-pending-probe --gate --out tmp/i46-tp
+  expect:
+    exit_code: 0
+    stdout_match: TOOL_PENDING_GATE_OK
+
+- id: user-bash-stream-gate
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    test -x gems/tui-split-rig/bin/user-bash-stream-probe && gems/tui-split-rig/bin/user-bash-stream-probe --gate --out tmp/i46-ubs
+  expect:
+    exit_code: 0
+    stdout_match: USER_BASH_STREAM_GATE_OK
+
+- id: wire-bodies
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    rm -rf tmp/i46-wire && gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/i46-wire >/dev/null 2>&1; ec=$?; [ "$ec" -eq 0 ] || exit 1; ruby -rjson -rdigest -e 'bodies = File.readlines("tmp/i46-wire/run-1/tart-requests.jsonl").map { |l| Digest::SHA256.hexdigest(JSON.generate(JSON.parse(l)).gsub("tmp/i46-wire/run-1/sandbox", "<SBX>")) }; tools = Digest::SHA256.hexdigest(JSON.generate(JSON.parse(File.readlines("tmp/i46-wire/run-1/tart-requests.jsonl")[0])["body"]["tools"])); abort "request-body bytes moved: #{bodies.inspect}" unless bodies == ["2ece7d4b875c98590b2f839814a0d3444fbfe1a8514b09c17d000663466c25d2"]; abort "tool declarations moved: #{tools}" unless tools == "7360fd1ec6419b5f9966c3067588314cdd0d29231a78346443a0002923c23707"; puts "WIRE_BODIES_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: WIRE_BODIES_OK
+
+- id: session-golden
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec ruby -Ilib -e 'require "tart"; require "tmpdir"; require "json"; require "digest"; FakeMsg = Struct.new(:role, :attrs) do def to_h = attrs end; VOLATILE = %w[id parentId timestamp parentSession cwd firstKeptEntryId].freeze; normalize = lambda do |obj|; case obj; when Hash then obj.each_with_object({}) { |(k, v), h| h[k] = VOLATILE.include?(k) && !v.nil? ? "<#{k}>" : normalize.call(v) }; when Array then obj.map { |v| normalize.call(v) }; else obj; end; end; digest_lines = lambda { |path| Digest::SHA256.hexdigest(File.readlines(path).map { |l| JSON.generate(normalize.call(JSON.parse(l))) }.join("\n")) }; out = {}; Dir.mktmpdir do |dir|; root = File.join(dir, "agent"); plain = Tart::Agent::Session::Recorder.new(cwd: dir, root: root); plain.append_message(FakeMsg.new(:user, {role: "user", content: "list the files"})); plain.append_message(FakeMsg.new(:assistant, {role: "assistant", content: nil, tool_calls: [{id: "call_1", name: "ls", arguments: {path: "."}}]})); plain.append_message(FakeMsg.new(:tool, {role: "tool", tool_call_id: "call_1", content: "fixture.txt"})); plain.append_message(FakeMsg.new(:assistant, {role: "assistant", content: "the listing is above"})); rec = Tart::Agent::Session::Recorder.new(cwd: dir, root: root); rec.append_message(FakeMsg.new(:user, {role: "user", content: "list the files"})); rec.append_message(FakeMsg.new(:assistant, {role: "assistant", content: nil, tool_calls: [{id: "call_1", name: "ls", arguments: {path: "."}}]})); rec.append_message(FakeMsg.new(:tool, {role: "tool", tool_call_id: "call_1", content: "fixture.txt"})); rec.append_message(FakeMsg.new(:assistant, {role: "assistant", content: "the listing is above"})); rec.append_bash_execution(Tart::Agent::Session.bash_execution_message(command: "echo hi", output: "hi", exit_code: 0, cancelled: false, truncated: false, full_output_path: nil)); rec.append_compaction(summary: "Earlier turns summarized.", first_kept_entry_id: nil, tokens_before: 15, details: "auto"); forked = Tart::Agent::Session::Recorder.new(cwd: dir, root: root, parent_session: rec.path); forked.append_message(FakeMsg.new(:user, {role: "user", content: "after the fork"})); out[:plain] = digest_lines.call(plain.path); out[:plain_context] = Digest::SHA256.hexdigest(JSON.generate(Tart::Agent::Session.context_messages(plain.path))); out[:plain_roles] = Tart::Agent::Session.context_messages(plain.path).map { |m| m[:role] }.inspect; out[:primary] = digest_lines.call(rec.path); out[:forked] = digest_lines.call(forked.path); out[:context] = Digest::SHA256.hexdigest(JSON.generate(Tart::Agent::Session.context_messages(rec.path))); out[:fork_roles] = Tart::Agent::Session.context_messages(forked.path).map { |m| m[:role] }.inspect; end; want = {plain: "928183de7736e9ad59237d6eb4bf7eb0215f8933ac1e1c2c4d8cb0e61ca38728", plain_context: "d3c1574f049f9688309656a21d42100e32b0203025f77f8afbed70819cb228ee", plain_roles: "[:user, :assistant, :tool, :assistant]", primary: "cb29e42e1ba9ecc29e28ce3d833e68fbd8f17ddfa2700b02b1b6bd98b24baa29", forked: "3a5f6d606f5952fd2e0e25bf085d442c386d18bb0d60a4bdd7c43b04b203ae8d", context: "f75f99b4516b3e69f41d847bb5266d7cac897e3fd320190f588d83e26497a029", fork_roles: "[:user, :user]"}; bad = want.keys.select { |k| out[k] != want[k] }; abort "session bytes moved: #{bad.map { |k| [k, out[k]] }.inspect}" unless bad.empty?; puts "SESSION_GOLDEN_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: SESSION_GOLDEN_OK
+
+- id: zai-wire
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec ruby -Ilib -Itest -e 'require "tart"; require "support/mock_llm_server"; require "tmpdir"; require "fileutils"; compat = Tart::Shapes::ModelCompat.new(thinking_format: "zai", max_tokens_field: "max_tokens", supports_developer_role: false, supports_reasoning_effort: true, zai_tool_stream: true); owner_map = {off: nil, minimal: nil, low: "low", medium: nil, high: "high", xhigh: nil, max: "max"}; dir = Dir.mktmpdir("i46-zw-"); server = MockLLMServer.new.start; server.script([{type: :stream, content: "", tool_calls: [{id: "call_1", name: "ls", arguments: {path: "."}}]}, {type: :message, content: "done"}]); RubyLLM.configure { |c| c.openai_api_key = "test"; c.openai_api_base = "http://127.0.0.1:#{server.port}/v1" }; tools = Tart::Tools::Registry.build(selected: %w[ls], cwd: dir); chat = RubyLLM.chat(model: "glm-5.3", provider: :openai, protocol: :chat_completions, assume_model_exists: true); mk = ->(level, cmap, ccompat) { Tart::Agent::Loop.new(chat: RubyLLM.chat(model: "glm-5.3", provider: :openai, protocol: :chat_completions, assume_model_exists: true), tools: (ccompat ? tools : Tart::Tools::Registry.build(selected: %w[read], cwd: dir)), system_prompt: "sys prompt", thinking_level: level, model_reasoning: true, thinking_level_map: cmap, compat: ccompat) }; run = ->(agent) { Tart::Core::Loop.new(session: Tart::Print::NullSession.new).run { agent.run("hi") rescue nil } }; agent = mk.call("medium", owner_map, compat); run.call(agent); r1 = server.captured_requests.first; abort "owner dialect: thinking object diverges: #{r1["thinking"].inspect}" unless r1["thinking"] == {"type" => "enabled", "clear_thinking" => false}; abort "owner dialect: reasoning_effort diverges: #{r1["reasoning_effort"].inspect}" unless r1["reasoning_effort"] == "high"; abort "owner dialect: tool_stream missing" unless r1["tool_stream"] == true; abort "owner dialect: instruction role diverges: #{r1["messages"].first["role"].inspect}" unless r1["messages"].first["role"] == "system"; server2 = MockLLMServer.new.start; server2.script([{type: :message, content: "a"}, {type: :message, content: "b"}]); RubyLLM.configure { |c| c.openai_api_key = "test"; c.openai_api_base = "http://127.0.0.1:#{server2.port}/v1" }; agent2 = mk.call("off", {off: "low", low: "low", high: "high"}, Tart::Shapes::ModelCompat.new(thinking_format: "zai", max_tokens_field: "max_tokens", supports_developer_role: false, zai_tool_stream: true)); run.call(agent2); r2 = server2.captured_requests.first; abort "off-edge: thinking must be disabled: #{r2["thinking"].inspect}" unless r2["thinking"] == {"type" => "disabled"}; abort "off-edge: reasoning_effort must be absent" if r2.key?("reasoning_effort"); abort "off-edge: tool_stream must ride (the flag is set, tools present)" unless r2["tool_stream"] == true; server3 = MockLLMServer.new.start; server3.script([{type: :message, content: "a"}, {type: :message, content: "b"}]); RubyLLM.configure { |c| c.openai_api_key = "test"; c.openai_api_base = "http://127.0.0.1:#{server3.port}/v1" }; agent3 = mk.call("medium", owner_map, Tart::Shapes::ModelCompat.new(thinking_format: "zai", supports_reasoning_effort: false, supports_developer_role: false)); run.call(agent3); r3 = server3.captured_requests.first; abort "supports-false: thinking must still ride: #{r3["thinking"].inspect}" unless r3["thinking"] == {"type" => "enabled", "clear_thinking" => false}; abort "supports-false: reasoning_effort must be absent" if r3.key?("reasoning_effort"); abort "supports-false: no tool_stream without the flag" if r3.key?("tool_stream"); abort "supports-false: role must be system (nil supportsDeveloperRole on zai)" unless r3["messages"].first["role"] == "system"; server4 = MockLLMServer.new.start; server4.script([{type: :message, content: "a"}, {type: :message, content: "b"}]); RubyLLM.configure { |c| c.openai_api_key = "test"; c.openai_api_base = "http://127.0.0.1:#{server4.port}/v1" }; agent4 = mk.call("medium", {off: "low", low: "low", medium: "medium", high: "high"}, nil); run.call(agent4); r4 = server4.captured_requests.first; abort "compat-nil: thinking must be absent" if r4.key?("thinking"); abort "compat-nil: tool_stream must be absent" if r4.key?("tool_stream"); abort "compat-nil: role must stay developer" unless r4["messages"].first["role"] == "developer"; abort "compat-nil: reasoning_effort must keep the I36 floor semantics: #{r4["reasoning_effort"].inspect}" unless r4["reasoning_effort"] == "medium"; server.stop; server2.stop; server3.stop; server4.stop; FileUtils.rm_rf(dir); puts "ZAI_WIRE_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: ZAI_WIRE_OK
+
+- id: zai-catalog
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec ruby -Ilib -e 'require "tart"; require "tmpdir"; require "json"; require "fileutils"; owner = {"providers" => {"zai" => {"name" => "Z.AI", "baseUrl" => "https://api.z.ai/api/coding/paas/v4", "apiKey" => "k", "models" => [{"id" => "glm-5.3", "reasoning" => true, "contextWindow" => 1000000, "maxTokens" => 131072, "thinkingLevelMap" => {"off" => nil, "minimal" => nil, "low" => "low", "medium" => nil, "high" => "high", "xhigh" => nil, "max" => "max"}, "compat" => {"supportsStore" => false, "supportsDeveloperRole" => false, "supportsReasoningEffort" => true, "maxTokensField" => "max_tokens", "thinkingFormat" => "zai", "supportsStrictMode" => true, "zaiToolStream" => true}}]}}}; Dir.mktmpdir do |dir|; root = File.join(dir, "agent"); FileUtils.mkdir_p(root); path = File.join(root, "models.json"); File.write(path, JSON.generate(owner)); cfg = Tart::Models.load(root: root); abort "owner catalog must load clean: #{cfg.error.inspect}" if cfg.error; entry = cfg.model_entries.first; c = entry.compat; abort "compat unparsed or mistyped: #{c.inspect}" unless c.is_a?(Tart::Shapes::ModelCompat) && c.thinking_format == "zai" && c.max_tokens_field == "max_tokens" && c.supports_developer_role == false && c.supports_reasoning_effort == true && c.zai_tool_stream == true; bad = {"providers" => {"z" => {"models" => [{"id" => "m", "compat" => {"thinkingFormat" => "nope", "zaiToolStream" => "yes"}}]}}}; File.write(path, JSON.generate(bad)); errs = Tart::Models.load(root: root).error.to_s; abort "bad compat must name the thinkingFormat line: #{errs.inspect}" unless errs.include?("providers.z.models[0].compat.thinkingFormat: expected a thinking format"); abort "bad compat must name the zaiToolStream line: #{errs.inspect}" unless errs.include?("providers.z.models[0].compat.zaiToolStream: expected a boolean"); end; puts "ZAI_CATALOG_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: ZAI_CATALOG_OK
+
+- id: scope
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only a236876 HEAD | grep -qvE '^(lib/tart/schemas/models\.rb|lib/tart/shapes/model\.rb|lib/tart/models\.rb|lib/tart/agent/loop\.rb|lib/tart/print\.rb|lib/tart/render/chat\.rb|bin/tart|README\.md|test/schemas_test\.rb|test/shapes_test\.rb|test/models_test\.rb|test/agent_loop_test\.rb|test/chat_test\.rb)$'; then exit 1; else echo SCOPE_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
 
 ## Builder Prompt
