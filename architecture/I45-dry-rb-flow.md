@@ -515,51 +515,291 @@ Result contract; parallel lanes would collide on the same files):
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse dry-rb-flow` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze dry-rb-flow` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria — I45 dry-rb-flow
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+Gate calibration (pre-declared): **RED at base BY DESIGN** — `deps-flow`,
+`flow-presence`, `step-classification`, `mcp-taxonomy`, `no-new-walls`
+(the dry-monads dep, the Result surface, the Failure-classification and
+taxonomy pins, and the converted client do not exist at 4c2e6a9a); they
+must be GREEN on the integrated tree, non-vacuously. **Regression guards
+(GREEN at base, must stay GREEN)** — `suite`, `bench`, `s1`–`s10`,
+`s1-tart-mode`, both probe gates, `wire-bodies`, `session-golden`,
+`no-silent-swallow` (the byte pins were captured/verified at base —
+Grounds §2.3/§4; a post-build failure means a byte moved). The s-gates
+keep the CANONICAL short out dirs (I41/I44 environmental note). The
+KNOWN s9 lane-worktree deep-path artifact (I34/I36/I39/I40/I42/I43/I44
+precedent) does not fail this iteration when the same tree exits 0 at
+canonical depth — the judge runs the battery on the integrated tree.
 
-**AC1.** ...
+**AC1 (the Result surface lands, the flow contract holds).** The
+flow-contract vocabulary is in place: `tart.gemspec` declares
+`dry-monads ~> 1.11` as a PRODUCTION dep, `Gemfile.lock` carries it (no
+other new gem), the flow files (`bridge.rb`, `loop.rb`, `mcp/client.rb`,
+`mcp.rb`, `mcp/tool.rb`) require `dry/monads/result` and include
+`Dry::Monads::Result::Mixin`; Failure payloads are error INSTANCES of
+today's classes (no new error classes, no symbol failures); cancellation
+and kernel interrupts still raise (no bare `Try` at cancellation-bearing
+seams); the no-new-walls discipline holds — client.rb's taxonomy raises
+are gone (only the Exception cleanup guard's bare `raise` remains),
+`mcp.rb`'s `rescue StandardError` is gone (the Failure arrives as a
+value), bridge.rb/loop.rb gain no rescues, `safe_execute` is
+byte-untouched. Pinned by `deps-flow` + `flow-presence` + `no-new-walls`
++ judge read of the diff.
+
+**AC2 (the loop step boundary).** `Bridge#run` returns
+`Success()`/`Failure(instance)` (worker error, or the cancelled terminal
+as `Failure(RubyLLM::CancelledError instance)`), yields streamed items
+unchanged, and propagates `Async::Cancel` exactly as today;
+`step_via_bridge` branches on the Result (cancelled = today's shape;
+error payload lands in `@last_error` with the same event emissions);
+`stopped_on_error?`/`recover_overflow?`/the `last_error` readback are
+outcome-identical (print mode's stderr line + exit 1, the chat surface's
+error line — consumers untouched); `summarize`'s failed-call arm and
+user_bash.rb's error-line arm are byte-identical; the before_request
+thinking seam's wire effect is untouched. The step-boundary
+classification is pinned: worker 400 → `RubyLLM::BadRequestError`,
+context-length (compaction disabled) → `RubyLLM::ContextLengthExceeded
+Error`, dead endpoint → `Faraday::ConnectionFailed` — payload classes on
+`agent_end[:error]`/`last_error`. Pinned by `step-classification` +
+`wire-bodies` + the existing agent_loop_test error paths green UNTOUCHED
+at their un-re-pinned lines.
+
+**AC3 (the MCP call surface).** `connect`/`list_tools`/`call_tool`
+return Result with Success payloads byte-identical to today's returns;
+every Grounds §2.2 taxonomy row is reachable as a `Failure` with payload
+class + message bytes exact (timeout incl. `timeout_ms`, closed-client
+state, JSON-RPC error responses incl. method-not-found, the seven
+`Invalid MCP …` validation strings, the four RuntimeError strings incl.
+duplicate-cursor/unsupported-version via the two new echo toggles);
+`tools_for`'s `$stderr` warn bytes and skip semantics identical;
+`Mcp::Tool#execute`'s `{error: payload.message}` mapping and isError
+handling identical; the three `assert_raises` re-pins preserve payload
+class + message. Pinned by `mcp-taxonomy` + the mcp_test re-pins +
+round-trip tests green.
+
+**AC4 (no silent swallows — the tool pipeline pinned).** A failure
+raised mid-tool propagates to every observable seam exactly as today:
+the `:tool_execution_end` result value, the wire's next-request
+tool-message content, the recorded session tool-entry content, the run's
+message roles, `agent_end` error nil, and the normalized session digest
+— the Grounds §2.3 frozen literals. I44's six session-JSONL digests and
+the wire request-body digest hold. Pinned by `no-silent-swallow` +
+`session-golden` + `wire-bodies`.
+
+**AC5 (parity + regression + scope).** The default rake task fully green
+(run count > 846 with the new pins); `SEAM_BENCH_OK`; s1–s10 exit 0 cold
+at the canonical out dirs; `s1-tart-mode` completes (TART_MODE_OK); both
+probe gates OK (TOOL_PENDING_GATE_OK, USER_BASH_STREAM_GATE_OK); the
+integrated diff vs **4c2e6a9a** touches EXACTLY the lane's declared file
+set — no schemas/shapes file, no tools file, no render file outside
+user_bash.rb's enumerated arm, no frozen test file, no rig file.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse dry-rb-flow` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/parity-gate-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/parity-gate-s6
+  expect:
+    exit_code: 0
+
+- id: s7-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7
+  expect:
+    exit_code: 0
+
+- id: s8-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml --out tmp/parity-gate-s8
+  expect:
+    exit_code: 0
+
+- id: s9-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s9_startup_help.yml --out tmp/parity-gate-s9
+  expect:
+    exit_code: 0
+
+- id: s10-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s10_editor_wrap.yml --out tmp/parity-gate-s10
+  expect:
+    exit_code: 0
+
+- id: s1-tart-mode
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_tart.yml --out tmp/parity-gate-s1tart; ec=$?; if [ "$ec" -gt 1 ]; then exit 1; fi; ruby -rjson -e 's = JSON.parse(File.read("tmp/parity-gate-s1tart/summary.json"))["runs"][0]["apps"]["tart"]; abort "tart incomplete" unless s["completed"] && s["requests"] == s["expected_requests"]; puts "TART_MODE_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: TART_MODE_OK
+
+- id: tool-pending-gate
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tool-pending-probe --gate --out tmp/i45-tp
+  expect:
+    exit_code: 0
+    stdout_match: TOOL_PENDING_GATE_OK
+
+- id: user-bash-stream-gate
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    test -x gems/tui-split-rig/bin/user-bash-stream-probe && gems/tui-split-rig/bin/user-bash-stream-probe --gate --out tmp/i45-ubs
+  expect:
+    exit_code: 0
+    stdout_match: USER_BASH_STREAM_GATE_OK
+
+- id: wire-bodies
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    rm -rf tmp/i45-wire && gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/i45-wire >/dev/null 2>&1; ec=$?; [ "$ec" -eq 0 ] || exit 1; ruby -rjson -rdigest -e 'bodies = File.readlines("tmp/i45-wire/run-1/tart-requests.jsonl").map { |l| Digest::SHA256.hexdigest(JSON.generate(JSON.parse(l)).gsub("tmp/i45-wire/run-1/sandbox", "<SBX>")) }; tools = Digest::SHA256.hexdigest(JSON.generate(JSON.parse(File.readlines("tmp/i45-wire/run-1/tart-requests.jsonl")[0])["body"]["tools"])); abort "request-body bytes moved: #{bodies.inspect}" unless bodies == ["2ece7d4b875c98590b2f839814a0d3444fbfe1a8514b09c17d000663466c25d2"]; abort "tool declarations moved: #{tools}" unless tools == "7360fd1ec6419b5f9966c3067588314cdd0d29231a78346443a0002923c23707"; puts "WIRE_BODIES_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: WIRE_BODIES_OK
+
+- id: session-golden
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec ruby -Ilib -e 'require "tart"; require "tmpdir"; require "json"; require "digest"; FakeMsg = Struct.new(:role, :attrs) do def to_h = attrs end; VOLATILE = %w[id parentId timestamp parentSession cwd firstKeptEntryId].freeze; normalize = lambda do |obj|; case obj; when Hash then obj.each_with_object({}) { |(k, v), h| h[k] = VOLATILE.include?(k) && !v.nil? ? "<#{k}>" : normalize.call(v) }; when Array then obj.map { |v| normalize.call(v) }; else obj; end; end; digest_lines = lambda { |path| Digest::SHA256.hexdigest(File.readlines(path).map { |l| JSON.generate(normalize.call(JSON.parse(l))) }.join("\n")) }; out = {}; Dir.mktmpdir do |dir|; root = File.join(dir, "agent"); plain = Tart::Agent::Session::Recorder.new(cwd: dir, root: root); plain.append_message(FakeMsg.new(:user, {role: "user", content: "list the files"})); plain.append_message(FakeMsg.new(:assistant, {role: "assistant", content: nil, tool_calls: [{id: "call_1", name: "ls", arguments: {path: "."}}]})); plain.append_message(FakeMsg.new(:tool, {role: "tool", tool_call_id: "call_1", content: "fixture.txt"})); plain.append_message(FakeMsg.new(:assistant, {role: "assistant", content: "the listing is above"})); rec = Tart::Agent::Session::Recorder.new(cwd: dir, root: root); rec.append_message(FakeMsg.new(:user, {role: "user", content: "list the files"})); rec.append_message(FakeMsg.new(:assistant, {role: "assistant", content: nil, tool_calls: [{id: "call_1", name: "ls", arguments: {path: "."}}]})); rec.append_message(FakeMsg.new(:tool, {role: "tool", tool_call_id: "call_1", content: "fixture.txt"})); rec.append_message(FakeMsg.new(:assistant, {role: "assistant", content: "the listing is above"})); rec.append_bash_execution(Tart::Agent::Session.bash_execution_message(command: "echo hi", output: "hi", exit_code: 0, cancelled: false, truncated: false, full_output_path: nil)); rec.append_compaction(summary: "Earlier turns summarized.", first_kept_entry_id: nil, tokens_before: 15, details: "auto"); forked = Tart::Agent::Session::Recorder.new(cwd: dir, root: root, parent_session: rec.path); forked.append_message(FakeMsg.new(:user, {role: "user", content: "after the fork"})); out[:plain] = digest_lines.call(plain.path); out[:plain_context] = Digest::SHA256.hexdigest(JSON.generate(Tart::Agent::Session.context_messages(plain.path))); out[:plain_roles] = Tart::Agent::Session.context_messages(plain.path).map { |m| m[:role] }.inspect; out[:primary] = digest_lines.call(rec.path); out[:forked] = digest_lines.call(forked.path); out[:context] = Digest::SHA256.hexdigest(JSON.generate(Tart::Agent::Session.context_messages(rec.path))); out[:fork_roles] = Tart::Agent::Session.context_messages(forked.path).map { |m| m[:role] }.inspect; end; want = {plain: "928183de7736e9ad59237d6eb4bf7eb0215f8933ac1e1c2c4d8cb0e61ca38728", plain_context: "d3c1574f049f9688309656a21d42100e32b0203025f77f8afbed70819cb228ee", plain_roles: "[:user, :assistant, :tool, :assistant]", primary: "cb29e42e1ba9ecc29e28ce3d833e68fbd8f17ddfa2700b02b1b6bd98b24baa29", forked: "3a5f6d606f5952fd2e0e25bf085d442c386d18bb0d60a4bdd7c43b04b203ae8d", context: "f75f99b4516b3e69f41d847bb5266d7cac897e3fd320190f588d83e26497a029", fork_roles: "[:user, :user]"}; bad = want.keys.select { |k| out[k] != want[k] }; abort "session bytes moved: #{bad.map { |k| [k, out[k]] }.inspect}" unless bad.empty?; puts "SESSION_GOLDEN_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: SESSION_GOLDEN_OK
+
+- id: deps-flow
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'dry-monads' tart.gemspec && grep -q 'dry-monads' Gemfile.lock && bundle install --quiet && bundle exec ruby -e 'require "dry/monads/result"; puts "DEPS_FLOW_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: DEPS_FLOW_OK
+
+- id: flow-presence
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec ruby -Ilib -e 'require "tart"; abort "dry-monads not loaded by the flow files" unless defined?(Dry::Monads::Result); [Tart::Agent::Bridge, Tart::Mcp::Client].each { |k| abort "#{k} lacks the Result mixin" unless k.ancestors.any? { |m| m.name.to_s.start_with?("Dry::Monads::Result") } }; abort "test/flow_test.rb missing" unless File.file?("test/flow_test.rb"); puts "FLOW_PRESENCE_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: FLOW_PRESENCE_OK
+
+- id: step-classification
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec ruby -Ilib -Itest -e 'require "tart"; require "support/mock_llm_server"; r = Tart::Agent::Bridge.new.run(->(_) { raise RubyLLM::BadRequestError, "x" }) { }; abort "Bridge must return a Result for a failing worker (got #{r.class})" unless r.respond_to?(:failure?) && r.failure? && r.failure.is_a?(RubyLLM::BadRequestError); c = Tart::Agent::Bridge.new.run(->(_) { raise RubyLLM::CancelledError, "c" }) { }; abort "cancelled terminal must be Failure(CancelledError)" unless c.failure? && c.failure.is_a?(RubyLLM::CancelledError); d = Tart::Agent::Bridge.new.run(->(sink) { sink.call({chunk: 1}) }) { }; abort "clean work must be Success" unless d.respond_to?(:success?) && d.success?; server = MockLLMServer.new.start; server.script([{type: :error, status: 400, message: "Extra inputs are not permitted"}]); RubyLLM.configure { |cfg| cfg.openai_api_key = "test"; cfg.openai_api_base = "http://127.0.0.1:#{server.port}/v1" }; mk = ->(events) { chat = RubyLLM.chat(model: "mock-1", provider: :openai, protocol: :chat_completions, assume_model_exists: true); Tart::Agent::Loop.new(chat:, tools: {}, compaction: {enabled: false}, on_event: events.method(:<<)) }; events = []; agent = mk.call(events); Tart::Core::Loop.new(session: Tart::Print::NullSession.new).run { agent.run("hi") rescue nil }; end_event = events.find { |e| e[:type] == :agent_end }; abort "worker-error class diverges: #{agent.last_error&.class}" unless agent.last_error.is_a?(RubyLLM::BadRequestError) && end_event&.dig(:error).is_a?(RubyLLM::BadRequestError); server2 = MockLLMServer.new.start; server2.script([{type: :error, status: 400, message: "This model maximum context length is 8 tokens"}]); RubyLLM.configure { |cfg| cfg.openai_api_key = "test"; cfg.openai_api_base = "http://127.0.0.1:#{server2.port}/v1" }; agent2 = mk.call; Tart::Core::Loop.new(session: Tart::Print::NullSession.new).run { agent2.run("hi") rescue nil }; abort "context-length class diverges: #{agent2.last_error&.class}" unless agent2.last_error.is_a?(RubyLLM::ContextLengthExceededError); RubyLLM.configure { |cfg| cfg.openai_api_key = "test"; cfg.openai_api_base = "http://127.0.0.1:1/v1" }; agent3 = mk.call; Tart::Core::Loop.new(session: Tart::Print::NullSession.new).run { agent3.run("hi") rescue nil }; abort "transport class diverges: #{agent3.last_error&.class}" unless agent3.last_error.is_a?(Faraday::ConnectionFailed); server.stop; server2.stop; puts "STEP_CLASSIFICATION_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: STEP_CLASSIFICATION_OK
+
+- id: mcp-taxonomy
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec ruby -Ilib -Itest -e 'require "tart"; ECHO = File.expand_path("support/mcp_echo_server.rb", "test"); RUBY = RbConfig.ruby; def with_echo(env = nil, timeout_ms: Tart::Mcp::Client::DEFAULT_REQUEST_TIMEOUT_MS); client = Tart::Mcp::Client.new(request_timeout_ms: timeout_ms); transport = Tart::Mcp::Stdio.new(command: RUBY, args: [ECHO], env: env); begin; yield client, transport; ensure; begin; client.close; rescue StandardError; nil; end; end; end; ok = with_echo { |c, t| c.connect(t) }; abort "connect must return Result (got #{ok.class})" unless ok.respond_to?(:success?) && ok.success? && ok.value!["serverInfo"]["name"] == "echo"; timeout = with_echo(timeout_ms: 250) { |c, t| c.connect(t); c.call_tool("sleep", {"ms" => 5000}) }; abort "timeout taxonomy diverges: #{timeout.inspect}" unless timeout.respond_to?(:failure?) && timeout.failure? && timeout.failure.is_a?(Tart::Mcp::TimeoutError) && timeout.failure.message == "MCP request timed out after 250ms" && timeout.failure.timeout_ms == 250; invalid = with_echo({"MCP_ECHO_FAIL_INITIALIZE" => "1"}) { |c, t| c.connect(t) }; abort "invalid-initialize taxonomy diverges: #{invalid.inspect}" unless invalid.failure? && invalid.failure.is_a?(Tart::Mcp::Error) && invalid.failure.message == "Invalid MCP initialize result"; notfound = with_echo { |c, t| c.connect(t); c.send(:request, "resources/list", nil, timeout_ms: nil) }; abort "method-not-found taxonomy diverges: #{notfound.inspect}" unless notfound.failure? && notfound.failure.is_a?(Tart::Mcp::Error) && notfound.failure.code == -32_601 && notfound.failure.message == "Method not found: resources/list"; dup = with_echo({"MCP_ECHO_DUPLICATE_CURSOR" => "1"}) { |c, t| c.connect(t); c.list_tools }; abort "duplicate-cursor taxonomy diverges: #{dup.inspect}" unless dup.failure? && dup.failure.message.start_with?("MCP tools/list returned duplicate cursor: "); version = with_echo({"MCP_ECHO_PROTOCOL_VERSION" => "1999-01-01"}) { |c, t| c.connect(t) }; abort "unsupported-version taxonomy diverges: #{version.inspect}" unless version.failure? && version.failure.message == "MCP server selected unsupported protocol version 1999-01-01"; closed = with_echo { |c, t| c.connect(t); c.close; c.call_tool("echo", {"message" => "x"}) }; abort "closed taxonomy diverges: #{closed.inspect}" unless closed.failure? && closed.failure.is_a?(Tart::Mcp::ConnectionClosedError) && closed.failure.message == "MCP client is closed"; puts "MCP_TAXONOMY_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: MCP_TAXONOMY_OK
+
+- id: no-silent-swallow
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec ruby -Ilib -Itest -e 'require "tart"; require "support/mock_llm_server"; require "tmpdir"; require "json"; require "digest"; dir = Dir.mktmpdir("i45-nss-"); server = MockLLMServer.new.start; server.script([{type: :stream, content: "", tool_calls: [{id: "call_1", name: "edit", arguments: {path: "absent.txt", edits: [{old_text: "a", new_text: "b"}]}}]}, {type: :message, content: "noted the failure"}]); recorder = Tart::Agent::Session::Recorder.new(cwd: dir, root: File.join(dir, "agent")); tools = Tart::Tools::Registry.build(selected: %w[edit], cwd: dir); events = []; RubyLLM.configure { |c| c.openai_api_key = "test"; c.openai_api_base = "http://127.0.0.1:#{server.port}/v1" }; chat = RubyLLM.chat(model: "mock-1", provider: :openai, protocol: :chat_completions, assume_model_exists: true); agent = Tart::Agent::Loop.new(chat:, tools:, recorder:, on_event: ->(e) { events << e }); Tart::Core::Loop.new(session: Tart::Print::NullSession.new).run { agent.run("edit the file") }; abort "agent errored: #{agent.last_error&.message}" if agent.last_error; want_result = "{error: \"Could not edit file: absent.txt. Error code: ENOENT.\"}"; tool_event = events.find { |e| e[:type] == :tool_execution_end }; abort "tool result bytes moved: #{tool_event[:result].inspect}" unless tool_event[:result].inspect == want_result; wire = server.captured_requests.last["messages"].find { |m| m["role"] == "tool" }; abort "wire tool content bytes moved: #{wire["content"].inspect}" unless wire["content"] == "{\"error\":\"Could not edit file: absent.txt. Error code: ENOENT.\"}"; recorded = File.readlines(recorder.path).map { |l| JSON.parse(l) }.find { |e| e.dig("message", "role") == "tool" }; abort "recorded tool content bytes moved: #{recorded.dig("message", "content").inspect}" unless recorded.dig("message", "content") == wire["content"]; abort "roles moved: #{agent.new_messages.map(&:role).inspect}" unless agent.new_messages.map(&:role) == %i[user assistant tool assistant]; abort "agent_end must carry no error" unless events.find { |e| e[:type] == :agent_end }[:error].nil?; VOLATILE = %w[id parentId timestamp parentSession cwd firstKeptEntryId].freeze; norm = lambda { |o| case o; when Hash then o.each_with_object({}) { |(k, v), h| h[k] = VOLATILE.include?(k) && !v.nil? ? "<#{k}>" : norm.call(v) }; when Array then o.map { |v| norm.call(v) }; else o.to_s.gsub(dir, "<DIR>"); end }; digest = Digest::SHA256.hexdigest(File.readlines(recorder.path).map { |l| JSON.generate(norm.call(JSON.parse(l))) }.join("\n")); abort "session digest moved: #{digest}" unless digest == "0b220daa136898e8494bb446f29cd3a92a1f38ed9cc657cd1f7230683420ebef"; server.stop; puts "NO_SILENT_SWALLOW_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: NO_SILENT_SWALLOW_OK
+
+- id: no-new-walls
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    if grep -nE '^[[:space:]]*raise' lib/tart/mcp/client.rb | grep -vE ':[[:space:]]*raise$'; then echo "FAIL: taxonomy raises remain in client.rb"; exit 1; fi; if [ "$(grep -cE '^[[:space:]]*raise' lib/tart/mcp/client.rb)" -gt 1 ]; then echo "FAIL: more than the cleanup guard raise in client.rb"; exit 1; fi; if grep -qE '^[[:space:]]*rescue StandardError' lib/tart/mcp.rb; then echo "FAIL: tools_for still rescues StandardError"; exit 1; fi; if [ "$(grep -cE '^[[:space:]]*rescue' lib/tart/agent/bridge.rb)" -gt 3 ]; then echo "FAIL: bridge gained a rescue"; exit 1; fi; if [ "$(grep -cE '^[[:space:]]*rescue' lib/tart/agent/loop.rb)" -gt 2 ]; then echo "FAIL: loop gained a rescue"; exit 1; fi; git diff --quiet 4c2e6a9a -- lib/tart/tools/safe_execute.rb || { echo "FAIL: safe_execute moved"; exit 1; }; echo NO_NEW_WALLS_OK
+  expect:
+    exit_code: 0
+    stdout_match: NO_NEW_WALLS_OK
+
+- id: scope
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only 4c2e6a9a HEAD | grep -qvE '^(tart\.gemspec|Gemfile\.lock|lib/tart/agent/bridge\.rb|lib/tart/agent/loop\.rb|lib/tart/mcp/client\.rb|lib/tart/mcp\.rb|lib/tart/mcp/tool\.rb|lib/tart/render/user_bash\.rb|test/flow_test\.rb|test/agent_loop_test\.rb|test/mcp_test\.rb|test/support/mcp_echo_server\.rb)$'; then exit 1; else echo SCOPE_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
 
 ## Builder Prompt
