@@ -1740,12 +1740,13 @@ project:
       - test/session_test.rb
       - test/chat_test.rb
       base_sha: 0c6ee246c1f5d061038c745ab313deed780dc94b
-      worktree: build/I44-dry-rb-shapes-shapes/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 663e25eef667ad942db5bed96a88373556423efc
     rehearsal:
       gates_digest: a9c57b7074cb303633be0609b30af8632f1934d5b9d02431c0d36b6a8708493d
       at: '2026-10-13T05:37:52-06:00'
