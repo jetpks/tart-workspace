@@ -553,7 +553,7 @@ spawn (re-arms on the next spawn).
 kernel: nil, agent: nil)` with `#spawn_run`, `#steer`, `#stop`,
 `#status`, `#result(id:)` (the result.json Hash or nil),
 `#runs` (the registry snapshot), `#outstanding?` (any non-terminal run —
-the print drain's predicate), `#drain(timeout:)` (print agent-end:
+the print drain's predicate), `#drain` (print agent-end:
 waits for every outstanding run, each bounded by its own deadline;
 records notifications; returns when none outstanding), `#shutdown` (test
 teardown: stop every running run, join threads), and **
@@ -656,20 +656,26 @@ invocation's behavior (absent = exactly today).
 steering message opens the run (each pending: the §I47 drain path —
 user-role chat message, `:message_start/:message_end` with the
 CustomMessage, session `custom_message` entry); empty queue + empty
-steering → return immediately (no model call). `Print.run` does NOT
+steering → return immediately (no model call). **Race-safe by
+construction: `#wake` no-ops (returns immediately) when a run is in
+flight** — the loop's own running flag guards it (never two fibers
+driving one Loop; the busy parent's queued notification rides the
+in-flight run's next `add_user_message` drain instead — the kick that
+lands mid-run is simply dropped as a no-op, never queued twice because
+the message was already delivered to the queue). `Print.run` does NOT
 grow a wake (print parents drain, §2.6/OQ-4). The interactive surface
 calls it ONLY from the subagents completion kick (`kernel.async {
 agent.wake }`) — the submit path is untouched.
 
 ### 5.4 The print drain (`bin/tart` print wiring)
 
-After `Print.run`'s agent run completes (before printing the final
-response), if a Manager exists and `outstanding?`: `manager.drain
-(timeout: <sum of outstanding deadlines>)` — the parent process waits
-for its async children (pi's agent_end auto-drain), each completion
-recording its notification custom_message entry on the parent's session
-(no model turn, no extra stdout — itemized in OQ-4). The child result
-artifacts stay on disk (result.json) for later inspection.
+After `Print.run` prints the final response (the parent's own answer is
+never delayed by children), if a Manager exists and `outstanding?`:
+`manager.drain` — the parent process waits for its async children (pi's
+agent_end auto-drain), each completion recording its notification
+custom_message entry on the parent's session (no model turn, no extra
+stdout — itemized in OQ-4), then exits 0. The child result artifacts
+stay on disk (result.json) for later inspection.
 
 ### 5.5 Settings + bash seams
 
