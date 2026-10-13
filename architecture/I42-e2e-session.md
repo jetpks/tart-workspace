@@ -389,6 +389,19 @@ request (the usage-drop proof).
   splits, session-id flags, the process markers (I41 OQ-4), any live-key
   run, any rig scenario.
 
+```lanes
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/print.rb
+    - lib/tart/agent/session.rb
+    - bin/tart
+    - README.md
+    - test/e2e_session_test.rb
+    - test/print_test.rb
+    - test/session_test.rb
+```
+
 ## Acceptance Criteria
 
 # Acceptance Criteria — I42 e2e-session
