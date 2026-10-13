@@ -214,34 +214,317 @@ contract (settings_test + launcher_smoke_test + rig staging).
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section dry-rb-boundaries specification --from <file>`. -->
+# Specification — I43 dry-rb-boundaries
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+## Objective
+
+Establish the dry-rb validation pattern in tart (program ENTRY 1,
+`build/loop/plan-20261013T092136Z.md`): dry-schema/dry-validation at every
+parsing boundary — settings resolution, models.json, mcp.json, and tool
+input args — replacing the hand-rolled fetch-chain type logic and raise
+walls. This is the PATTERN-SETTER: where schemas live, how they are named,
+and the error discipline every later dry-rb iteration (ENTRY 2 shapes,
+ENTRY 3 flow) inherits. Parity track: internal only — ZERO observable
+byte moves on screen or wire for every input the parity battery, the
+suite, and the e2e instruments exercise (BRIEF §8; the §8 rig measures
+settled screens, so an internal validation swap must leave s1–s10 +
+probes byte-identical). Pinned error strings are preserved byte-exactly;
+unpinned malformed-input corners are re-pinned CONSCIOUSLY (Grounds §7).
+
+## The pattern contract (binding on every later dry-rb iteration)
+
+- **Home + naming.** One module family under `lib/tart/schemas.rb`
+  (aggregate require, house style of `lib/tart/mcp.rb`) +
+  `lib/tart/schemas/{settings,models,mcp,tools}.rb`, namespace
+  `Tart::Schemas`, one member module per boundary: `Tart::Schemas::
+  Settings`, `Tart::Schemas::Models`, `Tart::Schemas::Mcp`,
+  `Tart::Schemas::Tools`. Contracts are `Dry::Validation::Contract`
+  subclasses or `Dry::Schema` processors, INSTANTIATED ONCE at module
+  load (frozen instances or memoized `.new` — never re-defined per call).
+  `lib/tart.rb` gains `require_relative "tart/schemas"`; consumers
+  (`settings.rb`, `models.rb`, `mcp/config.rb`, `tools/*.rb`) require
+  their own schema file directly (the existing require discipline).
+- **Flavor.** JSON-flavored schemas (`Dry::Schema.JSON` / contract `json
+  do … end`) for everything originating in JSON text; plain kwargs for
+  tool inputs arrive symbol-keyed (normalize nested wildcard keys before
+  validating — Grounds §4's caveat).
+- **Error discipline (the rule later iterations copy).**
+  1. Contracts validate SHAPE. Semantic floors, clamps, and precedence
+     arithmetic stay in the consuming module (pi parity: pi's loop
+     validates shape; the tools clamp semantics).
+  2. Where a PINNED message exists (Grounds §5), the exact string is
+     produced — by a contract rule firing `key.failure(<pinned string>)`
+     when the rule sees the values, or by a message map living WITH the
+     schema module. Never dry's default prose for a pinned surface.
+  3. New/unpinned failure vocabulary adopts pi's agent-loop wrapper
+     shape (Grounds §3): `Validation failed for tool "<pi-name>":\n  -
+     <path>: <detail>\n\nReceived arguments:\n<pretty JSON>` for tool
+     inputs; dry's detail text is accepted (the TypeBox prose is not
+     cloned — itemized approximation).
+  4. A boundary NEVER raises where it did not raise before, and never
+     returns a different surface class (ConfigError stays ConfigError;
+     {error:} stays {error:}; Settings diagnostics keep their three
+     pinned classes — no new diagnostic kinds).
+  5. `Dry::Validation::Contract#call` raises on non-Hash input
+     (Grounds §4) — root-object guards stay at the boundary before the
+     contract call.
+- **Tolerance.** Unknown keys are tolerated wherever today's code
+  tolerates them (models.json — pi TypeBox additionalProperties default;
+  settings files — pi settings-manager.ts:126; tool inputs pass through
+  the gem's arity gate first). `config.validate_keys = false`.
+- **No filtering of settings values.** pi: "Settings files are not
+  validated; a malformed value replaces instead of throwing"
+  (settings-manager.ts:126). The settings schemas TYPe and COERCE; they
+  never drop, never reject, never add diagnostics (Grounds §6: the
+  diagnostic set is observable stderr/transcript).
+
+## Boundary contracts
+
+### B1 — Settings resolution (lib/tart/settings.rb + schemas/settings.rb)
+
+`Tart::Schemas::Settings` carries:
+- **The carried-key view**: one JSON-flavored schema typing the port's
+  settings keys (`identity`, `defaultModel`, `defaultProvider`,
+  `apiBase`, `apiKey`, `contextWindow`, `thinkingLevel`, `compaction
+  {enabled, reserveTokens, keepRecentTokens}`, `modelReasoning`,
+  `defaultTools`) with today's effective types (Strings; apiKey
+  string-or-nil; contextWindow integer-or-nil; thinkingLevel in
+  `Settings::THINKING_LEVELS`; compaction booleans/positive integers;
+  modelReasoning true|false|"true"|"false"|nil; defaultTools an array of
+  strings). TOLERANT (`validate_keys = false`) and NON-FILTERING — it is
+  the typed documentation of the file shape, applied for validation
+  reporting only where the letter's no-behavior-change rule allows (i.e.:
+  nowhere observable — it must not gate `Settings.load`).
+- **The resolution contracts** replacing today's hand-rolled type logic,
+  consumed by the resolution helpers, preserving each helper's public
+  signature and outcome table EXACTLY:
+  - `resolve_context_window` (:141-157): the env tier's digit-string →
+    Integer coercion and the file/model tiers' `Integer && positive?`
+    guards expressed as contracts (Params-style integer coercion for the
+    env tier; JSON integer+gt? 0 for file/model). A value failing its
+    contract tier reads as ABSENT at that tier (falls through — today's
+    regex/guard outcomes, not new rejections).
+  - `resolve_thinking_level` (:167-169) and `declared_thinking_level`
+    (:185-189): the `THINKING_LEVELS.include?` vocabulary check via the
+    view's thinkingLevel contract.
+  - `model_reasoning_capable` (:204-209): the `staged == true || staged
+    == "true"` truthiness rides the modelReasoning contract (values
+    outside true|false|"true"|"false" read as unstaged — today's
+    behavior).
+  - `resolve_setting` (:131-133): the `env || settings || DEFAULTS`
+    precedence arithmetic STAYS in Settings (pi's semantics; a schema
+    cannot express three-source `||` honestly); the env tier's value is
+    documented by the string-key contracts.
+- Unchanged: `read_file` (BOM strip, JSON.parse, the three pinned
+  diagnostic messages), `deep_merge`, `merge_default_tools`,
+  `selected_tools`/modifier semantics, `compaction_kwargs` composition,
+  `save`, the known-models tables (their CONTENT and freezing), and the
+  `Result{settings, diagnostics}` shape.
+
+### B2 — models.json (lib/tart/models.rb + schemas/models.rb)
+
+`Tart::Schemas::Models.validate(parsed)` replaces the hand-rolled
+`validate*` family (:262-318, deleted): a root guard (non-Hash → `  -
+root: expected a JSON object`) + one dry-validation contract over the
+parsed root producing, on failure, TODAY'S EXACT ERROR LINES in TODAY'S
+EXACT ORDER (Grounds §5's fixture table is the frozen contract — the
+`Invalid models.json schema:\n` + `\n(<path>)` wrapping stays in
+`Models.load`). Iteration order = parsed insertion order; per-server
+check order = fields (name, baseUrl, apiKey, api) then models array then
+per-model (id, name, reasoning, thinkingLevelMap, contextWindow,
+maxTokens). Failures never raise — `Config#error` as today. The valid
+path: `build_providers`/`build_model` outputs byte-identical (the entry
+hash shape, reasoning `== true`, context_window/max_tokens passthrough),
+`build_thinking_level_map` symbolization unchanged (keys `to_sym`, null
+kept, unknown level keys tolerated, non-Hash → nil).
+
+### B3 — mcp.json (lib/tart/mcp/config.rb + schemas/mcp.rb)
+
+`Tart::Schemas::Mcp` (a contract + exact-string rules) replaces
+`validate_server!`'s hand-rolled checks (:52-69) and the root shape
+check (:37): `Config.load` keeps file IO, JSON.parse rescue
+(`ConfigError, "#{path}: #{e.message}"`), the non-Hash/mcpServers-shape
+root guard (pinned string), calls the contract, and on ANY failure
+raises `ConfigError, "#{path}: #{first failure text}"` — FIRST failure
+in today's evaluation order (servers in insertion order; within a
+server: must-be-an-object → args → env → cwd → url → command), i.e.
+fail-fast preserved (Grounds §7 OQ-3's ruling). The 6 per-server pinned
+strings (Grounds §5) come from the contract's rules byte-exactly. The
+normalized success output `{command:, args: [], env:, cwd:}` shape is
+unchanged. `ConfigError`, `DEFAULT_PATH`, the public `load(path)` /
+`validate_server!` signatures stay (validate_server! may delegate to the
+contract but must keep raising the same strings — mcp_test calls
+`Mcp::Config.load` only).
+
+### B4 — Tool inputs (lib/tart/tools/*.rb + schemas/tools.rb +
+safe_execute.rb)
+
+`Tart::Schemas::Tools` defines one input contract per tool — ALL SEVEN
+built-ins (read, bash, edit, write, ls, grep, find) — mirroring each
+tool's JSON-Schema declaration shapes (the declarations themselves STAY
+byte-identical, wire-unchanged):
+- read: `path` required string; `offset`/`limit` optional integers.
+- bash: `command` required string; `timeout` optional integer-or-float,
+  with the FINITE/POSITIVE rule firing the pinned `Invalid timeout:
+  must be a finite number of seconds` (replaces `resolve_timeout`'s
+  raise :175; pi's >2147483.647s second tier stays CUT as today).
+- edit: `path` required string; `edits` required — the not-an-array and
+  empty cases fire the pinned `Edit tool input is invalid. edits must
+  contain at least one replacement.` (replaces the raise at :105); each
+  item `{old_text, new_text}` must be a string WHEN PRESENT — but EMPTY
+  STRINGS and nil-shapes flow to EditDiff exactly as today (the
+  `oldText must not be empty in …` golden is EditDiff's, not the
+  schema's — do not steal it).
+- write: `path`, `content` required strings.
+- ls: `path` optional string; `limit` optional integer.
+- grep: `pattern` required string; `path`/`glob` optional strings;
+  `ignoreCase`/`literal` optional booleans; `context`/`limit` optional
+  integers. Semantic floors stay in the tool (context ≤ 0 → 0; limit
+  clamp `[1, limit].max`).
+- find: `pattern` required string; `path` optional string; `limit`
+  optional integer.
+Validation runs at the TOP of each `execute`, inside `safe_execute`,
+before the runtime work: failure → `return {error: <message>}` where
+<message> is the pinned in-tool string where one exists (bash timeout,
+edit edits) and pi's loop-level wrapper shape (pattern rule 3) for NEW
+shape failures. The seam is ONE shared helper (SafeExecute class-method
+or module function, e.g. `validate_input(contract, pi_name:, **)`)
+— seven tools, one idiom. NO COERCION (pi's Value.Convert string→number
+coercion is NOT ported — today's port rejects wrong-typed numbers and
+the zero-change rule keeps that; the pi-coercion gap is itemized and
+queued). RUNTIME raises stay raises, untouched: bash cwd ENOENT ×2,
+edit's file-access trio, ls path/directory/read trio, grep rg-binary/
+exit/path, find fd-binary/path, read's offset-beyond-EOF — none of these
+is input shape. `Edit#call`'s `normalize_arguments` (pi
+prepareEditArguments) stays BEFORE validation; validation sees the
+normalized kwargs.
+
+## Dependency changes
+
+`tart.gemspec` gains `spec.add_dependency "dry-schema", "~> 1.16"` and
+`spec.add_dependency "dry-validation", "~> 1.11"` (BRIEF §2 frozen
+stack unchanged otherwise). The transitive tree (dry-core, dry-logic,
+dry-types, dry-configurable, dry-inflector, zeitwerk, concurrent-ruby)
+is accepted per the program letter; `Gemfile.lock` regenerates and is
+committed. No path/git vendoring of the reference clones. No
+`required_ruby_version` change. Deps are PRODUCTION deps (lib requires
+them at boot), not dev deps.
+
+## New unit pins (test/schemas_test.rb + additive pins in the touched
+test files)
+
+- **Accept/reject tables per boundary** — every fixture in Grounds §5
+  (both config files, both valid and every invalid row) asserting the
+  EXACT strings through the public APIs (`Models.load`,
+  `Mcp::Config.load`); plus the tool-input table (bash timeout −1 /
+  Float::INFINITY / "x"; edit empty/not-array edits/valid/legacy shapes
+  through `Edit#call`; each tool's required-arg and wrong-typed-arg
+  rejections with the wrapper message; each tool's valid acceptance).
+- **Settings precedence matrix** — for each of defaultModel /
+  defaultProvider / apiBase / apiKey / modelReasoning: env-only /
+  file-only / default-only / env+file / env+default / file+default /
+  all / none combinations, and both identities (PI_/TART_ prefixes),
+  asserting resolved values identical to today (existing
+  settings_test pins stay green untouched — the matrix ADDS the cross
+  product); the contextWindow ladder (explicit > env digit-string >
+  file integer > model > known table > nil) incl. the non-digit env and
+  non-positive file fall-throughs; thinkingLevel in/out of vocabulary;
+  declared_thinking_level project-over-user.
+- **thinkingLevelMap symbolization** — the I36 pin stays green
+  untouched (symbolized keys, null kept, unknown level keys tolerated)
+  and the schema-path equivalent is added via a catalog fixture.
+- **No-filter pin** — a settings file carrying type-invalid values for
+  known keys (e.g. `"contextWindow": "abc"`, `"thinkingLevel": 5`)
+  still lands those values in `Result#settings` verbatim (pi:126
+  flows-through; the schema is a view, not a gate).
+
+## Tool guidance (verify against live deps before writing code)
+
+- Read the exact installed versions' sources first: reference clones at
+  `~/architect/src/github.com/dry-rb/{dry-schema,dry-validation,
+  dry-logic}` (1.16.0 / 1.11.1 / 1.6.0 — Grounds §1) — do not invent
+  against old dry-rb folklore (no `Dry::Validation.Schema`, no
+  `Schema.with` pre-1.14 idioms, no `Type::Strict` strings).
+- Probed idioms that work on this exact stack (Grounds §4):
+  `Dry::Schema.JSON do … end`; `config.validate_keys = false`;
+  `maybe([:integer, :float])`; `rule(:key) { key.failure("exact …") }`;
+  `optional/required`; `each { hash … }`; `min_size?`; `gt?`;
+  `included_in?` (vocabulary). Contract `#call` raises on non-Hash —
+  guard roots.
+- Verification (exact, per repo): `bundle install --quiet && bundle
+  exec rake` (suite; default task), `bundle exec ruby bench/
+  seam_bench.rb` (SEAM_BENCH_OK), `gems/tui-split-rig/bin/tui-split-rig
+  run gems/tui-split-rig/scenarios/<s>.yml --out tmp/<canonical-short-
+  dir>` for s1–s10 + the two `--gate` probes (cold; s1_tart exits 1 by
+  design — the staged identity work list, I39 ruling).
+
+## Boundaries
+
+**May touch** (the lane's enumerated file set — the ```lanes block is
+the frozen source of truth): `tart.gemspec`, `Gemfile.lock`,
+`lib/tart.rb`, `lib/tart/schemas.rb`, `lib/tart/schemas/{settings,
+models,mcp,tools}.rb` (new), `lib/tart/settings.rb`,
+`lib/tart/models.rb`, `lib/tart/mcp/config.rb`,
+`lib/tart/tools/safe_execute.rb`, `lib/tart/tools/{bash,edit,read,
+write,ls,grep,find}.rb`, `test/schemas_test.rb` (new),
+`test/{settings,models,mcp,tools,bash_tool}_test.rb` (additive only).
+
+**Must not touch**: everything else, in particular — `gems/
+tui-split-rig/**` (no rig work); the wire JSON-Schema tool declarations
+(every `PARAMETERS_SCHEMA` / `DESCRIPTION` constant byte-identical —
+wire-unchanged by the letter); `lib/tart/agent/**`, `lib/tart/render/**
+`, `lib/tart/print.rb`, `bin/tart`, `lib/tart/identity.rb`,
+`lib/tart/mcp/{client,stdio,tool,jsonrpc}.rb`; `lib/tart/tools/
+registry.rb`, `support/**` (registry semantics and edit-diff are
+runtime, not input shape); `test/golden_parity_test.rb`,
+`test/e2e_session_test.rb`, `test/launcher_smoke_test.rb`,
+`test/agent_loop_test.rb`, `test/session_test.rb` (all frozen pins stay
+green untouched); `bench/**`.
+
+**Out of scope** (itemized, not lost): pi's loop-level string→number
+coercion (Value.Convert) for tool args; pi's bash >2147483.647s timeout
+tier (stays cut); session-entry dry-struct shapes (ENTRY 2); Agent::
+Loop/MCP-client dry-monads (ENTRY 3); any settings diagnostic growth;
+any new settings-file rejection; MCP collect-all error semantics.
+
+## Lane plan
+
+ONE lane (single-writer — the pattern must land coherently; chat-side
+files untouched):
+
+- **schemas** — target `repos/tart`, the full touch set above, the whole
+  objective. Effort: HIGH at dispatch (cross-cutting pattern-setter,
+  4 boundaries + deps + the pattern contract).
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision dry-rb-boundaries`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: schemas
+  repo: tart
+  touch:
+    - tart.gemspec
+    - Gemfile.lock
+    - lib/tart.rb
+    - lib/tart/schemas.rb
+    - lib/tart/schemas/settings.rb
+    - lib/tart/schemas/models.rb
+    - lib/tart/schemas/mcp.rb
+    - lib/tart/schemas/tools.rb
+    - lib/tart/settings.rb
+    - lib/tart/models.rb
+    - lib/tart/mcp/config.rb
+    - lib/tart/tools/safe_execute.rb
+    - lib/tart/tools/bash.rb
+    - lib/tart/tools/edit.rb
+    - lib/tart/tools/read.rb
+    - lib/tart/tools/write.rb
+    - lib/tart/tools/ls.rb
+    - lib/tart/tools/grep.rb
+    - lib/tart/tools/find.rb
+    - test/schemas_test.rb
+    - test/settings_test.rb
+    - test/models_test.rb
+    - test/mcp_test.rb
+    - test/tools_test.rb
+    - test/bash_tool_test.rb
 ```
 
 ## Acceptance Criteria
