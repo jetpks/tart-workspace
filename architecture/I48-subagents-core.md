@@ -1561,6 +1561,152 @@ Never commit. Never edit architecture/** or space.yaml. Never touch
 repos/pi or ~/.pi (READ-ONLY grounding) or sources outside your
 worktree. The frozen iteration file is read-only contract.
 
+### e2e
+
+# Lane prompt — I48 subagents-core, lane `e2e`
+
+You are the builder for LANE `e2e` of iteration I48 subagents-core (space
+20261009-pi-port, repo repos/tart, worktree provisioned from frozen base
+b54a3b1, branch lane/I48-subagents-core-e2e). This prompt is your complete,
+self-contained contract. You never commit; you write tests in your
+worktree and a scratch report at build/I48-subagents-core-e2e/report.md.
+PHASE 0 discipline applies: disagreements with this contract are RESEARCHED
+(the frozen iteration file architecture/I48-subagents-core.md — YOUR
+PRIMARY SOURCE, since the surface you test does not exist in your tree —
+plus pi-subagents 0.77.0 at ~/.pi/agent/npm/node_modules/pi-subagents/ for
+the observable shapes, and test/e2e_session_test.rb for the I42
+discipline) and ITEMIZED in your report's PHASE 0 section.
+
+**Your lane is ONE file**: `test/subagents_e2e_test.rb` — the end-to-end
+delegation instrument. The machinery (lib/tart/subagents.rb and friends)
+is ANOTHER lane, built in parallel from the same base; it does NOT exist
+in your worktree. Your tests are RED in your tree BY DESIGN and must be
+GREEN on the integrated tree. You code against the FROZEN SPEC's driven
+surface — the names below are contract, and the spec's §2.7/§3 are the
+authority if this prompt and the spec ever disagree.
+
+## Mission
+
+Write the four-leg e2e battery that proves tart's delegation core
+end-to-end with REAL `bin/tart -p` subprocesses against MockLLMServer:
+(A) foreground delegation, (B) async + the print-parent drain, (C)
+steer-reach into a running child, (D) stop + deadline. I42 discipline
+throughout: staged HOME per leg, hermetic env via unsetenv_others,
+`[i48-e2e] …` printed staging lines (the gate greps `i48-e2e`), full
+teardown (no process, no dir left).
+
+## The frozen surface you test (the driven names — Specification §1/§2/§3)
+
+- `Tart::Subagents.home(env:, identity:)`, `BUILTIN_AGENTS`
+  {worker, oracle, reviewer}, `DEFAULT_FORK_PREAMBLE`,
+  `resolve_model(spec, catalog:, fallback:)` → [provider, model, level].
+- `Tart::Subagents::Manager.new(cwd:, home:, env:, identity:, hooks:,
+  kernel: nil, agent: nil)`; `#spawn_run(agent:, task:, async:, model:,
+  timeout_ms:, tool_timeout_ms:, tool_call_id: nil, parent_session: nil)`
+  → the run record {id:, state:, dir:, pid:, …}; `#steer(id:, message:,
+  mode: "auto", ack_timeout_ms: 3000)` → {state:, request_id:, text:};
+  `#stop(id:)`; `#status(id: nil)`; `#result(id:)`; `#runs`;
+  `#outstanding?`; `#drain`; `#shutdown`; `#spawn_argv_and_env(run)` →
+  [argv, env].
+- `Tart::Tools::Subagent.new(manager:)` — execute dispatch (async default
+  true; the `Async: <agent> [<id>]` start message).
+- The exact strings (Specification §7 — re-read the frozen file; your
+  assertions pin them byte-level): the start message, `Background task
+  <state>: **<agent>**` notification header + `Session file: <path>` +
+  `Run dir: <dir>`, status lines `Run:/State:/Mode:/Started:/Updated:/
+  Dir:/Output:`, steer receipts, `Stop requested for async run <id>.`.
+- The child harness: print subprocess (`bin/tart -p <task> --tools …
+  --system-prompt-file … --session-root <run>/sessions --steer-inbox
+  <run>/control/steer-requests`), closed env (unsetenv_others; the §4 key
+  set), session recorded under the run dir, result.json + status.json
+  lifecycle (result BEFORE terminal flip), states running → completed|
+  failed|stopped (+timedOut).
+
+## The battery (Specification §8 — four legs, each self-contained)
+
+Model on test/e2e_session_test.rb (READ IT FIRST): REPO_ROOT, the staged
+home, the subprocess env hash, `unsetenv_others: true`, the printed
+`[i48-e2e]` staging lines (home/server/scratch), MockLLMServer scripting
+(`slow_stream` = per-CHAR chunk_every pauses — size windows
+accordingly), teardown (server.stop, manager.shutdown, FileUtils.rm_rf,
+no orphan processes — assert `ps -p <pid>` empty after stop legs).
+
+- **Leg A — foreground delegation end-to-end**: a real PARENT print run
+  (bin/tart -p with staged settings `{"subagents": true}` merged into
+  the staged HOME's .tart/settings.json; env {PATH, HOME, PI_API_KEY,
+  PI_API_BASE} + unsetenv_others) whose scripted model calls the
+  subagent tool async:false — the CHILD is a real subprocess hitting
+  the same server (script order: parent prompt → tool call; child task
+  → child answer; parent tool-result turn → final). Assert: parent
+  exit 0; the parent's SECOND captured request carries the child's
+  output as the tool result; ONE run dir under the staged
+  <IDENTITY>_SUBAGENTS_HOME with status completed + result.json
+  {output:, success: true}; the child's session file under
+  <run>/sessions/**; the child request's model field matches the
+  routed model.
+- **Leg B — async + the print drain**: the parent delegates async:true;
+  the tool result visible in the parent's request 2 is the `Async:
+  <agent> [<id>]` start message; the parent's own turn completes while
+  the child slow-streams; the parent PROCESS waits (drain), its session
+  file ends with a `custom_message` entry customType "subagent-notify"
+  whose content starts `Background task completed: **<agent>**` and
+  carries `Session file: ` + `Run dir: `; exit 0.
+- **Leg C — steer-reach**: the test drives the parent-side API directly
+  (in-process Manager + Tart::Hooks with a recorder; no parent
+  subprocess): spawn async (slow stream), `steer(message: …, mode:
+  "steer")` → receipt {state: :delivered, request_id:}; the child's
+  NEXT captured request contains the steer text as a user message; the
+  run dir's control/steer-log.jsonl names the SAME request id (the T1
+  pin); run completes.
+- **Leg D — stop + deadline**: (1) spawn async, stop mid-stream →
+  receipt text `Stop requested for async run <id>.`; the child exits
+  within the graceful window (poll ≤10s); state stopped; timedOut
+  false; `ps -p <pid>` EMPTY (no zombie — the T3 pin). (2) spawn with
+  timeout_ms: 1500 → within ~15s state stopped with timedOut true (the
+  T2 run-deadline pin).
+
+Every leg re-runs its own predecessors as needed (legs are
+self-contained; the battery must pass from a cold run on the integrated
+tree — 8+ subprocess boots are expected and fine).
+
+## May touch (EXACTLY these; the ```lanes block is the frozen source)
+
+    test/subagents_e2e_test.rb
+
+**Must not touch**: EVERYTHING ELSE — no lib/**, no bin/**, no other
+test file, no test/support/**, no gems/**, no docs. If the battery
+cannot be written without a machinery change, that is a PHASE 0 item in
+your report (the coordinator routes it to the core lane), never an edit.
+
+## Verification (your worktree — the declared clean reds)
+
+- `bundle install --quiet && bundle exec ruby -Itest
+  test/subagents_e2e_test.rb` — RED in your tree BY DESIGN: every leg
+  fails at the missing surface (NameError: Tart::Subagents / LoadError
+  paths). VERIFY the failures are EXACTLY the declared missing-surface
+  failures (a syntax error or a bad fixture path is YOUR defect — fix
+  it; a NameError on Tart::Subagents is the expected red). Record the
+  failure transcript in your report.
+- `bundle exec rake` — every OTHER test still green in your tree (you
+  added one file; nothing else moved).
+- Minitest hygiene: the file requires test_helper + support/
+  mock_llm_server; teardown always runs (server stopped, manager
+  shutdown, dirs removed, no orphan ps entries — a leg that fails
+  mid-way must still clean up).
+
+## Report
+
+Write build/I48-subagents-core-e2e/report.md: the leg-by-leg design
+table (what each leg spawns, what it asserts), the red-at-worktree
+transcript (the declared NameErrors), PHASE 0 items (any spec ambiguity
+you hit — itemized with the frozen-spec cite you resolved it by), and a
+final line `STATUS: COMPLETE | COMPLETE_WITH_CONCERNS | BLOCKED —
+<one line why>`.
+
+Never commit. Never edit architecture/** or space.yaml. Never touch
+repos/pi or ~/.pi (READ-ONLY grounding) or sources outside your
+worktree. The frozen iteration file is read-only contract.
+
 ## Builder Report
 
 <!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
