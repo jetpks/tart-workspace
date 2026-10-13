@@ -323,35 +323,253 @@ judge may direct one from an environment that holds the key
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section zai-provider specification --from <file>`. -->
+# Specification — I46 zai-provider
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+One lane (`zai`). The port's first per-model dialect: pi's zai compat
+subset parsed from the catalog and applied at the ONE request seam (the
+I36 before_request hook), so tart runs glm-5.3 on
+`https://api.z.ai/api/coding/paas/v4` exactly as the owner's pi does —
+while EVERY existing config (no compat entries) produces byte-identical
+wire, screen, and session output. The fireworks default boot is
+untouched.
+
+## 1. The catalog compat subset (Schemas + Shapes + Models)
+
+**1.1 Schema (Schemas::Models CatalogContract).** A model entry MAY
+carry `compat` (an object). Validated per the pi subset, in the rule
+order AFTER contextWindow/maxTokens (pi's ModelDefinitionSchema declares
+compat last):
+
+- `compat` present but not an object →
+  `expected an object` at path `providers.<key>.models[<i>].compat`;
+- `thinkingFormat` present but not one of pi's 11 literals →
+  `expected a thinking format` at `…compat.thinkingFormat`;
+- `maxTokensField` present but not `"max_tokens"` or
+  `"max_completion_tokens"` →
+  `expected "max_tokens" or "max_completion_tokens"` at
+  `…compat.maxTokensField`;
+- `supportsDeveloperRole` / `supportsReasoningEffort` / `zaiToolStream`
+  present but not boolean → `expected a boolean` at their paths;
+- UNKNOWN compat keys (e.g. the owner's `supportsStore`,
+  `supportsStrictMode`) → NO error (pi additionalProperties:true — the
+  owner's live catalog must load clean).
+
+Error lines keep today's shape (`  - <path>: <message>`, dotted keys,
+bracketed indices) and interleave in parsed order with the existing
+rules; the failure surface stays error-as-field (never raises).
+
+**1.2 Shape (Shapes).** New `Shapes::ModelCompat` (dry-struct, sibling
+of Model): five optional attributes, nil-defaulted and omittable at
+construction — `thinking_format` (String, constrained to the 11
+literals), `max_tokens_field` (String, constrained to the two
+literals), `supports_developer_role` / `supports_reasoning_effort` /
+`zai_tool_stream` (Bool). `Shapes::Model` gains `compat`
+(`Shapes::ModelCompat` optional, default nil) DECLARED between
+`thinking_level_map` and `provider` (a model field precedes the
+appended provider key) — the DECLARED order is the to_h emission order
+(I44 rule). `Model#to_h` therefore gains `compat:` — the three frozen
+entry-hash asserts re-pin consciously (Grounds §5's inventory:
+shapes_test :49-57 + :94-111, models_test :69-71; mechanical
+`compat: nil` additions — no assert deleted).
+
+**1.3 Parse (Models).** `build_model` builds the struct when the entry
+carries compat (symbolized keys, the five picked, the rest ignored).
+`Config` gains a compat reader bridging legacy raw-hash entries the
+`entry_field` way (`respond_to?(:compat) ? compat : hash[:compat]` —
+nil default). No resolution/wire_provider/boot-default change.
+
+## 2. The request seam — the zai branch (agent/loop.rb)
+
+**2.1 Threading.** `Loop#initialize` and `Loop#switch_model` gain
+`compat:` (Shapes::ModelCompat, default nil) stored as `@compat` and
+read at REQUEST time by the hook (the thinking_level idiom —
+mid-session switches apply to the next request; nil IS "the switched
+model declares none", re-resolved wholesale like the other facts).
+
+**2.2 The hook** (install_thinking_seam, ONE hook, both paths —
+unchanged installation). The existing body becomes the NON-zai arm; a
+zai arm is added in front. The full contract table (pi
+openai-completions :880-892 + :749-755 + :855-860 + :1233 +
+:841-848; compaction.ts :605-607):
+
+- **compat nil (or thinking_format != "zai")**: TODAY'S hook
+  BYTE-EXACT — reasoning_effort set-or-deleted per
+  `Models.resolve_reasoning_effort`; NO thinking object; NO
+  tool_stream; NO role rewrite; NO max-token rename. (The zero-change
+  bar; fireworks default and every compat-less catalog ride this arm.)
+- **zai arm** (`compat.thinking_format == "zai"`):
+  - if `@model_reasoning`: `clamped =
+    Models.clamp_thinking_level(@thinking_level, map:
+    @thinking_level_map, reasoning: true)`;
+    `effort_present = clamped && clamped != "off"` (pi :751 — a
+    clamped `"off"` is NO effort, the String-off floor does NOT apply
+    on this arm);
+    `payload[:thinking] = effort_present ? {type: "enabled",
+    clear_thinking: false} : {type: "disabled"}` (clear_thinking ONLY
+    on enabled);
+    if `effort_present && compat.supports_reasoning_effort == true`:
+    `mapped = @thinking_level_map&.[](clamped.to_sym)`;
+    `payload[:reasoning_effort] = mapped.is_a?(String) ? mapped :
+    clamped` (pi :889-891 — a MISSING key sends the level; a null
+    value cannot reach here: supported levels never carry null);
+    else: `payload.delete(:reasoning_effort)` (no effort, or the
+    compat says the endpoint refuses the field — pi's detected-false
+    default for zai);
+    if NOT `@model_reasoning`: NO thinking object and NO
+    reasoning_effort (pi :880 gates the arm on model.reasoning; the
+    generic arms cannot fire for a non-reasoning model) — delete
+    reasoning_effort.
+  - `tool_stream`: if `compat.zai_tool_stream == true` AND
+    `payload[:tools]` is a non-empty Array → `payload[:tool_stream] =
+    true`; otherwise nothing (pi :855-860 — no tools, no field).
+  - **instruction role**: `supports_developer_role_effective =
+    compat.supports_developer_role.nil? ? (compat.thinking_format ==
+    "zai" ? false : true) : compat.supports_developer_role` (nil falls
+    to pi's DETECTION stand-in: zai URLs detect false, standard URLs
+    true); the wire role is `"developer"` iff `@model_reasoning &&
+    supports_developer_role_effective`, else `"system"` — the hook
+    rewrites every `payload[:messages]` entry whose `:role ==
+    "developer"` to `"system"` when the effective role is system (the
+    gem's developer default, Grounds §4). With compat nil: NO rewrite.
+  - **max tokens**: if `compat.max_tokens_field == "max_tokens"` and
+    `payload.key?(:max_completion_tokens)` → `payload[:max_tokens] =
+    payload.delete(:max_completion_tokens)` (pi :841-848; today only
+    the compaction summarization sets max output tokens — the rename
+    lands there; `"max_completion_tokens"` and nil compat rename
+    nothing).
+  - The replay normalization (assistant `:reasoning` deletion) runs
+    unchanged for BOTH arms.
+- NO store field is ever added (OQ-4); NO `strict` on tool defs (OQ-1).
+
+## 3. Threading (boot, print, switch)
+
+- `bin/tart#boot_thinking_kwargs` composes `compat:` from
+  `resolve_boot_entry(models, boot)&.compat` (nil without a catalog) —
+  the interactive `Agent::Loop.new` (via its facts hash) and
+  `Print.run` forward it to the Loop ctor.
+- `print.rb#run` gains the `compat:` kwarg (default nil), forwarded.
+- `Render::Chat#apply_model_selection` passes
+  `compat: facts-source entry.compat` to `@agent&.switch_model`; the
+  legacy-kwarg wrap adds `compat: entry.fetch(:compat, nil)`;
+  `boot_model_entry` constructs with `compat: nil`.
+- `Render::Chat#apply_thinking_selection`, `footer_data`,
+  `Settings.thinking_facts`, the footer/border renderers: UNTOUCHED
+  (compat is a wire fact; no screen byte moves).
+
+## 4. Docs (README §Models)
+
+A short compat paragraph + the owner's zai catalog block verbatim
+(baseUrl, one glm-5.3 model with the live thinkingLevelMap + compat
+from Grounds §3, apiKey elided): what the five keys do, that unknown
+compat keys are tolerated, that `$ENV` apiKey references are NOT
+expanded (OQ-3 — literal key or `<IDENTITY>_API_KEY`), and that the
+fireworks default is unchanged.
+
+## 5. Tests (the pin table)
+
+Additive pins + the three enumerated mechanical re-pins (Spec 1.2):
+
+- `test/schemas_test.rb`: the compat accept/reject table — valid
+  subset rows (each of the five keys alone; all five; unknown-key
+  tolerance with the owner's catalog object verbatim → NO error), each
+  rejection line + path + interleave with an existing error.
+- `test/shapes_test.rb`: ModelCompat construction pins (subset
+  construction, nil defaults, the enum rejections);
+  `Model#compat`/to_h re-pins.
+- `test/models_test.rb`: catalog parse pins — a models.json with the
+  owner's zai block loads clean; `build_model` yields the typed
+  compat (each field); compat absent → nil; the legacy-hash reader.
+- `test/agent_loop_test.rb` (the wire pins, MockLLM captured bodies;
+  the zai compat object built as Shapes::ModelCompat):
+  1. zai + reasoning + level "medium" (the owner's map) → request
+     carries `thinking == {"type"=>"enabled","clear_thinking"=>false}`
+     and `reasoning_effort == "high"` (medium clamps forward);
+  2. zai + level "off" on a map whose off is a String → `thinking ==
+     {"type"=>"disabled"}` and NO reasoning_effort key (OQ-5 edge);
+  3. zai + `supports_reasoning_effort` false/nil → thinking object
+     still emitted, NO reasoning_effort (pi's detected-false default);
+  4. zai + tools registered → `tool_stream == true`; the same session's
+     tool-less request carries NO tool_stream (pi :861-863);
+  5. zai → `messages.first["role"] == "system"` (the rewrite);
+  6. zai + a compaction-triggered summarization → that request's
+     max-token key is `"max_tokens"` (never `max_completion_tokens`);
+     the thinking object rides it too (pi compaction.ts:605-607);
+  7. zai non-reasoning → NO thinking object, NO reasoning_effort,
+     system role;
+  8. compat nil zero-change: NO thinking/tool_stream keys, developer
+     role, `max_completion_tokens` on the summarization request —
+     today's exact shapes (the wire-bodies digests pin the rig path;
+     this pins the loop path);
+  9. switch seam: `switch_model(…, compat:)` swaps the dialect — the
+     next request carries the zai shape (and compat:nil restores the
+     default arm);
+  10. print-mode threading: a Print.run-driven request (compat passed)
+      carries the zai shape (the I36 third-wire-site idiom).
+- `test/chat_test.rb`: the :2290-2305 seam re-pin ONLY (signature +
+  expected kwargs gain `compat: nil`) — no other chat_test edit.
+
+## 6. May touch (the ```lanes block is the frozen source of truth)
+
+    lib/tart/schemas/models.rb
+    lib/tart/shapes/model.rb
+    lib/tart/models.rb
+    lib/tart/agent/loop.rb
+    lib/tart/print.rb
+    lib/tart/render/chat.rb      (apply_model_selection + boot_model_entry ONLY)
+    bin/tart                     (boot threading ONLY)
+    README.md                    (§Models compat paragraph ONLY)
+    test/schemas_test.rb         (additive)
+    test/shapes_test.rb          (additive + the 2 enumerated re-pins)
+    test/models_test.rb          (additive + the 1 enumerated re-pin)
+    test/agent_loop_test.rb      (additive pins only)
+    test/chat_test.rb            (the 1 enumerated seam re-pin ONLY)
+
+**Must not touch**: everything else, in particular — `lib/tart/
+schemas/{settings,mcp,tools}.rb` + `schemas.rb`, `lib/tart/shapes/
+{types,settings,session}.rb` + `shapes.rb` (model.rb is the ONLY
+shapes file in scope), `lib/tart/settings.rb`, `lib/tart/agent/{bridge,
+session,status,system_prompt,context_files}.rb`, `lib/tart/compaction.rb`,
+`lib/tart/tools/**`, `lib/tart/mcp*`,
+`lib/tart/render/**` outside the two enumerated methods, `lib/tart/
+core/**`, `lib/tart/{commands,identity,skills,prompts,theme,tui}.rb`,
+`tart.gemspec`, `Gemfile.lock`, `bench/**`, `gems/tui-split-rig/**`,
+`test/support/**`, and every test file outside the five above (the
+frozen set: `print_test.rb`, `e2e_session_test.rb`,
+`golden_parity_test.rb`, `loop_test.rb`, `tools_test.rb`,
+`bash_tool_test.rb`, `session_test.rb`, `mcp_test.rb`,
+`flow_test.rb`, `test/render/**`, `test/fixtures/**`).
+
+**Out of scope** (itemized, not lost): pi compat keys beyond the five
+(OQ-1 strict, OQ-4 store — tolerated unparsed); URL-based compat
+detection (OQ-2); `$ENV`/`!command` apiKey expansion (OQ-3); provider-
+level and modelOverrides-level compat (pi has three; the port's subset
+is per-model); gem-side changes of any kind (no provider patch — zai
+rides the openai seam; upstream PRs are PARKED per the program); any
+live z.ai call (Grounds §6 — static + judge-flagged); the fireworks
+default or any Settings/DEFAULTS row.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision zai-provider`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- id: zai
+  name: zai dialect (catalog compat + the request seam)
+  files:
+    - lib/tart/schemas/models.rb
+    - lib/tart/shapes/model.rb
+    - lib/tart/models.rb
+    - lib/tart/agent/loop.rb
+    - lib/tart/print.rb
+    - lib/tart/render/chat.rb
+    - bin/tart
+    - README.md
+    - test/schemas_test.rb
+    - test/shapes_test.rb
+    - test/models_test.rb
+    - test/agent_loop_test.rb
+    - test/chat_test.rb
 ```
+
+One lane: the seam files interlock (the struct feeds the parse feeds
+the hook feeds the threading) — parallel lanes would collide on the
+same files.
 
 ## Acceptance Criteria
 
