@@ -1689,11 +1689,172 @@ user_bash.rb's enumerated arm, no frozen test file, no rig file.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I45-dry-rb-flow-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence dry-rb-flow --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### flow
+
+# Lane report — I45 dry-rb-flow, lane `flow` (sole lane)
+
+Builder: subagent under zai/glm-5.3-flash thinking-high. Base: **4c2e6a9a**
+(`git log --oneline -1` → `4c2e6a9 Merge lane/I44-dry-rb-shapes-shapes`),
+worktree `build/I45-dry-rb-flow-flow/wt`, tree never committed (`git log
+4c2e6a9a..` empty). Diff vs base = exactly the 12 declared files (verified
+by the scope gate + `git diff --name-only` ∪ `git ls-files --others`).
+
+## PHASE 0 — disagreements / findings (itemized, none silently implemented)
+
+**D1 — the `deps-flow` gate literal cannot pass with dry-monads 1.11.0 (structural,
+independent of this diff).** The frozen gate ends
+`bundle exec ruby -e 'require "dry/monads/result"; puts "DEPS_FLOW_OK"'`.
+dry-monads 1.11.0 is zeitwerk-managed: `lib/dry/monads/result.rb` line 9
+executes `include Transformer`, and the standalone require never sets up the
+loader, so a fresh process raises:
+
+```
+dry-monads-1.11.0/lib/dry/monads/result.rb:9: uninitialized constant
+Dry::Monads::Result::Transformer (NameError)
+```
+
+Verified verbatim under `bundle exec` in this worktree (twice) and in a
+scratch Gemfile (`spaces/tmp/i45-dm-reqtest`). 1.11.0 is the latest
+release (checked `gem list --remote`), so no `~> 1.11` resolution escapes
+it. The spec-time probe actually used the umbrella: `tmp/i45-probe1/p1.rb`
+line 2 is `require "dry/monads"` — the Grounds §3 transcription
+("`require "dry/monads/result"` … works") drifted from the probe file.
+**Resolution taken:** every flow file opens `require "dry/monads"` (the gem's
+supported entry, what the probe ran), includes `Dry::Monads::Result::Mixin`
+at the class level, and `require "tart"` loads cleanly (flow-presence gate
+GREEN). The only remaining fix is one word in the frozen gate's `-e` line
+(`require "dry/monads/result"` → `require "dry/monads"`); flagged for the
+judge. Nothing else in the gate is affected (both greps + `bundle install`
+pass; `Dry::Monads::Result` is defined after `require "tart"`).
+
+**D2 — the `step-classification` gate script has an undefined-variable bug.**
+Its `-e` line calls `mk.call(events2)` / `mk.call(events3)` but only `events`
+is ever initialized → `NameError: undefined local variable or method
+'events2'` before any assertion runs (verbatim failure captured). The gate's
+INTENT is fully implemented and pinned: the corrected equivalent (with
+`events2 = []` / `events3 = []` added) prints `STEP_CLASSIFICATION_OK`, and
+the same three classifications are pinned as suite tests
+(`test/flow_test.rb`: worker 400 → `RubyLLM::BadRequestError`, context-length
+→ `RubyLLM::ContextLengthExceededError`, dead endpoint →
+`Faraday::ConnectionFailed`, on both `agent_end[:error]` and `last_error`;
+plus the three additive `test/agent_loop_test.rb` pins).
+
+**D3 — Grounds §5's "everything else in mcp_test green untouched" is internally
+inconsistent with B2's Result API for exactly three lines.**
+`test_client_initialize_list_and_call_round_trip` consumes
+`client.list_tools` / `client.call_tool` values directly (`tools.map`,
+`tools.all?`, `result["content"]`); `Dry::Monads::Result::Success` has none
+of those methods. Re-pointed mechanically to `.value!` with an added
+`assert tools.success?`; every assertion VALUE unchanged. This is inside the
+declared touch set ("the 3 enumerated re-pins + additive") only by extension
+— itemized here because the frozen sentence claimed it wouldn't be needed.
+
+**D4 — dry-monads pattern-matching gotcha: `Success(array)` splats in
+`deconstruct`.** `in Success(listed)` cannot bind an Array payload of length
+≠ 1 (a 2-tool list raised `NoMatchingPatternError` — caught by the suite and
+fixed). `build_tools`/`server_tools` use the `failure?`-guard + `value!`
+form; the flow contract §4 sanctions both branch styles. Left as an idiom
+note for the record.
+
+**D5 — `module Tart::Mcp` is a `module_function` module: `include` of the Mixin
+does not reach the singleton copies** (the callable surface). Fixed with
+`extend Dry::Monads::Result::Mixin` alongside the contract's `include`
+(commented in file). Verified by probe (`spaces/tmp/i45-dm-reqtest/mf.rb`).
+
+**D6 — behavior notes, all byte-equivalent at every gated observable:**
+- double-`connect`: today raises the state RuntimeError after closing the
+  passed transport; now closes it and returns
+  `Failure(RuntimeError("Cannot connect MCP client in <state> state"))` —
+  message bytes identical (pinned in flow_test).
+- `handle_request`'s require_transport failure: today raises into its own
+  `rescue StandardError → emit_error(e)`; now the Failure arm passes the same
+  `ConnectionClosedError` instance to `emit_error` — the on_error observable
+  is unchanged.
+- a `RubyLLM::CancelledError` during MCP setup: today swallowed by
+  `tools_for`'s `rescue StandardError` into the warn+skip; now arrives as a
+  Failure into the identical warn+skip bytes (no new swallow — today's shape
+  preserved; OQ-4 discipline held: no new rescue walls, kernel/Async cancels
+  still raise).
+
+## What was built (per B1/B2)
+
+- `tart.gemspec` + `Gemfile.lock`: `dry-monads "~> 1.11"` production dep;
+  lock grows by exactly one gem (`dry-monads (1.11.0)`; concurrent-ruby/
+  dry-core/zeitwerk already present).
+- `lib/tart/agent/bridge.rb`: terminal Hash union retired (DONE/CANCELLED/
+  ERROR constants gone); worker outcome is `Success()` /
+  `Failure(instance)` (`RubyLLM::CancelledError` = cancelled terminal);
+  streamed items still yield in order; `Async::Cancel` → on_cancel → bounded
+  join → re-raise unchanged; still exactly 3 rescues.
+- `lib/tart/agent/loop.rb`: `step_via_bridge` branches on the terminal Result
+  (`in Failure(RubyLLM::CancelledError)` = today's cancelled shape;
+  `in Failure(err)` → `record_terminal_error(err)` (Hash guard retired);
+  `in Success` = the :step item already landed); `summarize` returns nil on
+  any Failure (compaction aborted, run continues); still exactly 2 rescues;
+  the before_request thinking seam untouched.
+- `lib/tart/render/user_bash.rb`: only the :183-184 arm re-pointed
+  (`terminal&.failure? && !terminal.failure.is_a?(RubyLLM::CancelledError)`
+  → same `bash: <message>` line bytes).
+- `lib/tart/mcp/client.rb`: all 17 taxonomy raises retired; every checkable
+  row constructs `Failure` directly; exactly ONE line-start `raise` remains
+  (the `rescue Exception` cleanup bare re-raise in `connect`, non-StandardError
+  family); the send-failure wall (`raise e` at :148) converts to
+  `Failure(e)` after the same pending cleanup; `abort_connect` keeps
+  close-transport-on-failed-connect; validation helpers return Results;
+  message bytes byte-identical everywhere.
+- `lib/tart/mcp.rb`: `tools_for` branches on the Result (warn bytes + skip
+  identical; `rescue StandardError` gone); `server_tools`/`build_tools` keep
+  the close-client cleanup on every failure path.
+- `lib/tart/mcp/tool.rb`: `execute` maps `Failure(payload)` →
+  `{error: payload.message}` (bytes identical); isError/text mapping stays in
+  the Success arm; the CancelledError re-raise wall untouched.
+- `test/flow_test.rb` (new, 19 tests): Bridge Result contract (payload
+  instance identity, cancelled typing, item ordering), the step-boundary
+  classification table, the MCP taxonomy table (timeout / invalid initialize /
+  method-not-found / duplicate-cursor / unsupported-version / closed /
+  non-idle connect / pages-cap* / send-failure* — * = unit-level, itemized in
+  D6-adjacent note: the fixture cannot reach 1000 pages or a failing send,
+  the Grounds §5 "itemized if cut" allowance), the frozen warn bytes, and the
+  full no-silent-swallow golden (event value, wire content, recorded content,
+  roles, `agent_end` nil, session digest `0b220daa…`).
+- `test/agent_loop_test.rb`: 3 additive classification pins, zero minus-lines.
+- `test/mcp_test.rb`: the 3 enumerated re-pins (payload class + message
+  preserved) + D3's mechanical unwrap; everything else byte-untouched.
+- `test/support/mcp_echo_server.rb`: the 2 additive env toggles
+  (`MCP_ECHO_PROTOCOL_VERSION`, `MCP_ECHO_DUPLICATE_CURSOR`); unset behavior
+  byte-identical.
+
+## Gate results (raw)
+
+| gate | result |
+|---|---|
+| suite (`bundle install --quiet && bundle exec rake`) | `868 runs, 3713 assertions, 0 failures, 0 errors, 1 skips` (the pre-existing opt-in LiveRunTest skip; base was 846/3641/0/0/1) |
+| bench (`bundle exec ruby bench/seam_bench.rb`) | `SEAM_BENCH_OK` |
+| s1–s6, s8, s10 (`--out tmp/parity-gate-sN`, canonical dirs) | exit 0 each |
+| s7_compaction | exit 0 |
+| s9_startup_help | exit **1** — the KNOWN lane-worktree deep-path artifact (6 precedents: I34/I36/I39/I40/I42/I43/I44). Diff classes: `parity-run-path` 6, `unknown-candidate` 2, `staged-path-wrap-fragment` 4, `footer-provider-prefix` 2 (sanctioned class); sample line: `…/build/I45-dry-rb-flow-flow/wt/tmp/parity-gate-s9/run-1/sandbox/pi/AGENTS.m -> parity-run-path`. Purely the absolute worktree path + its wrap fragments; the judge runs the battery on the integrated tree at canonical depth. |
+| s1-tart-mode | `TART_MODE_OK` |
+| tool-pending-gate | `TOOL_PENDING_GATE_OK` |
+| user-bash-stream-gate | `USER_BASH_STREAM_GATE_OK` |
+| wire-bodies | **FAILS in this worktree** — digest `b63b9de9…` vs frozen `2ece7d4b…`. Proven environmental, not a byte move: the gate's gsub normalizes only the `tmp/i45-wire/run-1/sandbox` suffix, so the deep worktree prefix stays in the body. Three-way control: `git archive 4c2e6a9a` extracted to `spaces/tmp/i45-base-tree`, same rig run → **identical** path-normalized digest `23ea27557c93c64ed0a2e754d551d8dc30f8b0992cfcfac8bc16f214382e46c4` for BASE and CHANGED trees (worktree-prefix-normalized). The tool-declarations digest matches the frozen literal exactly in both: `7360fd1e…` ✓. Zero wire bytes moved by this diff; the frozen literal is bound to the canonical `repos/tart` path (I44's judge-proven path binding). |
+| session-golden | `SESSION_GOLDEN_OK` (all seven frozen digests/roles) |
+| deps-flow | greps + `bundle install` pass; final `require "dry/monads/result"` → NameError (D1, structural) |
+| flow-presence | `FLOW_PRESENCE_OK` |
+| step-classification | verbatim script: NameError on `events2` (D2, gate bug); corrected equivalent: `STEP_CLASSIFICATION_OK` |
+| mcp-taxonomy | `MCP_TAXONOMY_OK` (verbatim frozen literal) |
+| no-silent-swallow | `NO_SILENT_SWALLOW_OK` (verbatim frozen literal) |
+| no-new-walls | `NO_NEW_WALLS_OK` (client.rb: exactly 1 line-start raise, the bare cleanup re-raise; mcp.rb has no `rescue StandardError`; bridge ≤3 / loop ≤2 rescues; safe_execute byte-untouched) |
+| scope | `SCOPE_OK` — tracked+untracked union = exactly the 12 declared files |
+
+## Scratch left for the judge
+
+- `spaces/tmp/i45-dm-reqtest/` — minimal Gemfile + probes: the deps-flow
+  NameError repro, the pattern-match/deconstruct semantics, the
+  module_function+extend proof.
+- `spaces/tmp/i45-base-tree/` — the `git archive 4c2e6a9a` extraction used
+  for the wire-bodies three-way control (delete freely).
+
+STATUS: COMPLETE_WITH_CONCERNS
 
 ## Verdict
 
