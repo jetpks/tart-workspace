@@ -1668,7 +1668,7 @@ project:
     ordinal: 43
     file: architecture/I43-dry-rb-boundaries.md
     freeze_sha: 71b8a6b5262454aa75080b15e5ff9e42b964e12b
-    verdict: pending
+    verdict: continue
     lanes:
     - name: schemas
       repo: tart
@@ -1698,6 +1698,13 @@ project:
       - test/mcp_test.rb
       - test/tools_test.rb
       - test/bash_tool_test.rb
+      base_sha: 6d8a07914cd1af679053c8ab779fb5241ddbfd9b
+      worktree: build/I43-dry-rb-boundaries-schemas/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: 55d62cc389fa92bb4ad539833eb9b50c8ecff588eba4b2d3e6173949cede353b
       at: '2026-10-13T03:53:22-06:00'

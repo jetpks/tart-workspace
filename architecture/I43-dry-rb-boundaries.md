@@ -1961,15 +1961,116 @@ STATUS: COMPLETE_WITH_CONCERNS (PHASE 0 item 2 — spec prose vs outcome table o
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section dry-rb-boundaries verdict --from <file>`. -->
+# Verdict — I43 dry-rb-boundaries (judge session, fresh, 2026-10-13)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify dry-rb-boundaries`)?
+Mechanical post-flight (cold, this session): `architect verify` 4/4 PASS
+(frozen untouched / zero builder commits / report exists / in-bounds —
+touched set = exactly the 24 declared files); freeze-diff vs
+71b8a6b5262454aa75080b15e5ff9e42b964e12b touches only the post-freeze
+Builder Prompt/Report sections; `git log 6d8a079..` in the lane worktree
+EMPTY. Evidence transcribed verbatim (commit 724e5a59). Gate run cold in
+the lane worktree (tmp/i43-gate-lane-cold.txt): **21/21 PASS** — suite
+823 runs / 3511 assertions / 0 failures / 0 errors / 1 pre-existing skip
+(base 796/3268 — +27 additive pins), SEAM_BENCH_OK, s1–s10 exit 0 cold
+(INCLUDING s9 — no deep-path artifact this run), TART_MODE_OK, both
+probe gates OK, wire-declarations digest 7360fd1e…3707 hash-pinned OK,
+error-goldens OK, deps-pin DEPS_OK, schemas-presence SCHEMAS_OK,
+tool-input-vocab TOOL_VOCAB_OK. (The scope gate is vacuous in an
+uncommitted worktree by construction — the real scope proof is verify's
+in-bounds PASS plus the integrated-tree gate re-run below.)
+
+## Disagreement rulings
+
+Every PHASE 0 item, the three OQs, and the two itemized non-ports —
+each ruled by the plan letter:
+
+**Spec OQs (adjudicated):**
+- **OQ-1 tool-input failure vocabulary — ACCEPT.** pi's own in-tool
+  messages (bash.ts:29-37, edit.ts:138) stay byte-exact; NEW shape
+  failures speak pi's agent-loop wrapper (validation.ts:317) with dry
+  detail text — the only vocabulary consistent with "equivalent where
+  tests pin it" (the pinned set is preserved) plus the letter's
+  itemized-approximation discipline for what was never pinned.
+- **OQ-2 settings malformed-value semantics — ACCEPT.** pi
+  settings-manager.ts:126 ("not validated; a malformed value replaces
+  instead of throwing") is the oracle; flows-through is zero-divergence,
+  and the no-filter pin proves the schema never gates.
+- **OQ-3 mcp fail-fast — ACCEPT.** The port's pinned single-message
+  shape is the zero-change read; pi's per-file collect-all is upstream
+  divergence — itemized, not adopted.
+
+**Itemized non-ports (adjudicated):**
+- **pi Value.Convert string→number coercion NOT ported — ACCEPT.** The
+  port today rejects wrong-typed numbers; porting coercion would be an
+  observable behavior change under the zero-byte-move bar; the gap is
+  itemized and queued per the letter.
+- **pi bash >2147483.647s timeout tier stays cut — ACCEPT.** A
+  pre-existing unpinned CUT (Grounds §3); re-opening it is out of scope
+  for a pattern-setter.
+
+**Builder PHASE 0 items 1–10:**
+1. **ACCEPT** — dry-validation 1.11.1 has no contract-level `messages`
+   block DSL (probed); rule 2 of the pattern contract names the
+   rule-based home FIRST (`key.failure(<pinned string>)`), so the
+   resolution is the letter's primary home, not a workaround.
+2. **ACCEPT** — verified against base myself: `model_reasoning_capable`
+   at 6d8a079 returns FALSE for a non-nil out-of-vocabulary staged value
+   (registry fall-through only on nil); the spec's parenthetical
+   misdescribed today, B1's "outcome table EXACTLY" + AC2 govern, and
+   the builder pinned the corner additively.
+3. **ACCEPT** — the seam sketch was "e.g."; one shared idiom across all
+   seven tools is the substance of B4's "seven tools, one idiom".
+4. **ACCEPT** — the port validates at the tool boundary after
+   ruby_llm's arity gate + symbolization, so kwargs names are what the
+   boundary actually sees (the wire `ignoreCase` never reaches execute
+   — pre-existing gem-layer fact); edit items keep wire names. Rule-3
+   itemized approximation, correctly recorded.
+5. **ACCEPT** — "one dry-validation contract" honored; the all-rule
+   form is the only one that can carry exact strings in exact order
+   without dry prose leaking through p8's skip semantics (error-goldens
+   PASS proves order and bytes).
+6. **ACCEPT** — B3 keeps the root guard and ConfigError wrapping in
+   Config.load; the contract stays ConfigError-free; validate_server!
+   public + same strings.
+7. **ACCEPT** — the letter's own parenthetical ("nowhere observable —
+   it must not gate Settings.load") is implemented to the letter and
+   pinned.
+8. **ACCEPT** — the pattern contract explicitly allows "frozen
+   instances or memoized .new"; the circular-require fact is real.
+9. **ACCEPT** — the Params `""`-coercion crash was probed, and the
+   value-not-maybe form + helper nil guard reproduces today's table
+   exactly ("" / "+5" / "-5" / " 5" / "5.5" → absent; "007" → 7; "0" → 0
+   — pinned).
+10. **ACCEPT** — pure rename after validation guarantees; both bash
+    timeout pins green untouched.
+
+**One judge note (no PHASE 0 item — builder's reading upheld):** the
+tool contracts type numeric args `[:integer, :float]` where the spec's
+B4 prose said "integers"; the byte-pinned wire declarations say
+`type: "number"`, and B4's opening clause ("mirroring each tool's
+JSON-Schema declaration shapes") governs — the mirror reading is also
+the zero-change one (a float that previously flowed through still
+flows; integer-only would have introduced a NEW rejection).
+
+## Acceptance Criteria integrity
+
+Frozen sections unchanged since freeze — `architect verify` (a) PASS;
+the freeze-diff shows only post-freeze provenance sections.
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | deps-pin PASS, schemas-presence PASS, judge diff read: home/naming/one-instantiation/production-deps/pattern-rules 1–5 all followed | §8, plan ENTRY 1 | PASS |
+| AC2 | no-filter pin PASS in error-goldens (malformed values verbatim, zero diagnostics); precedence matrix additive; existing settings pins green untouched (0 test deletions); PHASE 0-2 corner pinned | §8 | PASS |
+| AC3 | error-goldens PASS (multi-error interleave, field order, header, path suffix); validate* family deleted; error-as-field unchanged; symbolization untouched | §8 | PASS |
+| AC4 | error-goldens PASS (all pinned strings + fail-fast first-server + prefix); parser passthrough + normalized output unchanged; validate_server! kept | §8 | PASS |
+| AC5 | tool-input-vocab PASS; wire-declarations digest OK; pinned messages byte-exact; runtime raises stay raises (only seam insertions in read/write/ls/grep/find); Edit#call normalize_arguments before validation; no coercion | §8, plan letter | PASS |
+| AC6 | 21/21 gates PASS cold; suite 823>796 additive; SEAM_BENCH_OK; s1–s10 + s1-tart-mode + probes OK; scope in-bounds PASS (integrated-tree re-run below) | §8 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+## Iteration
+
+**CONTINUE** — the diff is a faithful implementation of the frozen
+Specification at every boundary (exact-string preservation proven by the
+error-goldens gate, zero observable byte moves proven by the parity
+battery + hash-pinned wire digest), the pattern contract is real and
+inheritable, and the program's ENTRY 1 pattern-setter is landed:
+proceed to ENTRY 2.
