@@ -920,52 +920,573 @@ legs on the integrated tree, non-vacuously.
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse subagents-profiles-intercom` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze subagents-profiles-intercom` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria — I49 subagents-profiles-intercom
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+Gate calibration (pre-declared): **RED at base BY DESIGN** —
+`subagents-profiles-units` (`Tart::Subagents::Profiles` does not exist at
+8f5620a — NameError is the expected clean red at the gate's FIRST driven
+touch). **GREEN at base, must stay GREEN** — `subagents-e2e` (the I48
+four-leg battery exists and passes at base; on the integrated tree it
+gains legs E/F and must pass with them), and the full regression battery
+(`suite`, `bench`, `s1`–`s10`, `s1-tart-mode`, both probe gates,
+`wire-bodies`, `session-golden`) — with `"subagents"` off (the default)
+the frozen wire digests + session digests ARE the zero-behavior bar for
+the new default-off template tier; a post-build failure means a byte
+moved. Every rig invocation scrubs the six `HERDR_*` env vars (the
+I47/I48 frozen-gate lesson). The s-gates keep the CANONICAL short out
+dirs. The KNOWN s9 lane-worktree deep-path artifact (ten precedents:
+I34–I48) does not fail this iteration when the same tree exits 0 at
+canonical depth — the judge runs the battery on the integrated tree.
+The I47 s11 integrated-tree residual is NOT this entry's gate (no memory
+surface touched; unchanged by a default-off surface). The I48 frozen
+`subagents-units` literal stays retired-broken (its recorded one-token
+judge repair; this entry's gates do not invoke it). `scope` is vacuously
+OK at base (empty diff vs 8f5620a) and MUST be non-vacuous on the
+integrated run. Gate literals were authored against the instrument
+(the I48 P0-8 lesson): `Hooks#pending_next_turn` returns the queued
+hashes; tool failures come back as `{error: message}` (SafeExecute);
+`MockLLMServer` pacing is 0.1s/char (`chunk_every` ignored — I48 P0-10).
 
-**AC1.** ...
+**AC1 (profiles).** `Profiles.discover` scans both tiers recursively
+(user `<agent-root>/agents/**/*.md`, project `<cwd>/.tart/agents/**/
+*.md`; dotfiles + non-`.md` ignored) with same-name precedence project >
+user > builtin; `Profiles.resolve_table` overlays `BUILTIN_AGENTS`
+(byte-unchanged — its I48 pins hold unmodified); `Profiles.resolve`
+returns the spec or raises the unknown-agent shape (closest-match
+`Did you mean` + the merged-table listing). The profile contract
+(`Schemas::Subagents::ProfileContract`, the I43 discipline) accepts the
+owner's field set {name (stem default, frontmatter wins, safe token),
+description, tools (comma or array; unknown tool → the error naming the
+valid set), model (provider/id[:level], resolve_model's errors
+verbatim), thinking (the ladder), context (fresh|fork)}; unknown keys
+tolerated; malformed files → warning diagnostic + skip, never a raise.
+The spawn resolves agents through the merged table (per-spawn, fresh
+disk read) and the model order is call `model:` > profile `model:` >
+parent pair. Pinned by `subagents-profiles-units` + the suite's
+`subagents_profiles_test.rb`.
+
+**AC2 (the intercom round trip + T1 routing).** A child calling
+`contact_supervisor` writes the atomic request file (the §4.2 shape,
+64KB cap); `progress_update` returns `Supervisor progress update
+queued.` and NEVER surfaces to the parent (no message, no wake —
+pi's rule); `need_decision`/`interview_request` block the child's tool
+call polling for `supervisor-replies/<requestId>.json` until the reply,
+the ask timeout (`<IDENTITY>_INTERCOM_ASK_TIMEOUT_MS`, default
+600_000ms), or a run kill. The parent channel surfaces the ask ONCE
+(`send_next_turn(custom_type: "subagent_supervisor_request", content:
+the §4.4 byte shape, display: true)` + the completion kick idle-
+interactive) and `subagent({ action: "reply", reply_to: <request id>,
+message: })` writes the reply file + receipt `Replied to supervisor
+request <id>.` → the child's NEXT request carries `**Reply from
+supervisor:** <answer>` as the tool result. **The T1 pin**: a reply
+addressed to ANYTHING but a pending request id (run id, agent name,
+stale id, blank message) fails loudly (`No pending supervisor request
+found for reply_to '<x>'.` / `message is required for supervisor
+replies.`) and never writes a reply file — the child stays blocked
+until its own bound. The lifecycle sweep drops resolved/expired/
+terminal-run asks; the timeout error is pi's message verbatim in the
+port's {error:} shape; `action: "pending"` re-reads the ask list (the
+`No pending supervisor requests.` empty line + the `- <id>: <agent>
+[<runId>] <reason>. Reply: …` shape). Pinned by `subagents-profiles-
+units`, `subagents-e2e` (leg E), + the suite's
+`subagents_intercom_test.rb`.
+
+**AC3 (the bridge + spawn integration + the surgical bound).** EVERY
+child spawned under the gate gets `contact_supervisor` unioned into its
+`--tools` allowlist (appended last) and the bridge instruction appended
+to its system-prompt.md (`Intercom orchestration channel:` + pi's
+DEFAULT_INTERCOM_BRIDGE_TEMPLATE verbatim — byte-pinned), regardless of
+the agent's frontmatter list (pi's runtime bridge rule); the closed
+child env gains EXACTLY two keys (`<IDENTITY>_SUPERVISOR_CHANNEL`,
+`<IDENTITY>_SUBAGENTS_AGENT`) — the sanctioned-set superset pin re-pinned
+in `subagents_test.rb`; the Manager diff is bounded to the §3 sites
+(lookup, model default, bridge application, the two env keys, the two
+control subdirs, the channel accessor + shutdown hook) and the EXISTING
+I48 unit battery passes with ONLY the enumerated re-pins (argv tools
+tail, env set, system-prompt content, unknown-agent text) — the
+mounting-boundary proof. Pinned by `subagents-profiles-units` + the
+suite.
+
+**AC4 (workflow prompt patterns).** `WORKFLOW_TEMPLATES` ships the six
+adapted templates (names + descriptions + argument-hints byte-carried
+from pi's prompts/ frontmatter; contents = adapted ports whose
+instruction structure and P0/P1/P2 + `Merge verdict:` vocabulary port
+verbatim and whose cut-machinery references are replaced by the port's
+async-spawn + native-wake idiom — no `workflow:`, `runs.all`,
+`runs.run`, `action: "guide"`, or `bg_wait` token anywhere);
+`merge_workflow_templates` prepends them lowest (user/project
+same-name wins) and bin/tart merges them ONLY when the subagents gate
+is on — gate off = zero template bytes on any surface (the frozen
+digests + the s-gates prove it), gate on = the six names appear in
+autocomplete, /-expansion ($@ substitution), and the MOTD [Prompts]
+tier through the EXISTING surfaces. Pinned by `subagents-profiles-
+units` + the suite.
+
+**AC5 (parity + regression + scope).** The default rake task fully
+green (run count > 994 with the new pins; the one base skip unchanged);
+`SEAM_BENCH_OK`; s1–s10 exit 0 cold at the canonical out dirs;
+`s1-tart-mode` completes (TART_MODE_OK); both probe gates OK;
+`WIRE_BODIES_OK` (`2ece7d4b…` + `7360fd1e…` EXACT — the default-off
+bar); `SESSION_GOLDEN_OK`; `subagents-e2e` green with legs A–F; the
+integrated diff vs **8f5620a** touches EXACTLY the two lanes' declared
+17-file set — nothing in `hooks.rb`, `memory*`, `herdr*`, `agent/
+loop.rb`, `print.rb`, the session/system_prompt/bridge/status/
+context_files agent files, the four existing schema members,
+`shapes/**`, `models.rb`, `compaction.rb`, the seven tool bodies +
+`safe_execute` + `output_accumulator` + `support/**`, `mcp*`,
+`render/**`, `identity/skills/prompts/theme/tui/commands/settings`,
+`core/**`, gemspec/lock/bench, the rig tree, `test/support/**`, or any
+test file outside the declared set.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse subagents-profiles-intercom` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/parity-gate-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/parity-gate-s6
+  expect:
+    exit_code: 0
+
+- id: s7-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7
+  expect:
+    exit_code: 0
+
+- id: s8-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml --out tmp/parity-gate-s8
+  expect:
+    exit_code: 0
+
+- id: s9-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s9_startup_help.yml --out tmp/parity-gate-s9
+  expect:
+    exit_code: 0
+
+- id: s10-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s10_editor_wrap.yml --out tmp/parity-gate-s10
+  expect:
+    exit_code: 0
+
+- id: s1-tart-mode
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_tart.yml --out tmp/parity-gate-s1tart; ec=$?; if [ "$ec" -gt 1 ]; then exit 1; fi; ruby -rjson -e 's = JSON.parse(File.read("tmp/parity-gate-s1tart/summary.json"))["runs"][0]["apps"]["tart"]; abort "tart incomplete" unless s["completed"] && s["requests"] == s["expected_requests"]; puts "TART_MODE_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: TART_MODE_OK
+
+- id: tool-pending-gate
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tool-pending-probe --gate --out tmp/i49-tp
+  expect:
+    exit_code: 0
+    stdout_match: TOOL_PENDING_GATE_OK
+
+- id: user-bash-stream-gate
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    test -x gems/tui-split-rig/bin/user-bash-stream-probe && gems/tui-split-rig/bin/user-bash-stream-probe --gate --out tmp/i49-ubs
+  expect:
+    exit_code: 0
+    stdout_match: USER_BASH_STREAM_GATE_OK
+
+- id: wire-bodies
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    rm -rf tmp/i49-wire && env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/i49-wire >/dev/null 2>&1; ec=$?; [ "$ec" -eq 0 ] || exit 1; ruby -rjson -rdigest -e 'bodies = File.readlines("tmp/i49-wire/run-1/tart-requests.jsonl").map { |l| Digest::SHA256.hexdigest(JSON.generate(JSON.parse(l)).gsub("tmp/i49-wire/run-1/sandbox", "<SBX>")) }; tools = Digest::SHA256.hexdigest(JSON.generate(JSON.parse(File.readlines("tmp/i49-wire/run-1/tart-requests.jsonl")[0])["body"]["tools"])); abort "request-body bytes moved: #{bodies.inspect}" unless bodies == ["2ece7d4b875c98590b2f839814a0d3444fbfe1a8514b09c17d000663466c25d2"]; abort "tool declarations moved: #{tools}" unless tools == "7360fd1ec6419b5f9966c3067588314cdd0d29231a78346443a0002923c23707"; puts "WIRE_BODIES_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: WIRE_BODIES_OK
+
+- id: session-golden
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec ruby -Ilib -e 'require "tart"; require "tmpdir"; require "json"; require "digest"; FakeMsg = Struct.new(:role, :attrs) do def to_h = attrs end; VOLATILE = %w[id parentId timestamp parentSession cwd firstKeptEntryId].freeze; normalize = lambda do |obj|; case obj; when Hash then obj.each_with_object({}) { |(k, v), h| h[k] = VOLATILE.include?(k) && !v.nil? ? "<#{k}>" : normalize.call(v) }; when Array then obj.map { |v| normalize.call(v) }; else obj; end; end; digest_lines = lambda { |path| Digest::SHA256.hexdigest(File.readlines(path).map { |l| JSON.generate(normalize.call(JSON.parse(l))) }.join("\n")) }; out = {}; Dir.mktmpdir do |dir|; root = File.join(dir, "agent"); plain = Tart::Agent::Session::Recorder.new(cwd: dir, root: root); plain.append_message(FakeMsg.new(:user, {role: "user", content: "list the files"})); plain.append_message(FakeMsg.new(:assistant, {role: "assistant", content: nil, tool_calls: [{id: "call_1", name: "ls", arguments: {path: "."}}]})); plain.append_message(FakeMsg.new(:tool, {role: "tool", tool_call_id: "call_1", content: "fixture.txt"})); plain.append_message(FakeMsg.new(:assistant, {role: "assistant", content: "the listing is above"})); rec = Tart::Agent::Session::Recorder.new(cwd: dir, root: root); rec.append_message(FakeMsg.new(:user, {role: "user", content: "list the files"})); rec.append_message(FakeMsg.new(:assistant, {role: "assistant", content: nil, tool_calls: [{id: "call_1", name: "ls", arguments: {path: "."}}]})); rec.append_message(FakeMsg.new(:tool, {role: "tool", tool_call_id: "call_1", content: "fixture.txt"})); rec.append_message(FakeMsg.new(:assistant, {role: "assistant", content: "the listing is above"})); rec.append_bash_execution(Tart::Agent::Session.bash_execution_message(command: "echo hi", output: "hi", exit_code: 0, cancelled: false, truncated: false, full_output_path: nil)); rec.append_compaction(summary: "Earlier turns summarized.", first_kept_entry_id: nil, tokens_before: 15, details: "auto"); forked = Tart::Agent::Session::Recorder.new(cwd: dir, root: root, parent_session: rec.path); forked.append_message(FakeMsg.new(:user, {role: "user", content: "after the fork"})); out[:plain] = digest_lines.call(plain.path); out[:plain_context] = Digest::SHA256.hexdigest(JSON.generate(Tart::Agent::Session.context_messages(plain.path))); out[:plain_roles] = Tart::Agent::Session.context_messages(plain.path).map { |m| m[:role] }.inspect; out[:primary] = digest_lines.call(rec.path); out[:forked] = digest_lines.call(forked.path); out[:context] = Digest::SHA256.hexdigest(JSON.generate(Tart::Agent::Session.context_messages(rec.path))); out[:fork_roles] = Tart::Agent::Session.context_messages(forked.path).map { |m| m[:role] }.inspect; end; want = {plain: "928183de7736e9ad59237d6eb4bf7eb0215f8933ac1e1c2c4d8cb0e61ca38728", plain_context: "d3c1574f049f9688309656a21d42100e32b0203025f77f8afbed70819cb228ee", plain_roles: "[:user, :assistant, :tool, :assistant]", primary: "cb29e42e1ba9ecc29e28ce3d833e68fbd8f17ddfa2700b02b1b6bd98b24baa29", forked: "3a5f6d606f5952fd2e0e25bf085d442c386d18bb0d60a0bdd7c43b04b203ae8d", context: "f75f99b4516b3e69f41d847fb5266d7cac897e3fd320190f588d83e26497a029", fork_roles: "[:user, :user]"}; bad = want.keys.select { |k| out[k] != want[k] }; abort "session bytes moved: #{bad.map { |k| [k, out[k]] }.inspect}" unless bad.empty?; puts "SESSION_GOLDEN_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: SESSION_GOLDEN_OK
+
+- id: subagents-profiles-units
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec ruby -Ilib -Itest - <<'I49GATE'
+    # I49 gate: subagents-profiles-units — profiles + intercom + workflow
+    # templates, the driven surface. RED at base by design (Profiles does
+    # not exist). Hermetic: staged HOME/cwd, MockLLMServer, real child.
+    require "tart"
+    require "support/mock_llm_server"
+    require "tmpdir"
+    require "fileutils"
+    require "json"
+
+    # --- staging: staged HOME (user tier under it), project cwd, server
+    home = Dir.mktmpdir("i49p-h")
+    cwd = Dir.mktmpdir("i49p-c")
+    ENV["HOME"] = home
+    server = MockLLMServer.new.start
+    server.script([{type: :slow_stream, content: "child slow answer", chunk_every: 0.4}])
+    RubyLLM.configure { |c| c.openai_api_key = "t"; c.openai_api_base = server.url }
+    ENV["PI_API_KEY"] = "t"
+    ENV["PI_API_BASE"] = server.url
+
+    # --- AC4 first: the workflow template tier (gate-on data, gate-off merge)
+    names = Tart::Subagents::WORKFLOW_TEMPLATES.map(&:name).sort
+    abort "six workflow templates: #{names.inspect}" unless names ==
+      %w[council gather-context-and-clarify parallel-cleanup parallel-research parallel-review review-loop]
+    council = Tart::Subagents::WORKFLOW_TEMPLATES.find { |t| t.name == "council" }
+    abort "council description bytes" unless council.description ==
+      "Run a bounded supervisor-mediated council of advisors and write a decision memo"
+    abort "council argument-hint bytes: #{council.argument_hint.inspect}" unless council.argument_hint ==
+      "<question> [--advisors name,name] [--max-passes 2|3] [--scope ...] [--non-goals ...]"
+    %w[parallel-research parallel-review parallel-cleanup review-loop gather-context-and-clarify].each do |n|
+      t = Tart::Subagents::WORKFLOW_TEMPLATES.find { |x| x.name == n }
+      abort "template #{n} must carry content" if t.content.to_s.strip.empty?
+      %w[workflow: runs.all runs.run action: "guide" bg_wait].each do |tok|
+        abort "template #{n} must not reference cut machinery (#{tok})" if t.content.include?(tok)
+      end
+    end
+    review = Tart::Subagents::WORKFLOW_TEMPLATES.find { |t| t.name == "parallel-review" }
+    abort "P0/P1/P2 vocabulary must port" unless review.content.include?("P0") && review.content.include?("Merge verdict")
+    abort "council must inline the protocol" unless council.content.include?("council-") &&
+      council.content.include?("oracle") && council.content.downcase.include?("memo")
+    user_tpl = Tart::Prompts::Template.new(name: "council", description: "user override", argument_hint: nil,
+      content: "USER WINS", file_path: "/x/council.md")
+    merged = Tart::Subagents.merge_workflow_templates([user_tpl])
+    abort "user same-name must win the merge" unless merged.find { |t| t.name == "council" }.content == "USER WINS"
+    abort "merge must keep the other builtins" unless merged.size == 6
+    puts "WORKFLOW_TEMPLATES_OK"
+
+    # --- AC1: profiles — both tiers, precedence, contract, unknown-agent
+    agents_user = File.join(home, ".tart", "agents")
+    agents_proj = File.join(cwd, ".tart", "agents")
+    FileUtils.mkdir_p([agents_user, agents_proj])
+    File.write(File.join(agents_user, "researcher.md"), <<~MD)
+      ---
+      name: researcher
+      description: Fast codebase recon
+      tools: read, grep, find, ls, bash
+      model: mock/glm-profile:high
+      thinking: high
+      systemPromptMode: replace
+      inheritProjectContext: true
+      ---
+
+      You are the researcher. Find things.
+    MD
+    File.write(File.join(agents_proj, "worker.md"), <<~MD)
+      ---
+      description: PROJECT OVERRIDE WORKER
+      tools: read, grep
+      ---
+
+      Project-tier worker body.
+    MD
+    File.write(File.join(agents_user, "broken.md"), <<~MD)
+      ---
+      tools: read, sabotage
+      ---
+
+      Body that must never load.
+    MD
+    result = Tart::Subagents::Profiles.discover(cwd: cwd, root: File.join(home, ".tart"), env: ENV)
+    abort "broken file must diagnostic, not raise: #{result.diagnostics.inspect}" unless
+      result.diagnostics.any? { |d| d.path.end_with?("broken.md") }
+    table = Tart::Subagents::Profiles.resolve_table(cwd: cwd, root: File.join(home, ".tart"), env: ENV)
+    abort "builtins stay in the table" unless table.keys.sort.first == "oracle" && table.key?("reviewer")
+    r = table["researcher"]
+    abort "user profile tools: #{r[:tools].inspect}" unless r[:tools] == %w[read grep find ls bash]
+    abort "user profile model" unless r[:model] == "mock/glm-profile:high"
+    abort "user profile prompt" unless r[:system_prompt].include?("You are the researcher.")
+    w = table["worker"]
+    abort "project tier must override the builtin: #{w[:source].inspect}" unless
+      w[:source] == :project && w[:system_prompt].include?("Project-tier worker body.") && w[:tools] == %w[read grep]
+    spec = Tart::Subagents::Profiles.resolve("researcher", cwd: cwd, root: File.join(home, ".tart"), env: ENV)
+    abort "resolve returns the spec" unless spec[:name] == "researcher"
+    begin
+      Tart::Subagents::Profiles.resolve("researchr", cwd: cwd, root: File.join(home, ".tart"), env: ENV)
+      abort "unknown agent must raise"
+    rescue ArgumentError => e
+      abort "unknown-agent shape: #{e.message.inspect}" unless
+        e.message.include?("Did you mean 'researcher'?") && e.message.include?("Available agents:")
+    end
+    puts "PROFILES_OK"
+
+    # --- AC3: the bridge + the real spawn (profile routing, argv/env)
+    bridge = Tart::Subagents::Supervisor.apply_bridge(r)
+    abort "bridge unions the tool last: #{bridge[:tools].last}" unless bridge[:tools] == %w[read grep find ls bash contact_supervisor]
+    abort "bridge appends the instruction" unless bridge[:system_prompt].end_with?(Tart::Subagents::Supervisor::BRIDGE_INSTRUCTION)
+    instr = Tart::Subagents::Supervisor::BRIDGE_INSTRUCTION
+    abort "bridge marker" unless instr.start_with?("Intercom orchestration channel:\n")
+    abort "bridge template bytes" unless instr.include?('contact_supervisor({ reason: "need_decision", message: "<question>" })') &&
+      instr.include?("Do not use contact_supervisor for routine completion handoffs.")
+    abort "request custom type" unless Tart::Subagents::Supervisor::REQUEST_CUSTOM_TYPE == "subagent_supervisor_request"
+    hooks = Tart::Hooks.new
+    kernel_calls = []
+    kernel = Object.new
+    def kernel.async(&blk)
+      (@kernel_calls ||= []) << blk
+    end
+    manager = Tart::Subagents::Manager.new(cwd: cwd, home: File.join(home, "subagents"),
+      env: ENV, identity: "pi", hooks: hooks, kernel: kernel, agent: nil)
+    run = manager.spawn_run(agent: "researcher", task: "look around", async: true, timeout_ms: 0)
+    argv, env = manager.spawn_argv_and_env(run)
+    tools_flag = argv[argv.index("--tools") + 1]
+    abort "child allowlist gains contact_supervisor last: #{tools_flag}" unless
+      tools_flag == "read,grep,find,ls,bash,contact_supervisor"
+    abort "profile model routing: #{env['PI_MODEL'].inspect}" unless
+      env["PI_MODEL"] == "glm-profile" && env["PI_PROVIDER"] == "mock" && env["PI_THINKING_LEVEL"] == "high"
+    abort "channel env key" unless env["PI_SUPERVISOR_CHANNEL"] == File.join(run[:dir], "control")
+    abort "agent env key" unless env["PI_SUBAGENTS_AGENT"] == "researcher"
+    sanctioned = %w[PATH HOME PI_IDENTITY PI_API_KEY PI_API_BASE PI_MODEL PI_PROVIDER
+      PI_MODEL_REASONING PI_THINKING_LEVEL PI_CONTEXT_WINDOW PI_TOOL_TIMEOUT_MS
+      PI_RUN_DEADLINE_MS PI_SUBAGENTS_HOME PI_SUPERVISOR_CHANNEL PI_SUBAGENTS_AGENT]
+    abort "env closure: #{(env.keys - sanctioned).inspect}" unless (env.keys - sanctioned).empty?
+    prompt_file = File.read(File.join(run[:dir], "system-prompt.md"))
+    abort "system-prompt.md carries the profile + bridge" unless
+      prompt_file.include?("You are the researcher.") && prompt_file.end_with?(instr)
+    puts "BRIDGE_SPAWN_OK"
+
+    # --- AC2: the channel — surface, T1 routing, reply, pending, lifecycle
+    channel = Tart::Subagents::SupervisorChannel.new(home: File.join(home, "subagents"),
+      hooks: hooks, kernel: kernel, agent: nil)
+    channel.start
+    ctrl = File.join(run[:dir], "control")
+    rid = SecureRandom.uuid
+    File.write(File.join(ctrl, "supervisor-requests", "#{rid}.json"), JSON.generate({
+      type: "subagent.supervisor.request", id: rid, createdAt: (Time.now.to_f * 1000).to_i,
+      expiresAt: (Time.now.to_f * 1000).to_i + 60_000, reason: "need_decision",
+      message: "Should I proceed?", expectsReply: true, runId: run[:id], agent: "researcher"}))
+    surfaced = nil
+    30.times do
+      surfaced = hooks.pending_next_turn.find { |p| p[:custom_type] == "subagent_supervisor_request" }
+      break if surfaced
+      sleep 0.1
+    end
+    abort "the ask must surface: #{hooks.pending_next_turn.inspect}" if surfaced.nil?
+    want = "Subagent needs a supervisor decision.\nRun: #{run[:id]}\nAgent: researcher\n\n" \
+      "Should I proceed?\n\nReply with: subagent({ action: \"reply\", reply_to: \"#{rid}\", message: \"...\" })\n\n" \
+      "Live guidance: subagent({ action: \"steer\", id: \"#{run[:id]}\", message: \"...\" }) (Reply to the pending request first.)"
+    abort "surfaced content bytes:\n#{surfaced[:content]}\nwant:\n#{want}" unless surfaced[:content] == want
+    abort "the ask displays" unless surfaced[:display] == true
+    abort "the ask must kick the wake" if (kernel.instance_variable_get(:@kernel_calls) || []).empty?
+    # T1: replies address REQUEST ids only — everything else fails loudly.
+    [{"reply_to" => run[:id]}, {"reply_to" => "researcher"}, {"reply_to" => "stale-id"}].each do |bad|
+      begin
+        channel.reply(reply_to: bad["reply_to"], message: "x")
+        abort "wrong-address reply must raise (#{bad['reply_to']})"
+      rescue ArgumentError => e
+        abort "wrong-address error bytes: #{e.message.inspect}" unless
+          e.message == "No pending supervisor request found for reply_to '#{bad['reply_to']}'."
+      end
+    end
+    begin
+      channel.reply(reply_to: rid, message: "  ")
+      abort "blank reply must raise"
+    rescue ArgumentError => e
+      abort "blank-message error" unless e.message == "message is required for supervisor replies."
+    end
+    reply_files = Dir.glob(File.join(ctrl, "supervisor-replies", "*"))
+    abort "wrong-address replies must never write a file" unless reply_files.empty?
+    pend = channel.pending_text
+    abort "pending line: #{pend.inspect}" unless
+      pend.start_with?("- #{rid}: researcher [#{run[:id]}] need_decision. Reply: subagent({ action: \"reply\", reply_to: \"#{rid}\"")
+    receipt = channel.reply(reply_to: rid, message: "GO AHEAD")
+    abort "reply receipt bytes: #{receipt.inspect}" unless receipt == "Replied to supervisor request #{rid}."
+    abort "reply file written" unless File.exist?(File.join(ctrl, "supervisor-replies", "#{rid}.json"))
+    payload = JSON.parse(File.read(File.join(ctrl, "supervisor-replies", "#{rid}.json")))
+    abort "reply file shape: #{payload.inspect}" unless
+      payload["type"] == "subagent.supervisor.reply" && payload["requestId"] == rid && payload["message"] == "GO AHEAD"
+    abort "request unlinked after reply" if File.exist?(File.join(ctrl, "supervisor-requests", "#{rid}.json"))
+    sleep 1.0
+    abort "pending empties: #{channel.pending_text.inspect}" unless channel.pending_text == "No pending supervisor requests."
+    # progress_update never surfaces (pi's rule)
+    pid2 = SecureRandom.uuid
+    File.write(File.join(ctrl, "supervisor-requests", "#{pid2}.json"), JSON.generate({
+      type: "subagent.supervisor.request", id: pid2, createdAt: (Time.now.to_f * 1000).to_i,
+      reason: "progress_update", message: "half done", expectsReply: false, runId: run[:id], agent: "researcher"}))
+    sleep 1.0
+    abort "progress must never surface" if hooks.pending_next_turn.any? { |p| p[:content].to_s.include?("half done") }
+    abort "progress request consumed" if File.exist?(File.join(ctrl, "supervisor-requests", "#{pid2}.json"))
+    puts "CHANNEL_OK"
+
+    # --- AC2: the child tool in-process (progress, reply wait, timeout, inert)
+    tool_env = {"PI_SUPERVISOR_CHANNEL" => ctrl, "PI_SUBAGENTS_AGENT" => "researcher",
+      "PI_INTERCOM_ASK_TIMEOUT_MS" => "600", "PATH" => ENV["PATH"], "HOME" => home}
+    tool = Tart::Tools::ContactSupervisor.new(cwd: cwd, env: tool_env)
+    prog = tool.execute(reason: "progress_update", message: "status ping")
+    abort "progress result bytes: #{prog.inspect}" unless prog == "Supervisor progress update queued."
+    preq = Dir.children(File.join(ctrl, "supervisor-requests")).map { |f| JSON.parse(File.read(File.join(ctrl, "supervisor-requests", f))) }
+    abort "progress request file shape: #{preq.inspect}" unless
+      preq.any? { |q| q["reason"] == "progress_update" && q["expectsReply"] == false && q["runId"] == run[:id] }
+    blank = tool.execute(reason: "need_decision", message: " ")
+    abort "validation error shape: #{blank.inspect}" unless
+      blank.is_a?(Hash) && blank[:error] == "message is required for supervisor decisions and progress updates."
+    # blocking ask: a thread answers after the request lands
+    answered = Queue.new
+    Thread.new do
+      40.times do
+        files = Dir.children(File.join(ctrl, "supervisor-requests")).reject { |f| f.start_with?(".") }
+        ask = files.map { |f| JSON.parse(File.read(File.join(ctrl, "supervisor-requests", f))) }
+                  .find { |q| q["expectsReply"] }
+        if ask
+          sleep 0.2
+          File.write(File.join(ctrl, "supervisor-replies", "#{ask['id']}.json"), JSON.generate({
+            type: "subagent.supervisor.reply", requestId: ask["id"],
+            createdAt: (Time.now.to_f * 1000).to_i, message: "YES PROCEED"}))
+          answered << ask["id"]
+          break
+        end
+        sleep 0.05
+      end
+    end
+    got = tool.execute(reason: "need_decision", message: "may I proceed?")
+    abort "reply result bytes: #{got.inspect}" unless got == "**Reply from supervisor:**\nYES PROCEED"
+    ask_id = answered.pop
+    abort "the ask unlinks on consumption" if File.exist?(File.join(ctrl, "supervisor-requests", "#{ask_id}.json"))
+    # timeout path (short ask timeout; nothing answers)
+    tool2 = Tart::Tools::ContactSupervisor.new(cwd: cwd,
+      env: tool_env.merge("PI_INTERCOM_ASK_TIMEOUT_MS" => "250"))
+    t0 = Process.clock_gettime(Process::CLOCK_MONOTONIC)
+    timed = tool2.execute(reason: "need_decision", message: "anyone?")
+    dt = Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0
+    abort "timeout error: #{timed.inspect}" unless
+      timed.is_a?(Hash) && timed[:error] == "Timed out waiting for supervisor reply."
+    abort "timeout must honor the env bound (#{dt}s)" unless dt < 10
+    # inert (no channel)
+    inert = Tart::Tools::ContactSupervisor.new(cwd: cwd, env: {"PATH" => ENV["PATH"], "HOME" => home})
+    res = inert.execute(reason: "need_decision", message: "x")
+    abort "inert tool answers the no-channel error: #{res.inspect}" unless
+      res.is_a?(Hash) && res[:error] == "No supervisor channel configured for this session."
+    # the parent tool actions route through the manager's channel
+    parent_tool = Tart::Tools::Subagent.new(manager: manager)
+    pend2 = parent_tool.execute(action: "pending")
+    abort "pending action: #{pend2.inspect}" unless pend2 == "No pending supervisor requests."
+    bad = parent_tool.execute(action: "reply", reply_to: "nope", message: "x")
+    abort "reply action error shape: #{bad.inspect}" unless
+      bad.is_a?(Hash) && bad[:error] == "No pending supervisor request found for reply_to 'nope'."
+    puts "CHILD_TOOL_OK"
+
+    channel.stop
+    manager.shutdown
+    server.stop
+    FileUtils.rm_rf(home)
+    FileUtils.rm_rf(cwd)
+    puts "SUBAGENTS_PROFILES_UNITS_OK"
+    I49GATE
+  expect:
+    exit_code: 0
+    stdout_match: SUBAGENTS_PROFILES_UNITS_OK
+
+- id: subagents-e2e
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    out=$(bundle exec ruby -Itest test/subagents_e2e_test.rb 2>&1); ec=$?; echo "$out" | tail -5; [ "$ec" -eq 0 ] && echo "$out" | grep -qE '^[1-9][0-9]* runs, [1-9][0-9]* assertions, 0 failures' && echo "$out" | grep -q 'i48-e2e' && echo SUBAGENTS_E2E_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUBAGENTS_E2E_OK
+
+- id: scope
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only 8f5620a HEAD | grep -qvE '^(lib/tart/subagents/profiles\.rb|lib/tart/subagents/supervisor\.rb|lib/tart/subagents/workflows\.rb|lib/tart/tools/contact_supervisor\.rb|lib/tart/schemas/subagents\.rb|lib/tart/subagents\.rb|lib/tart/subagents/manager\.rb|lib/tart/tools/subagent\.rb|lib/tart/tools\.rb|lib/tart/tools/registry\.rb|lib/tart/schemas\.rb|bin/tart|README\.md|test/subagents_test\.rb|test/subagents_profiles_test\.rb|test/subagents_intercom_test\.rb|test/subagents_e2e_test\.rb)$'; then exit 1; else echo SCOPE_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
+
+Judge note (gate-literal discipline, the I45/I47/I48 lesson): the
+`subagents-profiles-units` gate drives the driven surface at the names
+the Specification §1/§4/§5/§6/§7 fixes (`Profiles.discover/
+resolve_table/resolve`, `Supervisor.apply_bridge/BRIDGE_INSTRUCTION/
+REQUEST_CUSTOM_TYPE`, `SupervisorChannel#start/#stop/#reply/
+#pending_text`, `Tools::ContactSupervisor`, `WORKFLOW_TEMPLATES/
+merge_workflow_templates`, the Manager's `root:`/`supervisor_channel`
+seams). Its literals were authored against the instrument's real
+shapes (`pending_next_turn` hashes, `{error:}` results, 0.1s/char
+pacing, `SecureRandom.uuid` request ids). If a frozen literal proves
+mechanically unsatisfiable against the built surface, the judge runs
+the minimally-repaired equivalent, records the defect, never amends
+silently — but the SPEC-level names are the contract; builder
+deviations are PHASE 0 items, not gate fixes.
 
 ## Builder Prompt
 
