@@ -825,10 +825,181 @@ re-pin only).
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I46-zai-provider-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section zai-provider prompt --append --lane <lane> --from build/I46-zai-provider-<lane>/prompt.md`. -->
+# Lane prompt — I46 zai-provider, lane `zai` (sole lane)
+
+You are the builder for LANE `zai` of iteration I46 zai-provider (space
+20261009-pi-port, repo repos/tart, worktree provisioned from frozen base
+a236876, branch lane/I46-zai-provider-zai). This prompt is your
+complete, self-contained contract. You never commit; you write code +
+tests in your worktree and a scratch report at
+build/I46-zai-provider-zai/report.md. PHASE 0 discipline applies:
+disagreements with this contract are RESEARCHED (pi source at
+repos/pi, the gem at …/gems/ruby_llm-2.1.0, the frozen iteration file
+architecture/I46-zai-provider.md) and ITEMIZED in your report's PHASE 0
+section — never silently implemented differently, never silently
+blocking.
+
+## Mission
+
+Port pi's zai dialect so tart runs glm-5.3 on the z.ai coding endpoint
+exactly as the owner's pi does — per-model `compat` parsed from the
+catalog, applied at the ONE request seam (the I36 before_request hook)
+— while EVERY existing config (no compat entries) produces
+byte-identical wire, screen, and session output. The fireworks default
+boot is untouched. NO live z.ai call (no key; static contract only).
+
+## Grounding you may rely on (verified; re-cite in code comments)
+
+- pi dialect: openai-completions.ts :880-892 (the zai arm —
+  `thinking` object, `clear_thinking` only on enabled, mapped
+  `reasoning_effort` when supportsReasoningEffort), :749-755 (the
+  clamped effort input; clamped "off" = NO effort), :855-860
+  (`tool_stream: true` iff zaiToolStream AND request tools), :1233
+  (`instructionRole = model.reasoning && compat.supportsDeveloperRole ?
+  "developer" : "system"`), :841-848 (maxTokensField), :1593-1605 +
+  :1621-1675 (detection — NOT ported, OQ-2), :1701-1722 (compat
+  override merge), compat-schema.ts (all keys optional,
+  additionalProperties true, thinkingFormat union of 11 literals,
+  maxTokensField union of the two), compaction.ts :605-607 (the
+  summarization carries the session level).
+- The owner's live catalog (~/.pi/agent/models-store.json, read into
+  the frozen Grounds §3): glm-5.3 compat = {supportsStore:false,
+  supportsDeveloperRole:false, supportsReasoningEffort:true,
+  maxTokensField:"max_tokens", thinkingFormat:"zai",
+  supportsStrictMode:true, zaiToolStream:true}; thinkingLevelMap
+  {off:null, minimal:null, low:"low", medium:null, high:"high",
+  xhigh:null, max:"max"} (DEFAULT level medium clamps FORWARD to high).
+- ruby_llm 2.1.0: no zai provider (rides the openai slug via
+  Models.wire_provider — NO gem work); protocols/chat_completions/
+  chat.rb :96-99 (`max_completion_tokens` iff slug openai/azure),
+  :376-383 (`format_role`: system→"developer" unless
+  config.openai_use_system_role — the hook rewrites instead: one
+  context per chat, the config flip goes stale across switches),
+  :85-90 (the gem's own reasoning_effort path — inert for tart);
+  protocol.rb :134-157 (before_request hooks run LAST on the
+  symbol-keyed payload).
+- tart: the I36 hook (loop.rb install_thinking_seam :592-625), the
+  catalog family (models.rb / schemas/models.rb / shapes/model.rb),
+  the threading map (bin/tart :458-464 boot kwargs + :300-313 Loop.new;
+  print.rb :66-79; render/chat.rb :1861-1881 apply_model_selection,
+  the legacy wrap :1870-1871, boot_model_entry :1908-1921).
+
+## The contract (the frozen Specification, condensed — the file governs)
+
+1. **Schema** (Schemas::Models CatalogContract): per-model `compat`
+   object; rules AFTER contextWindow/maxTokens; error LINES exactly:
+   `expected an object` / `expected a thinking format` /
+   `expected "max_tokens" or "max_completion_tokens"` /
+   `expected a boolean` at `providers.<key>.models[<i>].compat.<field>`;
+   UNKNOWN compat keys tolerated (the owner's object with
+   supportsStore/supportsStrictMode loads clean); error-as-field.
+2. **Shape**: `Shapes::ModelCompat` (five optional nil-defaulted
+   attributes: thinking_format [11-literal enum], max_tokens_field
+   [two-literal enum], supports_developer_role, supports_reasoning_
+   effort, zai_tool_stream [bools]; omittable-at-construction);
+   `Shapes::Model#compat` DECLARED between thinking_level_map and
+   provider (to_h emission order). The three frozen entry-hash asserts
+   re-pin mechanically (`compat: nil` added): shapes_test :49-57 +
+   :94-111, models_test :69-71 — enumerate them in the report.
+3. **Parse**: build_model constructs the struct (symbolized, five
+   picked, rest ignored); Config gains a nil-defaulted compat reader
+   bridging legacy raw-hash entries the entry_field way.
+4. **The hook** (agent/loop.rb — ONE hook, both paths; compat: kwarg on
+   Loop#initialize AND Loop#switch_model, read at request time):
+   - compat nil / thinking_format != "zai" → TODAY'S hook BYTE-EXACT
+     (I36 effort map+clamp+off-floor; no thinking; no tool_stream; no
+     role rewrite; no rename). This arm is the zero-change bar.
+   - zai arm (thinking_format == "zai"):
+     - @model_reasoning: clamped =
+      Models.clamp_thinking_level(@thinking_level, map:, reasoning:
+      true); effort_present = clamped && clamped != "off";
+      payload[:thinking] = effort_present ? {type: "enabled",
+      clear_thinking: false} : {type: "disabled"}; when effort_present
+      && compat.supports_reasoning_effort == true: mapped =
+      map&.[](clamped.to_sym); payload[:reasoning_effort] =
+      mapped.is_a?(String) ? mapped : clamped; ELSE delete
+      reasoning_effort. NOT @model_reasoning: no thinking object,
+      delete reasoning_effort.
+     - tool_stream: compat.zai_tool_stream == true AND
+       payload[:tools] is a non-empty Array → payload[:tool_stream] =
+       true; otherwise nothing.
+     - role: supports_developer_role_effective =
+       compat.supports_developer_role.nil? ? (thinking_format == "zai"
+       ? false : true) : compat.supports_developer_role; wire role
+       "developer" iff @model_reasoning && effective, else rewrite
+       every payload developer-role message to "system". compat nil:
+       NO rewrite.
+     - max tokens: compat.max_tokens_field == "max_tokens" AND
+       payload.key?(:max_completion_tokens) → payload[:max_tokens] =
+       payload.delete(:max_completion_tokens).
+     - The replay normalization (assistant :reasoning deletion) runs
+       unchanged for BOTH arms. NO store field; NO tool strict.
+5. **Threading**: bin/tart boot kwargs compose compat from
+   resolve_boot_entry(models, boot)&.compat (both boots); print.rb
+   forwards compat:; apply_model_selection passes entry.compat to
+   switch_model, the legacy wrap adds compat: entry.fetch(:compat, nil),
+   boot_model_entry constructs compat: nil. Render/footer/thinking_facts
+   untouched (no screen byte moves).
+6. **README** §Models: compat paragraph + the owner's zai catalog block
+   (apiKey elided), unknown-key tolerance, $ENV apiKey NOT expanded,
+   fireworks default unchanged.
+7. **Tests** (the Specification §5 ten-wire-pin table — build them
+   all; agent_on_kernel(**loop_kwargs) threads compat): the owner
+   dialect (thinking+effort high+tool_stream+system role), the off-edge
+   (String off map → thinking disabled, NO reasoning_effort — OQ-5),
+   supports-false (thinking still rides, no effort), tool_stream
+   tool-gating, the system-role rewrite, the max_tokens rename on a
+   compaction-triggered summarization request (thinking rides it too),
+   non-reasoning zai, compat-nil zero-change (no thinking/tool_stream,
+   developer role, max_completion_tokens), the switch seam (compat
+   swap mid-session + nil restore), print-mode threading. Plus the
+   schema/shape/models pins and the ONE chat_test seam re-pin
+   (:2290-2305 — signature + expected kwargs gain compat: nil; nothing
+   else in chat_test).
+
+## May touch (EXACTLY these; the ```lanes block is the frozen source)
+
+    lib/tart/schemas/models.rb
+    lib/tart/shapes/model.rb
+    lib/tart/models.rb
+    lib/tart/agent/loop.rb
+    lib/tart/print.rb
+    lib/tart/render/chat.rb      (apply_model_selection + boot_model_entry ONLY)
+    bin/tart                     (boot threading ONLY)
+    README.md                    (§Models compat paragraph ONLY)
+    test/schemas_test.rb         (additive)
+    test/shapes_test.rb          (additive + the 2 enumerated re-pins)
+    test/models_test.rb          (additive + the 1 enumerated re-pin)
+    test/agent_loop_test.rb      (additive pins only)
+    test/chat_test.rb            (the 1 enumerated seam re-pin ONLY)
+
+Must not touch: everything else — schemas/{settings,mcp,tools}.rb +
+schemas.rb, shapes/{types,settings,session}.rb + shapes.rb, settings.rb,
+agent/{bridge,session,status,system_prompt,context_files}.rb,
+compaction.rb, tools/**, mcp*, render/** outside the two methods,
+core/**, {commands,identity,skills,prompts,theme,tui}.rb, tart.gemspec,
+Gemfile.lock, bench/**, gems/tui-split-rig/**, test/support/**, every
+test file outside the five above.
+
+## Verification (run in YOUR worktree; the judge re-runs on the tree)
+
+    bundle install --quiet && bundle exec rake          # full suite green
+    bundle exec ruby bench/seam_bench.rb                 # SEAM_BENCH_OK
+    # the frozen gates (see architecture/I46-zai-provider.md ```gates):
+    #   suite bench s1–s10 s1-tart-mode tool-pending-gate
+    #   user-bash-stream-gate wire-bodies session-golden
+    #   zai-wire zai-catalog scope        (all must pass in your tree)
+    # s-gates: canonical SHORT out dirs (tmp/parity-gate-<n>); the
+    # s9 deep-path worktree artifact has seven precedents — if s9 fails
+    # in your worktree, note it, verify at canonical depth, move on.
+
+## Report
+
+build/I46-zai-provider-zai/report.md — PHASE 0 (researched
+disagreements + the re-pin enumeration), what you built (file by file),
+the local gate results table (command / exit / headline), the frozen
+re-pins you made (exact asserts), and any interpretation calls. You
+never commit; the architect integrates.
 
 ## Builder Report
 
