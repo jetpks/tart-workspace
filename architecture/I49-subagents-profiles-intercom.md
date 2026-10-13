@@ -685,8 +685,10 @@ Manager#shutdown), `#reply(reply_to:, message:)`, `#pending_text`,
 `contact_supervisor`, TOOL_CLASSES entry + tools.rb require — D6)
 
 - Constructor `(cwd:, identity: Identity::DEFAULT, session_env: {},
-env: ENV)` — bash's kwarg shape (the Registry.build_tool contract);
-reads `<IDENTITY>_SUPERVISOR_CHANNEL` + `<IDENTITY>_INTERCOM_ASK_
+env: ENV)` — bash's kwarg shape; `Registry.build_tool` gains the
+  one-line ContactSupervisor branch threading `identity:` (the Bash
+  branch precedent at the same seam — registry.rb is in the touch set
+  for the TOOL_CLASSES entry anyway); reads `<IDENTITY>_SUPERVISOR_CHANNEL` + `<IDENTITY>_INTERCOM_ASK_
 TIMEOUT_MS` at construction; unset channel = the inert tool (every
 execute answers the no-channel error string — a parent that somehow
 selects it never crashes).
