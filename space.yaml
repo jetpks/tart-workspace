@@ -1549,7 +1549,7 @@ project:
     ordinal: 39
     file: architecture/I39-editor-undo.md
     freeze_sha: 02bea34c4e1d99f53154e36252f9b31437fee645
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
@@ -1559,6 +1559,13 @@ project:
       - lib/tart/render/chat.rb
       - test/chat_test.rb
       - test/render/**
+      base_sha: ad2bad2867b139bad0a77a962da2fe4cfba2fa5d
+      worktree: build/I39-editor-undo-core/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: 19bda973f34a0cb485a78936289b118c8ab56b8b549f1e2c4862f766c78cf687
       at: '2026-10-12T19:16:09-06:00'
