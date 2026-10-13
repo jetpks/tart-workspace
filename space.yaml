@@ -1518,7 +1518,23 @@ project:
   - name: user-bash-streaming
     ordinal: 38
     file: architecture/I38-user-bash-streaming.md
-    freeze_sha:
+    freeze_sha: fb726eff23e435f432bb2ff022c5829138baf0b0
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/tools/bash.rb
+      - lib/tart/render/user_bash.rb
+      - lib/tart/render/chat.rb
+      - lib/tart/render/bash_block.rb
+      - test/chat_test.rb
+      - test/render/**
+      - test/bash_tool_test.rb
+      - gems/tui-split-rig/bin/user-bash-stream-probe
+      - gems/tui-split-rig/scenarios/probe_user_bash.yml
+      - gems/tui-split-rig/test/**
+    rehearsal:
+      gates_digest: 135fc5fda6d6017e8edde0d816eea65363a7a2500530be7ebfb9540daff7fea9
+      at: '2026-10-12T18:02:33-06:00'
   integration_branch: project/pi-port
