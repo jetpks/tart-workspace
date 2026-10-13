@@ -382,8 +382,10 @@ happens on the loop fiber and worker threads).
 
 ### 1.1 Event dispatch
 
-- `on(channel, &handler)` — appends (channel = String or Symbol; the loop's
-  event vocabulary + arbitrary channels like `"herdr:blocked"`). Returns an
+- `on(channel, &handler)` — appends (channel = String or Symbol, normalized
+  to the String form; dispatch keys off the event's `:type`/`"type"` value
+  normalized the same way — the loop's symbol-keyed events and String
+  channels like `"herdr:blocked"` meet on one table). Returns an
   unsubscribe Proc.
 - `emit(event, context:)` — dispatches to the channel's handlers in
   REGISTRATION order; the handler list is snapshotted before dispatch
@@ -446,12 +448,11 @@ happens on the loop fiber and worker threads).
 
 ### 1.3 register_tool / register_command
 
-- `register_tool(tool)` — takes a `RubyLLM::Tool` instance; the boot merges
-  registered tools into the loadout AFTER built-ins and MCP tools (pi:
-  extension tools append; same-name OVERRIDES — OQ-8). The memory tool is
-  the first consumer (§4). Registered tools DO NOT pass through the §1.2
-  gate double-wrap problem — they pass through the gate exactly once (the
-  gate wraps the final loadout uniformly).
+- `register_tool(tool)` — takes a `RubyLLM::Tool` instance; **`Registry.build(
+  …, hooks:)` performs the merge**: registered tools append AFTER built-ins
+  and MCP tools (pi: extension tools append; same-name OVERRIDES — OQ-8) and
+  the merged loadout passes through the §1.2 gate uniformly (one wrap, never
+  two). The memory tool is the first consumer (§3).
 - `register_command(name, description:, args: false, &handler)` — merged
   into the command surface: `Commands.builtin_name` matching runs FIRST
   (a registered name can never shadow a builtin — OQ-8); registered
@@ -459,7 +460,8 @@ happens on the loop fiber and worker threads).
   prefix `"/name "` when `args: true`), dispatch in registration order, and
   list in the autocomplete (`Render::SlashSource`) and `/help`. The
   Handler consults the hooks table via an injected callable — the frozen
-  `Commands::BUILTINS` table stays byte-identical.
+  `Commands::BUILTINS` table stays byte-identical. `#registered_commands`
+  entries are `{name:, description:, args:}` Hashes.
 - No consumer ships this iteration beyond the unit pins (both APIs are seam
   surface for ENTRY 6–7).
 
@@ -498,11 +500,13 @@ happens on the loop fiber and worker threads).
 - `Tart::Tools::Registry.build(…, hooks: nil)` — the kwarg threads the
   gate; `hooks.tool_call_handlers?` false (or hooks nil) = unwrapped.
 - `Tart::Memory` — `Memory.register(hooks:, identity: Identity::DEFAULT)`
-  (bin/tart calls it only when the resolved settings gate is on), the
+  (bin/tart calls it only when the resolved settings gate is on; the
+  registration wires the `session_start` handler + `register_tool`), the
   store `Tart::Memory::Store.new(home:, cwd:)` with `#recall_content`
-  (nil when no index), and `Tart::Tools::Memory.new(cwd:, home: nil)` (the
-  tool; `home` nil = the resolved default — `<IDENTITY>_MEMORY_HOME` env
-  else `~/.tart/memory`).
+  (nil when no index), the constant `Tart::Memory::PROMPT_GUIDELINES`
+  (the two bullet Strings), and `Tart::Tools::Memory.new(cwd:, home: nil)`
+  (the tool; `home` nil = the resolved default — `<IDENTITY>_MEMORY_HOME`
+  env else `~/.tart/memory`).
 - `Tart::Herdr` — `Herdr.register(hooks:, env: ENV)` (context comes from
   each emission) and `Tart::Herdr::Reporter.new(socket_path:, timeouts:
   [500, 1500])` with `#report_session(session_ref, pane_id:, reason: nil)`
