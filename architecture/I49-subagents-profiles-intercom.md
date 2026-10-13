@@ -1003,11 +1003,14 @@ call polling for `supervisor-replies/<requestId>.json` until the reply,
 the ask timeout (`<IDENTITY>_INTERCOM_ASK_TIMEOUT_MS`, default
 600_000ms), or a run kill. The parent channel surfaces the ask ONCE
 (`send_next_turn(custom_type: "subagent_supervisor_request", content:
-the §4.4 byte shape, display: true)` + the completion kick idle-
-interactive) and `subagent({ action: "reply", reply_to: <request id>,
-message: })` writes the reply file + receipt `Replied to supervisor
-request <id>.` → the child's NEXT request carries `**Reply from
-supervisor:** <answer>` as the tool result. **The T1 pin**: a reply
+the §4.4 byte shape, display: true)` + the completion kick; an idle
+parent's `wake` delivers the ask as its turn's opening user-role
+text — the parent-loop suite pin — and a busy/print parent's queued
+ask rides the next drain, per OQ-8) and `subagent({ action:
+"reply", reply_to: <request id>, message: })` writes the reply file +
+receipt `Replied to supervisor request <id>.` → the child's NEXT
+request carries `**Reply from supervisor:** <answer>` as the tool
+result (the round trip, pinned by the units gate with a real child). **The T1 pin**: a reply
 addressed to ANYTHING but a pending request id (run id, agent name,
 stale id, blank message) fails loudly (`No pending supervisor request
 found for reply_to '<x>'.` / `message is required for supervisor
@@ -1017,8 +1020,9 @@ terminal-run asks; the timeout error is pi's message verbatim in the
 port's {error:} shape; `action: "pending"` re-reads the ask list (the
 `No pending supervisor requests.` empty line + the `- <id>: <agent>
 [<runId>] <reason>. Reply: …` shape). Pinned by `subagents-profiles-
-units`, `subagents-e2e` (leg E), + the suite's
-`subagents_intercom_test.rb`.
+units` (the child round trip + T1 + lifecycle), the suite's
+`subagents_intercom_test.rb` (the parent-loop wake round trip),
++ `subagents-e2e` (leg E — the print-parent record + bound).
 
 **AC3 (the bridge + spawn integration + the surgical bound).** EVERY
 child spawned under the gate gets `contact_supervisor` unioned into its
@@ -1231,7 +1235,12 @@ test file outside the declared set.
     cwd = Dir.mktmpdir("i49p-c")
     ENV["HOME"] = home
     server = MockLLMServer.new.start
-    server.script([{type: :slow_stream, content: "child slow answer", chunk_every: 0.4}])
+    # the child asks, then answers after its tool result arrives
+    server.script([
+      {type: :stream, tool_calls: [{id: "ask1", name: "contact_supervisor",
+                                    arguments: {reason: "need_decision", message: "may I proceed?"}}]},
+      {type: :stream, content: "CHILD DONE"}
+    ])
     RubyLLM.configure { |c| c.openai_api_key = "t"; c.openai_api_base = server.url }
     ENV["PI_API_KEY"] = "t"
     ENV["PI_API_BASE"] = server.url
@@ -1370,12 +1379,13 @@ test file outside the declared set.
       expiresAt: (Time.now.to_f * 1000).to_i + 60_000, reason: "need_decision",
       message: "Should I proceed?", expectsReply: true, runId: run[:id], agent: "researcher"})
     surfaced = nil
-    30.times do
-      surfaced = hooks.pending_next_turn.find { |p| p[:custom_type] == "subagent_supervisor_request" }
+    60.times do
+      surfaced = hooks.pending_next_turn.find { |p| p[:custom_type] == "subagent_supervisor_request" &&
+        p[:content].to_s.include?("Should I proceed?") }
       break if surfaced
       sleep 0.1
     end
-    abort "the ask must surface: #{hooks.pending_next_turn.inspect}" if surfaced.nil?
+    abort "the synthetic ask must surface: #{hooks.pending_next_turn.inspect}" if surfaced.nil?
     want = "Subagent needs a supervisor decision.\nRun: #{run[:id]}\nAgent: researcher\n\n" \
       "Should I proceed?\n\nReply with: subagent({ action: \"reply\", reply_to: \"#{rid}\", message: \"...\" })\n\n" \
       "Live guidance: subagent({ action: \"steer\", id: \"#{run[:id]}\", message: \"...\" }) (Reply to the pending request first.)"
@@ -1402,7 +1412,7 @@ test file outside the declared set.
     abort "wrong-address replies must never write a file" unless reply_files.empty?
     pend = channel.pending_text
     abort "pending line: #{pend.inspect}" unless
-      pend.start_with?("- #{rid}: researcher [#{run[:id]}] need_decision. Reply: subagent({ action: \"reply\", reply_to: \"#{rid}\"")
+      pend.include?("- #{rid}: researcher [#{run[:id]}] need_decision. Reply: subagent({ action: \"reply\", reply_to: \"#{rid}\"")
     receipt = channel.reply(reply_to: rid, message: "GO AHEAD")
     abort "reply receipt bytes: #{receipt.inspect}" unless receipt == "Replied to supervisor request #{rid}."
     abort "reply file written" unless File.exist?(File.join(ctrl, "supervisor-replies", "#{rid}.json"))
@@ -1410,8 +1420,28 @@ test file outside the declared set.
     abort "reply file shape: #{payload.inspect}" unless
       payload["type"] == "subagent.supervisor.reply" && payload["requestId"] == rid && payload["message"] == "GO AHEAD"
     abort "request unlinked after reply" if File.exist?(File.join(ctrl, "supervisor-requests", "#{rid}.json"))
-    sleep 1.0
-    abort "pending empties: #{channel.pending_text.inspect}" unless channel.pending_text == "No pending supervisor requests."
+    # --- THE ROUND TRIP: the real child's own ask is pending — reply to
+    # ITS request id (leaf routing) and the child must unblock.
+    child_ask = nil
+    40.times do
+      files = Dir.glob(File.join(ctrl, "supervisor-requests", "*.json"))
+      child_ask = files.map { |f| JSON.parse(File.read(f)) }.find { |q| q["message"] == "may I proceed?" }
+      break if child_ask
+      sleep 0.1
+    end
+    abort "the child's ask must be pending: #{Dir.children(File.join(ctrl, 'supervisor-requests')).inspect}" if child_ask.nil?
+    rt = channel.reply(reply_to: child_ask["id"], message: "GO AHEAD")
+    abort "child reply receipt" unless rt == "Replied to supervisor request #{child_ask['id']}."
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 30
+    while manager.runs.find { |x| x[:id] == run[:id] }[:state] == :running &&
+          Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
+      sleep 0.2
+    end
+    final_state = manager.runs.find { |x| x[:id] == run[:id] }[:state]
+    abort "the replied child must complete: #{final_state}" unless final_state == :completed
+    msgs = server.captured_requests.flat_map { |rq| rq["messages"] }
+    unblocked = msgs.any? { |m| m["role"] == "tool" && m["content"].to_s.include?("**Reply from supervisor:**\nGO AHEAD") }
+    abort "the child's next request must carry the supervisor answer (the round trip)" unless unblocked
     # progress_update never surfaces (pi's rule)
     pid2 = SecureRandom.uuid
     atomic_request.call({
@@ -1472,7 +1502,12 @@ test file outside the declared set.
       res.is_a?(Hash) && res[:error] == "No supervisor channel configured for this session."
     # the parent tool actions route through the manager's channel
     parent_tool = Tart::Tools::Subagent.new(manager: manager)
-    pend2 = parent_tool.execute(action: "pending")
+    pend2 = nil
+    30.times do
+      pend2 = parent_tool.execute(action: "pending")
+      break if pend2 == "No pending supervisor requests."
+      sleep 0.1
+    end
     abort "pending action: #{pend2.inspect}" unless pend2 == "No pending supervisor requests."
     bad = parent_tool.execute(action: "reply", reply_to: "nope", message: "x")
     abort "reply action error shape: #{bad.inspect}" unless
