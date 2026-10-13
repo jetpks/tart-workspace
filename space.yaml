@@ -1699,12 +1699,13 @@ project:
       - test/tools_test.rb
       - test/bash_tool_test.rb
       base_sha: 6d8a07914cd1af679053c8ab779fb5241ddbfd9b
-      worktree: build/I43-dry-rb-boundaries-schemas/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: a98271abdae08d09cdb322dfb6ba8a8f9226e9ca
     rehearsal:
       gates_digest: 55d62cc389fa92bb4ad539833eb9b50c8ecff588eba4b2d3e6173949cede353b
       at: '2026-10-13T03:53:22-06:00'
