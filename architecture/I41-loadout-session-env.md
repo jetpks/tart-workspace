@@ -1150,15 +1150,89 @@ STATUS: COMPLETE_WITH_CONCERNS (frozen loadout-pin gate's `golden_tools` literal
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section loadout-session-env verdict --from <file>`. -->
-
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify loadout-session-env`)?
+- **Disagreement rulings** — every PHASE 0 item ruled, none silent; every
+  citation re-verified cold this session (judge session 2026-10-13) against
+  pi's live capture and pi source:
+  1. **The frozen `loadout-pin` gate's `golden_tools` one-word transcription
+     error — ACCEPT, corrected architect-side.** Verified against four
+     independent sources this session: pi's fresh capture
+     (`tmp/i41-base-s8_zero_usage_compaction/run-1/pi-requests.jsonl`
+     request 1 — byte-verified `"- edit: Make precise file edits with exact
+     text replacement, including multiple disjoint edits in one call\n"`),
+     the I32-era capture (`tmp/parity-gate-s8/run-1/pi-requests.jsonl` —
+     identical), pi's own source (`packages/coding-agent/src/core/tools/
+     edit.ts:44` snippet), and the port's `system_prompt.rb` TOOL_SNIPPETS.
+     The gate's `<rules>` golden is byte-for-byte correct (10/10 lines,
+     judge-verified) — the corruption is exactly the one word-phrase in the
+     `<tools>` snippet transcription ("precise changes" for "precise file
+     edits"; pi's edit.ts:46 rule bullet legitimately reads "precise
+     changes" and was untouched). AC2's own letter pins the golden to "pi's
+     captured bytes, Grounds 5" — the corrupt word contradicts the very
+     criterion it implements, and the builder's build-to-the-real-bytes
+     (no system_prompt.rb edit — it already composes them) is the only
+     reading that satisfies the property. BRIEF §8 in tension beside the
+     frozen gate literal: the parity instrument must freeze PI's bytes,
+     never a mis-transcription of them. Correction applied judge-side:
+     3 lines, one word-phrase each (Grounds §5 `<tools>` block, the AC
+     `loadout-pin` `golden_tools` literal, the Builder Prompt's gate copy)
+     — commit 0101851; freeze re-pinned 8c8cd59f → 0101851 (20d1735 —
+     `architect gate` reads the gates at freeze_sha, so the re-pin is what
+     makes the corrected gate the executable truth; the builder's
+     verbatim-fail record against 8c8cd59f stands unchanged in the Builder
+     Report). `architect verify` re-run PASS at the re-pinned freeze; the
+     full gate suite re-run cold: 16/16 PASS including `LOADOUT_PIN_OK`.
+     Nothing weakened: the gate still byte-compares the wire array + both
+     sections — now against the real pi bytes.
+  2. No other disagreements raised; the builder's PHASE 0 verification list
+     (pi settings-manager.ts:82/:104-133, bash.ts:186-250,
+     agent-session.ts:1565-1581, session-manager.ts:987-1080,
+     docs/environment-variables.md, shell.ts:138-149; the port seams +
+     `Process.spawn` unsetenv_others semantics) was spot-checked against
+     source this session — accurate.
+- **Open-question rulings (Grounds §6):**
+  - **OQ-1 — the WIRE tool-declaration order rides the loadout: AFFIRMED
+    (as specced).** The wire tools array is model-visible on every turn;
+    prompt-only parity with a TOOL_CLASSES-ordered wire would be
+    half-parity. BRIEF §8 beside registry.rb:53: pi `_applyToolLoadout`
+    iterates the name list in order — the port now does the same
+    (`selected.to_h`), at default AND under modifiers (pinned by
+    tools_test + the gate's wire assertion).
+  - **OQ-2 — `PI_PROVIDER`'s VALUE is the CATALOG provider key: AFFIRMED.**
+    Readers source `current_model_ref` (interactive) / the boot pair
+    (print), not `chat.model.provider` — a staged `printenv PI_PROVIDER`
+    must read the catalog key (`mock`/`fireworks`) where the wire slug
+    would read `openai`. BRIEF §8 beside bin/tart's reader hash.
+  - **OQ-3 — print-mode SESSION_ID minted ephemeral, SESSION_FILE unset:
+    AFFIRMED.** The honest analog of the standing I07 cut (print records
+    no session); pi's ephemeral shape is id-set/file-unset
+    (session-manager.ts persist=false); a SESSION_FILE pointing at a file
+    that does not exist would be worse than the shape divergence.
+    Print-mode session RECORDING stays closed — reopening it is the
+    owner's call, as its own item.
+  - **OQ-4 — process markers `AI_AGENT`/`PI_CODING_AGENT`: stay OUT,
+    disposition QUEUED (unported).** A different mechanism (process env
+    set at CLI setup and inherited by every child — vs the per-command
+    bash-tool exposure ported here); not cited by the plan letter. No
+    BRIEF §8 scenario exercises them (observable only via `env`
+    inspection inside the agent). Candidate identity-parity backlog item
+    for the owner; no work this iteration, none required.
+- **Acceptance Criteria integrity** — frozen sections unchanged through
+  the builder run (`architect verify` PASS at 8c8cd59f, this session,
+  pre-correction); the single post-build frozen-region change is the
+  authorized transcription correction above (0101851 + re-pin 20d1735),
+  recorded verbatim; `architect verify` PASS at 0101851.
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | `Settings.selected_tools({})` = read,bash,edit,write in order; re-pinned modifier tests green (`+mcp` ⇒ read,bash,edit,write,mcp; `-bash` ⇒ read,edit,write; base-independent pins unmoved — hunk-verified); README row + `--help` Settings paragraph live-verified | §8 | PASS |
+| AC2 | `loadout-pin` GREEN cold: wire array exactly read,bash,edit,write; `<tools>`+`<rules>` byte-equal pi's captured bytes (post-correction literal judge-verified byte-identical to the live capture); inlined-golden system_prompt pin (derivation commented) in the green suite | §8 | PASS |
+| AC3 | `env-pin` 7 runs/22 assertions 0 failures; diff implements copy→scrub-five→truthy-set with `unsetenv_others: true`, run_user plain inheritance (exposes nothing, never scrubs), PI_/TART_/FOO_ prefixes, per-spawn resolution, exactly-pi's-five shape | §8 | PASS |
+| AC4 | `print-identity-pin` 2+2 runs 0 failures (construction forwarding witness + `resolved_context_window` tier readback with namespace isolation); existing no-identity `Print.run` tests green in the suite | §7.4/§8 | PASS |
+| AC5 | suite `790 runs, 3161 assertions, 0 failures, 0 errors, 1 skips` (+13 vs base 777); SEAM_BENCH_OK; s1–s9 + s1-tart exit 0 cold at the CANONICAL out dirs; TART_MODE_OK — the judge's own cold runs, pre- AND post-correction | §7.8/§8 | PASS |
+| AC6 | scope gate SCOPE_OK; judge-verified diff vs 9f8c8d7 = exactly the 14 enumerated files, untracked none; `system_prompt.rb`/`identity.rb`/`chat_test.rb`/`session.rb` untouched; loop.rb = `attr_reader :recorder` + comment only, chat.rb = the one `public` line only | §5 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+- **Iteration — CONTINUE.** The diff is faithful to the spec's letter and
+  pi's mechanics on all three items (loadout, session-env, print
+  identity), and every gate is green cold with the corrected golden
+  byte-identical to pi's live capture — the one defect found was in the
+  architect's own gate transcription, not the builder's work.

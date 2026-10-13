@@ -1599,8 +1599,8 @@ project:
   - name: loadout-session-env
     ordinal: 41
     file: architecture/I41-loadout-session-env.md
-    freeze_sha: 0101851d083332967c6c6a4f65a913ffea9eed8b
-    verdict: pending
+    freeze_sha: '0101851d083332967c6c6a4f65a913ffea9eed8b'
+    verdict: continue
     lanes:
     - name: core
       repo: tart
