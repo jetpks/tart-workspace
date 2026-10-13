@@ -473,10 +473,17 @@ ref; the OQ dispositions from Grounds §5).
   ac: AC4
   cwd: repos/tart
   cmd: |-
+    rm -rf tmp/mmp-gate
     ruby gems/tui-split-rig/bin/model-menu-probe --out tmp/mmp-gate >tmp/mmp-gate.log 2>&1
-    grep -q TIMEOUT tmp/mmp-gate.log && exit 1
-    grep -q 'model-menu-probe\|frames at' tmp/mmp-gate.log || exit 1
-    echo PROBE_OK
+    ok=1
+    for app in pi tart; do
+      for menu in model thinking; do
+        for phase in menu selected; do
+          test -s "tmp/mmp-gate/${app}-${menu}-${phase}.txt" || ok=0
+        done
+      done
+    done
+    test "$ok" -eq 1 && echo PROBE_OK
   expect:
     exit_code: 0
     stdout_match: PROBE_OK
