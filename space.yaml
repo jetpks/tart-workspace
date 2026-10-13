@@ -1633,10 +1633,20 @@ project:
   - name: e2e-session
     ordinal: 42
     file: architecture/I42-e2e-session.md
-    freeze_sha: 8155fd3a3efbc047489eb072e970cd3671bfc3fa
+    freeze_sha: b3d39a128359bed3f3c08ecc93b10a13b4397269
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/print.rb
+      - lib/tart/agent/session.rb
+      - bin/tart
+      - README.md
+      - test/e2e_session_test.rb
+      - test/print_test.rb
+      - test/session_test.rb
     rehearsal:
       gates_digest: 70d0c4a378ef1accc5a7ec2f1b6b43213b3605d35b32a99d4d8966335ae4bd3b
-      at: '2026-10-12T23:06:39-06:00'
+      at: '2026-10-12T23:16:13-06:00'
   integration_branch: project/pi-port
