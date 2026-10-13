@@ -1673,6 +1673,110 @@ git diff --name-only cac2612 → 17 tracked-modified; + 7 untracked new = the 24
 
 STATUS: COMPLETE_WITH_CONCERNS — implementation, suite, bench, session-golden, s-battery (with documented controls) and the repaired-copies of all three new gates are green; three frozen-gate authoring defects (herdr bare abort; hooks unsubscribe expectation; `captured_requests.first["body"]` access) plus the memory byte-bound arithmetic are itemized above and need architect re-pins on the integrated tree.
 
+### rig
+
+# I47 seam-memory — lane `rig` builder report
+
+Worktree: `build/I47-seam-memory-rig/wt` (branch `lane/I47-seam-memory-rig`, base `cac2612`, clean at start). No commits made.
+
+## PHASE 0 — grounding re-verification and itemized deviations
+
+Verified before coding (all claims in the lane prompt checked against real sources):
+
+| Claim | Check | Result |
+|---|---|---|
+| Owner's memory.ts @ stated path, 173 lines | `wc -l` + `md5` | 173 lines, md5 `c9e9c1a2a6ada43c224048d6eaf4d607`; exists |
+| Fixture byte-verbatim | `cmp` after copy | `CMP_OK`, same md5 |
+| memory.ts semantics (DEFAULT_HOME `~/.pi/agent/memory` :13; gitRoot walk file-or-dir :29-38; project key `basename(gitRoot(cwd) ?? cwd)` :44; `MEMORY.md` :7; `memory-recall` nextTurn `display:true` :124) | read source | all verified |
+| pi user-dir extension auto-load, no settings row (`package-manager.ts:2446-2453`) | `repos/pi/packages/coding-agent/src/core/package-manager.ts` | `userDirs.extensions = join(globalBaseDir, "extensions")` block present in the cited window; live run renders the `[Extensions]\n  memory.ts` header row |
+| Runner staging precedents | runner.rb | present as described; **line numbers drifted** — prompt cites `boot_session`/`stage_pi_agent` :201-226, `stage_tart_home` :229-262, `stage_project_resources` :204-250; actual at cac2612: `boot_session` :71, `stage_pi_agent` :160, `stage_tart_home` :216, `stage_project_resources` :250. Substance identical; line refs only. No action. |
+
+**PHASE 0 DEVIATION (itemized; the one behavioral divergence from the letter, with live proof):**
+
+- The letter says: "The rig sandboxes (`<stage>/sandbox/pi`, `<stage>/sandbox/tart`) carry NO .git → the keys are 'pi' and 'tart' per app", pinning index paths `…/memory/pi/MEMORY.md` and `…/.tart/memory/tart/MEMORY.md`.
+- Refuted live: memory.ts's `gitRoot` walk ascends **past** the sandbox (the sandboxes themselves carry no `.git`, but the walk does not stop there). Rig out dirs live **inside the tart checkout** — `wt/.git` is a worktree `.git` FILE (verified on disk) — so the extension's real project key in this worktree is **`wt`**, not `pi`. First pi-only e2e run with the letter's hard-coded keys: extension loaded (`[Extensions] memory.ts` row present) but the recall **no-op'd** — request 1 wire body carried only `system` + `hello` (`tmp/i47-rig-s11pi` first attempt, pi-requests.jsonl), recall block absent from the capture. The letter's key assumption only holds when the out dir sits outside any git checkout (as in the frozen Grounds §6 probe staging); every rig gate runs inside the checkout (lane worktrees now, `repos/tart` at canonical depth — where the key becomes `tart` for both apps).
+- Fix implemented (smallest faithful surface): the runner mirrors memory.ts's exact key rule (`memory_project_key`: walk up from the app's sandbox for a `.git` entry, file or dir, take its basename; fallback = sandbox basename) and stages each app's MEMORY.md under that walked key. Both apps' sandboxes are siblings → same walked key every run → the two apps always read the same frozen index bytes → parity holds in any checkout location. No new staging artifacts, no app-behavior change, no registry class. The unit pins assert the frozen paths where the letter's assumption actually holds (temp sandboxes under the macOS temp root, keys literally `pi`/`tart`) plus a dedicated pin that a `.git` ancestor renames the key (memory.ts:44 rule).
+
+## Files
+
+| File | Change |
+|---|---|
+| `gems/tui-split-rig/fixtures/memory.ts` | NEW — byte-verbatim copy of the owner's memory.ts (173 lines, md5 `c9e9c1a2a6ada43c224048d6eaf4d607`, `cmp` clean at build time). Never edited after copy. |
+| `gems/tui-split-rig/scenarios/s11_memory_recall.yml` | NEW — `s11_memory_recall`, prompt `hello`, `expected_requests: 1`, `stage_memory: true`, one plain stream reply ("Memory recall staged; fixed reply for the scenario."), s1/s9 comment style. |
+| `gems/tui-split-rig/lib/tui_split_rig/scenario.rb` | `stage_memory` flag: doc-comment row, `attr_reader`, `parse_stage_memory` (boolean, default false, rig error on mistype) — mirrors `stage_project_resources` exactly. |
+| `gems/tui-split-rig/lib/tui_split_rig/runner.rb` | `boot_session` calls `stage_memory(app, home:, sandbox:, agent_dir:)` under the flag BEFORE the boot (after `stage_project_resources`); new public pure helper `stage_memory` (pi: fixture → `<agentDir>/extensions/memory.ts` + index → `<agentDir>/memory/<key>/MEMORY.md`; tart: `{"memory" => true}` deep-merged into `<home>/.tart/settings.json` (create-or-update, existing rows survive) + index → `<home>/.tart/memory/<key>/MEMORY.md`); `memory_project_key` (memory.ts:29-44 mirror); `deep_merge` (right-biased, nested); constants `MEMORY_FIXTURE`, `MEMORY_INDEX_MD` (the frozen Grounds §6 two-topic bytes); `:stage_memory` added to the `public :` staging list. No other staging change. |
+| `gems/tui-split-rig/test/scenario_test.rb` | 5 additive pins: flag default-false + shipped-s11 load; non-boolean → rig error; both apps' staged files byte-pinned (fixture VERBATIM, index bytes exact, settings row true); deep-merge keeps compaction rows; project-key walk rule (`.git` file ancestor → its basename). |
+
+`git diff --name-only cac2612` → exactly the 3 modified files above; untracked → `fixtures/` + `s11_memory_recall.yml`. Exactly the 5-file declared set; nothing else touched (no git commands that write history were run; worktree left uncommitted).
+
+## Verification (raw results)
+
+### Full suite + bench
+- `bundle install --quiet && bundle exec rake` → `891 runs, 3838 assertions, 0 failures, 0 errors, 1 skips` (base 886 + 5 new pins; the one base skip unchanged). An earlier full run mid-iteration (before the 5th pin) was `890 runs … 0 failures`.
+- `bundle exec ruby bench/seam_bench.rb` → `SEAM_BENCH_OK`.
+
+### s11 end-to-end, pi-only (the lane's completion requirement)
+Command: `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s11_memory_recall.yml --app pi --out tmp/i47-rig-s11pi` → **EXIT=0**
+
+summary.json (verbatim fields): `{"exit_code":0,"completed":true,"requests":1,"expected_requests":1,"boot_settle_ms":1103,"reply_settle_ms":1089,"capture":"…/wt/tmp/i47-rig-s11pi/run-1/pi.capture","styled_capture":"…/wt/tmp/i47-rig-s11pi/run-1/pi.capture.styled","request_log":"…/wt/tmp/i47-rig-s11pi/run-1/pi-requests.jsonl"}`
+
+Capture (archived path, absolute): `/Users/eric/architect/spaces/20261009-pi-port/build/I47-seam-memory-rig/wt/tmp/i47-rig-s11pi/run-1/pi.capture` — contains the `[Extensions]` + `memory.ts` header rows and the settled recall block matching the frozen Grounds §6 oracle: user row ` hello`, the `[memory-recall]` label, `[project memory] index loaded at session start; use the memory tool (read/list) for topic files:`, and both padded markdown index rows (`- deploy (deploy.md): …`, `- api-notes (api-notes.md): …`), then the assistant reply. Wire check: request 1 messages = `system`, `user "hello"`, `user "[project memory] index loaded…"` (recall rides after the prompt, one request total).
+
+### s11 both-apps at base (RED by design)
+Command: `… run gems/tui-split-rig/scenarios/s11_memory_recall.yml --out tmp/i47-rig-s11-both` → **EXIT=1** (`rig_failure: null`; pi completed 1/1, tart completed 1/1 — a clean diff red, not a rig failure).
+
+Unknown-candidate list (verbatim, 13):
+```
++ttings.json: unknown settings key: memory
+-[Extensions]
+-  memory.ts
+-
+- hello
++[Context]
+- [memory-recall]
+- [project memory] index loaded at session start; use the memory tool (read/list) for topic files:
+- - deploy (deploy.md): deploys via herdr pipeline, stage first
+- - api-notes (api-notes.md): gateway streams SSE, no websockets
++ hello
++
++
+```
+Style unknown (1): `[style]~ "" pi= tart=[fg=rgb:126;136;142,false]"  " -> unknown-candidate`
+
+Expected base families present: the missing recall block (`[memory-recall]` + header + both index rows) and the missing `[Extensions]`/`memory.ts` rows on the tart side, plus their shift rows (`hello`/blank offset), tart's `unknown settings key: memory` row (the core lane's settings row is not yet consumed), tart's `[Context]` section row, and one empty-line style candidate. All should collapse on the integrated tree.
+
+### No-regression battery (all cold, canonical gate out dirs)
+| Gate | Result |
+|---|---|
+| s1_text_turn → `tmp/parity-gate-s1` | EXIT=0 |
+| s2_tool_turn → `tmp/parity-gate-s2` | EXIT=0 |
+| s3_tool_turn_files → `tmp/parity-gate-s3` | EXIT=0 |
+| s4_bash_variants → `tmp/parity-gate-s4` | EXIT=0 |
+| s5_bash_truncation → `tmp/parity-gate-s5` | EXIT=0 |
+| s6_long_calls → `tmp/parity-gate-s6` | EXIT=0 |
+| s7_compaction → `tmp/parity-gate-s7` | EXIT=0 |
+| s8_zero_usage_compaction → `tmp/parity-gate-s8_zero_usage_compaction` | EXIT=1 at lane-worktree depth — KNOWN deep-path artifact, exonerated below |
+| s9_startup_help → `tmp/parity-gate-s9` | EXIT=1 at lane-worktree depth — KNOWN deep-path artifact, exonerated below |
+| s10_editor_wrap → `tmp/parity-gate-s10` | EXIT=0 |
+| s1_tart → `tmp/parity-gate-s1tart` | EXIT=1 (by design) + `TART_MODE_OK` (tart completed, requests == expected) |
+| tool-pending-probe `--gate --out tmp/i47-tp` | EXIT=0, `TOOL_PENDING_GATE_OK` |
+| user-bash-stream-probe `--gate --out tmp/i47-ubs` | EXIT=0, `USER_BASH_STREAM_GATE_OK` |
+
+**s8/s9 deep-path exoneration (four controls, all raw):**
+- s9 candidates at lane depth (2): `- / for commands`, `+ md` (path-wrap shift rows). s8 candidates at lane depth (2): the same rendered out-dir path truncated at different columns by the two apps (`…r` vs `…run-`).
+- MY code, shallow out dir: s9 `--out /tmp/i47-rig-s9-shallow` → EXIT=0; s8 `--out /tmp/i47-rig-s8-shallow` → EXIT=0.
+- BASE code (frozen `repos/tart` checkout, untouched), canonical depth: s9 → EXIT=0; s8 → EXIT=0.
+- The red therefore follows the out-dir path depth, not my diff; the gate calibration's deep-path clause (eight precedents) covers exactly this. The judge's battery runs at canonical depth on the integrated tree.
+
+Rationale note: my runner.rb/scenario.rb edits are behaviorally inert for s8/s9 (both scenarios set neither `stage_memory` nor any new field; the added boot hook is flag-gated), which the shallow-depth controls confirm empirically.
+
+## Residual notes for the judge
+1. The s11 index path uses the walked project key (PHASE 0 deviation above). On the integrated tree at canonical depth (`repos/tart`), both sides compute key `tart` — the tart-side staged path then coincides with the frozen letter (`…/.tart/memory/tart/MEMORY.md`); the pi-side path becomes `…/.pi/agent/memory/tart/MEMORY.md` instead of the letter's `…/memory/pi/`. The Specification §6 path pins should be read as "under the memory.ts project key".
+2. The both-apps base candidate list includes tart's `unknown settings key: memory` row and the `[Context]` row — not named in the prompt's "expected families" but implied by them (they are the tart side not yet consuming the memory row / rendering the section); recorded verbatim above.
+3. The `fixtures/` directory shows as untracked-dir `?? gems/tui-split-rig/fixtures/` in `git status` (contains only `memory.ts`).
+
+STATUS: COMPLETE_WITH_CONCERNS — one itemized deviation from the letter's hard-coded project keys (walked key, live-proven necessary: hard-coded keys leave the recall block unstaged-invisible inside any git checkout); s8/s9 exit 1 only at lane-worktree depth (known artifact, four-control exoneration, canonical depth green).
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
