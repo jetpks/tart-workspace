@@ -389,52 +389,127 @@ border, menu, and wire); the pin matrix is the deliverable's other half.
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse model-catalog-polish` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze model-catalog-polish` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# I40 model-catalog-polish — Acceptance Criteria (scratch → `architect section`)
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC1 (the switch re-clamp, pi's setModel path).** Every model switch through
+`Render::Chat#apply_model_selection` (the /model menu's select, the `/model <ref>`
+direct switch, ctrl+s select-and-persist — one path) resolves the level pi's way:
+level-for-switch = the FILE-DECLARED thinking-level default (project over user;
+absent → keep the session level; per-model tier CUT itemized), then clamped through
+the SWITCHED entry's composed facts (`Models.clamp_thinking_levels` family —
+`clamp_thinking_level`); the effective level lands in BOTH the surface state and the
+loop seam (`set_thinking_level` AFTER `switch_model`, pi's order); NO `Thinking
+level:` status row is enqueued on the switch path. Pinned by chat tests: stored
+`xhigh` → map-less reasoning switch → `high`; → non-reasoning switch → `off`;
+declared default wins over the session level; no-declared keeps an in-set session
+level; out-of-set declared default clamps; the agent spy's call order; the
+no-status-row refute. The tripwire gate (`switch-tier`) is RED at base by design —
+the machinery is this iteration's deliverable; the pins are the proof.
 
-**AC1.** ...
+**AC2 (the boot clamp + the unclamped badge source).** Both boot compositions
+(bin/tart's `footer_data` for interactive, `boot_thinking_kwargs` for print — one
+clamp, both sites) clamp the settings-resolved level through the boot model's
+composed facts: the interactive loop ctor and the surface's session-level fallback
+receive the CLAMPED level; the thinking menu's · default badge source stays
+UNCLAMPED via the new `default_thinking_level:` footer fact (pi marks the unclamped
+default; an out-of-set default marks no row). Pinned by launcher pins
+(`Executable.footer_data`: staged `xhigh` + map-less reasoning →
+`thinking_level: "high"` AND `default_thinking_level: "xhigh"`) and the existing glm
+footer pins stay green. Tripwire gate (`boot-fact`) RED at base by design.
+
+**AC3 (the ✓ letter).** `thinking_menu_items` marks NO current row when the stored
+level is outside the gated set (pi thinking-selector.ts:69-73 — the display-floor is
+deleted); the sealed constructor's preselect rule lands on index 0 when nothing
+matches (pi buildSelectList :101-107). Pinned by a chat test driving the out-of-set
+corner. Tripwire gate (`floor-gone`) RED at base by design.
+
+**AC4 (regression guards + settled screens + probe evidence).** The I28-delivered
+gating and marker cross-resolution stay exactly as shipped (their existing pins
+green, untouched); s1–s9 exit 0 cold on the integrated tree (settled screens
+unmoved — the lane-worktree s9 deep-path exit 1 is the known I34/I36/I39-ruled
+environmental artifact; canonical-depth is the record); the model-menu probe re-runs
+to completion with both apps' model+thinking menu frames captured (no TIMEOUT) and
+its stdout + frames archived under `build/I40-model-catalog-polish/` (evidence, not
+a parity gate — I27's instrument header).
+
+**AC5 (scope discipline).** The integrated diff touches exactly the frozen lane set
+(`lib/tart/render/chat.rb`, `lib/tart/settings.rb`, `bin/tart`, `test/chat_test.rb`,
+`test/settings_test.rb`, `test/launcher_smoke_test.rb`); the report itemizes the
+cuts and the standing deviations (per-model overrides; session-file entries; badge
+ref; the OQ dispositions from Grounds §5).
+
+**AC6 (suite + bench).** `bundle exec rake` fully green with run-count delta > 0
+(base 763 runs / 3092 assertions); `bundle exec ruby bench/seam_bench.rb` prints
+`SEAM_BENCH_OK`.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse model-catalog-polish` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
-```
+- id: suite-green
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench-ok
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-s9-cold
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    status=0
+    for n in 1 2 3 4 5 6 7 8 9; do
+      s="s${n}"
+      case "$n" in 1) s=s1_text_turn;; 2) s=s2_tool_turn;; 3) s=s3_tool_turn_files;; 4) s=s4_bash_variants;; 5) s=s5_bash_truncation;; 6) s=s6_long_calls;; 7) s=s7_compaction;; 8) s=s8_zero_usage_compaction;; 9) s=s9_startup_help;; esac
+      bundle exec ruby gems/tui-split-rig/bin/tui-split-rig run "gems/tui-split-rig/scenarios/${s}.yml" --out "tmp/g${n}" >/dev/null 2>&1 || status=1
+    done
+    test "$status" -eq 0 && echo S_COLD_OK
+  expect:
+    exit_code: 0
+    stdout_match: S_COLD_OK
+
+- id: probe-rerun
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    ruby gems/tui-split-rig/bin/model-menu-probe --out tmp/mmp-gate >tmp/mmp-gate.log 2>&1
+    grep -q TIMEOUT tmp/mmp-gate.log && exit 1
+    grep -q 'model-menu-probe\|frames at' tmp/mmp-gate.log || exit 1
+    echo PROBE_OK
+  expect:
+    exit_code: 0
+    stdout_match: PROBE_OK
+
+- id: switch-tier
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'declared_thinking_level' lib/tart/settings.rb && grep -q 'declared_thinking_level' lib/tart/render/chat.rb && echo SWITCH_TIER_OK
+  expect:
+    stdout_match: SWITCH_TIER_OK
+
+- id: boot-fact
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'default_thinking_level' bin/tart && echo BOOT_FACT_OK
+  expect:
+    stdout_match: BOOT_FACT_OK
+
+- id: floor-gone
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    ! grep -q 'levels.first unless levels.include?' lib/tart/render/chat.rb && echo NO_FLOOR_OK
+  expect:
+    stdout_match: NO_FLOOR_OK
 
 ## Builder Prompt
 
