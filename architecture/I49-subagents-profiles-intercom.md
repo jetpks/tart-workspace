@@ -574,11 +574,12 @@ helpers:
   `system_prompt = "#{spec[:system_prompt]}\n\n#{Supervisor::
   BRIDGE_INSTRUCTION}"` (idempotent — skipped when the prompt already
   contains the marker line).
-- `child_env` (manager.rb:329-353): ONE addition —
+- `child_env` (manager.rb:329-353): TWO additions —
   `env[key.("SUPERVISOR_CHANNEL")] = File.join(run[:dir], "control")`
-  (unconditional for spawned children — the channel dir always exists:
-  the run-dir mkdir gains `control/supervisor-requests` +
-  `control/supervisor-replies`).
+  and `env[key.("SUBAGENTS_AGENT")] = spec[:name]` (unconditional for
+  spawned children — the channel dir always exists: the run-dir mkdir
+  gains `control/supervisor-requests` + `control/supervisor-replies`;
+  the agent label feeds the surfaced ask's `Agent:` line, §5).
 - `Manager#shutdown` also stops the supervisor channel (§4 wiring);
   the Manager gains `attr_accessor :supervisor_channel` (register
   assigns it — the tool reads it through the manager).
@@ -770,7 +771,8 @@ gate-on builtin tier over `Tart::Prompts` — D7)
 - **`test/subagents_test.rb` (MOD — the re-pins + integration pins)**:
   the enumerated re-pins ONLY at the I48 sites — argv `--tools` value
   gains `,contact_supervisor` (:182 + the fork/fresh argv tests),
-  sanctioned env set gains `PI_SUPERVISOR_CHANNEL` (:188-193),
+  sanctioned env set gains `PI_SUPERVISOR_CHANNEL` +
+`PI_SUBAGENTS_AGENT` (:188-193),
   system-prompt.md pins gain the bridge block, and the
   unknown-agent error text re-pinned to the merged-table shape. NEW
   pins in the same file: the bridge union (every spawned child's argv
