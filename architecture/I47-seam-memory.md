@@ -363,35 +363,389 @@ recall rides request 1 after the user message — no extra requests).
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section seam-memory specification --from <file>`. -->
+# Specification — I47 seam-memory
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+Objective: land the minimal internal extension seam — `Tart::Hooks` — with
+registration-order event dispatch, the tool_call block gate, register_tool /
+register_command merges, and nextTurn message injection (BRIEF §6 amended);
+build the owner's memory behavior and the herdr agent-state reporter on it
+natively; pin the memory-recall line's screen parity with a new rig scenario
+(s11). Everything lands BEHIND the no-hook byte bar: with no module active,
+today's bytes hold on screen and on the wire (the frozen digests prove it).
+
+## 1. `Tart::Hooks` (`lib/tart/hooks.rb` — new)
+
+One instance per interactive/print boot (constructed in `bin/tart` /
+`print.rb` wiring), threaded into every `Agent::Loop` construction and the
+tool/command build. Thread-safe (handlers may register from boot; dispatch
+happens on the loop fiber and worker threads).
+
+### 1.1 Event dispatch
+
+- `on(channel, &handler)` — appends (channel = String or Symbol; the loop's
+  event vocabulary + arbitrary channels like `"herdr:blocked"`). Returns an
+  unsubscribe Proc.
+- `emit(event, context:)` — dispatches to the channel's handlers in
+  REGISTRATION order; the handler list is snapshotted before dispatch
+  (mid-dispatch registrations take effect on the next emit); each handler is
+  called `(event, context)`; a handler error is reported ONCE to stderr
+  (`warn "hooks[<channel>] handler failed: <message>"`, the mcp.rb idiom)
+  and SWALLOWED — dispatch continues (pi emit, runner.ts:1089-1120; OQ-4).
+  After handler dispatch the event forwards to the base sink (the surface's
+  `on_agent_event`), UNCHANGED.
+- The context object carries what handlers need at emission sites:
+  `{cwd:, mode: ("tui"|"print"), session: {path:, id:} or nil, identity:}` —
+  built by the emitter (boot wiring), re-read per event where the source
+  moves (`/new` swaps the recorder).
+
+### 1.2 The tool_call gate
+
+- `on_tool_call(&handler)` — the `tool_call` channel with BLOCK semantics:
+  handlers see `(event, context)` where event =
+  `{type: "tool_call", tool_name:, tool_call_id:, input: <Hash>}`; a handler
+  may MUTATE `input` in place and/or return `{block: true, reason:,
+  terminate:}` (pi ToolCallEventResult). Registration order; the first
+  truthy `block` WINS and ends dispatch (pi emitToolCall :1242-1262). NO
+  isolation on this channel: a raised `StandardError` is caught by the gate
+  and converted to a block with the error's message (an `Error` rethrown
+  as-is is pi's semantics; Ruby has one StandardError family — OQ-3's
+  cousin; the wrap string is NOT used since every Ruby raise carries
+  .message). `RubyLLM::CancelledError` ALWAYS propagates (never blocked-on).
+- **Mechanism**: `Tools::Registry.build(selected:, …, hooks: nil)` wraps every
+  built tool (built-ins AND MCP) in a delegating gate object when `hooks`
+  has tool_call handlers — the wrapper intercepts `call(tool_call:, **args)`
+  and delegates everything else (`name`, `description`,
+  `parameters_schema`, `provider_options`, `resume`, …) so the wire
+  declarations stay BYTE-IDENTICAL (the tools digest `7360fd1e…` is the
+  gate's regression proof). Inside the intercepted call, in pi's order
+  (agent-loop.ts:711-781):
+  1. `Schemas::Tools.validate(pi_name, args)` — the I43 one-seam call; a
+     validation failure returns the pinned `{error:}` result WITHOUT
+     dispatching handlers (pi: invalid args never reach handlers). (The
+     inner tool body re-validates — the fail-safe re-validation deviation,
+     OQ-3.)
+  2. dispatch handlers with `input:` the splat-fresh Hash (`**args` in the
+     wrapper's signature is a NEW Hash per call — the recorded ToolCall's
+     arguments object is NEVER handed to handlers and NEVER mutated;
+     pi's structuredClone semantics held by construction, replay bytes
+     untouched).
+  3. blocked → return the `reason` (or `"Tool execution was blocked"`) as a
+     plain String result (OQ-7); when `terminate: true`, record
+     `tool_call_id → terminate` for the batch consult.
+  4. unblocked → `inner.call(**args, tool_call:)` with the (possibly
+     handler-mutated) Hash.
+- **Loop consult**: after each tool-batch step (`message.role == :tool` in
+  `inner_loop`), the loop asks `hooks&.batch_terminate?(ids)` where ids =
+  the preceding assistant message's `tool_calls.map(&:id)`; TRUE iff the
+  batch is non-empty AND every call was a terminate-marked block
+  (shouldTerminateToolBatch, agent-loop.ts:690-691). TRUE → break the inner
+  loop (outer steering semantics unchanged). The terminate ledger clears
+  per batch.
+- With NO tool_call handlers registered, `Registry.build` returns the
+  UNWRAPPED tools (no gate object exists — zero behavior change).
+
+### 1.3 register_tool / register_command
+
+- `register_tool(tool)` — takes a `RubyLLM::Tool` instance; the boot merges
+  registered tools into the loadout AFTER built-ins and MCP tools (pi:
+  extension tools append; same-name OVERRIDES — OQ-8). The memory tool is
+  the first consumer (§4). Registered tools DO NOT pass through the §1.2
+  gate double-wrap problem — they pass through the gate exactly once (the
+  gate wraps the final loadout uniformly).
+- `register_command(name, description:, args: false, &handler)` — merged
+  into the command surface: `Commands.builtin_name` matching runs FIRST
+  (a registered name can never shadow a builtin — OQ-8); registered
+  commands match with pi's per-command shapes (exact when `args: false`,
+  prefix `"/name "` when `args: true`), dispatch in registration order, and
+  list in the autocomplete (`Render::SlashSource`) and `/help`. The
+  Handler consults the hooks table via an injected callable — the frozen
+  `Commands::BUILTINS` table stays byte-identical.
+- No consumer ships this iteration beyond the unit pins (both APIs are seam
+  surface for ENTRY 6–7).
+
+### 1.4 nextTurn injection + session_start
+
+- `send_next_turn(custom_type:, content:, display: false)` — queues
+  `{custom_type:, content:, display:}` (pi sendCustomMessage :2293-2331:
+  no append, no events at send).
+- The LOOP drains the queue at every `add_user_message`: AFTER the user
+  message is added/emitted/recorded, each pending message (FIFO) is
+  delivered as pi delivers it — a user-role chat message carrying the text
+  (`@chat.add_message(role: :user, content:)` — pi convertToLlm :161-170),
+  `emit(:message_start)` / `emit(:message_end)` carrying a
+  `Hooks::CustomMessage` Struct (`role: :custom, custom_type:, content:,
+  display:`), and a session `custom_message` entry (§3). Wire order
+  [system…, user prompt, *customs-as-user] (pi :2086-2095).
+- `session_start`: the boot wiring emits
+  `{type: :session_start, reason:}` through hooks at the three surface
+  points — interactive boot (`"startup"`), `/new` (`"new"`), resume
+  (`"resume"`), and print boot (`"startup"`). No fork/reload (no port
+  surface).
+- The loop's `emit` routes through hooks when present (`hooks:` kwarg,
+  default nil = today's `@on_event` path, byte-identical); the eleven-event
+  vocabulary comment at loop.rb:27-33 is corrected to include
+  `:compaction_start` (the Grounds §2 count correction).
+
+## 2. Session plumbing (`lib/tart/agent/session.rb`)
+
+- `Recorder#append_custom_message(custom_type:, content:, display:)` — the
+  pi `CustomMessageEntry` shape verbatim:
+  `{type: "custom_message", customType:, content:, display:, details: nil
+  (omitted), id:, parentId: leaf, timestamp:}`; leaf advances; the persist
+  gate treats a custom_message as NON-conversation-bearing (pi: only
+  user/assistant/bashExecution open the file — a recall never creates a
+  session file alone).
+- Read path: `Session.entry_to_context_message` gains the `custom_message`
+  arm → `{role: :user, content: <text>}` (the wire replay arm — resume
+  re-sends the recorded recall text, pi sessionEntryToContextMessages
+  :437-459); `Session.load_entries`/`Shapes` tolerate the new type with the
+  existing unknown-entry skip discipline; `context_entries` includes it.
+- The seven frozen session-golden digests DO NOT MOVE (no custom entries in
+  their fixtures).
+
+## 3. Native memory (`lib/tart/memory.rb` — new; tool `lib/tart/tools/memory.rb` — new)
+
+**Gate**: resolved settings key `"memory"` (bool; DEFAULTS gains
+`"memory" => false`; env tier `<IDENTITY>_MEMORY` via RESOLUTION_ENV —
+pi-mode `PI_MEMORY`, tart-mode `TART_MEMORY`; OQ-1). Off (default) → the
+module never registers: no tool, no injection, no MOTD row — today's bytes.
+On → register into hooks at boot (interactive + print) exactly as the
+owner's pi loads memory every session.
+
+**Store**: home = `<IDENTITY>_MEMORY_HOME` env or `~/.tart/memory` (the
+agent root; pi's `~/.pi/agent/memory` → `~/.tart/memory` under the I09
+mapping); project dir = `<home>/<project key>` where project key =
+basename of the git root (walk up for a `.git` FILE or dir) else basename
+of cwd; index `MEMORY.md`. Every constant, bound, slug rule, error string,
+file format, and index-line rule is memory.ts verbatim (Groundings §4 is
+the contract table — RECALL_MAX_LINES 200, RECALL_MAX_BYTES 25_600 with
+line cost bytes+1, SUMMARY_MAX_CHARS 120 with the 119+`…` truncation, the
+exact topic-validation strings and slug regex, the save file
+`---\nmodified: <ISO8601>\n---\n\n<trimmed>\n`, the upsert semantics, and
+the read/list behaviors).
+
+**Recall**: a `session_start` handler (any reason) reads the project index;
+missing → no-op; else the bounded content (header + index + optional
+truncation notice, joined with "\n") goes out as
+`send_next_turn(custom_type: "memory-recall", content:, display: true)` —
+once per session_start.
+
+**The tool** (`Tart::Tools::Memory < RubyLLM::Tool`, wire name `"memory"`):
+parameters schema JSON EXACTLY the Grounds §4 TypeBox object (property
+order action/topic/text; anyOf consts); description byte-exact; results
+plain Strings (OQ-7); register via `hooks.register_tool` → declared LAST
+in the tools array (after built-ins + MCP). Renders/records through the
+existing tool-result paths.
+
+**System prompt**: `SystemPrompt.sections/build` gain
+`prompt_guidelines: []` — appended to `<rules>` AFTER per-tool guideline
+bullets, BEFORE "Be concise in your responses" (dedup/trim per build_rules;
+pi system-prompt.ts:121). Memory-on passes its two bullets verbatim
+(memory.ts): `"Use the memory tool to save durable facts, user
+preferences, and corrections worth carrying to future sessions — never
+secrets and never one-off task state."` and `"Use the memory tool
+list/read actions to recall saved topics on demand instead of guessing
+what was remembered."` NO `<tools>` snippet row (memory has no
+promptSnippet). Memory-off → `[]` → today's bytes.
+
+**MOTD row**: memory-on adds `"memory.ts"` to the `[Extensions]` compact
+list (sorted, comma-joined, merged with MCP server names — bin/tart's
+`extensions:` argument; OQ-2). The herdr module adds `"herdr-agent-state"`
+iff its env gate is on (§4a). Memory-off, herdr-off → today's row.
+
+## 4. Native herdr (`lib/tart/herdr.rb` — new)
+
+Registered at boot in BOTH modes (pi loads the file regardless); all
+reporting gates on mode/context per the extension:
+
+- **Env gate**: `HERDR_ENV == "1" && HERDR_SOCKET_PATH && HERDR_PANE_ID`
+  (exact names, herdr's own namespace — never renamed). Off → the module
+  registers but every handler returns immediately (no socket, no state).
+- **Socket reporter** (a small inner class; timeouts injectable with pi's
+  500/1500ms defaults — test seam only): connect to the UNIX socket,
+  write `JSON.generate(request) + "\n"`, ANY read byte → delivered;
+  error/EOF/timeout → undelivered; one attempt then ONE retry; failures
+  swallowed; sends run OFF the reactor (a background thread; the UI never
+  blocks).
+- **Requests** (byte-pinned): `{id: "herdr:pi<:session>:<epoch_ms>:<rand36>",
+  method: "pane.report_agent" | "pane.report_agent_session", params:
+  {pane_id:, source: "herdr:pi", agent: "pi", …}}` — state reports add
+  `{state:, seq:}` and `message:` only when present; session reports add
+  `{seq:, session_start_source: <reason>}` only at session_start; every
+  request carries the session ref `agent_session_path:` (absolute file,
+  preferred) else `agent_session_id:`; `seq` = `Time.now.to_i * 1000` base,
+  +1 per report, monotonic across the process (OQ-5 keeps pi's values).
+- **State machine**: `working|blocked|idle`; blocked (count > 0, message =
+  label) > working > idle; dedup same state+message; force at
+  session_start; coalescing = latest-wins queue drained by one in-flight
+  sender.
+- **Transitions** (via hooks events, Groundings §5 mapping):
+  `session_start` with mode "tui" → root session, report session (with
+  `session_start_source`), re-read session ref, force-publish idle;
+  `agent_start` → re-read ref, report session, working; `agent_end` →
+  idle. Print mode: the session_start handler returns before rooting (no
+  reports ever — pi's TUI-only gate).
+- **Channel**: subscribes `"herdr:blocked"` `{active:, label:}` → count
+  ++/--, label at 0 clears. NO emitter this iteration (pi-side none
+  either — Groundings §5); the channel is exercised by unit pins through
+  `hooks.emit` directly.
+
+## 5. The recall render (`lib/tart/render/transcript.rb` + `chat.rb`)
+
+- `Transcript#enqueue_custom_block(custom_type, content)` — pi
+  CustomMessageComponent (custom-message.ts:41-115): one blank row
+  (Spacer), then the block — rows styled `custom_message_bg` over the
+  block width, first row the bold `[memory-recall]` label in
+  `custom_message_label`, a blank block row, then the content rendered
+  through the existing markdown path in `custom_message_text` (the Grounds
+  §6 capture is the row shape: each content line padded one column; links
+  render `text (href)`); the block ends with a blank row. The Grounds §6
+  probe is the oracle; the s11 gate is the byte judge (plain + styled).
+- `Chat#on_agent_event` gains the `:message_end` arm for
+  `message.role == :custom` (and `:message_start` for it) → the enqueue
+  above; assistant/user arms untouched.
+- Replay: `Transcript#replay_entry` gains the `custom_message` arm → the
+  same block (resume renders the recorded recall; pi renders it from the
+  session entries).
+
+## 6. Rig — scenario s11 (`gems/tui-split-rig/`)
+
+- `scenarios/s11_memory_recall.yml`: `prompt: "hello"`,
+  `expected_requests: 1`, one plain-text stream reply,
+  `stage_memory: true`.
+- Runner staging (`stage_memory`): pi — write the fixture
+  `fixtures/memory.ts` VERBATIM (a byte copy of the owner's memory.ts,
+  committed under the rig's fixtures) to
+  `<home>/pi/.pi/agent/extensions/memory.ts`; write the fixed index
+  (runner constant, the Grounds §6 two-topic bytes) to
+  `<home>/pi/.pi/agent/memory/pi/MEMORY.md`. tart — merge
+  `{"memory": true}` into `<home>/tart/.tart/settings.json` (coexisting
+  with any compaction staging) and the same index bytes to
+  `<home>/tart/.tart/memory/tart/MEMORY.md`. No registry.yml class is
+  added — the recall row/block bytes are the gate, not a sanctioned
+  difference.
+- Scenario/runner unit pins (scenario_test.rb additive): the flag parses;
+  the staging writes both apps' files (paths asserted).
+- The gate is RED at base BY DESIGN (tart renders no recall block; pi
+  does) — GREEN only on the integrated tree.
+
+## 7. Docs (README.md)
+
+A `## Memory` paragraph (the settings row + env tier, the store layout,
+the recall line, the opt-in default-off) and a `## Herdr` paragraph (the
+three env vars, the socket protocol summary, the TUI-only gate, the
+pi-valued wire fields). No other doc surface moves.
+
+## 8. Tests (the pin table)
+
+NEW `test/hooks_test.rb`: dispatch order; snapshot-during-dispatch;
+per-handler isolation (plain channels) + the warn; tool_call — block wins
+first, reason default, terminate recording, handler-error fail-safe,
+CancelledError propagation, recorded-args isolation (the ToolCall's
+arguments hash never mutated), validation-first (invalid args never reach
+handlers), mutation flows into execution, wrapper declarations
+byte-identical (name/description/parameters/provider_options vs the
+unwrapped tool), register_tool append/override, register_command dispatch
+order + no-shadow, batch_terminate? (all/none/some).
+NEW `test/memory_test.rb`: every §3 contract row (slugify table, the five
+topic errors, save file bytes + index upsert/dedup/order, read/list,
+recall bounds incl. the exact 200-line and 25KB edges + truncation
+notice, recall no-op without index, the declaration JSON byte-exact, the
+guidelines bullets, TART/PI memory-home env tiers, the settings gate
+off/on).
+NEW `test/herdr_test.rb`: env gate off inert; enabled + fake UNIXServer —
+session_start/agent_start/agent_end request shapes (params, omitted-nil
+keys, id format, seq monotonic), state dedup + force, blocked channel
+count/label/clear, coalescing latest-wins, retry-once on silent socket,
+TUI-only (print mode roots nothing).
+ADDITIVE pins: `agent_loop_test.rb` (nextTurn drain order/emit/record +
+wire user-message order via MockLLM; terminate breaks the inner loop —
+requests count; hooks-off byte-identity), `session_test.rb`
+(append_custom_message entry shape + leaf chain + non-conversation gate +
+context_messages custom arm + resume replay), `commands_test.rb`
+(registered command dispatch + autocomplete listing),
+`settings_test.rb` (the memory row: DEFAULTS false, env tier, unknown-key
+list gains memory), `system_prompt_test.rb` (guidelines placement),
+`test/render/transcript_test.rb` (the custom block rows/styles + replay
+arm). Rig: `gems/tui-split-rig/test/scenario_test.rb` additive.
+
+## 9. May touch (the ```lanes block is the frozen source of truth)
+
+Lane `core` (repo tart): the seam, memory, herdr, session/loop/registry/
+commands/settings/system-prompt edits, render arms, boot threading, docs,
+the core test pins.
+Lane `rig` (repo tart): the scenario, runner/scenario staging, the
+fixture, the rig test pins. DISJOINT from `core` (no shared file).
+
+**Must not touch**: `lib/tart/schemas/**` + `schemas.rb`,
+`lib/tart/shapes/**` + `shapes.rb`, `lib/tart/models.rb`,
+`lib/tart/agent/{bridge,status,context_files}.rb`, `lib/tart/compaction.rb`,
+`lib/tart/tools/{bash,edit,find,grep,ls,read,write}.rb` +
+`safe_execute.rb` + `output_accumulator.rb` + `support/**` (the seven
+built-ins' bodies stay frozen — the gate wraps, it never edits them),
+`lib/tart/mcp*`, `lib/tart/render/**` outside the two enumerated seams
+(transcript enqueue/replay arms; chat on_agent_event arm + the extensions
+row data threading — no other chat.rb method),
+`lib/tart/{identity,skills,prompts,theme,tui}.rb`, `lib/tart/core/**`,
+`tart.gemspec`, `Gemfile.lock`, `bench/**`, `test/support/**`, and every
+test file outside the declared set (frozen: `print_test.rb`,
+`e2e_session_test.rb`, `golden_parity_test.rb`, `loop_test.rb`,
+`tools_test.rb`, `bash_tool_test.rb`, `mcp_test.rb`, `flow_test.rb`,
+`markdown_test.rb`, `theme_test.rb`, `tui_test.rb`,
+`launcher_smoke_test.rb`, `kernel_carryin_test.rb`, `identity_test.rb`,
+`prompts_test.rb`, `compaction_test.rb`, `skills_test.rb`,
+`chat_test.rb`, `models_test.rb`, `test/render/**` outside
+transcript_test.rb, `test/fixtures/**`).
+
+**Out of scope** (itemized, not lost): the drop-in `.rb` loader (OQ-6,
+backlog); `tool_result` / `message_end`-replacement hooks (pi surfaces the
+BRIEF §6 cap keeps off the minimal seam); a herdr:blocked EMITTER (none
+exists pi-side); renderer/provider/jiti registration surfaces (perma-
+capped per BRIEF §6); any change to the herdr tool itself; fork/reload
+session reasons.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision seam-memory`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/hooks.rb
+    - lib/tart/memory.rb
+    - lib/tart/herdr.rb
+    - lib/tart/tools/memory.rb
+    - lib/tart/tools/registry.rb
+    - lib/tart/commands.rb
+    - lib/tart/settings.rb
+    - lib/tart/agent/loop.rb
+    - lib/tart/agent/session.rb
+    - lib/tart/agent/system_prompt.rb
+    - lib/tart/print.rb
+    - lib/tart/render/chat.rb
+    - lib/tart/render/transcript.rb
+    - bin/tart
+    - README.md
+    - test/hooks_test.rb
+    - test/memory_test.rb
+    - test/herdr_test.rb
+    - test/agent_loop_test.rb
+    - test/session_test.rb
+    - test/commands_test.rb
+    - test/settings_test.rb
+    - test/system_prompt_test.rb
+    - test/render/transcript_test.rb
+- name: rig
+  repo: tart
+  touch:
+    - gems/tui-split-rig/scenarios/s11_memory_recall.yml
+    - gems/tui-split-rig/fixtures/memory.ts
+    - gems/tui-split-rig/lib/tui_split_rig/runner.rb
+    - gems/tui-split-rig/lib/tui_split_rig/scenario.rb
+    - gems/tui-split-rig/test/scenario_test.rb
 ```
+
+Two lanes: `core` owns every tart source/test file the seam touches;
+`rig` owns the rig tree only — disjoint by construction, the I17/I18/I20
+core+rig precedent. The s11 gate is the rig lane's deliverable evaluated
+on the INTEGRATED tree (RED at base by design, both lanes' base).
 
 ## Acceptance Criteria
 
