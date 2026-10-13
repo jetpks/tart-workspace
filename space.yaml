@@ -67,7 +67,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: subagents-core
+  current_iteration: subagents-profiles-intercom
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1919,4 +1919,10 @@ project:
     rehearsal:
       gates_digest: 9319291b8f934d31ff11ac53165f93beed21b410e8f15db14f69811fb54432a1
       at: '2026-10-13T13:49:05-06:00'
+  - name: subagents-profiles-intercom
+    ordinal: 49
+    file: architecture/I49-subagents-profiles-intercom.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
