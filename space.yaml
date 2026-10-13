@@ -1805,12 +1805,13 @@ project:
       - test/agent_loop_test.rb
       - test/chat_test.rb
       base_sha: a2368769b8b2713681c12b2c994e77a2672bfd47
-      worktree: build/I46-zai-provider-zai/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: '08d0e4591bfaffb6ce80e99bf64dbd49e558e6d8'
     rehearsal:
       gates_digest: 0fdb913c344d85ec8af101e02e5c95060252a60c0ec567d8357f531cf0190292
       at: '2026-10-13T09:06:38-06:00'
