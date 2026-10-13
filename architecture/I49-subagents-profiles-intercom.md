@@ -476,35 +476,443 @@ instrument) — the I48 lane shape. No checkpoint needed.
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section subagents-profiles-intercom specification --from <file>`. -->
+# Specification — I49 subagents-profiles-intercom
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+Objective: complete the native subagents wave — agent profiles
+(`~/.tart/agents/**/*.md` + `<cwd>/.tart/agents/**/*.md`, discovered +
+parsed through the I43 schema home, resolving at I48's spawn lookup seam),
+the intercom/supervisor channel (child `contact_supervisor` → request file
+→ parent surface + wake → `subagent({action: "reply"})` → reply file → the
+child unblocks, request-id-routed end to end), and the council/workflow
+prompt patterns (six adapted prompt templates as a gate-on builtin tier
+over the existing Prompts surface) — with the default-off zero-byte bar
+(gate off = every existing byte on screen, wire, and session file
+unchanged, proven by the frozen digests). pi-subagents 0.77.0's OBSERVABLE
+shapes are the contract (Grounds §3); its TS machinery is not ported.
+One iteration (Grounds §7).
+
+## 1. `Tart::Subagents::Profiles` (`lib/tart/subagents/profiles.rb` — new)
+
+- `Profiles.discover(cwd:, root: Agent::Session.default_root, env: ENV)`
+  → `Result` (Struct `profiles:, diagnostics:` — the skills/prompts
+  diagnostic shape): scans, recursively, `<root>/agents/**/*.md` (user)
+  then `<cwd>/.tart/agents/**/*.md` (project; same file may match both
+  tiers — the project read wins the name). Per file: parse via
+  `Skills.parse_frontmatter`, validate through
+  `Schemas::Subagents::ProfileContract` (§2), build the SPEC Hash
+  `{name:, description:, tools:, thinking:, context:, system_prompt:,
+  model: nil, source: :user|:project}` — the I48 builtin-entry shape
+  (+`model:`/`source:`; builtins get `source: :builtin`). A file whose
+  contract fails or body is empty produces a `warning` Diagnostic naming
+  the path + the failure and is SKIPPED (never raises). Hidden files
+  (dot-prefixed) and non-`.md` files ignored.
+- `Profiles.resolve_table(cwd:, root: ..., env: ENV)` → the merged Hash
+  name → spec: `BUILTIN_AGENTS` (each entry + `source: :builtin`,
+  `model: nil`) overlaid user-then-project (project wins same-name).
+- `Profiles.resolve(name, cwd:, root: ..., env: ENV)` → the spec Hash or
+  raises `ArgumentError` with the port's unknown-agent shape:
+  `unknown agent <name.inspect>. Did you mean '<closest>'? Available
+  agents: <names sorted, comma-joined>.` — the closest match over the
+  merged table's names (Levenshtein-closest; the I48 close-match shape
+  extended; when no close match, the `Did you mean` sentence is
+  omitted). The listing is the merged table, builtins + discovered.
+- Thread-safety: pure functions over disk; no caching (per-spawn
+  resolution — Grounds D1).
+
+## 2. The profile contract (`lib/tart/schemas/subagents.rb` — new;
+member-wired from `lib/tart/schemas.rb`'s require list — one line)
+
+`Schemas::Subagents::ProfileContract` (dry-validation, the I43 discipline
+— validate SHAPE, pinned strings via `key.failure`, unknown keys
+tolerated, no raise at the boundary; the caller maps failures to
+diagnostics):
+
+- `name`: optional string; when present must match `\A[A-Za-z0-9][A-Za-
+  z0-9._-]*\z` (pi's SAFE_PATH_TOKEN, profiles.js:37 — "must be a safe
+  file name using only letters, numbers, dots, underscores, and
+  hyphens."); DEFAULTS to the file stem. When present and ≠ the stem,
+  the frontmatter name WINS (pi: the runtime name is the frontmatter's).
+- `description`: optional string (default `""`).
+- `tools`: optional string or array of strings; a string splits on
+  `,` (pi's comma form); every element must be in the TOOL UNIVERSE —
+  `%w[read edit write bash find grep ls contact_supervisor]` — else the
+  pinned failure `unknown tool <name> (valid tools: <sorted list>)`.
+  DEFAULT: the seven builtins minus mutation? NO — DEFAULT is the full
+  builtin seven `read, edit, write, bash, find, grep, ls` (an omitted
+  tools line = pi's inheritance-free default loadout; explicit is the
+  rule the profiles teach). Order preserved (the I41 wire-order rule).
+- `model`: optional string; validated by `Subagents.resolve_model`
+  semantics (`provider/id` or `provider/id:level`; invalid suffix or
+  shape → the pinned resolve_model error text verbatim).
+- `thinking`: optional; must be one of `Settings::THINKING_LEVELS` else
+  the pinned failure naming the ladder.
+- `context`: optional `"fresh"|"fork"` (default `"fresh"`); anything
+  else → the pinned failure naming the two.
+- Everything else (aliases, systemPromptMode, inheritProjectContext,
+  …) tolerated and ignored (OQ-6 — itemized in the file's comment
+  block). The BODY (post-frontmatter) is the system prompt: required,
+  non-empty after strip — empty body → warning diagnostic, file skipped.
+
+## 3. Spawn integration (the surgical sites — Grounds §2/OQ-1)
+
+Inside `Manager#spawn_run`, and ONLY there plus the three named
+helpers:
+
+- The lookup: `spec = Subagents::Profiles.resolve(agent.to_s, cwd:
+  @cwd, root: @root, env: @env)` replacing `BUILTIN_AGENTS[agent.to_s]`
+  (manager.rb:105). The Manager gains `root:` (additive kwarg, default
+  `Agent::Session.default_root` — the profiles' user tier). The
+  raise-on-unknown moves into `Profiles.resolve`;
+  `unknown_agent_message` retires (its shape lives in resolve now).
+- The model default: resolution order call `model:` > `spec[:model]` >
+  the parent's current pair — `source = model || spec[:model]` at
+  manager.rb:107-108 (a profile model rides the SAME resolve_model
+  path; `:level` suffix included).
+- The bridge (D5): after resolution, `spec = Supervisor.apply_bridge(
+  spec)` — returns a NEW spec Hash (never mutates): `tools = spec[:
+  tools] + ["contact_supervisor"]` (union, appended last, deduped) and
+  `system_prompt = "#{spec[:system_prompt]}\n\n#{Supervisor::
+  BRIDGE_INSTRUCTION}"` (idempotent — skipped when the prompt already
+  contains the marker line).
+- `child_env` (manager.rb:329-353): ONE addition —
+  `env[key.("SUPERVISOR_CHANNEL")] = File.join(run[:dir], "control")`
+  (unconditional for spawned children — the channel dir always exists:
+  the run-dir mkdir gains `control/supervisor-requests` +
+  `control/supervisor-replies`).
+- `Manager#shutdown` also stops the supervisor channel (§4 wiring);
+  the Manager gains `attr_accessor :supervisor_channel` (register
+  assigns it — the tool reads it through the manager).
+- NOTHING else in manager.rb moves: the §2.7 surface, run-dir layout
+  (beyond the two new control subdirs), steer/stop inboxes, deadline/
+  watcher/reconcile/notify/wake contracts are behavior-preserved — the
+  existing `test/subagents_test.rb` battery must pass with ONLY the
+  enumerated re-pins (§8).
+
+## 4. The supervisor channel (`lib/tart/subagents/supervisor.rb` — new)
+
+### 4.1 Constants (byte-pinned)
+
+- `Supervisor::REQUEST_CUSTOM_TYPE = "subagent_supervisor_request"`
+  (pi supervisor-ui.js:3, byte-exact — OQ-3).
+- `Supervisor::BRIDGE_INSTRUCTION` — `Intercom orchestration channel:\n`
+  + pi's DEFAULT_INTERCOM_BRIDGE_TEMPLATE VERBATIM (intercom-bridge.js
+  :22-34, reproduced in the module comment with the source cite; the
+  usage examples name this port's identical tool shapes). Byte-pinned
+  by test.
+- `Supervisor::MAX_MESSAGE_BYTES = 65_536` (pi's 64KB); the ask timeout
+  env `<IDENTITY>_INTERCOM_ASK_TIMEOUT_MS`, default `600_000` ms (pi's
+  DEFAULT_ASK_TIMEOUT_MS); poll cadence 0.25s (the I48 watcher's).
+- The reason headings, request/reply file `type` strings
+  (`subagent.supervisor.request` / `subagent.supervisor.reply`), and
+  every §4.4 receipt string byte-exact from pi (cites in-line).
+
+### 4.2 File protocol (atomic temp+rename writes — the control-channel idiom)
+
+- Request `control/supervisor-requests/<uuid>.json`:
+  `{type:, id:, createdAt: <epoch ms>, expiresAt: <epoch ms, present
+  iff expectsReply>, reason: "need_decision"|"interview_request"|
+  "progress_update", message:, expectsReply: <bool>, runId:, agent:,
+  interview?: <object, present when given>}`. Serialized > 64KB → the
+  child tool errors `Supervisor request is too large.`
+- Reply `control/supervisor-replies/<requestId>.json`:
+  `{type: "subagent.supervisor.reply", requestId:, createdAt: <epoch
+  ms>, message:}`; writing the reply REMOVES the request file.
+- Files failing JSON parse or the type/id/reason shape are unlinked
+  and skipped (poison-pill safety — the steer-inbox rule).
+
+### 4.3 The channel (`SupervisorChannel.new(home:, hooks:, kernel: nil,
+agent: nil)` — constructed + armed by `Subagents.register` alongside the
+Manager with the same wiring; `#start`, `#stop` (idempotent, joined from
+Manager#shutdown), `#reply(reply_to:, message:)`, `#pending_text`,
+`#pending` (the registry snapshot))
+
+- ONE poll thread (0.25s) scanning `<home>/*/control/supervisor-
+  requests/*.json` (disk-first — no Manager coupling; new dirs picked
+  up naturally). Per parsed request, seen-file dedup by path:
+  - `expectsReply: false` (progress_update): unlink, NO parent message,
+    NO wake (pi :406-412 verbatim rule).
+  - `expectsReply: true` and no reply file present and not expired and
+    the run not terminal on disk (status.json state ∈ completed|failed|
+    stopped — pi's `inactive`): register pending (request-id keyed) +
+    surface ONCE: `hooks.send_next_turn(custom_type:
+    "subagent_supervisor_request", content: <§4.4 text>, display:
+    true)` + the completion kick shape (`kernel.async { agent.wake }`
+    — idle interactive; busy/print parents ride the existing nextTurn
+    drain; kernel/agent nil = queue only, the print shape).
+  - Lifecycle sweep each tick: reply present → resolved (drop pending,
+    unlink request); expired (now > expiresAt) → drop + unlink; run
+    terminal → drop + unlink (T3's disk-first rule).
+- `#reply(reply_to:, message:)`: the target must be a PENDING request
+  id — else `ArgumentError` `No pending supervisor request found for
+  reply_to '<reply_to>'.` (pi byte-exact; the wrong-id DEADLOCK pin —
+  T1: no fuzzy matching, no run-id addressing, OQ-5). Blank message →
+  `message is required for supervisor replies.` (pi byte-exact).
+  Writes the reply file, unlinks the request, drops pending, returns
+  the receipt String `Replied to supervisor request <id>.`
+- `#pending_text`: empty → `No pending supervisor requests.` (pi
+  byte-exact); else per request `- <id>: <agent> [<runId>] <reason>.
+  Reply: subagent({ action: "reply", reply_to: "<id>", message: "..."
+  })` + the message indented two spaces (newlines folded `"\n  "`)
+  — pi formatPendingLine adapted to the port's one-tool vocabulary.
+
+### 4.4 The exact strings (byte-pinned; `<…>` are interpolations)
+
+- **The surfaced ask** (send_next_turn content — pi requestVisibleText
+  adapted): `<reasonHeading>\nRun: <runId>\nAgent: <agent>\n\n
+  <message>` + (interview: `\n\nStructured response requested. Reply
+  with JSON, optionally fenced in \`\`\`json, matching the requested
+  interview shape.\n<interview JSON, 2-space indented>`) + `\n\nReply
+  with: subagent({ action: "reply", reply_to: "<id>", message: "..." })`
+  + `\n\nLive guidance: subagent({ action: "steer", id: "<runId>",
+  message: "..." }) (Reply to the pending request first.)`. reason-
+  Headings byte-exact (Grounds §3b). The childIndex line is CUT
+  (single-agent runs; the run id + agent carry the address).
+- **Child tool results**: success `**Reply from supervisor:**\n<reply
+  message>`; progress `Supervisor progress update queued.`; validation
+  `message is required for supervisor decisions and progress updates.`;
+  oversize `Supervisor request is too large.`; no-channel `No supervisor
+  channel configured for this session.` (port wording — the inert
+  parent-side case, D6); timeout `Error: Timed out waiting for
+  supervisor reply.` (pi's error text; the port's tool-error result
+  shape carries it).
+- **Reply/pending receipts**: §4.3.
+
+## 5. The child tool (`lib/tart/tools/contact_supervisor.rb` — new;
+`Tart::Tools::ContactSupervisor < RubyLLM::Tool`, wire name
+`contact_supervisor`, TOOL_CLASSES entry + tools.rb require — D6)
+
+- Constructor `(cwd:, identity: Identity::DEFAULT, session_env: {},
+env: ENV)` — bash's kwarg shape (the Registry.build_tool contract);
+reads `<IDENTITY>_SUPERVISOR_CHANNEL` + `<IDENTITY>_INTERCOM_ASK_
+TIMEOUT_MS` at construction; unset channel = the inert tool (every
+execute answers the no-channel error string — a parent that somehow
+selects it never crashes).
+- Parameters `{reason: string (need_decision|interview_request|
+  progress_update), message: string, interview: object}` (pi's schema,
+  snake-tolerant port vocabulary); validation in execute (the I43
+  tool-contract pattern): reason required + enum; message required
+  non-blank unless reason is interview_request; interview optional
+  any-object (keys unrestricted — pi additionalProperties).
+- Execute: writes the request (§4.2; runId/agent from the channel env
+  path's run-dir component: `<home>/<runId>/control` → runId; agent =
+  the env `<IDENTITY>_SUBAGENT_AGENT` — ONE more closed-env key the
+  spawn adds, so the surfaced ask names the agent; blank fallback
+  `"agent"`); `progress_update` returns immediately; else polls the
+  reply path every 0.25s until `expiresAt` (createdAt + ask timeout).
+  Never sleeps past the run deadline (the child self-deadline owns
+  that kill — T2). On timeout: unlink the request, return the timeout
+  error (§4.4).
+- The tool result for a reply is the §4.4 success string — the CHILD
+  model sees the supervisor's answer as its tool result, and the
+  child's NEXT request carries it (the round-trip observable).
+
+## 6. The parent tool actions (`lib/tart/tools/subagent.rb` — two new
+dispatch arms + params; the Manager carries the channel — no constructor
+change)
+
+- Params gain `reply_to` (string) — `message`/`id` already exist.
+- `action: "reply"` + `reply_to:` + `message:` → `manager.
+  supervisor_channel&.reply(...)`; channel absent (a Manager built
+  without register — tests) → the error result naming the state.
+- `action: "pending"` → `pending_text` (the ask re-read path — the
+  request notice can be missed; pi's own recovery rule).
+- The safe-next-steps error (unknown/absent combos) names `status`,
+  `list`… — the port's existing shape extended with the two actions.
+
+## 7. The workflow templates (`lib/tart/subagents/workflows.rb` — new;
+gate-on builtin tier over `Tart::Prompts` — D7)
+
+- `Subagents::WORKFLOW_TEMPLATES` — frozen Array of six
+  `Prompts::Template` structs `{name:, description:, argument_hint:,
+  content:, file_path: nil}`:
+  `council` / `parallel-research` / `parallel-review` /
+  `parallel-cleanup` / `review-loop` / `gather-context-and-clarify` —
+  descriptions + argument-hints byte-carried from pi's prompts/
+  frontmatter (Grounds §3c lists them verbatim; council's argument-
+  hint `<question> [--advisors name,name] [--max-passes 2|3] [--scope
+  ...] [--non-goals ...]`, gather-context-and-clarify carries `$@` in
+  its content tail like pi's).
+- The CONTENTS are ADAPTED ports (the I48 agent-prompt precedent —
+  "the fallback IS the prompt"): pi's instruction structure ports
+  byte-faithful wherever it does not name cut machinery; every
+  reference to ```js workflow``` blocks / `runs.all` / `runs.run` /
+  `workflow: true` / `subagent({ action: "guide" … })` / `bg_wait` is
+  replaced by the port's surface — launch advisors as
+  `subagent({ agent: …, task: …, async: true })` and rely on native
+  completion wakes ("never sleep, never poll"); the council template
+  INLINES the protocol essence from skills/council-mode/SKILL.md
+  (roster 2–3, prefer `council-*` profiles from the agent dirs,
+  fallback `oracle` (fork) then `reviewer`, pass 1 independent →
+  pass 2 cross-exam with curated claims, the memo fields, never more
+  than 4 advisors); agent-name references adapt to the builtin table
+  {worker, oracle, reviewer} + the profile convention (parallel-
+  research's researcher/scout become "a research profile from
+  ~/.tart/agents or worker"); the P0/P1/P2 + `Merge verdict:` /
+  `No issues found.` vocabulary and review-loop's 3-round cap port
+  verbatim. Each template's content is PINNED by test at the
+  structural level: the six names, the frontmatter bytes, the
+  forbidden-token absence (`workflow:`, `runs.all`, `runs.run`,
+  `action: "guide"`, `bg_wait`), the carried vocabulary tokens
+  (`Merge verdict: BLOCK`, `P0`, the memo heading, the pass rules),
+  and the wake idiom.
+- `Subagents.merge_workflow_templates(templates)` → the builtin tier
+  PREPENDED lowest (user/project same-name wins; the Prompts
+  first-loaded-wins rule preserved), returning a new Array.
+- `bin/tart` (interactive boot): when `subagents_enabled?`, the merge
+  runs BEFORE build_surface (`prompts.templates` → merged array) —
+  autocomplete, MOTD [Prompts], and /-expansion all pick the tier up
+  through the existing surfaces; gate off = the call site skipped,
+  zero template bytes anywhere. The print boot does NOT merge (no
+  surface to serve; /-expansion is interactive).
+
+## 8. Tests
+
+- **`test/subagents_test.rb` (MOD — the re-pins + integration pins)**:
+  the enumerated re-pins ONLY at the I48 sites — argv `--tools` value
+  gains `,contact_supervisor` (:182 + the fork/fresh argv tests),
+  sanctioned env set gains `PI_SUPERVISOR_CHANNEL` (:188-193),
+  system-prompt.md pins gain the bridge block, and the
+  unknown-agent error text re-pinned to the merged-table shape. NEW
+  pins in the same file: the bridge union (every spawned child's argv
+  names contact_supervisor LAST; the prompt file ends with the bridge
+  block; BUILTIN_AGENTS byte-unchanged); profile-model routing (a
+  staged profile's model wins over the parent pair; a call `model:`
+  wins over the profile); the I48 battery's remaining pins run
+  UNMODIFIED (the mounting-boundary proof — §3's surgical bound).
+- **`test/subagents_profiles_test.rb` (NEW — the profile layer)**:
+  discovery (both tiers, recursive, dotfile/non-md ignored, project
+  wins, builtin overlay, same-name precedence); the contract
+  accept/reject table per field (name token rule + stem default +
+  frontmatter-name-wins, tools comma+array+unknown-tool error text,
+  model shape/suffix errors verbatim, thinking ladder, context
+  vocabulary, unknown keys tolerated, empty body skipped);
+  diagnostics (malformed YAML, bad contract — warning + skip, never
+  raises); resolve/resolve_table/unknown-agent (closest-match + the
+  merged listing); hermeticity (staged root + cwd, no ~/.tart writes).
+- **`test/subagents_intercom_test.rb` (NEW — the channel + child
+  tool)**: BRIDGE_INSTRUCTION bytes + REQUEST_CUSTOM_TYPE; the child
+  tool in-process (staged channel dir: request file shape + atomic
+  write; progress_update immediate + NO parent surface; message
+  validation; 64KB cap; ask-timeout env honored at a SHORT value →
+  the timeout error + request unlinked); the channel in-process (a
+  staged request file → surfaced send_next_turn content byte-pinned
+  (§4.4) + display true + the wake kick via a fake kernel; progress
+  requests never surface; the lifecycle sweep: reply → resolved +
+  unlink, expiry → drop, terminal run → drop); reply (the receipt;
+  blank-message error; **the T1 wrong-id pin: reply_to a NON-request
+  address (the run id, the agent name, a stale id) raises the pi
+  error and the child's reply file is NEVER written**); pending_text
+  (empty + populated + the re-read shape); the ROUND-TRIP unit: a
+  real print child (MockLLMServer, staged HOME) scripted to call
+  contact_supervisor → the channel surfaces the ask → reply → the
+  child's NEXT captured request carries `**Reply from supervisor:**
+  <answer>` as the tool result → the child completes; the
+  workflow-template pins (§7).
+- **`test/subagents_e2e_test.rb` (MOD — the e2e lane; legs A–D
+  unmodified)**: **leg E — the intercom round-trip end-to-end**: a
+  real PARENT print run (gate on) whose scripted model spawns an
+  async child; the CHILD (real subprocess, same server) calls
+  contact_supervisor (scripted); the parent's NEXT captured request
+  carries the surfaced ask (`subagent_supervisor_request` user-role
+  text with the `Reply with:` hint naming the request id); the
+  parent's scripted reply calls `subagent({ action: "reply",
+  reply_to: <id>, … })`; the child unblocks — its next request
+  carries the supervisor answer; both processes complete; the
+  parent's session records the custom_message entry; no leftover
+  request files. **leg F — profiles end-to-end**: a staged
+  `~/.tart/agents/researcher.md` (tools read/grep/find/ls/bash,
+  model provider/id routed) + a project-tier override of `worker`;
+  the parent spawns `researcher` → the child's request model field
+  matches the profile's model; the run dir's system-prompt.md = the
+  profile body + bridge block; the child argv `--tools` = the profile
+  list + contact_supervisor; the project-tier worker override wins
+  over the builtin table (its prompt body lands in the run dir).
+  Both legs stage `<IDENTITY>_SUBAGENTS_HOME` + `HOME` per the I48
+  discipline; teardown leaves no process and no dir.
+
+## 9. Docs (README.md — extend the §Subagents section)
+
+Profiles (the two dirs, the frontmatter field table, the precedence,
+the example — modeled on the space's own architect-agent profiles),
+the supervisor channel (the child tool's three reasons, the reply
+action + pending, the ask timeout env, the run-dir channel layout),
+the workflow prompts (the six templates, gate-on, user-override), and
+the ENTRY 7 cut pointer (OQ-9). No other doc surface moves.
+
+## 10. May touch (the ```lanes block is the frozen source of truth)
+
+Lane `core` (repo tart): the profile/channel/workflow modules + the
+child tool, the surgical spawn integration, the tool-map
+registrations, the schema member, the bin/tart merge, docs, the unit
+pins + re-pins. Lane `e2e` (repo tart): the e2e instrument only.
+DISJOINT by construction.
+
+**Must not touch**: `lib/tart/hooks.rb` + `lib/tart/memory.rb` +
+`lib/tart/herdr.rb` + `lib/tart/tools/memory.rb` (the I47 seam family
+— consumed, never edited), `lib/tart/agent/loop.rb` (the inbox/wake
+contracts are complete for this entry — the channel rides
+send_next_turn, not a loop seam), `lib/tart/print.rb`, `lib/tart/
+agent/session.rb` + `system_prompt.rb` + `bridge.rb` + `status.rb` +
+`context_files.rb`, `lib/tart/schemas/{settings,models,mcp,tools}.rb`
+(their CONTRACTS unchanged; the new member is additive), `lib/tart/
+shapes/**` + `shapes.rb`, `lib/tart/models.rb`, `lib/tart/compaction.
+rb`, `lib/tart/tools/{read,edit,write,bash,find,grep,ls}.rb` +
+`safe_execute.rb` + `output_accumulator.rb` + `support/**`, `lib/
+tart/mcp*`, `lib/tart/render/**`, `lib/tart/{identity,skills,prompts,
+theme,tui,commands,settings}.rb`, `lib/tart/core/**`, `tart.gemspec`,
+`Gemfile.lock`, `bench/**`, `gems/tui-split-rig/**` (NO rig scenario
+this entry), `test/support/**`, and every test file outside the
+declared set (frozen: `print_test.rb`, `e2e_session_test.rb`,
+`golden_parity_test.rb`, `loop_test.rb`, `tools_test.rb`,
+`bash_tool_test.rb`, `mcp_test.rb`, `flow_test.rb`, `markdown_test.
+rb`, `theme_test.rb`, `tui_test.rb`, `launcher_smoke_test.rb`,
+`kernel_carryin_test.rb`, `identity_test.rb`, `prompts_test.rb`,
+`compaction_test.rb`, `skills_test.rb`, `chat_test.rb`, `models_test.
+rb`, `hooks_test.rb`, `memory_test.rb`, `herdr_test.rb`,
+`commands_test.rb`, `system_prompt_test.rb`, `schemas_test.rb`,
+`shapes_test.rb`, `settings_test.rb`, `agent_loop_test.rb`,
+`test/render/**`, `test/fixtures/**`).
+
+**Out of scope** (itemized — Grounds OQ-9): pi's separate
+`subagent_supervisor` wire tool; `to:` reply matching; external
+pi-intercom providers; the before-settle reminder ladder; parent-side
+structured-reply parsing; profile generation/provider catalogs;
+chains; package-tier agents; agentScanDirs/ExcludeDirs; the
+fleet/inspect UI; nested delegation (unchanged I48 cut).
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision subagents-profiles-intercom`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/subagents/profiles.rb
+    - lib/tart/subagents/supervisor.rb
+    - lib/tart/subagents/workflows.rb
+    - lib/tart/tools/contact_supervisor.rb
+    - lib/tart/schemas/subagents.rb
+    - lib/tart/subagents.rb
+    - lib/tart/subagents/manager.rb
+    - lib/tart/tools/subagent.rb
+    - lib/tart/tools.rb
+    - lib/tart/tools/registry.rb
+    - lib/tart/schemas.rb
+    - bin/tart
+    - README.md
+    - test/subagents_test.rb
+    - test/subagents_profiles_test.rb
+    - test/subagents_intercom_test.rb
+- name: e2e
+  repo: tart
+  touch:
+    - test/subagents_e2e_test.rb
 ```
+
+Two lanes: `core` owns the machinery + data + unit pins; `e2e` owns
+the end-to-end instrument's new legs — disjoint by construction (the
+I48 lane shape). The capability gates are RED at base BY DESIGN
+(`subagents-profiles-units` — `Subagents::Profiles` does not exist at
+8f5620a) or GREEN-at-base regression gates that must stay GREEN
+(`subagents-e2e` — the I48 four-leg battery) and GREEN with the new
+legs on the integrated tree, non-vacuously.
 
 ## Acceptance Criteria
 
