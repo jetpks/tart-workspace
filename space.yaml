@@ -67,7 +67,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: seam-memory
+  current_iteration: subagents-core
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1875,4 +1875,10 @@ project:
     rehearsal:
       gates_digest: daf32ed2f99c668069efa9a0db5a33ceed59001d1e2fd4e6ca6218a687bb3795
       at: '2026-10-13T10:51:57-06:00'
+  - name: subagents-core
+    ordinal: 48
+    file: architecture/I48-subagents-core.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
