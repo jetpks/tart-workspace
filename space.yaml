@@ -4,7 +4,7 @@ id: 20261009-pi-port
 title: pi-port
 status: active
 created_at: '2026-10-09T02:03:09-06:00'
-updated_at: '2026-10-09T02:28:08-06:00'
+updated_at: '2026-10-13T02:36:07-06:00'
 repos:
 - provider: github.com
   organization: earendil-works
@@ -55,12 +55,19 @@ repos:
   clone_url: git@github.com:jetpks/tart.git
   path: repos/tart
   added_at: '2026-10-09T02:28:08-06:00'
+- provider: github.com
+  organization: crmne
+  name: ruby_llm
+  full_name: github.com/crmne/ruby_llm
+  clone_url: git@github.com:crmne/ruby_llm.git
+  path: repos/ruby_llm
+  added_at: '2026-10-13T02:36:07-06:00'
 notes: []
 tickets: []
 tags: []
 project:
   status: active
-  current_iteration: e2e-session
+  current_iteration: dry-rb-boundaries
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1657,4 +1664,10 @@ project:
     rehearsal:
       gates_digest: 70d0c4a378ef1accc5a7ec2f1b6b43213b3605d35b32a99d4d8966335ae4bd3b
       at: '2026-10-12T23:16:13-06:00'
+  - name: dry-rb-boundaries
+    ordinal: 43
+    file: architecture/I43-dry-rb-boundaries.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
