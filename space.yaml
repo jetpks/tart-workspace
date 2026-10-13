@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: loadout-session-env
+  current_iteration: e2e-session
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1619,9 +1619,9 @@ project:
       - test/system_prompt_test.rb
       - test/print_test.rb
       - test/agent_loop_test.rb
-      base_sha: 9f8c8d794fd281884a35a264a48022982206b3f3
-      worktree:
-      integration_branch: project/pi-port
+      base_sha: d1a420929ad6d941a7529cbfbaef4c5d7fd3c072
+      worktree: build/I41-loadout-session-env-core/wt
+      integration_branch:
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
@@ -1630,4 +1630,10 @@ project:
     rehearsal:
       gates_digest: d60d20191c5bc88bf292e8fddc5b480cdbcea997f5128914e211ab176ce16eb0
       at: '2026-10-12T21:49:45-06:00'
+  - name: e2e-session
+    ordinal: 42
+    file: architecture/I42-e2e-session.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
