@@ -1922,7 +1922,33 @@ project:
   - name: subagents-profiles-intercom
     ordinal: 49
     file: architecture/I49-subagents-profiles-intercom.md
-    freeze_sha:
+    freeze_sha: b97dcd0b8d5da25cb07acb8838fba318b811ab4a
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/subagents/profiles.rb
+      - lib/tart/subagents/supervisor.rb
+      - lib/tart/subagents/workflows.rb
+      - lib/tart/tools/contact_supervisor.rb
+      - lib/tart/schemas/subagents.rb
+      - lib/tart/subagents.rb
+      - lib/tart/subagents/manager.rb
+      - lib/tart/tools/subagent.rb
+      - lib/tart/tools.rb
+      - lib/tart/tools/registry.rb
+      - lib/tart/schemas.rb
+      - bin/tart
+      - README.md
+      - test/subagents_test.rb
+      - test/subagents_profiles_test.rb
+      - test/subagents_intercom_test.rb
+    - name: e2e
+      repo: tart
+      touch_set:
+      - test/subagents_e2e_test.rb
+    rehearsal:
+      gates_digest: b430f0db9afacecc320116c766e552067c6ae9cd10e615d19c018eba917ee28e
+      at: '2026-10-13T17:11:01-06:00'
   integration_branch: project/pi-port
