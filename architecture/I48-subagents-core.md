@@ -865,52 +865,445 @@ BY DESIGN and must be GREEN on the integrated tree, non-vacuously.
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse subagents-core` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze subagents-core` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria — I48 subagents-core
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+Gate calibration (pre-declared): **RED at base BY DESIGN** —
+`subagents-units` (`Tart::Subagents` does not exist at b54a3b1 —
+NameError is the expected clean red) and `subagents-e2e` (the test file
+does not exist at base). They must be GREEN on the integrated tree,
+non-vacuously. **Regression guards (GREEN at base, must stay GREEN)** —
+`suite`, `bench`, `s1`–`s10`, `s1-tart-mode`, both probe gates,
+`wire-bodies`, `session-golden` (with `"subagents"` off — the default —
+the frozen wire digests + session digests ARE the zero-behavior bar; a
+post-build failure means a byte moved). The s-gates keep the CANONICAL
+short out dirs. The KNOWN s9 lane-worktree deep-path artifact (nine
+precedents: I34/I36/I39/I40/I42/I43/I44/I46/I47) does not fail this
+iteration when the same tree exits 0 at canonical depth — the judge
+runs the battery on the integrated tree. The I47 s11 integrated-tree
+residual is NOT this iteration's gate (no rig scenario is added; the
+memory surface is orthogonal and default-off). `scope` is vacuously OK
+at base (empty diff vs b54a3b1) and MUST be non-vacuous on the
+integrated run.
 
-**AC1.** ...
+**AC1 (the tool + builtin agents, opt-in).** With `"subagents"` unset
+(default): no `subagent` tool on the wire (the loadout unchanged — the
+`7360fd1e…` digest holds), no watcher, no run dirs. With the gate on:
+the tool declared LAST; `agent`+`task` dispatch resolves the builtin
+table {worker, oracle, reviewer} (descriptions byte-carried; prompts
+carry the fallback-report sentence; tool allowlists worker=read,grep,
+find,ls,bash,edit,write / oracle=read,grep,find,ls,bash / reviewer=
+read,grep,find,ls; thinking defaults; context defaults fresh/fork/
+fresh); `model:` accepts `provider/id` and `provider/id:level` (invalid
+suffix → the valid set named); oracle's fork context prepends
+pi's DEFAULT_FORK_PREAMBLE bytes verbatim and spawns `--resume
+<parent session>` (the I42 fork copy); unknown agent names the three.
+Pinned by `subagents-units` + the suite's unit pins.
+
+**AC2 (async runs: dirs, lifecycle, notification, wake, drain).**
+`async:` (default true) returns the §7 start message immediately
+(byte-pinned headline `Async: <agent> [<id>]` + guidance); the run dir
+`~/.tart/subagents/<uuidv7>/` holds status.json through the lifecycle
+running → completed|failed|stopped (result.json written BEFORE the
+terminal flip); the watcher detects terminal within poll granularity
+and delivers `send_next_turn(custom_type: "subagent-notify", …)` with
+display true iff state != completed, waking an idle interactive parent
+(`kernel.async { agent.wake }`; busy parents ride the in-flight drain);
+`Loop#wake` drains the pending notification as the turn's opening
+message (wire user-role text + session custom_message entry; empty
+queue = no request); a print parent with outstanding runs DRAINS at
+agent end (notifications recorded on its session, no extra stdout,
+exit 0). Status actions read disk-first and reconcile. Pinned by
+`subagents-units`, `subagents-e2e` (leg B), + the suite's pins.
+
+**AC3 (steering + stop — the T1/T3 discipline).** `steer` writes the
+ts-padded request file `{type: "steer", id, ts, message, mode, source}`,
+and the receipt reports `delivered` ONLY on the child's steer-log entry
+for THAT request id (correlated consumption — never mere inbox
+acceptance), `queued` for follow_up, `missed` on terminal runs; a
+steered child's NEXT captured request carries the message as a user
+message (mid-run reach through the turn-boundary drain). `stop` writes
+the stop request, the child interrupts at the boundary (agent_end
+interrupted), escalating TERM → KILL on the pgroup; state stopped;
+`Process.detach` owns every reap — no early waitpid, no zombie; a run
+is forgotten only after terminal status AND observed exit (reconcile
+from disk when the watcher missed the event). Pinned by `subagents-units`,
+`subagents-e2e` (legs C/D), + the suite's pins.
+
+**AC4 (timeout discipline + hermeticity).** `timeout_ms` (default
+1_800_000, 0 = unbounded) and `tool_timeout_ms` (default unset) are
+independently settable per spawn: a short deadline ends the run
+stopped + `timedOut: true` with the child self-deadline honored
+(BOTH-sides enforcement — the parent supervisor disarmed, the child
+still dies); the tool timeout rides `<IDENTITY>_TOOL_TIMEOUT_MS` as
+the bash default for calls that omit one (explicit call values win;
+unset = today). The child env is CLOSED (unsetenv_others; EXACTLY the
+§4 key set — no owner TART_* leaks, no subagents gate row so children
+never nest); every run artifact stays under the staged HOME (staged
+`<IDENTITY>_SUBAGENTS_HOME`; the owner's `~/.tart` untouched in every
+test). Pinned by `subagents-units`, `subagents-e2e`, + the suite's
+pins.
+
+**AC5 (parity + regression + scope).** The default rake task fully
+green (run count > 955 with the new pins; the one base skip
+unchanged); `SEAM_BENCH_OK`; s1–s10 exit 0 cold at the canonical out
+dirs; `s1-tart-mode` completes (TART_MODE_OK); both probe gates OK;
+`WIRE_BODIES_OK` (`2ece7d4b…` + `7360fd1e…` EXACT — the default-off
+bar); `SESSION_GOLDEN_OK`; the integrated diff vs **b54a3b1** touches
+EXACTLY the two lanes' declared file sets — nothing in `hooks.rb`,
+`registry.rb`, `memory*`, `herdr*`, `schemas/**`, `shapes/**`,
+`models.rb`, `compaction.rb`, the session/system_prompt/context_files
+agent files, the six frozen tool bodies, `mcp*`, `render/**`,
+`core/**`, `identity/skills/prompts/theme/tui`, gemspec/lock/bench,
+the rig tree, or any test file outside the declared set.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse subagents-core` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/parity-gate-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/parity-gate-s6
+  expect:
+    exit_code: 0
+
+- id: s7-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7
+  expect:
+    exit_code: 0
+
+- id: s8-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml --out tmp/parity-gate-s8
+  expect:
+    exit_code: 0
+
+- id: s9-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s9_startup_help.yml --out tmp/parity-gate-s9
+  expect:
+    exit_code: 0
+
+- id: s10-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s10_editor_wrap.yml --out tmp/parity-gate-s10
+  expect:
+    exit_code: 0
+
+- id: s1-tart-mode
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_tart.yml --out tmp/parity-gate-s1tart; ec=$?; if [ "$ec" -gt 1 ]; then exit 1; fi; ruby -rjson -e 's = JSON.parse(File.read("tmp/parity-gate-s1tart/summary.json"))["runs"][0]["apps"]["tart"]; abort "tart incomplete" unless s["completed"] && s["requests"] == s["expected_requests"]; puts "TART_MODE_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: TART_MODE_OK
+
+- id: tool-pending-gate
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tool-pending-probe --gate --out tmp/i48-tp
+  expect:
+    exit_code: 0
+    stdout_match: TOOL_PENDING_GATE_OK
+
+- id: user-bash-stream-gate
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    test -x gems/tui-split-rig/bin/user-bash-stream-probe && gems/tui-split-rig/bin/user-bash-stream-probe --gate --out tmp/i48-ubs
+  expect:
+    exit_code: 0
+    stdout_match: USER_BASH_STREAM_GATE_OK
+
+- id: wire-bodies
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    rm -rf tmp/i48-wire && gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/i48-wire >/dev/null 2>&1; ec=$?; [ "$ec" -eq 0 ] || exit 1; ruby -rjson -rdigest -e 'bodies = File.readlines("tmp/i48-wire/run-1/tart-requests.jsonl").map { |l| Digest::SHA256.hexdigest(JSON.generate(JSON.parse(l)).gsub("tmp/i48-wire/run-1/sandbox", "<SBX>")) }; tools = Digest::SHA256.hexdigest(JSON.generate(JSON.parse(File.readlines("tmp/i48-wire/run-1/tart-requests.jsonl")[0])["body"]["tools"])); abort "request-body bytes moved: #{bodies.inspect}" unless bodies == ["2ece7d4b875c98590b2f839814a0d3444fbfe1a8514b09c17d000663466c25d2"]; abort "tool declarations moved: #{tools}" unless tools == "7360fd1ec6419b5f9966c3067588314cdd0d29231a78346443a0002923c23707"; puts "WIRE_BODIES_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: WIRE_BODIES_OK
+
+- id: session-golden
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec ruby -Ilib -e 'require "tart"; require "tmpdir"; require "json"; require "digest"; FakeMsg = Struct.new(:role, :attrs) do def to_h = attrs end; VOLATILE = %w[id parentId timestamp parentSession cwd firstKeptEntryId].freeze; normalize = lambda do |obj|; case obj; when Hash then obj.each_with_object({}) { |(k, v), h| h[k] = VOLATILE.include?(k) && !v.nil? ? "<#{k}>" : normalize.call(v) }; when Array then obj.map { |v| normalize.call(v) }; else obj; end; end; digest_lines = lambda { |path| Digest::SHA256.hexdigest(File.readlines(path).map { |l| JSON.generate(normalize.call(JSON.parse(l))) }.join("\n")) }; out = {}; Dir.mktmpdir do |dir|; root = File.join(dir, "agent"); plain = Tart::Agent::Session::Recorder.new(cwd: dir, root: root); plain.append_message(FakeMsg.new(:user, {role: "user", content: "list the files"})); plain.append_message(FakeMsg.new(:assistant, {role: "assistant", content: nil, tool_calls: [{id: "call_1", name: "ls", arguments: {path: "."}}]})); plain.append_message(FakeMsg.new(:tool, {role: "tool", tool_call_id: "call_1", content: "fixture.txt"})); plain.append_message(FakeMsg.new(:assistant, {role: "assistant", content: "the listing is above"})); rec = Tart::Agent::Session::Recorder.new(cwd: dir, root: root); rec.append_message(FakeMsg.new(:user, {role: "user", content: "list the files"})); rec.append_message(FakeMsg.new(:assistant, {role: "assistant", content: nil, tool_calls: [{id: "call_1", name: "ls", arguments: {path: "."}}]})); rec.append_message(FakeMsg.new(:tool, {role: "tool", tool_call_id: "call_1", content: "fixture.txt"})); rec.append_message(FakeMsg.new(:assistant, {role: "assistant", content: "the listing is above"})); rec.append_bash_execution(Tart::Agent::Session.bash_execution_message(command: "echo hi", output: "hi", exit_code: 0, cancelled: false, truncated: false, full_output_path: nil)); rec.append_compaction(summary: "Earlier turns summarized.", first_kept_entry_id: nil, tokens_before: 15, details: "auto"); forked = Tart::Agent::Session::Recorder.new(cwd: dir, root: root, parent_session: rec.path); forked.append_message(FakeMsg.new(:user, {role: "user", content: "after the fork"})); out[:plain] = digest_lines.call(plain.path); out[:plain_context] = Digest::SHA256.hexdigest(JSON.generate(Tart::Agent::Session.context_messages(plain.path))); out[:plain_roles] = Tart::Agent::Session.context_messages(plain.path).map { |m| m[:role] }.inspect; out[:primary] = digest_lines.call(rec.path); out[:forked] = digest_lines.call(forked.path); out[:context] = Digest::SHA256.hexdigest(JSON.generate(Tart::Agent::Session.context_messages(rec.path))); out[:fork_roles] = Tart::Agent::Session.context_messages(forked.path).map { |m| m[:role] }.inspect; end; want = {plain: "928183de7736e9ad59237d6eb4bf7eb0215f8933ac1e1c2c4d8cb0e61ca38728", plain_context: "d3c1574f049f9688309656a21d42100e32b0203025f77f8afbed70819cb228ee", plain_roles: "[:user, :assistant, :tool, :assistant]", primary: "cb29e42e1ba9ecc27e28ce3d833e68fbd8f17ddfa2700b02b1b6bd98b24baa29", forked: "3a5f6d606f5952fd2e0e25bf085d442c386d18b0d60a4bdd7c43b04b203ae8d", context: "f75f99b4516b3e69f41d847bb5266d7cac897e3fd320190f588d83e26497a029", fork_roles: "[:user, :user]"}; bad = want.keys.select { |k| out[k] != want[k] }; abort "session bytes moved: #{bad.map { |k| [k, out[k]] }.inspect}" unless bad.empty?; puts "SESSION_GOLDEN_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: SESSION_GOLDEN_OK
+
+- id: subagents-units
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec ruby -Ilib -Itest - <<'I48GATE'
+    # I48 gate: subagents-units — the driven-surface verification (judge form).
+    # RED at base by design (Tart::Subagents does not exist). Hermetic:
+    # MockLLMServer + staged HOME; real bin/tart print subprocess children.
+    require "tart"
+    require "support/mock_llm_server"
+    require "tmpdir"
+    require "fileutils"
+    require "json"
+    require "rbconfig"
+    
+    home = Dir.mktmpdir("i48u-h")
+    cwd = Dir.mktmpdir("i48u-c")
+    ENV["HOME"] = home
+    server = MockLLMServer.new.start
+    # script: 1 foreground child answer, then a slow stream (steer window) + steered
+    # answer, then slow streams for the stop/deadline targets
+    server.script([
+      {type: :stream, content: "child answer one"},
+      {type: :slow_stream, content: "child long answer", chunk_every: 0.4},
+      {type: :stream, content: "child steered answer"},
+      {type: :slow_stream, content: "stopme stopme", chunk_every: 0.5},
+      {type: :slow_stream, content: "deadline deadline", chunk_every: 0.5}
+    ])
+    RubyLLM.configure { |c| c.openai_api_key = "t"; c.openai_api_base = server.url }
+    
+    # --- AC1: the opt-in gate + builtin table
+    abort "gate off must be default" unless Tart::Settings::DEFAULTS["subagents"] == false
+    abort "env tier row" unless Tart::Settings::RESOLUTION_ENV["subagents"] == "SUBAGENTS"
+    gate_off = Tart::Tools::Registry.build(selected: %w[read], cwd: cwd, hooks: Tart::Hooks.new)
+    abort "off build must not carry the tool" if gate_off.key?("subagent")
+    agents = Tart::Subagents::BUILTIN_AGENTS
+    abort "builtin names: #{agents.keys.inspect}" unless agents.keys.sort == %w[oracle reviewer worker]
+    abort "worker tools" unless agents["worker"][:tools] == %w[read grep find ls bash edit write]
+    abort "oracle tools" unless agents["oracle"][:tools] == %w[read grep find ls bash]
+    abort "reviewer tools" unless agents["reviewer"][:tools] == %w[read grep find ls]
+    abort "oracle must default fork" unless agents["oracle"][:context] == :fork
+    abort "worker must default fresh" unless agents["worker"][:context] == :fresh
+    pre = Tart::Subagents::DEFAULT_FORK_PREAMBLE
+    abort "fork preamble bytes" unless pre.start_with?("You are a delegated subagent running from a fork of the parent session.")
+    pair = Tart::Subagents.resolve_model("zai/glm-5.3:high", catalog: nil, fallback: ["fireworks", "m0", "medium"])
+    abort "suffix routing: #{pair.inspect}" unless pair == ["zai", "glm-5.3", "high"]
+    begin
+      Tart::Subagents.resolve_model("zai/glm-5.3:ultra", catalog: nil, fallback: ["f", "m", "medium"])
+      abort "invalid suffix must raise"
+    rescue StandardError => e
+      abort "suffix error names the set" unless e.message.include?("off")
+    end
+    
+    # --- AC2/AC4: the manager, real subprocess children
+    hooks = Tart::Hooks.new
+    kernel_calls = []
+    kernel = Object.new
+    def kernel.async(&blk)
+      (@kernel_calls ||= []) << blk
+    end
+    manager = Tart::Subagents::Manager.new(cwd: cwd, home: File.join(home, "subagents"),
+      env: ENV, identity: "pi", hooks: hooks, kernel: kernel, agent: nil)
+    
+    # Foreground delegation: blocking spawn, child output as the result.
+    run1 = manager.spawn_run(agent: "worker", task: "say answer one", async: false,
+      timeout_ms: 0, tool_timeout_ms: 0)
+    result1 = manager.result(id: run1[:id])
+    abort "foreground completes: #{run1[:state].inspect}" unless run1[:state] == :completed
+    abort "result output: #{result1.inspect}" unless result1["output"] == "child answer one"
+    abort "result success" unless result1["success"] == true
+    sjson = JSON.parse(File.read(File.join(run1[:dir], "status.json")))
+    abort "status.json state: #{sjson.inspect}" unless sjson["state"] == "completed"
+    abort "task text must never be recorded" if sjson.key?("task") && sjson["task"].to_s.include?("answer one")
+    sessions = Dir.glob(File.join(run1[:dir], "sessions", "**", "*.jsonl"))
+    abort "child session recorded under the run dir: #{sessions.inspect}" unless sessions.size == 1
+    # The spawn builder (the pin target, spec §4): argv + the CLOSED env.
+    argv1, env1 = manager.spawn_argv_and_env(run1)
+    abort "argv rides bin/tart -p: #{argv1.inspect}" unless argv1.join(" ").include?("bin/tart -p ")
+    %w[--steer-inbox --tools --system-prompt-file --session-root].each do |flag|
+      abort "argv flag #{flag}: #{argv1.inspect}" unless argv1.include?(flag)
+    end
+    sanctioned = %w[PATH HOME PI_IDENTITY PI_API_KEY PI_API_BASE PI_MODEL PI_PROVIDER
+      PI_MODEL_REASONING PI_THINKING_LEVEL PI_CONTEXT_WINDOW PI_TOOL_TIMEOUT_MS
+      PI_RUN_DEADLINE_MS PI_SUBAGENTS_HOME]
+    abort "spawn env closure violated: #{(env1.keys - sanctioned).inspect}" unless (env1.keys - sanctioned).empty?
+    abort "spawn env must carry PATH+HOME" unless env1.key?("PATH") && env1.key?("HOME")
+    abort "children must not carry the subagents gate row" if env1.key?("PI_SUBAGENTS")
+    
+    # Async delegation: immediate start message via the tool surface.
+    tool = Tart::Tools::Subagent.new(manager: manager)
+    start = tool.execute(agent: "oracle", task: "long task", async: true, timeout_ms: 0, tool_timeout_ms: 0)
+    id2 = manager.runs.find { |r| r[:id] != run1[:id] }[:id]
+    abort "async start message bytes: #{start.inspect}" unless start.to_s.start_with?("Async: oracle [#{id2}]")
+    abort "start guidance" unless start.to_s.include?("native completion wakes you") && start.to_s.include?('"status"')
+    
+    # Steer (T1): correlated consumption receipt + the child wire reach.
+    wait_for = lambda do |rid, pred, timeout = 20|
+      deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + timeout
+      r = nil
+      loop do
+        r = manager.runs.find { |x| x[:id] == rid }
+        break if pred.call(r) || Process.clock_gettime(Process::CLOCK_MONOTONIC) > deadline
+        sleep 0.2
+      end
+      r
+    end
+    r2 = manager.runs.find { |x| x[:id] == id2 }
+    abort "async run must be running (slow stream): #{r2[:state]}" unless r2[:state] == :running
+    receipt = manager.steer(id: id2, message: "STEER-FOCUS-MARKER", mode: "steer", ack_timeout_ms: 8000)
+    abort "steer receipt delivered: #{receipt.inspect}" unless receipt[:state] == :delivered && receipt[:request_id].to_s.length == 36
+    abort "steer receipt text: #{receipt.inspect}" unless receipt[:text].to_s.start_with?("Steering delivered to async run #{id2}")
+    log = File.readlines(File.join(r2[:dir], "control", "steer-log.jsonl")).map { |l| JSON.parse(l) }
+    abort "consumption log names the request id (T1): #{receipt.inspect}" unless log.any? { |e| e["requestId"] == receipt[:request_id] }
+    
+    # Drain to terminal; the steer reached the child's next request.
+    deadline = Process.clock_gettime(Process::CLOCK_MONOTONIC) + 25
+    while manager.outstanding? && Process.clock_gettime(Process::CLOCK_MONOTONIC) < deadline
+      sleep 0.2
+    end
+    abort "drain must settle the run" if manager.outstanding?
+    r2f = manager.runs.find { |x| x[:id] == id2 }
+    abort "steered run completes: #{r2f[:state]}" unless r2f[:state] == :completed
+    msgs = server.captured_requests.map { |rq| rq["body"]["messages"] }
+    steered = msgs.find { |ms| ms.any? { |m| m["role"] == "user" && m["content"].to_s.include?("STEER-FOCUS-MARKER") } }
+    abort "the steer must reach the child wire: #{msgs.size} requests" if steered.nil?
+    
+    # Notification: pending_next_turn carries the subagent-notify header.
+    pend = hooks.pending_next_turn
+    notify = pend.find { |p| p[:custom_type] == "subagent-notify" }
+    abort "notification queued: #{pend.inspect}" if notify.nil?
+    abort "notification header: #{notify[:content][0, 80].inspect}" unless notify[:content].start_with?("Background task completed: **oracle**")
+    abort "notification session line" unless notify[:content].include?("Session file: ")
+    abort "completed notice must not display" unless notify[:display] == false
+    
+    # Stop (T3 reap discipline).
+    stop_start_msg = tool.execute(agent: "worker", task: "stop target", async: true, timeout_ms: 0, tool_timeout_ms: 0)
+    id3 = manager.runs.map { |r| r[:id] }.last
+    sleep 0.3
+    r3 = manager.runs.find { |x| x[:id] == id3 }
+    abort "stop target running: #{r3[:state]}" unless r3[:state] == :running
+    stop_receipt = manager.stop(id: id3)
+    abort "stop receipt bytes: #{stop_receipt.inspect}" unless stop_receipt.to_s == "Stop requested for async run #{id3}."
+    r3f = wait_for.call(id3, ->(r) { r[:state] != :running }, 12)
+    abort "stop must end the run: #{r3f[:state].inspect}" unless r3f[:state] == :stopped
+    sleep 0.5
+    abort "zombie left behind" unless `ps -o stat= -p #{r3f[:pid]} 2>/dev/null`.strip.empty?
+    
+    # Deadline (T2 run kind, both-sides: parent supervisor disarmed by 0? no —
+    # a short deadline exercises the full path).
+    dl = manager.spawn_run(agent: "worker", task: "deadline target", async: true,
+      timeout_ms: 1500, tool_timeout_ms: 0)
+    rdl = wait_for.call(dl[:id], ->(r) { r[:state] != :running }, 15)
+    abort "deadline must stop the run: #{rdl[:state]}" unless rdl[:state] == :stopped
+    sj = JSON.parse(File.read(File.join(rdl[:dir], "status.json")))
+    abort "timedOut flag: #{sj.inspect}" unless sj["timedOut"] == true
+    
+    # Status shapes.
+    one = manager.status(id: run1[:id])
+    %w[Run: State: Mode: Started: Dir: Output:].each do |k|
+      abort "status line #{k}: #{one.inspect}" unless one.include?(k)
+    end
+    list = manager.status(id: nil)
+    abort "list shape: #{list[0, 60].inspect}" unless list.include?("Active async runs") || list.include?("No active subagent fleet")
+    
+    manager.shutdown
+    server.stop
+    FileUtils.rm_rf(home)
+    FileUtils.rm_rf(cwd)
+    puts "SUBAGENTS_UNITS_OK"
+    I48GATE
+  expect:
+    exit_code: 0
+    stdout_match: SUBAGENTS_UNITS_OK
+
+- id: subagents-e2e
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    out=$(bundle exec ruby -Itest test/subagents_e2e_test.rb 2>&1); ec=$?; echo "$out" | tail -5; [ "$ec" -eq 0 ] && echo "$out" | grep -qE '^[1-9][0-9]* runs, [1-9][0-9]* assertions, 0 failures' && echo "$out" | grep -q 'i48-e2e' && echo SUBAGENTS_E2E_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUBAGENTS_E2E_OK
+
+- id: scope
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only b54a3b1 HEAD | grep -qvE '^(lib/tart/subagents\.rb|lib/tart/subagents/manager\.rb|lib/tart/tools/subagent\.rb|lib/tart/agent/loop\.rb|lib/tart/print\.rb|lib/tart/settings\.rb|lib/tart/tools/bash\.rb|bin/tart|README\.md|test/subagents_test\.rb|test/agent_loop_test\.rb|test/settings_test\.rb|test/subagents_e2e_test\.rb)$'; then exit 1; else echo SCOPE_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
+
+Judge note (gate-literal discipline, the I45/I47 lesson): the
+`subagents-units` gate drives the driven surface at the names the
+Specification §2.7/§3 fixes. If a frozen gate literal below proves
+mechanically unsatisfiable against the built surface (a name the spec
+itself left ambiguous), the judge may run the minimally-repaired
+equivalent, records the defect, and never amends silently — but the
+SPEC-level names (`Manager#spawn_run/#steer/#stop/#status/#runs/
+#outstanding?/#drain/#shutdown`, `Tools::Subagent`, `Subagents.
+register/home/resolve_model/BUILTIN_AGENTS/DEFAULT_FORK_PREAMBLE`,
+`Loop#wake`, `steer_inbox:`) are the contract; builder deviations are
+PHASE 0 items, not gate fixes.
 
 ## Builder Prompt
 
