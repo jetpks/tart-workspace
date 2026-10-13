@@ -1729,11 +1729,102 @@ file, no rig file.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I44-dry-rb-shapes-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence dry-rb-shapes --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### shapes
+
+# Lane report — I44 dry-rb-shapes, lane `shapes` (sole lane)
+
+Worktree: `build/I44-dry-rb-shapes-shapes/wt` (repos/tart provisioned from frozen base
+`0c6ee246`, branch `lane/I44-dry-rb-shapes-shapes`). Builder ran under zai/glm-5.3-flash
+thinking-high. No commits made (`git log 0c6ee246..` empty; the integrated diff is the
+worktree's uncommitted change set: exactly the declared 21-file touch set).
+
+## PHASE 0 — findings / disagreements (researched, itemized; resolved by the prompt letter unless noted)
+
+| # | Finding / disagreement | Resolution + reason |
+|---|---|---|
+| P0-1 | **Grounds §5's enumeration is NOT exhaustive.** Four FROZEN test files exercise the migrated seams with legacy shapes and are NOT in §5's re-pin list: `commands_test.rb` :106–131 (feeds `Models::Config.new` raw-hash providers and pins `/model` dispatch passing an entry that `==`s the legacy 6-key hash — no `thinking_level_map` key), `test/render/model_menu_test.rb` (feeds `ModelMenu.model` raw-hash entries + two-key hash refs), `e2e_session_test.rb` :118/:183 (reads `Session.read_header(...)["parentSession"]` — string-key `[]` + `.key?` on the return), `launcher_smoke_test.rb` :77/:117 (calls `Executable.footer_data` WITHOUT the new `resolved:` kwarg) + :175–198 (opens the model menu with NO `footer_data` → boot ref id nil). The spec requires these files untouched AND the suite green. | **Frozen tests win** (they are regression guards: `suite` must stay green; my builder contract freezes existing public interfaces). Added legacy-compat shims at exactly those four seams, each documented in-code and listed under Residuals: (a) `Models::Config` ducks provider values — typed `Shapes::Provider` values (the `Models.load` production path) yield typed `Shapes::Model` entries; raw-hash providers (hand-built configs only) keep today's raw merged-hash entries, so the frozen 6-key `==` pin holds; `Config#resolve` reads fields through a duck helper. (b) `ModelMenu.model`/`ref_key` read entries/refs through the same duck (typed attribute first, raw-hash fetch fallback); rows stay plain Hashes carrying the typed entry. (c) `Shapes::SessionHeader` keeps the raw recorded hash and answers the discovery readers (`[]` string/symbol, `.key?`) nil-safely. (d) `Executable.footer_data`'s `resolved:` kwarg is optional (built on the spot when absent). Judge note: OQ-5's "no test pins the hash shape" is factually wrong for e2e :118/:183. |
+| P0-2 | **`ContextMessage` as a plain Dry::Struct cannot round-trip the recorded body.** A declared-attributes `to_h` would drop the open body's remaining keys (`tool_calls`, `tool_call_id`) and re-order them (a tool body records `role, tool_call_id, content`; declaration order `role, content` would flip the tail) — wire-byte fatal for tool turns and the resume seed. | `Shapes::ContextMessage` is a `Dry::Struct` whose declared typed attributes (`role` symbolizing constructor, `content` nil→"" constructor) carry the entry-coercion table, plus a constructor override that pins the coerced full input in recorded key order and a `to_h` emitting it. This is the only reading that satisfies BOTH "the three projection functions return Shapes::ContextMessage" AND "context_messages applies .to_h at the gem seam (output shape unchanged)" + the frozen wire/session goldens. Verified: SESSION_GOLDEN_OK (all 6 digests exact), s2/s3 tool turns green. |
+| P0-3 | **Content constructor strictness conflict.** Grounds §3 p3/B3 call content a "nil→"" String constructor". Probed live: `Types::Constructor(Types::Strict::String) { … }` VALIDATES the block output — a recorded non-String non-nil content (e.g. `5`) would RAISE where today's projection has no guard, violating the same spec's error discipline ("NO new raise reaches a user surface"; "coercing types appear ONLY where today's code already coerces" — today coerces nil→"" only). | Content rides `Types::Constructor(Types::Nominal::Any) { |v| v.nil? ? "" : v }` — the nil→"" mapping, no constraint. The letter's word "String" is subordinated to the discipline paragraph. Itemized. |
+| P0-4 | **Menu row shape vs the switch seam.** The enumerated row shape `{value:, label:, provider:, id:, name:, current:, default:}` cannot feed `apply_model_selection`'s struct reads (`.context_window`); today's row carries the merged entry hash. | Rows stay plain Hashes and carry the typed entry under an `entry:` key; the menu's `on_select` closures deliver `item.fetch(:entry)` to the switch seam, which reads struct attributes only. No re-hashing anywhere. |
+| P0-5 | **`switch_model`'s legacy keyword-hash shape.** Untouched `chat_test` lines call `chat.switch_model(provider: …, id: …, …)` — Ruby 4 delivers that as one positional Hash. | `apply_model_selection` normalizes non-struct input through `Shapes::Model.new(**entry, thinking_level_map: entry.fetch(:thinking_level_map, nil))` — the struct's own type gate — before any read; production paths (menu carrier, `commands.rb` pass-through of `resolve`) deliver structs. Note: declared-`.optional` attributes still REQUIRE their key at construction (probed), hence the explicit map-key supply. |
+| P0-6 | **`ModelRef` strict `Strict::String` vs malformed settings.** A settings file `{"defaultModel": 5}` flows verbatim through `Settings.load` (the I43 no-filter pin) and would now raise at `resolve_boot_model`/the footer's legacy boot construction where a raw-value hash used to ride until the wire layer failed. | Followed the frozen letter (Strict::String; OQ-2 deliberately scopes nominal typing to ResolvedSettings' scalars). Consequence itemized: a malformed defaultModel/defaultProvider FILE value crashes the boot one layer earlier. Env tier (always Strings) and catalog tier (struct-guaranteed) are unaffected; DEFAULTS guarantee Strings absent explicit malformed overrides. |
+| P0-7 | **`boot_model_entry`'s reasoning can be nil** (footer fixtures without `:reasoning`; today stores nil). `Shapes::Model.reasoning` is `Strict::Bool`. | The footer-facts-built entry floors `data[:reasoning] == true`. Outcome-identical: every consumer treats non-true as false (`supported_thinking_levels`' `unless reasoning`, `!!` footer reads). OQ-4-adjacent (its `max_tokens: nil` completeness note is also implemented). `boot_model_ref` gets the same `"no-model"` id fallback as `boot_model_entry` (the footer-less degenerate surface, pinned by frozen launcher_smoke :175–198); marker outcomes identical (the fallback key matches no catalog entry, as nil never did). |
+| P0-8 | **`CompactionEntry`/`SessionHeader` recorded camelCase keys.** `transform_keys(&:to_sym)` maps `"firstKeptEntryId"` to `:firstKeptEntryId`, which cannot feed a snake_case `first_kept_entry_id` attribute. | `CompactionEntry` skips transform_keys and `.of` promotes the scanned fields (`type`, `id`, `firstKeptEntryId`→`first_kept_entry_id`, `summary`) string/symbol-tolerantly (the Recorder's in-memory projection is symbol-keyed; loaded entries string-keyed). `SessionHeader` keeps the spec's own `parentSession` spelling (camelCase attribute; transform_keys maps it verbatim). |
+| P0-9 | **`ResolvedSettings.context_window` is the FILE tier only** — per B2's own enumeration ("the file-tier context window via `Schemas::Settings.context_window_value`"); the env tier (`<IDENTITY>_CONTEXT_WINDOW`) and the model/registry tiers stay in `Settings.resolve_context_window`, which needs the chat model. `from_load` calls today's exact helpers (`Settings.resolve_setting`, `resolve_thinking_level`, `selected_tools`, `compaction_kwargs`) so each key's arithmetic is the production table, not a re-derivation. | Implemented as stated; pinned per precedence row (env-only/file-only/default-only/env+file/all/none) in `test/shapes_test.rb`. |
+| P0-10 | **`context_entries`' kept-entry match stays a raw `entry["id"]` read.** Riding `CompactionEntry` wraps for the KEPT match would change outcomes (non-compaction entries never wrap, but today's match is type-agnostic; and a nil `firstKeptEntryId` vs a nil wrap would false-match). The no-aliasing gate greps only `["message"]` in session.rb — `entry["id"]`/`entry["type"]` remain legal. | Compaction DETECTION rides the wrap (per B3); kept-entry matching keeps today's exact raw compare against `compaction.first_kept_entry_id`. |
+| P0-11 | **`print.rb`** — the one-line touch is the `:65` kwarg default (`Settings::DEFAULTS.fetch("thinkingLevel")` → `Settings::DEFAULT_THINKING_LEVEL`). Verified diff = 1 line. `Settings.resolve_thinking_level` (settings.rb's own domain) keeps its `DEFAULTS.fetch` — the gate greps only chat.rb/print.rb, and B2 names only those four sites. | Done. |
+
+Also verified live before writing code (Grounds §3 idiom list, all green on dry-struct 1.8.1 / dry-types 1.9.1 / ruby 4.0.7): declaration-order `to_h`; string-keyed input raising by default + `transform_keys(&:to_sym)`; unknown-key tolerance; `attribute?` omission vs explicit-nil type-check; `Hash.map` application (unfrozen result — inner tables frozen explicitly); sum types inside map values; coercing `Constructor` types; nested `Array.of(Model)`; `MissingKeyError`/`SchemaError` surfacing as `Dry::Struct::Error`.
+
+## Deliverables
+
+### B1 — the Model family (`lib/tart/shapes/model.rb` + models.rb + consumers)
+- `Shapes::Model` — attributes IN ORDER `id, name (Strict::String), reasoning (Strict::Bool), context_window, max_tokens (Strict::Integer.optional), thinking_level_map (Strict::Hash.map(Strict::Symbol, Strict::String | Strict::Nil).optional), provider (Strict::String)`; `to_h` pinned == the merged `build_model.merge(provider:)` hash, key order included (`test/shapes_test.rb#test_model_to_h_is_todays_entry_hash_key_order_included`).
+- `Shapes::Provider` (`name/base_url/api_key/api` `Strict::String.optional`, `models` `Strict::Array.of(Model)`), `Shapes::ModelRef`, `Shapes::ThinkingFacts`.
+- `Models.build_providers`/`build_model(model, provider:)` construct the structs (provider key feeds `Model#provider`); `Config` keeps its `::Struct` shell; `#model_entries` flat-maps `provider.models` (typed path); `#resolve`/`#provider` return typed shapes with the exact match table (canonical/scoped/bare, ambiguity = no match); `Models.resolve_boot_model` → `Shapes::ModelRef` (same precedence, settings-tier reads keep the merged Hash); `Settings.thinking_facts` → `Shapes::ThinkingFacts` (catalog-first/known-tables-second unchanged). Legacy-compat duck per P0-1a.
+- Consumers migrated: `bin/tart` (`boot.provider`/`boot.id`, `provider&.api_key`/`&.base_url`, `facts.reasoning`/`facts.thinking_level_map`, session-env readers `.provider`/`.id`), chat.rb (`apply_model_selection` reads `entry.id/.provider/.context_window`; `@runtime_model` holds the struct; `boot_model_entry` builds a `Shapes::Model` with `max_tokens: nil` (OQ-4) and reasoning floored (P0-7); `boot_model_ref` builds a `Shapes::ModelRef`), model_menu.rb (rows built FROM the struct, `ref_key` ducks Model/ModelRef/legacy refs). commands.rb untouched (pass-through).
+
+### B2 — resolved settings + typed tables (`lib/tart/shapes/settings.rb` + settings.rb + consumers)
+- `Shapes::ResolvedSettings.from_load(settings_or_result, identity:, env: ENV)` — strict where resolution guarantees the class (`identity`, `thinking_level`, `context_window` file-tier, `default_tools`), `Nominal::Any` for the flows-through scalars (`default_model/default_provider/api_base/api_key`), `compaction` → `Shapes::CompactionSettings` (`attribute?` present-keys slice). Outcome table + malformed flows-through rows pinned (incl. `"contextWindow": "abc"` → nil, `"defaultModel": 5` verbatim).
+- Typed constants in settings.rb via `Shapes::Types` map types, contents byte-identical (pinned key-for-key), inner maps frozen; `DEFAULT_THINKING_LEVEL = Shapes::Types::Strict::String["medium"]` single-sources `DEFAULTS["thinkingLevel"]`; chat.rb's three sites (:1733/:1768/:1942 area — `cycle_thinking_level`, `thinking_menu_items`, `default_thinking_level`) and print.rb's fourth read the constant.
+- Consumed at the launcher: print_mode + interactive construct it once after identity resolution; `require_api_key`'s apiKey tier, `footer_data`'s legacy boot shape + level, `build_chat`'s api tiers read struct attributes. `Result#settings`, the Settings helpers' signatures, and the I43 no-filter pin untouched.
+
+### B3 — session-entry typed views, READ path only (`lib/tart/shapes/session.rb` + agent/session.rb + chat.rb)
+- `Shapes::MessageEntry` (`transform_keys(&:to_sym)`, type enum, role promoted from the body at construction, open `message` Hash) and `Shapes::CompactionEntry` (nominal scan fields) with `.of(raw)` = constructor inside `rescue Dry::Struct::Error → nil`; `Shapes::SessionHeader` (strict type/id, nominal cwd/version/timestamp/parentSession, discovery readers); `Shapes::ContextMessage` (P0-2 design).
+- The three projections return `Shapes::ContextMessage`; `context_messages` applies `.to_h` at the gem seam (output shape pinned unchanged — session_test/e2e pins untouched and green); `message_entry_with_role?`, `preview`, `context_entries`' scan, `read_header` (→ `Shapes::SessionHeader`, OQ-5 with the P0-1c discovery readers), chat.rb's `resume_session` all ride the wraps.
+- The Recorder write path, the three entry factories, `entry_line`, and the fork copy stay Hash literals — SESSION_GOLDEN_OK proves the bytes.
+
+### Dependency changes
+`tart.gemspec` gains `spec.add_dependency "dry-struct", "~> 1.8"` + `spec.add_dependency "dry-types", "~> 1.9"` (production, with the I43-style comment); `Gemfile.lock` regenerated — diff purely additive (dry-struct 1.8.1, its ice_nine dep, checksums). No other gemspec change; no `required_ruby_version` change.
+
+## Test surgery table (every re-pinned line, old → new)
+
+| File:line (base) | Old | New |
+|---|---|---|
+| models_test :69–70 | `assert_equal ({provider:, …7-key hash}), entry` | same expected vs `entry.to_h` (+ message) |
+| models_test :71–72 | `config.provider("glm").fetch(:base_url)` / `.fetch(:api_key)` | `config.provider("glm").base_url` / `.api_key` |
+| models_test :122–137 | `catalog` fixture with raw-hash providers/models | struct-built (`Shapes::Provider.new` + `Shapes::Model.new`) |
+| models_test :138–140 | `catalog.resolve(…).fetch(:provider)` / `.fetch(:name)` | `.provider` / `.name` |
+| models_test :157/:162/:166/:172/:175/:180/:186/:192/:197 | `assert_equal ({provider:, id:}), boot` (hash) | `assert_equal ({provider:, id:}), boot.to_h` (ModelRef) |
+| models_test :213/:219/:349 | `entry[:thinking_level_map]` / `model_entries.first[:thinking_level_map]` | `entry.thinking_level_map` / `.thinking_level_map` |
+| schemas_test :69–74 | `assert_equal({…entry hash…}, config.model_entries.first, …)` | same vs `config.model_entries.first.to_h` |
+| settings_test :347–353 | `entry = {id: "m", reasoning: false, thinking_level_map: {…}}`; `facts[:reasoning]`; `facts[:thinking_level_map]`; `entry[:id]` | `Shapes::Model.new(id: "m", name: "m", …)` full construction; `facts.reasoning`; `facts.thinking_level_map`; `entry.id` (same for the third facts test's `glm[:…]` reads) |
+| session_test :175–179 | `projected[:role]` / `projected[:content]` | `projected.role` / `projected.content` |
+| session_test :189–191 | `entry_to_context_message(JSON.parse(JSON.generate(entry)))[:content]` | `….content` |
+| chat_test :2245–2254 | `model_catalog` fixture raw hashes | struct-built providers/models |
+| chat_test :2406–2413 | `mock_native_catalog` fixture raw hashes | struct-built |
+
+Additive only elsewhere: `test/shapes_test.rb` (new, 20 tests) and `test/session_test.rb` (+4 tests: wrap tolerance rows on the real load path, `context_messages` hash-shape pin, `read_header` struct pin, placed before `private`). Frozen files: ZERO diff (verified `git status` — only the declared set).
+
+## Verification output (exact, per repo, this worktree)
+
+| Gate | Result |
+|---|---|
+| `bundle install --quiet && bundle exec rake` | **exit 0 — `846 runs, 3641 assertions, 0 failures, 0 errors, 1 skips`** (base: 823/3511/0/0/1 — the same pre-existing opt-in LiveRunTest skip; run count +23 with the new pins) |
+| `bundle exec ruby bench/seam_bench.rb` (tail) | **exit 0 — `SEAM_BENCH_OK`** |
+| s1_text_turn … s10_editor_wrap → `tmp/parity-gate-s1…s10` (cold, canonical short dirs) | **all exit 0** |
+| `s1_tart.yml` → `tmp/parity-gate-s1tart` + summary check | rig exit 1 (by design; gate accepts ≤1) — **`TART_MODE_OK`** |
+| `tool-pending-probe --gate --out tmp/i44-tp` | **exit 0 — `TOOL_PENDING_GATE_OK`** |
+| `user-bash-stream-probe --gate --out tmp/i44-ubs` | **exit 0 — `USER_BASH_STREAM_GATE_OK`** |
+| session-golden | **exit 0 — `SESSION_GOLDEN_OK`** — all six frozen digests exact: plain `928183de…`, plain_context `d3c1574f…`, plain_roles `[:user, :assistant, :tool, :assistant]`, primary `cb29e42e…`, forked `3a5f6d60…`, context `f75f99b4…`, fork_roles `[:user, :user]` |
+| deps-shapes | **exit 0 — `DEPS_SHAPES_OK`** |
+| shapes-presence | **exit 0 — `SHAPES_OK`** (all 10 classes + `Shapes::Types` defined at `Tart::Shapes`; `test/shapes_test.rb` present) |
+| no-aliasing | **exit 0 — `NO_ALIASING_OK`** (all eight grep sections clean, including comments) |
+| scope (`git status` vs frozen base; never committed) | working tree = exactly the declared 21-file set; no schemas/tools/mcp/agent-core/compaction/commands file, no frozen test file, no rig file |
+| wire-bodies (see Residuals W-1) | tools digest **`7360fd1e…` == the frozen pin (MATCH)**; s1 request-body digest = `6323a1b6…` in THIS worktree — byte-IDENTICAL to base run in this same worktree (control executed via `git stash`); the frozen `2ece7d4b…` literal is worktree-path-bound (below) |
+
+Wire-bodies evidence detail: my tree is deterministic across two runs (`6323a1b6…` twice). The base control in this worktree produces the SAME `6323a1b6…` after the gate's exact normalization — i.e. ZERO wire bytes moved base→shapes. The pin literal does not reproduce even at base here because the rig launches tart at `<worktree>/tmp/i44-wire/run-1/sandbox/tart` (a `tart` SUBDIRECTORY of the sandbox), so the system prompt's `<cwd>` embeds the absolute worktree PREFIX (`…/build/I44-dry-rb-shapes-shapes/wt/<SBX>/tart`) which the baked `gsub("tmp/i44-wire/run-1/sandbox", "<SBX>")` cannot absorb. The pin is reproducible only at the capture-time checkout path. Per the standing rule the literal was NOT adjusted; the judge's run on the integrated tree at the canonical path decides.
+
+## Residuals / risks
+
+- **W-1 (wire-body pin, environment-bound).** As above: base-parity proven byte-for-byte in-environment; the pin literal itself needs the canonical checkout path. No byte moved from base (the binding constraint).
+- **W-2 (legacy-compat shims at four frozen seams).** P0-1: `Models::Config` ducks provider values (raw-hash providers yield today's raw merged-hash entries — the typed path is everything via `Models.load`); `ModelMenu.model`/`ref_key` duck entry/refs; `SessionHeader` carries raw-hash discovery readers; `footer_data`'s `resolved:` kwarg optional. Each is the minimal shim that keeps a frozen pin green; each documented in-code; production paths are fully typed.
+- **W-3 (ModelRef strictness).** P0-6: a malformed `defaultModel`/`defaultProvider` FILE value crashes the boot at the ModelRef construction where it used to ride deeper. Env/catalog tiers unaffected.
+- **W-4 (behavior-neutral micro-deltas, outcome-identical).** `boot_model_entry` reasoning nil→false (P0-7); `boot_model_ref` id fallback `"no-model"` for footer-less surfaces (matches no catalog entry, as nil never did); `SESSION`/`PRINT` env `MODEL` reads the struct id (never nil in launcher-wired runs); the footer-view map overlay now always rides a switch (structs always carry the key; today's `.key?` check only differed for the direct-keyword-hash switch path whose fixtures carry no composed footer map — outcome-identical on the whole suite).
+- **W-5 (ContextMessage design).** P0-2/P0-3: `to_h` override pins the coerced recorded body (recorded order); content constructor is nominal-with-nil→"" (no new raises). `missing.content` reads nil when the key was absent (the projection hash still gains `content: ""` last) — no consumer reads the attribute on that path.
+- **W-6 (pre-existing, NOT this iteration's).** `launcher_smoke_test#test_footer_data_clamps_the_boot_level_but_keeps_the_badge_source_raw` FAILS AT BASE when `<IDENTITY>_MODEL` is unset in the shell (verified via `git stash`: base run = same 1 failure; the legacy footer boot id defaults to the glm id whose known map floors nothing, vs the test's map-less expectation). The space's shell env (`PI_MODEL=glm-5.3-flash PI_PROVIDER=zai`) is the environment the suite is green in — both at base and with this diff (846/3641/0/0/1). Reported for the judge; no action taken.
+
+STATUS: COMPLETE_WITH_CONCERNS
 
 ## Verdict
 
