@@ -67,7 +67,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: zai-provider
+  current_iteration: seam-memory
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1815,4 +1815,10 @@ project:
     rehearsal:
       gates_digest: 0fdb913c344d85ec8af101e02e5c95060252a60c0ec567d8357f531cf0190292
       at: '2026-10-13T09:06:38-06:00'
+  - name: seam-memory
+    ordinal: 47
+    file: architecture/I47-seam-memory.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
