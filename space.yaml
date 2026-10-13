@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: user-bash-streaming
+  current_iteration: editor-undo
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1545,4 +1545,10 @@ project:
     rehearsal:
       gates_digest: 135fc5fda6d6017e8edde0d816eea65363a7a2500530be7ebfb9540daff7fea9
       at: '2026-10-12T18:02:33-06:00'
+  - name: editor-undo
+    ordinal: 39
+    file: architecture/I39-editor-undo.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
