@@ -1897,23 +1897,25 @@ project:
       - test/agent_loop_test.rb
       - test/settings_test.rb
       base_sha: b54a3b15d4aa211e6ad67d104f89f7b489445f42
-      worktree: build/I48-subagents-core-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: afca590f8ad29b6d4ac7f897bd5096e7e1e516f7
     - name: e2e
       repo: tart
       touch_set:
       - test/subagents_e2e_test.rb
       base_sha: b54a3b15d4aa211e6ad67d104f89f7b489445f42
-      worktree: build/I48-subagents-core-e2e/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: '0088b4054b4158240f4871a161128427d52997c8'
     rehearsal:
       gates_digest: 9319291b8f934d31ff11ac53165f93beed21b410e8f15db14f69811fb54432a1
       at: '2026-10-13T13:49:05-06:00'
