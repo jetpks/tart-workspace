@@ -541,51 +541,258 @@ bin/tart; parallel lanes would collide on the same files):
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse dry-rb-shapes` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze dry-rb-shapes` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria — I44 dry-rb-shapes
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+Gate calibration (pre-declared): **RED at base BY DESIGN** —
+`deps-shapes`, `shapes-presence`, `no-aliasing` (the dry-struct/dry-types
+deps, the `Tart::Shapes` family, and the migrated accessor surface do not
+exist at 0c6ee246); they must be GREEN on the integrated tree,
+non-vacuously. **Regression guards (GREEN at base, must stay GREEN)** —
+`suite`, `bench`, `s1`–`s10`, `s1-tart-mode`, both probe gates,
+`wire-bodies`, `session-golden` (the two byte-pin gates were captured at
+base this session — Grounds §4 — and verified deterministic across two
+base runs; a post-build failure means a byte moved). The s-gates keep the
+CANONICAL short out dirs (I41 Grounds 1's environmental note). The KNOWN
+s9 lane-worktree deep-path artifact (I34/I36/I39/I40/I42/I43 precedent)
+does not fail this iteration when the same tree exits 0 at canonical
+depth — the judge runs the battery on the integrated tree.
 
-**AC1.** ...
+**AC1 (the shapes family lands).** `Tart::Shapes` exists at the specified
+home (`lib/tart/shapes.rb` + `shapes/{types,model,settings,session}.rb`)
+with the specified classes (`Model`, `Provider`, `ModelRef`,
+`ThinkingFacts`, `ResolvedSettings`, `CompactionSettings`,
+`MessageEntry`, `CompactionEntry`, `SessionHeader`, `ContextMessage`);
+`tart.gemspec` declares `dry-struct ~> 1.8` + `dry-types ~> 1.9` as
+PRODUCTION deps and `Gemfile.lock` carries them. The shape contract
+(naming, transform_keys for JSON-fed structs, the tolerance wrap idiom,
+nominal-for-flows-through, byte rule) is followed. Pinned by
+`deps-shapes` + `shapes-presence` + judge read of the diff.
+
+**AC2 (Model-family equivalence).** `Models.load`'s valid-path outputs
+are `to_h`-equal to today's entry hashes (key order included — the
+`to_h` shape pin); `Config#model_entries`/`#resolve`/`#provider` return
+the typed shapes with today's exact match tables;
+`resolve_boot_model` → `ModelRef` (same precedence table);
+`Settings.thinking_facts` → `ThinkingFacts` (same catalog-first/
+known-tables-second outcomes); every Grounds §2 Model-family consumer
+(bin/tart, chat.rb's model family, model_menu.rb) reads struct
+attributes — no `[:provider]`/`[:id]`-style entry indexing at the
+migrated seams; the Grounds §5 re-pins land (mechanical, enumerated).
+Pinned by `no-aliasing` + the new unit pins + the existing pins green.
+
+**AC3 (resolved settings + typed tables).** `ResolvedSettings.from_load`
+reproduces today's resolution outcome table per key (env > file >
+DEFAULTS incl. every malformed flows-through row — nominal attributes
+carry raw values verbatim, no raise, no filter); it is consumed at the
+launcher's Grounds §2 sites; the three known-models tables are
+type-checked constants with contents byte-identical to today's literals;
+`DEFAULT_THINKING_LEVEL` single-sources the default and chat.rb's three
+`DEFAULTS.fetch("thinkingLevel")` sites read it; `Result#settings`'
+merged-hash shape and the I43 no-filter pin are untouched. Pinned by
+the new unit pins + `no-aliasing` + the existing settings/schemas pins
+green (the I43 precedence matrix untouched).
+
+**AC4 (session entries typed, bytes frozen).** The read path
+(`entry_to_context_message` family, `message_entry_with_role?`,
+`context_entries`' scan, `preview`, `read_header`, chat.rb's resume
+block) consumes the envelope wraps with today's EXACT tolerance table
+(every malformed class projects nil; null content → ""; the bash
+per-field guards verbatim); `context_messages`' output Hash shape is
+unchanged (`.to_h` at the gem seam — the untouched session_test/
+e2e_session pins prove it); the write path (factories, Recorder#persist,
+fork copy) is Hash-literal-untouched. The byte goldens hold: session
+JSONL digests (plain/compaction/fork/context) and the wire request-body
+digest identical to the Grounds §4 literals. Pinned by `session-golden`
++ `wire-bodies` + session_test/e2e_session green UNTOUCHED at their
+un-re-pinned lines.
+
+**AC5 (parity + regression + scope).** The default rake task fully green
+(run count > 823 with the new pins); `SEAM_BENCH_OK`; s1–s10 exit 0
+cold at the canonical out dirs; `s1-tart-mode` completes (TART_MODE_OK);
+both probe gates OK (TOOL_PENDING_GATE_OK, USER_BASH_STREAM_GATE_OK);
+the integrated diff vs **0c6ee246** touches EXACTLY the lane's declared
+file set — no schemas file, no tools/mcp/agent file, no frozen test
+file, no rig file.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse dry-rb-shapes` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/parity-gate-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/parity-gate-s6
+  expect:
+    exit_code: 0
+
+- id: s7-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7
+  expect:
+    exit_code: 0
+
+- id: s8-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml --out tmp/parity-gate-s8
+  expect:
+    exit_code: 0
+
+- id: s9-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s9_startup_help.yml --out tmp/parity-gate-s9
+  expect:
+    exit_code: 0
+
+- id: s10-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s10_editor_wrap.yml --out tmp/parity-gate-s10
+  expect:
+    exit_code: 0
+
+- id: s1-tart-mode
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_tart.yml --out tmp/parity-gate-s1tart; ec=$?; if [ "$ec" -gt 1 ]; then exit 1; fi; ruby -rjson -e 's = JSON.parse(File.read("tmp/parity-gate-s1tart/summary.json"))["runs"][0]["apps"]["tart"]; abort "tart incomplete" unless s["completed"] && s["requests"] == s["expected_requests"]; puts "TART_MODE_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: TART_MODE_OK
+
+- id: tool-pending-gate
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tool-pending-probe --gate --out tmp/i44-tp
+  expect:
+    exit_code: 0
+    stdout_match: TOOL_PENDING_GATE_OK
+
+- id: user-bash-stream-gate
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    test -x gems/tui-split-rig/bin/user-bash-stream-probe && gems/tui-split-rig/bin/user-bash-stream-probe --gate --out tmp/i44-ubs
+  expect:
+    exit_code: 0
+    stdout_match: USER_BASH_STREAM_GATE_OK
+
+- id: wire-bodies
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    rm -rf tmp/i44-wire && gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/i44-wire >/dev/null 2>&1; ec=$?; [ "$ec" -eq 0 ] || exit 1; ruby -rjson -rdigest -e 'bodies = File.readlines("tmp/i44-wire/run-1/tart-requests.jsonl").map { |l| Digest::SHA256.hexdigest(JSON.generate(JSON.parse(l)).gsub("tmp/i44-wire/run-1/sandbox", "<SBX>")) }; tools = Digest::SHA256.hexdigest(JSON.generate(JSON.parse(File.readlines("tmp/i44-wire/run-1/tart-requests.jsonl")[0])["body"]["tools"])); abort "request-body bytes moved: #{bodies.inspect}" unless bodies == ["2ece7d4b875c98590b2f839814a0d3444fbfe1a8514b09c17d000663466c25d2"]; abort "tool declarations moved: #{tools}" unless tools == "7360fd1ec6419b5f9966c3067588314cdd0d29231a78346443a0002923c23707"; puts "WIRE_BODIES_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: WIRE_BODIES_OK
+
+- id: session-golden
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec ruby -Ilib -e 'require "tart"; require "tmpdir"; require "json"; require "digest"; FakeMsg = Struct.new(:role, :attrs) do def to_h = attrs end; VOLATILE = %w[id parentId timestamp parentSession cwd firstKeptEntryId].freeze; normalize = lambda do |obj|; case obj; when Hash then obj.each_with_object({}) { |(k, v), h| h[k] = VOLATILE.include?(k) && !v.nil? ? "<#{k}>" : normalize.call(v) }; when Array then obj.map { |v| normalize.call(v) }; else obj; end; end; digest_lines = lambda { |path| Digest::SHA256.hexdigest(File.readlines(path).map { |l| JSON.generate(normalize.call(JSON.parse(l))) }.join("\n")) }; out = {}; Dir.mktmpdir do |dir|; root = File.join(dir, "agent"); plain = Tart::Agent::Session::Recorder.new(cwd: dir, root: root); plain.append_message(FakeMsg.new(:user, {role: "user", content: "list the files"})); plain.append_message(FakeMsg.new(:assistant, {role: "assistant", content: nil, tool_calls: [{id: "call_1", name: "ls", arguments: {path: "."}}]})); plain.append_message(FakeMsg.new(:tool, {role: "tool", tool_call_id: "call_1", content: "fixture.txt"})); plain.append_message(FakeMsg.new(:assistant, {role: "assistant", content: "the listing is above"})); rec = Tart::Agent::Session::Recorder.new(cwd: dir, root: root); rec.append_message(FakeMsg.new(:user, {role: "user", content: "list the files"})); rec.append_message(FakeMsg.new(:assistant, {role: "assistant", content: nil, tool_calls: [{id: "call_1", name: "ls", arguments: {path: "."}}]})); rec.append_message(FakeMsg.new(:tool, {role: "tool", tool_call_id: "call_1", content: "fixture.txt"})); rec.append_message(FakeMsg.new(:assistant, {role: "assistant", content: "the listing is above"})); rec.append_bash_execution(Tart::Agent::Session.bash_execution_message(command: "echo hi", output: "hi", exit_code: 0, cancelled: false, truncated: false, full_output_path: nil)); rec.append_compaction(summary: "Earlier turns summarized.", first_kept_entry_id: nil, tokens_before: 15, details: "auto"); forked = Tart::Agent::Session::Recorder.new(cwd: dir, root: root, parent_session: rec.path); forked.append_message(FakeMsg.new(:user, {role: "user", content: "after the fork"})); out[:plain] = digest_lines.call(plain.path); out[:plain_context] = Digest::SHA256.hexdigest(JSON.generate(Tart::Agent::Session.context_messages(plain.path))); out[:plain_roles] = Tart::Agent::Session.context_messages(plain.path).map { |m| m[:role] }.inspect; out[:primary] = digest_lines.call(rec.path); out[:forked] = digest_lines.call(forked.path); out[:context] = Digest::SHA256.hexdigest(JSON.generate(Tart::Agent::Session.context_messages(rec.path))); out[:fork_roles] = Tart::Agent::Session.context_messages(forked.path).map { |m| m[:role] }.inspect; end; want = {plain: "928183de7736e9ad59237d6eb4bf7eb0215f8933ac1e1c2c4d8cb0e61ca38728", plain_context: "d3c1574f049f9688309656a21d42100e32b0203025f77f8afbed70819cb228ee", plain_roles: "[:user, :assistant, :tool, :assistant]", primary: "cb29e42e1ba9ecc29e28ce3d833e68fbd8f17ddfa2700b02b1b6bd98b24baa29", forked: "3a5f6d606f5952fd2e0e25bf085d442c386d18bb0d60a4bdd7c43b04b203ae8d", context: "f75f99b4516b3e69f41d847bb5266d7cac897e3fd320190f588d83e26497a029", fork_roles: "[:user, :user]"}; bad = want.keys.select { |k| out[k] != want[k] }; abort "session bytes moved: #{bad.map { |k| [k, out[k]] }.inspect}" unless bad.empty?; puts "SESSION_GOLDEN_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: SESSION_GOLDEN_OK
+
+- id: deps-shapes
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'dry-struct' tart.gemspec && grep -q 'dry-types' tart.gemspec && grep -q 'dry-struct' Gemfile.lock && grep -q 'dry-types' Gemfile.lock && bundle install --quiet && bundle exec ruby -e 'require "dry-struct"; require "dry-types"; puts "DEPS_SHAPES_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: DEPS_SHAPES_OK
+
+- id: shapes-presence
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec ruby -Ilib -e 'require "tart"; need = %w[Model Provider ModelRef ThinkingFacts ResolvedSettings CompactionSettings MessageEntry CompactionEntry SessionHeader ContextMessage]; missing = need.reject { |c| Tart::Shapes.const_defined?(c, false) }; abort "Tart::Shapes missing: #{missing.inspect}" unless missing.empty? && defined?(Tart::Shapes::Types); abort "test/shapes_test.rb missing" unless File.file?("test/shapes_test.rb"); puts "SHAPES_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: SHAPES_OK
+
+- id: no-aliasing
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    if grep -q 'boot\[' bin/tart; then echo "FAIL boot ref indexing in bin/tart"; exit 1; fi; if grep -qnE 'entry\[:' lib/tart/render/chat.rb lib/tart/render/model_menu.rb lib/tart/settings.rb; then echo "FAIL entry hash indexing at migrated seams"; exit 1; fi; if grep -qnE 'fetch\(:api_key|fetch\(:base_url' bin/tart; then echo "FAIL provider config hash indexing in bin/tart"; exit 1; fi; if grep -q 'DEFAULTS.fetch("thinkingLevel")' lib/tart/render/chat.rb; then echo "FAIL DEFAULTS hash read in chat.rb"; exit 1; fi; if grep -q 'provider.fetch(:models)' lib/tart/models.rb; then echo "FAIL models hash indexing in models.rb"; exit 1; fi; if grep -qnE 'entry\.fetch\(:reasoning|entry\[:thinking_level_map\]' lib/tart/settings.rb; then echo "FAIL thinking_facts hash indexing"; exit 1; fi; if grep -qnE '\["message"\]' lib/tart/agent/session.rb lib/tart/render/chat.rb; then echo "FAIL session envelope hash indexing"; exit 1; fi; if grep -qnE 'facts\[:' bin/tart lib/tart/render/chat.rb; then echo "FAIL thinking_facts hash indexing at consumers"; exit 1; fi; echo NO_ALIASING_OK
+  expect:
+    exit_code: 0
+    stdout_match: NO_ALIASING_OK
+
+- id: scope
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only 0c6ee246 HEAD | grep -qvE '^(tart\.gemspec|Gemfile\.lock|lib/tart\.rb|lib/tart/shapes\.rb|lib/tart/shapes/types\.rb|lib/tart/shapes/model\.rb|lib/tart/shapes/settings\.rb|lib/tart/shapes/session\.rb|lib/tart/models\.rb|lib/tart/settings\.rb|lib/tart/agent/session\.rb|lib/tart/render/chat\.rb|lib/tart/render/model_menu\.rb|bin/tart|test/shapes_test\.rb|test/models_test\.rb|test/schemas_test\.rb|test/settings_test\.rb|test/session_test\.rb|test/chat_test\.rb)$'; then exit 1; else echo SCOPE_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
 
 ## Builder Prompt
