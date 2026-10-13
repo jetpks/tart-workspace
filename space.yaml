@@ -67,7 +67,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: dry-rb-boundaries
+  current_iteration: dry-rb-shapes
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1709,4 +1709,10 @@ project:
     rehearsal:
       gates_digest: 55d62cc389fa92bb4ad539833eb9b50c8ecff588eba4b2d3e6173949cede353b
       at: '2026-10-13T03:53:22-06:00'
+  - name: dry-rb-shapes
+    ordinal: 44
+    file: architecture/I44-dry-rb-shapes.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
