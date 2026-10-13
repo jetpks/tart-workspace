@@ -2049,3 +2049,23 @@ authoring defects (judge-reproduced) and path artifacts (judge
 re-proven) — none chargeable to the builder. The replay probe's
 byte-stability headline is un-regressed. The dry-rb wave (ENTRY 1–3)
 is complete; the program advances to ENTRY 4 (zai-provider).
+
+Post-verdict (recorded at integrate time): integrated tree merge
+**a2368769** (lane integrate 7ba74a3, `--no-ff` into project/pi-port;
+integrated diff vs 4c2e6a9a = exactly the 12 declared files, scope gate
+NON-VACUOUS and green) — full gate re-run cold at the canonical path
+(tmp/i45-gate-integrated-cold.txt): **22/24 PASS** — SUITE_OK (868 runs
+/ 3713 assertions / 0 failures / 1 pre-existing skip), SEAM_BENCH_OK,
+s1–s10 exit 0 cold INCLUDING **s9 clean at canonical depth** (the 8th
+deep-path artifact closed), TART_MODE_OK, both probe gates OK,
+**WIRE_BODIES_OK** (request bodies `2ece7d4b…` + tools `7360fd1e…`
+EXACT at the canonical path — the worktree FAIL is closed as the path
+artifact; zero wire bytes moved; the replay probe's byte-stability
+headline un-regressed), SESSION_GOLDEN_OK (7/7), FLOW_PRESENCE_OK,
+MCP_TAXONOMY_OK, NO_SILENT_SWALLOW_OK, NO_NEW_WALLS_OK, SCOPE_OK. The
+only 2 FAILs on the integrated tree are the two adjudicated frozen-gate
+authoring defects (deps-flow's impossible `dry/monads/result` literal
+— D1; step-classification's `events2`/`events3` NameError — D2),
+judge-reproduced cold and recorded above; neither charges the builder.
+Lane worktree torn down; judge scratch (tmp/i45-base-tree control
+tree) removed.
