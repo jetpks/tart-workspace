@@ -673,9 +673,11 @@ Manager#shutdown), `#reply(reply_to:, message:)`, `#pending_text`,
   `message is required for supervisor decisions and progress updates.`;
   oversize `Supervisor request is too large.`; no-channel `No supervisor
   channel configured for this session.` (port wording — the inert
-  parent-side case, D6); timeout `Error: Timed out waiting for
-  supervisor reply.` (pi's error text; the port's tool-error result
-  shape carries it).
+  parent-side case, D6); timeout pi's message verbatim `Timed out
+  waiting for supervisor reply.`. Every child-tool failure rides the
+  port's {error: message} result shape (SafeExecute) with pi's message
+  bytes verbatim inside — pi throws, the port wraps; the child model
+  sees the same observable.
 - **Reply/pending receipts**: §4.3.
 
 ## 5. The child tool (`lib/tart/tools/contact_supervisor.rb` — new;
