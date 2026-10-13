@@ -306,11 +306,168 @@ Self-run before reporting (same commands the architect will gate on): suite, ben
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I38-user-bash-streaming-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence user-bash-streaming --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# I38 user-bash-streaming — core lane report (raw results)
+
+Base: `a48aaca9` (Merge lane/I37-thinking-ux-render). Worktree: `build/I38-user-bash-streaming-core/wt`.
+
+## File list + wc
+
+```
+     309 lib/tart/tools/bash.rb                       (modified, +seam)
+     219 lib/tart/render/user_bash.rb                 (modified, +3 sinks)
+    1925 lib/tart/render/chat.rb                      (modified, +live region)
+     233 lib/tart/render/bash_block.rb                (modified, +running composer)
+    5064 test/chat_test.rb                            (modified, additive +11 tests)
+     227 test/bash_tool_test.rb                       (modified, +4 seam tests)
+     123 test/render/bash_block_test.rb               (NEW, 5 composer tests)
+     144 gems/tui-split-rig/bin/user-bash-stream-probe (NEW, chmod +x)
+      19 gems/tui-split-rig/scenarios/probe_user_bash.yml (NEW)
+     370 gems/tui-split-rig/test/scenario_test.rb      (modified, +1 load pin)
+```
+
+`git diff --stat` (tracked): 7 files, 624 insertions(+), 30 deletions(-). Untracked new: the probe binary, the probe yml, `test/render/bash_block_test.rb`. Scope: exactly the declared touch set; `transcript.rb`, the scenarios, `registry.yml`, goldens, `architecture/` untouched (`git status --short` verbatim):
+
+```
+ M gems/tui-split-rig/test/scenario_test.rb
+ M lib/tart/render/bash_block.rb
+ M lib/tart/render/chat.rb
+ M lib/tart/render/user_bash.rb
+ M lib/tart/tools/bash.rb
+ M test/bash_tool_test.rb
+ M test/chat_test.rb
+?? gems/tui-split-rig/bin/user-bash-stream-probe
+?? gems/tui-split-rig/scenarios/probe_user_bash.yml
+?? test/render/bash_block_test.rb
+```
+
+## PHASE 0 — premise verification (all against live files, this worktree)
+
+- **Grounds 5 (bridge queue = the seam)**: `lib/tart/agent/bridge.rb` read end-to-end — `run` pops the `Async::Queue` in a loop, yields every non-terminal item, returns on `:done/:cancelled/:error`. async 2.46.0 `lib/async/queue.rb` read: `Async::Queue` delegates to `Thread::Queue` (thread-safe push from foreign threads). Empirical re-verification in this worktree (`/tmp/i38_qpop_verify.rb`, bundle's async): frame-loop ticker ran 40 ticks, max inter-tick gap 0.029 s, while the bridge-pop fiber waited; 5 foreign-thread pushes yielded at push times (0.070/0.135/0.205/0.270/0.338 s vs the 60 ms push cadence) → `GROUNDS5_VERIFY_OK`. `request_draw`/`animate` are reactor-only (`lib/tart/core/loop.rb:134-160` docs; `animate` "any reactor fiber", `request_draw` "Reactor context only").
+- **Grounds 2 (chunk discipline)**: `repos/pi/packages/coding-agent/src/core/bash-executor.ts` `appendText`: `sanitizeBinaryOutput(stripAnsi(rawText)).replace(/\r/g, "")` then `options.onChunk(text)` — CR REMOVED, verified. Port `run_user` returns `snapshot.content.to_s.gsub("\r", "")`.
+- **Grounds 3 (loader bytes)**: `packages/tui/src/components/loader.ts` — `DEFAULT_FRAMES` ⠋⠙⠹⠸⠼⠴⠦⠧⠇⠏, `DEFAULT_INTERVAL_MS` 80, `render(width)` returns `["", ...super.render(width)]` (leading blank), `super("", 1, 0)` (padX 1), tick → `ui.requestRender()`. `packages/tui/src/keybindings.ts:155-158` `tui.select.cancel` defaultKeys `["escape", "ctrl+c"]`; `keybinding-hints.ts` `formatKeys` joins with "/" → `Running... (escape/ctrl+c to cancel)` byte-exact.
+- **Grounds 1/6**: `bash-execution.ts` whole file — running branch REPLACES the whole statusParts block with the loader (:147-165, no hidden-lines hint mid-flight); component constructed + added to chat/pending container BEFORE execution (interactive-mode.ts:7000-7012), flushed at :3389/:4861-4867; escape → abortBash (:3074); per-chunk `appendOutput` + `ui.requestRender()` (:7050-7057).
+
+## PHASE 0 — disagreements / findings (all resolved; none blocking)
+
+1. **Empty-chunk letter vs pi executor.** The spec's seam line is an unconditional `on_chunk&.call(text.gsub("\r", ""))` per pipe read; pi's `appendText` (bash-executor.ts:76-79 `if (!text) return`) never fires `onChunk` for empty sanitized text. Every AC is indifferent (joined-stream equality and "CR-only chunk vanishes" hold under both). Resolution: the spec letter — unconditional call, with the pi guard noted in the comment; an empty call is inert downstream (buffer append of "" is a no-op).
+2. **Clear placement in `finish`.** The spec names three terminal paths (finish outcome arm, finish worker-error arm, cancel). A fourth micro-shape exists (a terminal item with neither outcome nor `:error` — reachable only in a cancel/watch micro-window or the IdleKernel test artifact). Resolution: `stream_end_sink` fires ONCE at `finish` entry (covering both named arms and the hole) and once in `cancel` — strictly stronger than the letter, no AC weakened; the chat-side sink is naturally idempotent.
+3. **AC5's "machinery tripwire".** No tripwire test exists in the repo (grep over `test/`, `gems/tui-split-rig/test/` for tripwire/GATE_OK/`test -x`: nothing). Read the clause as "AC5 is red at base by design" (I34 precedent) and demonstrated it empirically (below). The probe fails cleanly (digest + exit 1), never a bare 127.
+4. **Grounds 6d** (deferred-completed placement while a turn streams) stays out of scope, untouched, as ruled.
+5. **Test-infra note (not a spec disagreement):** the side-reactor thread in chat tests owns no thread-local terminal, so a mid-flight test's `finish` dies at the `block_sink` viewport read — the SAME artifact the existing `test_escape_cancels_the_running_user_bash` lives with (visible in the base suite's Async warning). Mid-flight tests therefore pin mid-flight + cleared-live facts; settled-flush pins ride the main-thread `drain_runs` idiom (the byte-identity control test does exactly this).
+
+## Suite counts
+
+- Base (verified at a48aaca9 before edits): **705 runs, 2899 assertions, 0 failures, 0 errors, 1 skip**.
+- After (final tree): **726 runs, 2989 assertions, 0 failures, 0 errors, 1 skips** (delta +21 runs / +90 assertions; the skip is the pre-existing one). Run count delta > 0 ✓; chat_test.rb surgery additive only ✓ (helpers `run_user_bash_task`/`row_texts`/`loader_row_spans`, a `RecordingKernel`, a `kernel:` kwarg on `with_chat`, 11 new `test_` methods; no existing test modified).
+
+Verbatim tails:
+
+```
+$ bundle exec rake test
+Finished in ...s
+726 runs, 2989 assertions, 0 failures, 0 errors, 1 skips
+
+$ bundle exec ruby test/render/bash_block_test.rb
+5 runs, 22 assertions, 0 failures, 0 errors, 0 skips
+
+$ bundle exec ruby test/bash_tool_test.rb
+16 runs, 75 assertions, 0 failures, 0 errors, 0 skips
+
+$ bundle exec ruby test/chat_test.rb
+222 runs, 995 assertions, 0 failures, 0 errors, 0 skips
+
+$ bundle exec ruby gems/tui-split-rig/test/scenario_test.rb
+30 runs, 161 assertions, 0 failures, 0 errors, 0 skips
+```
+
+## Seam bench
+
+```
+$ bundle exec ruby bench/seam_bench.rb
+    "animation_window_s": 3.0,
+    "static_window_s": 3.0,
+    "child_deadline_s": 45.0
+  }
+}
+SEAM_BENCH_OK
+```
+
+## s1–s10 (SHORT out dirs; one cold sequential pass, quiet tmux server)
+
+```
+s1_text_turn: exit 0            (tmp/i38c-s1_text_turn)
+s2_tool_turn: exit 0            (tmp/i38c-s2_tool_turn)
+s3_tool_turn_files: exit 0      (tmp/u-s3)
+s4_bash_variants: exit 0        (tmp/i38c-s4_bash_variants)
+s5_bash_truncation: exit 0      (tmp/u-s5)
+s6_long_calls: exit 0           (tmp/i38c-s6_long_calls)
+s7_compaction: exit 0           (tmp/i38c-s7_compaction)
+s8_zero_usage_compaction: exit 0 (tmp/u-s8)
+s9_startup_help: exit 0         (tmp/i38c-s9_startup_help)
+s10_editor_wrap: exit 0         (tmp/i38c-s10_editor_wrap)
+```
+
+Instrument note (pre-existing, documented in the lane spec): out-dir paths of ~28+ chars past `wt/` trip the footer-cwd truncation sensitivity — `tmp/i38c-s3_tool_turn_files` (one char longer than `tmp/i38-s3_tool_turn_files`) produced an unsanctioned candidate line that IS the out-dir path in the footer; re-run with shorter dirs → exit 0. Not a settled-screen regression; no repo change.
+
+## The new gate (user-bash-stream-probe)
+
+Command lines + exit codes:
+
+```
+$ bundle exec ruby gems/tui-split-rig/bin/user-bash-stream-probe --out tmp/i38-ubs
+EXIT: 0          (evidence mode; frame pairs in tmp/i38-ubs)
+
+$ bundle exec ruby gems/tui-split-rig/bin/user-bash-stream-probe --gate --out tmp/i38-ubs-gate
+EXIT: 0
+... tail:
+tart frame 10: header=true loader-rows=0 output-rows=3
+tart frame 11: header=true loader-rows=0 output-rows=3
+frames at .../wt/tmp/i38-ubs-gate
+USER_BASH_STREAM_GATE_OK
+```
+
+Digest (both apps IDENTICAL — the mid-flight rows are parity-true against the pi oracle control):
+
+```
+pi frame 01: header=false loader-rows=0 output-rows=0
+pi frame 02: header=true loader-rows=1 output-rows=1
+pi frame 03: header=true loader-rows=1 output-rows=2
+pi frame 05: header=true loader-rows=1 output-rows=3
+pi frame 07: header=true loader-rows=0 output-rows=3   (settled)
+pi frame 11: header=true loader-rows=0 output-rows=3
+tart frame 01: header=false loader-rows=0 output-rows=0
+tart frame 02: header=true loader-rows=1 output-rows=1
+tart frame 03: header=true loader-rows=1 output-rows=2
+tart frame 05: header=true loader-rows=1 output-rows=3
+tart frame 07: header=true loader-rows=0 output-rows=3   (settled)
+tart frame 11: header=true loader-rows=0 output-rows=3
+```
+
+RED at base BY DESIGN — demonstrated with the four lib files stashed (`git stash push` → gate → `git stash pop`):
+
+```
+EXIT: 1
+pi frame 02: header=true loader-rows=1 output-rows=1        (pi oracle control still passes its side)
+tart frame 02: header=false loader-rows=0 output-rows=0
+tart: FAIL (a) no pre-settle frame with header + loader row + an output row
+tart: FAIL (b) settled frame header=false output-rows=0 loader-rows=0 (want header, 3, 0)
+```
+
+(Base artifact: with no live rows the port's screen is static from Enter until completion, so the capture's 4-identical settle fires before the completed block paints — header=false throughout. RED either way; clean digest, exit 1.)
+
+No registry or scenario changes beyond the new probe yml (additions-only clause never triggered).
+
+## What was built (mapping to the spec)
+
+- **`Tools::Bash#run_user(command, on_chunk: nil)`** — threads the proc through `spawn_and_stream` into `drain_pipe`; after each pipe read appends to the accumulator, fires `on_chunk&.call(data.gsub("\r", ""))` — CR removed per chunk, the returned content's own rule. `execute`/`spawn_and_accumulate` pass nothing (the model-facing render stays the I34 pending block).
+- **`UserBash`** — three optional constructor sinks: `stream_start_sink` fires `(command, excluded)` before the task spawns; the bridge yield block forwards `{chunk: text}` items to `stream_chunk_sink` on the reactor fiber (reader threads only push queue items — Grounds 5); `stream_end_sink` fires exactly once at every terminal path (once at `finish` entry — outcome arm, worker-error arm, and the terminal-without-outcome shape — and once in `cancel`, before the completed block enqueues). Single-flight gate, escape handshake, slot/sleep-loop, deferred records, `request_draw` discipline unchanged.
+- **`Chat`** — holds the running block's render state (`@user_bash_stream`: command, excluded, the string buffer, the bash loader's own clock anchor) mutated only by the three sinks under the surface mutex; `live_lines` appends `BashBlock.running_user_bash_rows` after the assistant rows (the `return []` gate extends; empty-assistant case renders the running rows alone with their own leading blank); the running preview reads `@transcript_state.tool_output_expanded` at composition (mid-run ctrl+o re-composes); per chunk: append + `@kernel.request_draw`; `render_frame` re-arms the animation window while `busy? || user_bash_streaming?` (`@busy` stays false — no border Working status); the loader glyph derives from the injected `clock:` via the extracted `spinner_frame(anchor)` (shared with `spinner_glyph`, separate anchors — pi: one Loader per component).
+- **`BashBlock.running_user_bash_rows(command, width, content:, excluded:, spinner_glyph:, expanded:)`** — composes the family over a shared `user_bash_block_head` (the completed path's exact primitives: `Panel.blank_line`, `TUI.line` colorKey borders, bold `Panel.padded_fg_rows` header, muted last-20-of-last-20 output), then [blank, loader row] where the status block sits (no hidden-lines hint mid-flight), then the border. Loader row: one-space pad, spinner span in the colorKey, message span muted, pi's literal `Running... (escape/ctrl+c to cancel)`.
+- **Tests** — 21 new (5 composer / 4 seam / 11 chat / 1 rig scenario pin), numbered against the spec's list: (1) mid-flight family + no transcript block; (2) settled flush byte-identical to a control `enqueue_user_bash_block` + zero live rows; (3) the prefix property (4 content shapes × both toggles × both colorKeys, status block length derived analytically); (4) chunk-join `par`+`tial\r\nline2`+`tail` → ` partial`/` line2tail`, CR-only vanish; (5) seam equality + midflight-not-after-return + `execute` takes no callback (parameter pin); (6) outcome/worker-error(ENOENT)/escape-cancel all leave zero live rows, zero `Running...`; (7)+(8) glyph advance on the injected clock across chunkless draws, window open (RecordingKernel), `@busy` false, no border Working, anchor resets at run start, independent of the border anchor (stays nil); (9) replay renders zero loader rows; (10) `!!` running border/header/spinner ride `Theme[:dim]` (composer + drawn-screen cell_fg); (11) mid-run ctrl+o toggles the running preview, no hint row either state; (12) single-flight warning + escape-routing tests untouched and green.
+
+STATUS: COMPLETE
 
 ## Verdict
 
