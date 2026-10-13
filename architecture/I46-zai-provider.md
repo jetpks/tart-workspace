@@ -549,9 +549,9 @@ live z.ai call (Grounds §6 — static + judge-flagged); the fireworks
 default or any Settings/DEFAULTS row.
 
 ```lanes
-- id: zai
-  name: zai dialect (catalog compat + the request seam)
-  files:
+- name: zai
+  repo: tart
+  touch:
     - lib/tart/schemas/models.rb
     - lib/tart/shapes/model.rb
     - lib/tart/models.rb
