@@ -1053,10 +1053,297 @@ outside the declared set.
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I47-seam-memory-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section seam-memory prompt --append --lane <lane> --from build/I47-seam-memory-<lane>/prompt.md`. -->
+### core
+
+# Lane prompt — I47 seam-memory, lane `core`
+
+You are the builder for LANE `core` of iteration I47 seam-memory (space
+20261009-pi-port, repo repos/tart, worktree provisioned from frozen base
+cac2612, branch lane/I47-seam-memory-core). This prompt is your complete,
+self-contained contract. You never commit; you write code + tests in your
+worktree and a scratch report at build/I47-seam-memory-core/report.md.
+PHASE 0 discipline applies: disagreements with this contract are RESEARCHED
+(pi source at repos/pi, the gem at …/gems/ruby_llm-2.1.0, the owner's
+extension sources cited in the frozen Grounds, the frozen iteration file
+architecture/I47-seam-memory.md) and ITEMIZED in your report's PHASE 0
+section — never silently implemented differently, never silently blocking.
+
+## Mission
+
+Land the minimal internal extension seam — `Tart::Hooks` — with
+registration-order event dispatch (per-handler error isolation), the
+tool_call block gate (validate → dispatch → block/mutate/fail-safe →
+execute), register_tool/register_command merged into the existing tables,
+nextTurn message injection into the pending-message queue, and the loop's
+terminate consult; build the owner's memory module and the herdr
+agent-state reporter on it natively; keep the zero-hook byte bar (with no
+module active — the default — every existing byte on screen, wire, and
+session file is unchanged, proven by the frozen digests). The rig lane
+(s11 scenario) is NOT yours — do not touch gems/tui-split-rig.
+
+## Grounding you may rely on (verified; re-cite in code comments)
+
+- pi seam: extensions/runner.ts :1242-1262 (emitToolCall — registration
+  order, snapshot, first block wins, NO isolation), :1089-1120 (emit —
+  per-handler try/catch, error reported + swallowed, dispatch
+  continues); agent-session.ts :661-687 (_beforeToolCall — Error
+  rethrow, non-Error wraps "Extension failed, blocking execution: …"),
+  :2086-2095 + :2293-2331 (nextTurn queue → user-message-first
+  injection; no append/no events at send), :1144-1160 (message_end →
+  appendCustomMessageEntry); agent/agent-loop.ts :711-781
+  (prepareToolCall — validate BEFORE the hook; block → error result
+  reason || "Tool execution was blocked"; terminate copied), :690-691
+  (shouldTerminateToolBatch — non-empty AND every), :105-126
+  (message_start/end per initial message, array order); ai/src/utils/
+  validation.ts (structuredClone — handler mutation never reaches the
+  recorded message); messages.ts :161-170 (custom → user-role text on
+  the wire); session-manager.ts :1339-1360 (the custom_message entry
+  shape), :437-459 (context replay); extensions/types.ts :1426-1435
+  (ToolCallEventResult), :744 (session_start reasons
+  startup|reload|new|resume|fork); modes/interactive/components/
+  custom-message.ts :41-115 (the recall block render: Spacer, Box
+  customMessageBg paddingX=outputPad, bold [customType] label in
+  customMessageLabel, Spacer, Markdown in customMessageText).
+- The owner's memory extension — jetpks/pi-extensions memory.ts (173
+  lines): the FULL contract is frozen Grounds §4 + Specification §3
+  (constants, slug rules, the five error strings, save-file bytes,
+  index upsert, read/list, recall bounds, the TypeBox parameters JSON,
+  the two promptGuidelines bullets, no promptSnippet). Re-read the
+  source yourself: /Users/eric/architect/src/github.com/jetpks/
+  pi-extensions/memory.ts.
+- herdr — the owner's ~/.pi/agent/extensions/herdr-agent-state.ts (261
+  lines): env gate, socket protocol (pane.report_agent /
+  pane.report_agent_session, herdr:pi ids, seq = epoch*1000 +1,
+  message/session_start_source omitted when nil, path-preferred session
+  ref), 500→1500 retry both swallowed, latest-wins coalescing,
+  working/blocked/idle with dedup + forced session_start publish,
+  TUI-only gate, the herdr:blocked channel (no emitter exists — pi-side
+  verified). Re-read the file yourself.
+- The staged-pi oracle capture (frozen Grounds §6 — run this session):
+  the recall block renders " hello", blank, " [memory-recall]", blank,
+  the padded markdown index rows; the startup header gains
+  "[Extensions]\n  memory.ts".
+- tart today: loop.rb (events, on_event, add_user_message, inner_loop's
+  tool-batch arm, install_chat_callbacks), tools/registry.rb (build),
+  tools/safe_execute.rb (:38-42 validate_input — the I43 one-seam
+  call), commands.rb (BUILTINS :46-56, builtin_name, Handler#dispatch),
+  settings.rb (DEFAULTS/RESOLUTION_ENV/load), agent/session.rb
+  (Recorder, message_entry, context_entries/context_messages,
+  load_entries tolerance), agent/system_prompt.rb (build_rules),
+  render/chat.rb (:428 on_agent_event, :518 extensions arg in bin/tart),
+  render/transcript.rb (enqueue families, replay_entry), print.rb,
+  theme.rb (:52-57 custom_message tokens already carried), test/
+  support/mock_llm_server.rb.
+- ruby_llm 2.1.0: chat.rb :1625-1635 (before_tool_call callback return
+  IGNORED — the gate must wrap the tool, not the callback),
+  :1682-1694 (invoke_tool → tool.call(**arguments, tool_call:)),
+  tool_call.rb (arguments attr_reader, unfrozen, SHARED with the
+  recorded message), tool.rb :313+ (Tool#call keyword validation),
+  protocols/chat_completions/tools.rb :30-45 (tool_for — the wrapper
+  must delegate name/description/parameters_schema/provider_options
+  byte-identically).
+
+## The contract (the frozen Specification, condensed — the file governs)
+
+1. **`Tart::Hooks`** (lib/tart/hooks.rb, new) per Specification §1 +
+   §1.5 (the EXACT driven-surface names — the gates drive them):
+   `Hooks.new(on_event: nil)`; `#on(channel, &h)` (String/Symbol
+   channels normalized to String; dispatch keys off the event's
+   :type/"type" normalized the same way; unsubscribe Proc);
+   `#emit(event, context:)` (registration order, pre-dispatch snapshot,
+   per-handler StandardError → ONE stderr warn + swallowed; forwards
+   the event UNCHANGED to the base sink after handlers);
+   `#on_tool_call(&h)` (the block channel: no isolation — first block
+   wins; a raised StandardError blocks fail-safe with e.message;
+   `RubyLLM::CancelledError` ALWAYS propagates);
+   `#send_next_turn(custom_type:, content:, display: false)` (queue
+   only); `#register_tool(tool)` / `#register_command(name,
+   description:, args: false, &h)` / `#registered_tools` /
+   `#registered_commands` ({name:, description:, args:} hashes) /
+   `#tool_call_handlers?` / `#batch_terminate?(ids)` / 
+   `#pending_next_turn`. Thread-safe.
+2. **The tool gate**: `Tools::Registry.build(…, hooks: nil)` — no
+   tool_call handlers (or hooks nil) → EXACTLY today's build (unwrapped
+   instances). With handlers: every tool (built-in AND MCP AND
+   registered) wrapped by a delegating gate object intercepting
+   `call(tool_call:, **args)`: (a) `Schemas::Tools.validate(pi_name,
+   args)` first — failure returns the `{error:}` result, handlers NEVER
+   see the call; (b) dispatch with `input:` the splat-fresh Hash (the
+   recorded ToolCall's arguments object is NEVER passed, NEVER mutated
+   — pi's structuredClone semantics); handlers mutate `input` in place
+   and/or return `{block:, reason:, terminate:}`; (c) blocked → the
+   reason (default "Tool execution was blocked") as a plain String
+   result, `terminate: true` records `tool_call_id` for the batch
+   ledger; (d) unblocked → `inner.call(**args, tool_call:)` with the
+   possibly-mutated Hash. Wrapper delegates EVERYTHING else
+   (name/description/parameters_schema/provider_options/resume/…).
+   `Registry.build(hooks:)` ALSO merges `hooks.registered_tools` after
+   built-ins + MCP (same name overrides).
+3. **Loop integration** (agent/loop.rb): `hooks:` kwarg (nil = today,
+   byte-identical; when present the loop's `emit` routes through
+   `hooks.emit(event, context:)` — Hooks holds the surface sink).
+   nextTurn drain at EVERY `add_user_message`: after the user message
+   is added/emitted/recorded, drain FIFO — per pending message: add a
+   user-role chat message with the text, emit `:message_start`/
+   `:message_end` carrying a `Hooks::CustomMessage` Struct
+   (role: :custom, custom_type:, content:, display:), record a
+   `custom_message` session entry. Terminate consult: after each
+   tool-batch step, `hooks&.batch_terminate?(<preceding assistant
+   message's tool_call ids>)` → break the inner loop (outer/steering
+   untouched). Fix the events-comment to the real eleven (compaction_
+   start included — Grounds §2).
+4. **Session plumbing** (agent/session.rb): `Recorder#
+   append_custom_message(custom_type:, content:, display:)` — pi's
+   CustomMessageEntry shape verbatim
+   ({type: "custom_message", customType:, content:, display:, id,
+   parentId: <leaf>, timestamp:}), leaf advances, NON-conversation-
+   bearing for the persist gate (a recall never opens a session file);
+   `entry_to_context_message` gains the custom_message arm →
+   {role: :user, content: <text>}; load_entries/context_entries
+   tolerate + include it.
+5. **Memory** (lib/tart/memory.rb + lib/tart/tools/memory.rb, new) per
+   Specification §3 + §1.5: the settings gate ("memory" DEFAULTS false
+   + RESOLUTION_ENV "memory" => "MEMORY" — off by default, ZERO
+   observable change); `Memory.register(hooks:, identity:)` wires the
+   session_start handler (any reason → Store#recall_content → nil =
+   no-op, else `send_next_turn(custom_type: "memory-recall", content:,
+   display: true)`) + `register_tool(Tools::Memory.new(...))`;
+   `Memory::Store.new(home:, cwd:)` (home = <IDENTITY>_MEMORY_HOME env
+   else ~/.tart/memory; project key = git-root walk (FILE or dir) else
+   cwd basename; index MEMORY.md) with EVERY memory.ts constant/rule/
+   string byte-exact (200 lines AND 25_600 bytes with line cost
+   bytes+1; header + notice strings; the five topic errors; the slug
+   regex; save file `---\nmodified: <ISO8601>\n---\n\n<trimmed>\n`;
+   the upsert rules; read/list). `Tools::Memory` (wire name "memory"):
+   the pinned TypeBox parameters JSON (action anyOf consts, topic,
+   text — property order preserved), the pinned description,
+   plain-String results. System prompt: `SystemPrompt.sections/build`
+   gain `prompt_guidelines: []` (after per-tool bullets, before "Be
+   concise", dedup/trim per build_rules; [] = today's bytes);
+   memory-on passes `Memory::PROMPT_GUIDELINES`; NO <tools> snippet
+   row. MOTD: memory-on adds "memory.ts" to the extensions list
+   (bin/tart's extensions: arg, sorted comma-joined with MCP names).
+   Herdr active adds "herdr-agent-state" iff its env gate is on.
+6. **Herdr** (lib/tart/herdr.rb, new) per Specification §4 + §1.5:
+   `Herdr.enabled?(env)` (HERDR_ENV == "1" && HERDR_SOCKET_PATH &&
+   HERDR_PANE_ID); `Herdr.register(hooks:, env: ENV)` — env-off →
+   inert; on → subscribe session_start/agent_start/agent_end +
+   "herdr:blocked"; TUI-only (mode != "tui" at session_start → no
+   root, nothing ever reports); `Herdr::Reporter.new(socket_path:,
+   timeouts: [500, 1500])` with `#report_session(session_ref,
+   pane_id:, reason: nil)` and `#report_state(state, message: nil,
+   session_ref: nil, pane_id:)` — non-blocking background sender,
+   connect → write JSON+"\n" → ANY byte = delivered, error/EOF/timeout
+   = undelivered, ONE retry, all failures swallowed; latest-wins
+   coalescing while in flight; dedup same state+message (forced
+   publish at session_start); requests byte-shaped: id
+   "herdr:pi[:session]:<epoch_ms>:<rand36>", method
+   pane.report_agent|pane.report_agent_session, params {pane_id:,
+   source: "herdr:pi", agent: "pi", …} with nil keys OMITTED, seq
+   monotonic (epoch*1000 base), agent_session_path preferred over
+   agent_session_id. States working/blocked/idle; blocked count>0 with
+   label > working > idle.
+7. **Render** (render/chat.rb + render/transcript.rb): `Chat#
+   on_agent_event` gains the custom-message arms (:message_start/
+   :message_end with role :custom → enqueue); `Transcript#
+   enqueue_custom_block(custom_type, content)` — the Grounds §6 oracle
+   row shape (blank row; bg custom_message_bg block rows; bold
+   [memory-recall] label row in custom_message_label; blank block row;
+   the content through the existing markdown path in
+   custom_message_text, one-column padded; trailing blank);
+   `replay_entry` gains the custom_message arm (resume renders the
+   block). NO other chat.rb/transcript.rb change.
+8. **Boot threading** (bin/tart + print.rb): construct Hooks once per
+   boot (surface sink inside); emit session_start (interactive boot
+   "startup", /new "new", resume "resume", print boot "startup");
+   settings-gated Memory.register; Herdr.register; build_tools threads
+   hooks:; every Agent::Loop construction passes hooks:; the MOTD
+   extensions list gains the module rows per §5.
+9. **README**: the §Memory paragraph (settings row + env tier, store
+   layout, the recall line, default-off) + the §Herdr paragraph (three
+   env vars, protocol summary, TUI-only, pi-valued wire fields).
+10. **Tests** — the Specification §8 pin table, ALL of it: new
+    test/hooks_test.rb, test/memory_test.rb, test/herdr_test.rb; the
+    additive pins in agent_loop_test.rb, session_test.rb,
+    commands_test.rb, settings_test.rb, system_prompt_test.rb,
+    test/render/transcript_test.rb. Run counts only GO UP; no frozen
+    assert moves (the ONE sanctioned mechanical edit: none — this
+    iteration re-pins NOTHING).
+
+## May touch (EXACTLY these; the ```lanes block is the frozen source)
+
+    lib/tart/hooks.rb
+    lib/tart/memory.rb
+    lib/tart/herdr.rb
+    lib/tart/tools/memory.rb
+    lib/tart/tools/registry.rb
+    lib/tart/commands.rb
+    lib/tart/settings.rb
+    lib/tart/agent/loop.rb
+    lib/tart/agent/session.rb
+    lib/tart/agent/system_prompt.rb
+    lib/tart/print.rb
+    lib/tart/render/chat.rb
+    lib/tart/render/transcript.rb
+    bin/tart
+    README.md
+    test/hooks_test.rb
+    test/memory_test.rb
+    test/herdr_test.rb
+    test/agent_loop_test.rb
+    test/session_test.rb
+    test/commands_test.rb
+    test/settings_test.rb
+    test/system_prompt_test.rb
+    test/render/transcript_test.rb
+
+**Must not touch**: gems/tui-split-rig/** (the rig lane's tree — the
+s11 scenario lands in parallel; your gates that RUN the rig invoke it
+read-only), lib/tart/schemas/** + schemas.rb, lib/tart/shapes/** +
+shapes.rb, lib/tart/models.rb, lib/tart/agent/{bridge,status,
+context_files}.rb, lib/tart/compaction.rb, the seven built-in tool
+bodies (tools/{bash,edit,find,grep,ls,read,write}.rb, safe_execute.rb,
+output_accumulator.rb, tools/support/**), lib/tart/mcp*, lib/tart/
+render/** outside the two enumerated seams, lib/tart/{identity,skills,
+prompts,theme,tui}.rb, lib/tart/core/**, tart.gemspec, Gemfile.lock,
+bench/**, test/support/**, and every test file outside the declared
+set (frozen: print_test.rb, e2e_session_test.rb,
+golden_parity_test.rb, loop_test.rb, tools_test.rb,
+bash_tool_test.rb, mcp_test.rb, flow_test.rb, markdown_test.rb,
+theme_test.rb, tui_test.rb, launcher_smoke_test.rb,
+kernel_carryin_test.rb, identity_test.rb, prompts_test.rb,
+compaction_test.rb, skills_test.rb, chat_test.rb, models_test.rb,
+test/render/** outside transcript_test.rb, test/fixtures/**).
+
+## Verification (run in YOUR worktree; the judge re-runs on the tree)
+
+- `bundle install --quiet && bundle exec rake` — fully green, run
+  count > 886, the one base skip unchanged.
+- `bundle exec ruby bench/seam_bench.rb` — SEAM_BENCH_OK.
+- The frozen gate commands (architecture/I47-seam-memory.md ```gates):
+  your lane's NEW gates `hooks-semantics`, `memory-module`,
+  `herdr-reporter` must be GREEN in your worktree (drive the EXACT
+  §1.5 surface names); `wire-bodies` (the digests), `session-golden`,
+  `suite`, `bench` must stay GREEN. The s-gates + s11 + s1-tart-mode +
+  probes: run them if your environment can (tmux); the KNOWN s9
+  lane-worktree deep-path artifact has eight judge precedents — use
+  CANONICAL short out dirs (tmp/parity-gate-*) and record any deep-path
+  exit-1 as the known artifact, with the equal-depth control.
+- `git diff --name-only cac2612` — EXACTLY the 24-file set above.
+
+## Report
+
+Write build/I47-seam-memory-core/report.md: a file-by-file table with
+line counts, the verification transcript tail (suite + bench + your
+three gates + wire-bodies + session-golden), PHASE 0 disagreements
+(itemized, researched, with the pi/source citations), OQ notes
+(Grounds §8 — you may add evidence, never silently override), and a
+final line `STATUS: COMPLETE | COMPLETE_WITH_CONCERNS | BLOCKED —
+<one line why>`.
+
+Never commit. Never edit architecture/** or space.yaml. Never touch
+repos/pi or sources outside your worktree. The frozen iteration file
+is read-only contract.
 
 ## Builder Report
 
