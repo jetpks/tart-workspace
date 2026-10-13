@@ -385,8 +385,6 @@ border, menu, and wire); the pin matrix is the deliverable's other half.
 
 ## Acceptance Criteria
 
-# I40 model-catalog-polish — Acceptance Criteria (scratch → `architect section`)
-
 **AC1 (the switch re-clamp, pi's setModel path).** Every model switch through
 `Render::Chat#apply_model_selection` (the /model menu's select, the `/model <ref>`
 direct switch, ctrl+s select-and-persist — one path) resolves the level pi's way:
