@@ -778,51 +778,277 @@ on the INTEGRATED tree (RED at base by design, both lanes' base).
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse seam-memory` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze seam-memory` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria — I47 seam-memory
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+Gate calibration (pre-declared): **RED at base BY DESIGN** — `hooks-semantics`
+(`Tart::Hooks` does not exist at cac2612 — NameError is the expected clean
+red), `memory-module` (same), `herdr-reporter` (same),
+`s11-recall-parity` (the scenario file does not exist at base; on any
+pre-integration tree tart renders no recall block while staged pi does).
+They must be GREEN on the integrated tree, non-vacuously.
+**Regression guards (GREEN at base, must stay GREEN)** — `suite`, `bench`,
+`s1`–`s10`, `s1-tart-mode`, both probe gates, `wire-bodies`,
+`session-golden` (the fireworks wire request bodies + tool declarations +
+the seven session digests ARE the zero-behavior bar for existing configs:
+with no module active — the default — a post-build failure means a byte
+moved). The s-gates keep the CANONICAL short out dirs. The KNOWN s9
+lane-worktree deep-path artifact (eight judge-proven precedents:
+I34/I36/I39/I40/I42/I43/I44/I46) does not fail this iteration when the
+same tree exits 0 at canonical depth — the judge runs the battery on the
+integrated tree. `scope` is vacuously OK at base (empty diff vs cac2612)
+and MUST be non-vacuous on the integrated run.
 
-**AC1.** ...
+**AC1 (the seam lands — `Tart::Hooks`).** Event dispatch in registration
+order with a pre-dispatch handler snapshot; per-handler error isolation on
+plain channels (warn to stderr, dispatch continues); arbitrary channel
+names. The tool_call gate: validation runs FIRST (invalid args return the
+pinned `{error:}` result and handlers NEVER see the call), handlers may
+mutate the call's input Hash in place (a splat-fresh copy — the recorded
+`ToolCall#arguments` object is provably never mutated), `{block:, reason:,
+terminate:}` results block with the reason as a plain String (default
+`"Tool execution was blocked"`), the first block wins, a handler
+`StandardError` blocks fail-safe with the error message, and
+`RubyLLM::CancelledError` always propagates; mutated args flow into
+execution; the wrapper preserves declaration bytes (name/description/
+parameters/provider_options identical to the unwrapped tool — the
+`7360fd1e…` digest holds); with no tool_call handlers the registry returns
+UNWRAPPED tools. `register_tool` appends/overrides; `register_command`
+registers dispatchable commands that cannot shadow builtins. nextTurn
+injection: `send_next_turn` queues; the loop drains AFTER the user message
+(emit order user→custom, session record order user→custom, wire order
+[user, custom-as-user-text]); `session_start` emits at boot/`/new`/resume/
+print-boot with pi's reasons. Pinned by `hooks-semantics` + the suite's
+hooks pins.
+
+**AC2 (the memory module — the owner's observable behavior).** Gated by
+the settings key `"memory"` (DEFAULTS false + `<IDENTITY>_MEMORY` env
+tier) — OFF by default leaves every existing byte unchanged (wire
+declarations, system prompt, MOTD row, requests). ON: the store under
+`<IDENTITY>_MEMORY_HOME || ~/.tart/memory/<project-key>/` (git-root walk,
+basename fallback) with memory.ts's exact constants, slug rules, error
+strings, save-file bytes, index-upsert semantics, and read/list behavior;
+`session_start` → the bounded recall (200 lines AND 25KB, header + index +
+truncation notice) injected as the `memory-recall` nextTurn message
+(display true); the `memory` tool declared LAST with the pinned TypeBox
+parameters JSON and description, plain-String results; the two
+promptGuidelines bullets in `<rules>` before "Be concise…" and NO `<tools>`
+snippet row; the `[Extensions] memory.ts` MOTD row (OQ-2); the recall
+block rendered per the Grounds §6 oracle (blank, bold `[memory-recall]`
+label, blank, markdown rows on `custom_message_bg`) live and on replay;
+the session `custom_message` entry recorded and replayed as user-role text
+on resume. Pinned by `memory-module` + the suite's memory pins.
+
+**AC3 (the herdr reporter, natively).** The full Grounds §5 contract:
+three-var env gate (exact HERDR_* names; off = inert), the UNIX-socket
+protocol byte-pinned (`pane.report_agent` / `pane.report_agent_session`,
+`herdr:pi` ids, pi-valued `source`/`agent` — OQ-5, `agent_session_path`
+preferred over id, nil keys omitted, monotonic seq), 500→1500 retry with
+failures swallowed and never blocking the UI, latest-wins coalescing, the
+working/blocked/idle state machine with dedup + the forced session_start
+publish, the `herdr:blocked` channel subscription (no emitter — itemized),
+and the TUI-only gate (print mode roots nothing). Pinned by
+`herdr-reporter` + the suite's herdr pins.
+
+**AC4 (parity + regression + scope).** The default rake task fully green
+(run count > 886 with the new pins; the one base skip unchanged);
+`SEAM_BENCH_OK`; s1–s10 exit 0 cold at the canonical out dirs;
+`s1-tart-mode` completes (TART_MODE_OK); both probe gates OK;
+`WIRE_BODIES_OK`; `SESSION_GOLDEN_OK`; the NEW s11 memory-recall scenario
+exits 0 cold (the recall-line parity gate — plain and styled captures
+byte-clean against staged pi running the owner's memory.ts verbatim); the
+integrated diff vs **cac2612** touches EXACTLY the two lanes' declared
+file sets — nothing in `schemas/**`, `shapes/**`, `models.rb`,
+`compaction.rb`, the seven built-in tool bodies, `mcp*`, `core/**`,
+`identity/skills/prompts/theme/tui`, gemspec/lock/bench, or any test file
+outside the declared set.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse seam-memory` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/parity-gate-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/parity-gate-s6
+  expect:
+    exit_code: 0
+
+- id: s7-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7
+  expect:
+    exit_code: 0
+
+- id: s8-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml --out tmp/parity-gate-s8
+  expect:
+    exit_code: 0
+
+- id: s9-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s9_startup_help.yml --out tmp/parity-gate-s9
+  expect:
+    exit_code: 0
+
+- id: s10-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s10_editor_wrap.yml --out tmp/parity-gate-s10
+  expect:
+    exit_code: 0
+
+- id: s11-recall-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s11_memory_recall.yml --out tmp/parity-gate-s11
+  expect:
+    exit_code: 0
+
+- id: s1-tart-mode
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_tart.yml --out tmp/parity-gate-s1tart; ec=$?; if [ "$ec" -gt 1 ]; then exit 1; fi; ruby -rjson -e 's = JSON.parse(File.read("tmp/parity-gate-s1tart/summary.json"))["runs"][0]["apps"]["tart"]; abort "tart incomplete" unless s["completed"] && s["requests"] == s["expected_requests"]; puts "TART_MODE_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: TART_MODE_OK
+
+- id: tool-pending-gate
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tool-pending-probe --gate --out tmp/i47-tp
+  expect:
+    exit_code: 0
+    stdout_match: TOOL_PENDING_GATE_OK
+
+- id: user-bash-stream-gate
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    test -x gems/tui-split-rig/bin/user-bash-stream-probe && gems/tui-split-rig/bin/user-bash-stream-probe --gate --out tmp/i47-ubs
+  expect:
+    exit_code: 0
+    stdout_match: USER_BASH_STREAM_GATE_OK
+
+- id: wire-bodies
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    rm -rf tmp/i47-wire && gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/i47-wire >/dev/null 2>&1; ec=$?; [ "$ec" -eq 0 ] || exit 1; ruby -rjson -rdigest -e 'bodies = File.readlines("tmp/i47-wire/run-1/tart-requests.jsonl").map { |l| Digest::SHA256.hexdigest(JSON.generate(JSON.parse(l)).gsub("tmp/i47-wire/run-1/sandbox", "<SBX>")) }; tools = Digest::SHA256.hexdigest(JSON.generate(JSON.parse(File.readlines("tmp/i47-wire/run-1/tart-requests.jsonl")[0])["body"]["tools"])); abort "request-body bytes moved: #{bodies.inspect}" unless bodies == ["2ece7d4b875c98590b2f839814a0d3444fbfe1a8514b09c17d000663466c25d2"]; abort "tool declarations moved: #{tools}" unless tools == "7360fd1ec6419b5f9966c3067588314cdd0d29231a78346443a0002923c23707"; puts "WIRE_BODIES_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: WIRE_BODIES_OK
+
+- id: session-golden
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec ruby -Ilib -e 'require "tart"; require "tmpdir"; require "json"; require "digest"; FakeMsg = Struct.new(:role, :attrs) do def to_h = attrs end; VOLATILE = %w[id parentId timestamp parentSession cwd firstKeptEntryId].freeze; normalize = lambda do |obj|; case obj; when Hash then obj.each_with_object({}) { |(k, v), h| h[k] = VOLATILE.include?(k) && !v.nil? ? "<#{k}>" : normalize.call(v) }; when Array then obj.map { |v| normalize.call(v) }; else obj; end; end; digest_lines = lambda { |path| Digest::SHA256.hexdigest(File.readlines(path).map { |l| JSON.generate(normalize.call(JSON.parse(l))) }.join("\n")) }; out = {}; Dir.mktmpdir do |dir|; root = File.join(dir, "agent"); plain = Tart::Agent::Session::Recorder.new(cwd: dir, root: root); plain.append_message(FakeMsg.new(:user, {role: "user", content: "list the files"})); plain.append_message(FakeMsg.new(:assistant, {role: "assistant", content: nil, tool_calls: [{id: "call_1", name: "ls", arguments: {path: "."}}]})); plain.append_message(FakeMsg.new(:tool, {role: "tool", tool_call_id: "call_1", content: "fixture.txt"})); plain.append_message(FakeMsg.new(:assistant, {role: "assistant", content: "the listing is above"})); rec = Tart::Agent::Session::Recorder.new(cwd: dir, root: root); rec.append_message(FakeMsg.new(:user, {role: "user", content: "list the files"})); rec.append_message(FakeMsg.new(:assistant, {role: "assistant", content: nil, tool_calls: [{id: "call_1", name: "ls", arguments: {path: "."}}]})); rec.append_message(FakeMsg.new(:tool, {role: "tool", tool_call_id: "call_1", content: "fixture.txt"})); rec.append_message(FakeMsg.new(:assistant, {role: "assistant", content: "the listing is above"})); rec.append_bash_execution(Tart::Agent::Session.bash_execution_message(command: "echo hi", output: "hi", exit_code: 0, cancelled: false, truncated: false, full_output_path: nil)); rec.append_compaction(summary: "Earlier turns summarized.", first_kept_entry_id: nil, tokens_before: 15, details: "auto"); forked = Tart::Agent::Session::Recorder.new(cwd: dir, root: root, parent_session: rec.path); forked.append_message(FakeMsg.new(:user, {role: "user", content: "after the fork"})); out[:plain] = digest_lines.call(plain.path); out[:plain_context] = Digest::SHA256.hexdigest(JSON.generate(Tart::Agent::Session.context_messages(plain.path))); out[:plain_roles] = Tart::Agent::Session.context_messages(plain.path).map { |m| m[:role] }.inspect; out[:primary] = digest_lines.call(rec.path); out[:forked] = digest_lines.call(forked.path); out[:context] = Digest::SHA256.hexdigest(JSON.generate(Tart::Agent::Session.context_messages(rec.path))); out[:fork_roles] = Tart::Agent::Session.context_messages(forked.path).map { |m| m[:role] }.inspect; end; want = {plain: "928183de7736e9ad59237d6eb4bf7eb0215f8933ac1e1c2c4d8cb0e61ca38728", plain_context: "d3c1574f049f9688309656a21d42100e32b0203025f77f8afbed70819cb228ee", plain_roles: "[:user, :assistant, :tool, :assistant]", primary: "cb29e42e1ba9ecc29e28ce3d833e68fbd8f17ddfa2700b02b1b6bd98b24baa29", forked: "3a5d6d606f5952fd4e0e25bf085d442c386d18bb0d60a4bdd7c43b04b203ae8d", context: "f75f99b4516b3e69f41d847bb5266d7cac897e3fd320190f588d83e26497a029", fork_roles: "[:user, :user]"}; bad = want.keys.select { |k| out[k] != want[k] }; abort "session bytes moved: #{bad.map { |k| [k, out[k]] }.inspect}" unless bad.empty?; puts "SESSION_GOLDEN_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: SESSION_GOLDEN_OK
+
+- id: hooks-semantics
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec ruby -Ilib -Itest -e 'require "tart"; require "support/mock_llm_server"; require "tmpdir"; require "fileutils"; require "json"; order = []; hooks = Tart::Hooks.new; hooks.on("custom") { order << 1 }; hooks.on("custom") { raise "boom" }; hooks.on("custom") { order << 3 }; hooks.emit({"type" => "custom"}, context: {cwd: Dir.pwd, mode: "tui"}); abort "isolation/order broken: #{order.inspect}" unless order == [1, 3]; un = hooks.on("custom") { order << 99 }; un.call; hooks.emit({"type" => "custom"}, context: {cwd: Dir.pwd, mode: "tui"}); abort "unsubscribe broken: #{order.inspect}" unless order == [1, 3]; dir = Dir.mktmpdir("i47-hk-"); File.write(File.join(dir, "a.txt"), "A-CONTENT"); File.write(File.join(dir, "b.txt"), "B-CONTENT"); gate = Tart::Hooks.new; seen = []; gate.on_tool_call { |event, _ctx| seen << event["tool_name"]; {block: true, reason: "denied by policy"} }; wtools = Tart::Tools::Registry.build(selected: %w[write], cwd: dir, hooks: gate); res = wtools["write"].call(path: "new.txt", content: "x"); abort "block result must be the plain reason String: #{res.inspect}" unless res == "denied by policy"; abort "blocked write must not create the file" if File.exist?(File.join(dir, "new.txt")); abort "handler must have seen the call: #{seen.inspect}" unless seen == ["write"]; dflt = Tart::Hooks.new; dflt.on_tool_call { |_e, _c| {block: true} }; rtools = Tart::Tools::Registry.build(selected: %w[read], cwd: dir, hooks: dflt); res2 = rtools["read"].call(path: "a.txt"); abort "default reason: #{res2.inspect}" unless res2 == "Tool execution was blocked"; errs = Tart::Hooks.new; errs.on_tool_call { |_e, _c| raise StandardError, "gate broke" }; etools = Tart::Tools::Registry.build(selected: %w[read], cwd: dir, hooks: errs); res3 = etools["read"].call(path: "a.txt"); abort "handler error must block fail-safe with the message: #{res3.inspect}" unless res3 == "gate broke"; mut = Tart::Hooks.new; mut.on_tool_call { |event, _ctx| event["input"]["path"] = "b.txt"; nil }; mtools = Tart::Tools::Registry.build(selected: %w[read], cwd: dir, hooks: mut); tc = RubyLLM::ToolCall.new(id: "c1", name: "read", arguments: {"path" => "a.txt"}); res4 = mtools["read"].call(path: "a.txt", tool_call: tc); abort "mutation must flow into execution: #{res4.inspect}" unless res4.to_s.include?("B-CONTENT"); abort "recorded ToolCall arguments must never mutate: #{tc.arguments.inspect}" unless tc.arguments == {"path" => "a.txt"}; vf = Tart::Hooks.new; vfcount = 0; vf.on_tool_call { |_e, _c| vfcount += 1 }; vtools = Tart::Tools::Registry.build(selected: %w[read], cwd: dir, hooks: vf); res5 = vtools["read"].call(path: 123); abort "invalid args must return the {error:} result: #{res5.inspect}" unless res5.is_a?(Hash) && res5[:error]; abort "invalid args must never reach handlers: #{vfcount}" unless vfcount.zero?; cc = Tart::Hooks.new; cc.on_tool_call { |_e, _c| raise RubyLLM::CancelledError }; ctools = Tart::Tools::Registry.build(selected: %w[read], cwd: dir, hooks: cc); propagated = false; begin; ctools["read"].call(path: "a.txt"); rescue RubyLLM::CancelledError; propagated = true; end; abort "CancelledError must propagate" unless propagated; bare = Tart::Tools::Registry.build(selected: %w[read], cwd: dir, hooks: Tart::Hooks.new); abort "no-handler build must stay unwrapped: #{bare["read"].class}" unless bare["read"].is_a?(Tart::Tools::Read); t0 = Tart::Tools::Read.new(cwd: dir); wrapped = Tart::Tools::Registry.build(selected: %w[read], cwd: dir, hooks: mut)["read"]; abort "declaration bytes must survive wrapping: name" unless wrapped.name == t0.name && wrapped.description == t0.description; abort "declaration bytes must survive wrapping: parameters" unless JSON.generate(wrapped.parameters_schema) == JSON.generate(t0.parameters_schema); term = Tart::Hooks.new; term.on_tool_call { |_e, _c| {block: true, reason: "t", terminate: true} }; ttools = Tart::Tools::Registry.build(selected: %w[read], cwd: dir, hooks: term); ttools["read"].call(path: "a.txt", tool_call: RubyLLM::ToolCall.new(id: "x1", name: "read", arguments: {"path" => "a.txt"})); ttools["read"].call(path: "a.txt", tool_call: RubyLLM::ToolCall.new(id: "x2", name: "read", arguments: {"path" => "a.txt"})); abort "terminate all" unless term.batch_terminate?(%w[x1 x2]); abort "terminate partial" if term.batch_terminate?(%w[x1 y9]); abort "terminate empty" if term.batch_terminate?([]); rt = Tart::Tools::Read.new(cwd: dir); hooks5 = Tart::Hooks.new; hooks5.register_tool(rt); hooks5.register_command("mem", description: "d") {}; abort "register_tool surface: #{hooks5.registered_tools.inspect}" unless hooks5.registered_tools == [rt]; abort "register_command surface: #{hooks5.registered_commands.inspect}" unless hooks5.registered_commands.length == 1 && hooks5.registered_commands[0][:name] == "mem"; server = MockLLMServer.new.start; server.script([{type: :message, content: "ok"}]); RubyLLM.configure { |c| c.openai_api_key = "test"; c.openai_api_base = "http://127.0.0.1:#{server.port}/v1" }; lh = Tart::Hooks.new; lh.send_next_turn(custom_type: "memory-recall", content: "RECALL-TEXT", display: true); recdir = Dir.mktmpdir("i47-hk-rec"); recorder = Tart::Agent::Session::Recorder.new(cwd: recdir, root: File.join(recdir, "agent")); agent = Tart::Agent::Loop.new(chat: RubyLLM.chat(model: "mock-1", provider: :openai, protocol: :chat_completions, assume_model_exists: true), tools: Tart::Tools::Registry.build(selected: %w[read], cwd: dir), hooks: lh, recorder: recorder); Tart::Core::Loop.new(session: Tart::Print::NullSession.new).run { agent.run("hi") }; msgs = server.captured_requests.first["body"]["messages"]; text = lambda { |m| c = m["content"]; c.is_a?(Array) ? c.map { |p| p.is_a?(Hash) ? p["text"].to_s : p.to_s }.join : c.to_s }; pairs = msgs.map { |m| [m["role"], text.call(m)] }; abort "wire order must be [user prompt, custom-as-user]: #{pairs.inspect}" unless pairs == [["user", "hi"], ["user", "RECALL-TEXT"]]; lines = File.readlines(recorder.path).map { |l| JSON.parse(l) }; types = lines.map { |e| e["type"] == "message" ? e.dig("message", "role") : e["type"] }; abort "session entry order: #{types.inspect}" unless types == ["session", "user", "custom_message", "assistant"]; cm = lines[2]; abort "custom_message entry shape: #{cm.inspect}" unless cm["customType"] == "memory-recall" && cm["content"] == "RECALL-TEXT" && cm["display"] == true; server2 = MockLLMServer.new.start; server2.script([{type: :message, content: "ok"}]); RubyLLM.configure { |c| c.openai_api_key = "test"; c.openai_api_base = "http://127.0.0.1:#{server2.port}/v1" }; agent2 = Tart::Agent::Loop.new(chat: RubyLLM.chat(model: "mock-1", provider: :openai, protocol: :chat_completions, assume_model_exists: true), tools: Tart::Tools::Registry.build(selected: %w[read], cwd: dir)); Tart::Core::Loop.new(session: Tart::Print::NullSession.new).run { agent2.run("hi") }; msgs2 = server2.captured_requests.first["body"]["messages"]; abort "hooks-nil must carry only the user message: #{msgs2.map { |m| m["role"] }.inspect}" unless msgs2.map { |m| m["role"] } == ["user"]; server.stop; server2.stop; FileUtils.rm_rf(dir); puts "HOOKS_SEMANTICS_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: HOOKS_SEMANTICS_OK
+
+- id: memory-module
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec ruby -Ilib -Itest -e 'require "tart"; require "support/mock_llm_server"; require "tmpdir"; require "fileutils"; require "json"; home = Dir.mktmpdir("i47-mh-"); cwd = Dir.mktmpdir("i47-mc-"); ENV["PI_MEMORY_HOME"] = home; store = Tart::Memory::Store.new(home: home, cwd: cwd); abort "no index must mean nil recall" unless store.recall_content.nil?; tool = Tart::Tools::Memory.new(cwd: cwd); proj = File.join(home, File.basename(cwd)); r = tool.call(action: "save", topic: "Deploy Ops!", text: "deploys via herdr pipeline, stage first\nsecond line"); abort "save result: #{r.inspect}" unless r == %(Saved memory topic "Deploy Ops!" (deploy-ops.md).); saved = File.read(File.join(proj, "deploy-ops.md")); abort "save file bytes: #{saved.inspect}" unless saved.match?(/\A---\nmodified: \d{4}-\d{2}-\d{2}T[^\n]+\n---\n\ndeploys via herdr pipeline, stage first\nsecond line\n\z/); index = File.join(proj, "MEMORY.md"); idx = File.read(index); abort "index line: #{idx.inspect}" unless idx == "- [Deploy Ops!](deploy-ops.md): deploys via herdr pipeline, stage first\n"; abort "read: #{tool.call(action: "read", topic: "deploy-ops").inspect}" unless tool.call(action: "read", topic: "deploy-ops") == saved; abort "read missing" unless tool.call(action: "read", topic: "nope") == %(No memory saved for topic "nope" (nope.md). Use the memory tool list action to see saved topics.); abort "list" unless tool.call(action: "list") == idx; abort "save-no-topic" unless tool.call(action: "save") == "The memory tool save action needs a topic."; abort "save-no-text" unless tool.call(action: "save", topic: "x") == "The memory tool save action needs text to remember."; abort "read-no-topic" unless tool.call(action: "read") == "The memory tool read action needs a topic."; abort "absolute topic" unless tool.call(action: "save", topic: "/etc/x", text: "x") == %(Invalid topic "/etc/x": topics are plain names inside the project memory directory, not paths.); abort "dotdot topic" unless tool.call(action: "save", topic: "../evil", text: "x") == %(Invalid topic "../evil": topics are plain names inside the project memory directory, not paths.); abort "bad slug" unless tool.call(action: "save", topic: "!!!", text: "x") == %(Invalid topic "!!!": it must be a plain name like "deploy" (letters, numbers, dashes).); File.write(index, (1..205).map { |i| "- [t#{i}](t#{i}.md): line #{i}" }.join("\n") << "\n"); content = store.recall_content; cl = content.lines; abort "bound line count: #{cl.size}" unless cl.size == 202; abort "header" unless cl[0] == "[project memory] index loaded at session start; use the memory tool (read/list) for topic files:\n"; abort "notice" unless cl[-1] == "[project memory] index is truncated; more entries exist — use the memory tool list action.\n"; abort "first kept" unless cl[1] == "- [t1](t1.md): line 1\n"; abort "last kept" unless cl[200] == "- [t200](t200.md): line 200\n"; big = (1..3).map { |i| "- [b#{i}](b#{i}.md): #{("x" * 10_000)}" }; File.write(index, big.join("\n") << "\n"); content2 = store.recall_content; abort "byte bound keeps whole lines only: #{content2.lines.size}" unless content2.lines.size == 3; abort "truncated after byte bound" unless content2.lines[-1] == "[project memory] index is truncated; more entries exist — use the memory tool list action.\n"; abort "DEFAULTS memory must be false" unless Tart::Settings::DEFAULTS["memory"] == false; abort "env tier row" unless Tart::Settings::RESOLUTION_ENV["memory"] == "MEMORY"; prompt = Tart::Agent::SystemPrompt.build(selected_tools: %w[read bash edit write memory], cwd: cwd, prompt_guidelines: Tart::Memory::PROMPT_GUIDELINES); rules = prompt[/.*<rules>\n(.*?)\n<\/rules>/m, 1].to_s.lines.map(&:strip); gi = rules.index { |l| l.start_with?("- Use the memory tool to save durable facts") }; abort "guidelines bullet 1 present: #{rules.inspect}" if gi.nil?; abort "guidelines placement" unless rules[gi + 1]&.start_with?("- Use the memory tool list/read actions") && rules[gi + 2] == "- Be concise in your responses"; abort "no tools snippet row" if prompt.include?("- memory:"); plain_prompt = Tart::Agent::SystemPrompt.build(selected_tools: %w[read bash edit write], cwd: cwd); abort "plain prompt must keep the port built-ins out of the snippet list" if plain_prompt.include?("memory"); server = MockLLMServer.new.start; server.script([{type: :message, content: "ok"}]); RubyLLM.configure { |c| c.openai_api_key = "test"; c.openai_api_base = "http://127.0.0.1:#{server.port}/v1" }; hooks = Tart::Hooks.new; Tart::Memory.register(hooks: hooks); tools = Tart::Tools::Registry.build(selected: %w[read], cwd: cwd, hooks: hooks); abort "memory tool must merge into the loadout: #{tools.keys.inspect}" unless tools.keys == %w[read memory]; hooks.emit({"type" => "session_start", "reason" => "startup"}, context: {cwd: cwd, mode: "tui"}); agent = Tart::Agent::Loop.new(chat: RubyLLM.chat(model: "mock-1", provider: :openai, protocol: :chat_completions, assume_model_exists: true), tools: tools, hooks: hooks); Tart::Core::Loop.new(session: Tart::Print::NullSession.new).run { agent.run("hello") }; body = server.captured_requests.first["body"]; decls = body["tools"]; abort "memory declared last: #{decls.map { |d| d.dig("function", "name") }.inspect}" unless decls.last.dig("function", "name") == "memory"; expected = {"type" => "function", "function" => {"name" => "memory", "description" => "Persistent per-project memory. Save durable facts, preferences, and corrections worth carrying to future sessions — never secrets, never one-off task state. Topic files are read on demand.", "parameters" => {"type" => "object", "required" => ["action"], "properties" => {"action" => {"anyOf" => [{"type" => "string", "const" => "save"}, {"type" => "string", "const" => "read"}, {"type" => "string", "const" => "list"}], "description" => "save: store text under topic; read: return a topic file; list: return the index"}, "topic" => {"type" => "string", "description" => "Topic name, e.g. deploy (required for save/read)"}, "text" => {"type" => "string", "description" => "Text to remember (save only)"}}}}}; abort "declaration bytes: #{JSON.generate(decls.last)}" unless JSON.generate(decls.last) == JSON.generate(expected); msgs = body["messages"]; text = lambda { |m| c = m["content"]; c.is_a?(Array) ? c.map { |p| p.is_a?(Hash) ? p["text"].to_s : p.to_s }.join : c.to_s }; abort "recall rides the wire after the prompt: #{msgs.map { |m| m["role"] }.inspect}" unless msgs.length == 2 && msgs[0]["role"] == "user" && text.call(msgs[0]) == "hello" && msgs[1]["role"] == "user" && text.call(msgs[1]).start_with?("[project memory] index loaded at session start"); server.stop; FileUtils.rm_rf(home); FileUtils.rm_rf(cwd); puts "MEMORY_MODULE_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: MEMORY_MODULE_OK
+
+- id: herdr-reporter
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec ruby -Ilib -e 'require "tart"; require "tmpdir"; require "fileutils"; require "json"; require "socket"; dir = Dir.mktmpdir("i47-hd-"); sock = File.join(dir, "h.sock"); server = UNIXServer.new(sock); on_env = {"HERDR_ENV" => "1", "HERDR_SOCKET_PATH" => sock, "HERDR_PANE_ID" => "p7"}; abort "enabled? must pass the full env" unless Tart::Herdr.enabled?(on_env); abort "enabled? must fail without HERDR_ENV" if Tart::Herdr.enabled?({"HERDR_ENV" => "1", "HERDR_SOCKET_PATH" => sock}); abort "enabled? must fail without the socket path" if Tart::Herdr.enabled?({"HERDR_ENV" => "1", "HERDR_PANE_ID" => "p7"}); read_one = lambda { client = server.accept; line = client.gets; client.write("ok"); client.close; JSON.parse(line) }; quiet = lambda { IO.select([server], nil, nil, 0.2).nil? }; rep = Tart::Herdr::Reporter.new(socket_path: sock, timeouts: [20, 20]); ref = {"agent_session_path" => "/tmp/s.json"}; rep.report_session(ref, pane_id: "p7", reason: "startup"); r1 = read_one.call; abort "session method: #{r1.inspect}" unless r1["method"] == "pane.report_agent_session" && r1["id"].start_with?("herdr:pi:session:"); p1 = r1["params"]; abort "session params: #{p1.inspect}" unless p1["pane_id"] == "p7" && p1["source"] == "herdr:pi" && p1["agent"] == "pi" && p1["session_start_source"] == "startup" && p1["agent_session_path"] == "/tmp/s.json" && p1["seq"].is_a?(Integer); rep.report_session(ref, pane_id: "p7"); r2 = read_one.call; abort "agent_start session report omits session_start_source: #{r2.inspect}" if r2["params"].key?("session_start_source"); rep.report_state("working", session_ref: ref, pane_id: "p7"); r3 = read_one.call; abort "state report: #{r3.inspect}" unless r3["method"] == "pane.report_agent" && r3["params"]["state"] == "working" && !r3["params"].key?("message") && r3["params"]["seq"] > p1["seq"]; rep.report_state("blocked", message: "needs approval", session_ref: ref, pane_id: "p7"); r4 = read_one.call; abort "blocked report: #{r4.inspect}" unless r4["params"]["state"] == "blocked" && r4["params"]["message"] == "needs approval"; rep.report_state("working", session_ref: ref, pane_id: "p7"); read_one.call; rep.report_state("working", session_ref: ref, pane_id: "p7"); rep.report_state("working", session_ref: ref, pane_id: "p7"); abort "deduped same-state reports must not connect" unless quiet.call; dead = Tart::Herdr::Reporter.new(socket_path: File.join(dir, "missing.sock"), timeouts: [20, 20]); dead.report_state("idle", session_ref: ref, pane_id: "p7"); dead.report_session(ref, pane_id: "p7"); abort "socket failures must be swallowed"; hooks = Tart::Hooks.new; Tart::Herdr.register(hooks: hooks, env: on_env); ctx = {cwd: dir, mode: "tui", session: ref, identity: "pi"}; hooks.emit({"type" => "session_start", "reason" => "resume"}, context: ctx); s1 = read_one.call; s2 = read_one.call; abort "integration session report" unless s1["method"] == "pane.report_agent_session" && s1["params"]["session_start_source"] == "resume"; abort "forced idle publish at session_start: #{s2.inspect}" unless s2["method"] == "pane.report_agent" && s2["params"]["state"] == "idle" && !s2["params"].key?("message"); hooks.emit({"type" => "agent_start"}, context: ctx); a1 = read_one.call; a2 = read_one.call; abort "agent_start working" unless a1["method"] == "pane.report_agent_session" && a2["params"]["state"] == "working"; hooks.emit({"type" => "herdr:blocked", "active" => true, "label" => "ask user"}, context: ctx); b1 = read_one.call; abort "blocked channel" unless b1["params"]["state"] == "blocked" && b1["params"]["message"] == "ask user"; hooks.emit({"type" => "herdr:blocked", "active" => false}, context: ctx); b2 = read_one.call; abort "unblocked returns to working" unless b2["params"]["state"] == "working" && !b2["params"].key?("message"); hooks.emit({"type" => "agent_end", "interrupted" => false, "messages" => []}, context: ctx); e1 = read_one.call; abort "agent_end idle" unless e1["params"]["state"] == "idle"; hooks2 = Tart::Hooks.new; Tart::Herdr.register(hooks: hooks2, env: {"HERDR_ENV" => "1", "HERDR_SOCKET_PATH" => sock, "HERDR_PANE_ID" => "p7"}); pctx = {cwd: dir, mode: "print", session: ref, identity: "pi"}; hooks2.emit({"type" => "session_start", "reason" => "startup"}, context: pctx); hooks2.emit({"type" => "agent_start"}, context: pctx); abort "print mode must root nothing" unless quiet.call; off = Tart::Hooks.new; Tart::Herdr.register(hooks: off, env: {"HERDR_ENV" => "0", "HERDR_SOCKET_PATH" => sock, "HERDR_PANE_ID" => "p7"}); off.emit({"type" => "session_start", "reason" => "startup"}, context: ctx); off.emit({"type" => "agent_start"}, context: ctx); abort "env-gate off must be inert" unless quiet.call; server.close; FileUtils.rm_rf(dir); puts "HERDR_REPORTER_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: HERDR_REPORTER_OK
+
+- id: scope
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only cac2612 HEAD | grep -qvE '^(lib/tart/(hooks|memory|herdr)\.rb|lib/tart/tools/(memory|registry)\.rb|lib/tart/commands\.rb|lib/tart/settings\.rb|lib/tart/agent/(loop|session|system_prompt)\.rb|lib/tart/print\.rb|lib/tart/render/(chat|transcript)\.rb|bin/tart|README\.md|test/(hooks|memory|herdr|agent_loop|session|commands|settings|system_prompt)_test\.rb|test/render/transcript_test\.rb|gems/tui-split-rig/scenarios/s11_memory_recall\.yml|gems/tui-split-rig/fixtures/memory\.ts|gems/tui-split-rig/lib/tui_split_rig/(runner|scenario)\.rb|gems/tui-split-rig/test/scenario_test\.rb)$'; then exit 1; else echo SCOPE_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
 
 ## Builder Prompt
