@@ -9,8 +9,6 @@
 
 ## Grounds
 
-# I40 model-catalog-polish — Grounds (scratch → `architect section`)
-
 ## 1. The plan letter vs the live tree (the honest re-scope)
 
 Plan ENTRY 4 (`build/loop/plan-20261012T184702Z.md`) queues three I27/I28 residuals.
