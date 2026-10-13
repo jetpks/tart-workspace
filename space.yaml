@@ -1753,7 +1753,25 @@ project:
   - name: dry-rb-flow
     ordinal: 45
     file: architecture/I45-dry-rb-flow.md
-    freeze_sha:
+    freeze_sha: 68c2b63d9b9372698074253a845a96e0ef804542
     verdict: pending
-    lanes: []
+    lanes:
+    - name: flow
+      repo: tart
+      touch_set:
+      - tart.gemspec
+      - Gemfile.lock
+      - lib/tart/agent/bridge.rb
+      - lib/tart/agent/loop.rb
+      - lib/tart/mcp/client.rb
+      - lib/tart/mcp.rb
+      - lib/tart/mcp/tool.rb
+      - lib/tart/render/user_bash.rb
+      - test/flow_test.rb
+      - test/agent_loop_test.rb
+      - test/mcp_test.rb
+      - test/support/mcp_echo_server.rb
+    rehearsal:
+      gates_digest: 895a31ef86861d2a8678a1ce195715ce1dcddcb1b2f5c8c6d83495363742896b
+      at: '2026-10-13T07:37:48-06:00'
   integration_branch: project/pi-port
