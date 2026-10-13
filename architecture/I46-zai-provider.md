@@ -1356,3 +1356,38 @@ Program moves to ENTRY 5.
 5. Grounds §5 re-pin inventory discipline: future to_h-shape changes should
    grep the FULL entry-hash assert set (four sites, now enumerated in the
    builder report).
+
+## Acceptance Criteria
+
+Frozen sections unchanged since freeze — YES (`architect verify` 4/4; the
+plan and Grounds/Spec/AC byte-clean since 93f04375).
+
+| AC# | Raw result | Brief § | Verdict |
+|-----|------------|---------|---------|
+| AC1 | zai-catalog PASS; suite schema/shape/model pins green; re-pins mechanical (diff-verified) | §3 | PASS |
+| AC2 | zai-wire PASS (owner dialect / off-edge / supports-false / compat-nil floor); pins 1–10 present 1:1, spot-checked non-vacuous | §8 | PASS |
+| AC3 | session-golden PASS (7/7); wire bytes proven identical (canonical-prefix control, tools digest exact); threading pins 9–10 green; render = the two enumerated methods only; README complete | §8 | PASS |
+| AC4 | suite 886/3823/1-skip (>868, base skip unchanged); SEAM_BENCH_OK; s1–s8,s10 + s9-at-canonical-depth exit 0; both probe gates OK; scope = exactly the 13 declared files (judge-checked `git diff --name-only a236876`) | §3/§8 | PASS |
+
+## Iteration — CONTINUE
+
+Diff vs BRIEF §3/§8 and the frozen Specification is faithful: pi's zai wire
+byte-modeled at the one seam, the fireworks default and every compat-less
+path byte-identical (proven, not claimed), scope exact, batteries green.
+Program moves to ENTRY 5.
+
+## Residual items for the human (none block ENTRY 5)
+
+1. **Live z.ai verification unpaid** (Grounds §6): the dialect bytes are
+   pi's, statically pinned, but z.ai's 200 has never been observed by this
+   space — run one scripted live request from a key-holding environment
+   (I36 `tmp/repro_*` shape) on first zai daily-driver use.
+2. **OQ-1 backlog candidate**: `strict` on function tool defs if z.ai
+   rejects non-strict tools (live-check dependent).
+3. **OQ-3 backlog candidate**: `$ENV`/`!command` apiKey expansion if the
+   owner copies pi's templated catalogs.
+4. **OQ-6 standing item**: compat-nil developer-role divergence on
+   fireworks-class URLs (pre-existing, pinned unchanged).
+5. Grounds §5 re-pin inventory discipline: future to_h-shape changes should
+   grep the FULL entry-hash assert set (four sites, now enumerated in the
+   builder report).
