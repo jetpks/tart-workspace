@@ -1792,11 +1792,172 @@ frozen test file, no `bin/tart`, no render/agent/print file.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I43-dry-rb-boundaries-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence dry-rb-boundaries --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### schemas
+
+# Lane report — I43 dry-rb-boundaries, lane `schemas`
+
+Builder: zai/glm-5.3-flash thinking-high · worktree
+`build/I43-dry-rb-boundaries-schemas/wt` (from frozen base `6d8a079`) · HEAD
+left at `6d8a079` (zero commits, per the never-commit rule). Touched set =
+exactly the lane's declared 24 files (`git status --porcelain` + the AC scope
+regex → SCOPE_OK; nothing under `gems/`, no frozen test, no `bin/tart`, no
+render/agent/print file).
+
+## PHASE 0 — disagreements & resolutions (itemized, none silently implemented)
+
+1. **`messages do … end` message maps do not work on this stack.** Spec
+   error-discipline rule 2 allows "a message map living WITH the schema
+   module". dry-validation 1.11.1's contract-level `messages` is a class
+   method that SILENTLY IGNORES a block (`contract.rb:163` —
+   `self.class.messages`; `class_interface.rb:143` — `Schema::Messages.setup(config.messages)`;
+   no block DSL exists). Probe: a contract with `messages do array? "PINNED" end`
+   returned dry's default prose ("must be an array" / "size cannot be less
+   than 1"), never the pinned text. Resolution: every pinned string is
+   produced by the rule-based home rule 2 names FIRST (`key.failure(<pinned
+   string>)`), plus pinned-priority selection in `Schemas::Tools.validate`
+   (a pinned failure is the whole `{error:}` value, matching today's
+   raise-before-use order). Consequence, itemized: the edit contract's
+   `required(:edits)` is PRESENCE-ONLY (no schema type constraint) because a
+   schema failure on a rule's own key skips that rule (Grounds §4/p8) — all
+   `edits` shape checks (array-ness, emptiness, per-item text types) live in
+   one rule so the pinned string fires for not-an-array/empty exactly as
+   today's `:105` raise did.
+2. **`modelReasoning` out-of-vocabulary staged values: the Specification's
+   parenthetical contradicts the outcome table.** B1 says "values outside
+   true|false|\"true\"|\"false\" read as unstaged — today's behavior", but
+   today's `:204-209` returns FALSE for a non-nil out-of-vocabulary staged
+   value (`staged == true || staged == "true"` short-circuit) — reading it
+   as unstaged would fall through to `MODEL_REASONING`/registry and answer
+   TRUE for the daily-driver glm. Resolved by the binding rule (B1
+   "preserving each helper's public signature and outcome table EXACTLY";
+   AC2 "modelReasoning truthiness outcomes unchanged"): non-nil → the
+   contract's vocabulary passes through to the `==` arithmetic; non-nil
+   out-of-vocabulary → `false`. Pinned additively
+   (settings_test `test_model_reasoning_out_of_vocabulary_staged_value_answers_false`).
+   Judge may re-rule; no observable case in the suite/battery depends on it.
+3. **Seam signature: `validate_input(**arguments)`, not the letter's
+   `validate_input(contract, pi_name:, **)` sketch.** The letter says
+   "e.g."; the shipped seam resolves contract + pi_name from the class
+   (`Schemas::Tools.validate(self.class.pi_name, arguments)`), so all seven
+   call sites are the one-liner idiom. Same seam, fewer moving parts.
+4. **Wrapper path names ride the port's execute kwargs.** pi's loop
+   validates raw JSON args and prints wire names (`ignoreCase`); the port
+   validates at the tool boundary, after ruby_llm's arity gate + symbolization,
+   so dry paths render Ruby kwarg names (`ignore_case: must be boolean`).
+   Edit items render the WIRE names (`edits.0.oldText`) because that is the
+   name models know. Itemized approximation under rule 3 (dry detail text
+   accepted); note the pre-existing, untouched gap: the wire's `ignoreCase`
+   can never reach `execute` anyway (ruby_llm's arity gate rejects
+   `:ignoreCase` before the tool runs — gem layer, out of scope).
+5. **models.json contract = bare key declarations + all-rule checks.** The
+   letter's "one dry-validation contract" is honored (`Dry::Validation::
+   Contract` + `json do … end`), but with NO schema predicates: bare
+   `optional(:default)`/`optional(:providers)` declarations only symbolize
+   the JSON root's top keys for the rules (nested bodies keep parsed string
+   keys — probed), and every check is a rule emitting today's exact line at
+   today's path/order. A schema-predicate version loses exact strings and
+   lets dry prose leak whenever a rule's own key schema-fails.
+6. **mcp contract input is the wrapped `{"mcpServers" => servers}`.** B3
+   keeps the root-shape guard and `ConfigError` wrapping in `Config.load`;
+   the contract is ConfigError-free by construction (no circular require,
+   no raise-site drift). `validate_server!` stays public, delegates to the
+   contract, and raises the same strings (no caller in the repo/tests still
+   calls it, API preserved per B3).
+7. **Settings FILE_VIEW is applied nowhere observable — by the letter.**
+   B1: "applied for validation reporting only where the letter's
+   no-behavior-change rule allows (i.e.: nowhere observable — it must not
+   gate Settings.load)". It is exposed (`Tart::Schemas::Settings.file_view`,
+   memoized + frozen) and pinned by test; the no-filter pin proves
+   `Settings.load` never consults it.
+8. **Memoization vs load-time instantiation in schemas/settings.rb.**
+   settings.rb requires schemas/settings before its own module body runs
+   (circular require), so the two schemas that read
+   `Settings::THINKING_LEVELS` are memoized-on-first-call (the pattern
+   contract explicitly allows "frozen instances or memoized .new"); the
+   Settings-free contracts (`ENV_CONTEXT_WINDOW`, `VALUE_CONTEXT_WINDOW`,
+   `MODEL_REASONING_VIEW`, `Schemas::Mcp::CONTRACT`, `Schemas::Models::
+   CONTRACT`, `Schemas::Tools::CONTRACTS`) are load-time frozen constants.
+9. **ContextWindow env-tier contract uses `value`, not `maybe`.** Found by
+   the new pin: the Params flavor coerces `""` → nil BEFORE predicates, so
+   `maybe(:string, format?: /\A\d+\z/)` let the empty string through as
+   schema-absent and crashed the `Integer` step. `value(:string, format?)` +
+   the nil guard in the helper reproduces today's table exactly
+   (`"" → absent`, `"-5"/"+5"/" 5"/"5.5" → absent`, `"007" → 7`, `"0" → 0`).
+10. **bash `resolve_timeout` deleted; `spawn_and_accumulate` parameter
+    renamed `timeout_seconds` → `timeout`.** Pure rename after validation
+    guarantees nil-or-finite-positive; behavior identical, both bash_tool
+    timeout pins stay green untouched.
+
+## File-by-file changes
+
+| File | Change |
+|---|---|
+| `tart.gemspec` | + `dry-schema ~> 1.16`, `dry-validation ~> 1.11` production deps (with why-comment) |
+| `Gemfile.lock` | regenerated; accepted transitive tree: dry-schema 1.16.0, dry-validation 1.11.1, dry-types 1.9.1, dry-logic 1.6.0, dry-core 1.2.0, dry-configurable 1.4.0, dry-inflector 1.3.1, dry-initializer 3.2.0, zeitwerk, concurrent-ruby 1.3.8, bigdecimal 4.1.3 |
+| `lib/tart.rb` | + `require_relative "tart/schemas"` (after identity, before consumers) |
+| `lib/tart/schemas.rb` | NEW: aggregate require + the `Tart::Schemas` module doc (the pattern contract text) |
+| `lib/tart/schemas/settings.rb` | NEW: B1 — `file_view` (tolerant, non-filtering carried-key view), `thinking_level_view`, `ENV_CONTEXT_WINDOW` (Params digit-string), `VALUE_CONTEXT_WINDOW` (JSON integer gt 0), `MODEL_REASONING_VIEW`; helpers `context_window_env/context_window_value/thinking_level/model_reasoning` |
+| `lib/tart/schemas/models.rb` | NEW: B2 — `CatalogContract` (all-rule checks, exact lines, exact order), `CONTRACT`, `validate(parsed)` (root guard + line list), `format_line/format_path` (dotted keys, bracketed indices) |
+| `lib/tart/schemas/mcp.rb` | NEW: B3 — `ServersContract` (the six pi-exact per-server rules, pi's evaluation order), `CONTRACT`, `call(servers)`, `first_failure_text` |
+| `lib/tart/schemas/tools.rb` | NEW: B4 — seven input contracts (read/bash/edit/write/ls/grep/find), `CONTRACTS` (instantiated once), `validate(pi_name, arguments)` → nil or `{error:}`, pinned-priority, pi wrapper (`Validation failed for tool …` + dotted paths + `Received arguments:` pretty JSON), no coercion |
+| `lib/tart/settings.rb` | resolution helpers consume the contracts: `resolve_context_window` (env/file tiers via `Schemas::Settings`), `resolve_thinking_level` + `declared_thinking_level` (vocabulary via `thinking_level`), `model_reasoning_capable` (via `model_reasoning`); `resolve_setting` precedence arithmetic UNCHANGED (doc note); `read_file`/`deep_merge`/`save`/tables/`Result` untouched |
+| `lib/tart/models.rb` | `load` calls `Schemas::Models.validate(parsed)`; the hand-rolled `validate*` family DELETED (validate, validate_default, validate_providers, validate_provider_fields, validate_models, validate_model_fields, validate_thinking_level_map); `build_thinking_level_map` + builders untouched |
+| `lib/tart/mcp/config.rb` | `load` keeps IO/parse-rescue/root guard, calls `Schemas::Mcp.call`, fail-fast raises `ConfigError "#{path}: #{first failure}"`; success path normalizes via `normalize_server`; `validate_server!` delegates to the contract (same strings) |
+| `lib/tart/tools/safe_execute.rb` | + `require_relative "../schemas/tools"`; + private `validate_input(**arguments)` seam (contract by wire name) |
+| `lib/tart/tools/bash.rb` | `execute` opens with the seam; `resolve_timeout` raise DELETED (contract rule replaces it); `timeout` flows validated |
+| `lib/tart/tools/edit.rb` | `execute` opens with the seam; the `:105` ArgumentError raise DELETED; `normalize_edit_shapes` still runs after validation |
+| `lib/tart/tools/read.rb`, `write.rb`, `ls.rb`, `grep.rb`, `find.rb` | `execute` opens with the seam; nothing else moved |
+| `test/schemas_test.rb` | NEW: 15 tests / 121 assertions — models accept/reject table (all Grounds §5 fixtures, exact strings + interleave order), valid-catalog byte-shape + symbolization, mcp exact-string table incl. fail-fast + parser passthrough, bash timeout pinned trio + pinned-wins + wrapper, edit pinned trio + every accepted shape (snake/camel/string keys/empty/nil) + dotted-path wrappers, per-tool wrong-typed wrapper + valid acceptance, settings contract outcome tables (env/file tiers, vocabulary, modelReasoning), tolerant FILE_VIEW pin |
+| `test/settings_test.rb` | ADDITIVE: precedence matrix (5 keys × 4 tier combos × 3 identities = 60 pins), context-window fall-through corners (non-digit env incl. `+5`/`-5`/`" 5"`; non-positive file; `007→7`), thinkingLevel out-of-vocab (5/nil), modelReasoning out-of-vocab staged → false, no-filter pin (malformed values land verbatim, zero diagnostics) |
+| `test/models_test.rb` | ADDITIVE: multi-error interleave golden; full-ladder thinkingLevelMap catalog fixture through the schema path |
+| `test/mcp_test.rb` | ADDITIVE: first-invalid-server-in-insertion-order-wins (both servers invalid) |
+| `test/tools_test.rb` | ADDITIVE: wrapper rejections for ls/grep/find/write/read through the real tools + valid-args-through-the-seam |
+| `test/bash_tool_test.rb` | ADDITIVE: Float::INFINITY + 0 → pinned; timeout `"5"` → wrapper |
+
+## Gate outputs (this worktree, cold, after the final edit)
+
+| Gate | Result |
+|---|---|
+| `bundle install --quiet && bundle exec rake` | `823 runs, 3511 assertions, 0 failures, 0 errors, 1 skips` (base: 796/3268/0/0/1 — the same pre-existing opt-in LiveRunTest skip; +27 runs / +243 assertions are the additive pins) |
+| `bundle exec ruby bench/seam_bench.rb 2>&1 \| tail -1` | `SEAM_BENCH_OK` |
+| s1_text_turn … s10_editor_wrap (rig, `--out tmp/parity-gate-s*`) | all exit 0 (incl. s9 — no deep-path artifact in this run) |
+| s1_tart gate (`ec ≤ 1` + summary check) | rig exit 1 (by design), `TART_MODE_OK` |
+| `tool-pending-probe --gate` | `TOOL_PENDING_GATE_OK` |
+| `user-bash-stream-probe --gate` | `USER_BASH_STREAM_GATE_OK` |
+| wire-declarations (s1 + SHA256 over the request's tools array) | `WIRE_DECLARATIONS_OK` — digest `7360fd1e…3707` unchanged |
+| error-goldens (verbatim AC script) | `ERROR_GOLDENS_OK` |
+| deps-pin | `DEPS_OK` |
+| schemas-presence | `SCHEMAS_OK` |
+| tool-input-vocab | `TOOL_VOCAB_OK` |
+| scope (`git status --porcelain` vs the AC regex) | `SCOPE_OK` — 19 modified + 6 new paths, exactly the lane set; `git log 6d8a079..` empty (no commits) |
+
+Scratch: probe scripts live in the SPACE repo (`tmp/i43-schemas-scratch/p1..p3.rb`);
+rig out dirs under the worktree's gitignored `tmp/` (the gates' own
+`--out` contract). `tmp/i43-schemas-scratch/p3.rb` = a 115-check fixture sweep
+of every Grounds §5 row through the new code: `PASS: 115 / ALL_OK`.
+
+## OQ notes for the judge
+
+- OQ-1 (tool-input vocabulary): implemented per the Specification ruling —
+  the two pinned in-tool strings byte-exact and alone; everything else
+  pi's wrapper with dry detail text. Wrapper detail text + path names are
+  the itemized approximations (dry prose like `must be an integer or must
+  be a float`, Ruby kwarg names at the boundary, camel wire names for edit
+  items).
+- OQ-2 (settings malformed-value semantics): flows-through preserved
+  exactly; the FILE_VIEW never gates; the no-filter pin + error-goldens
+  gate prove it.
+- OQ-3 (mcp fail-fast): preserved — first server in insertion order, the
+  new mcp_test pin uses keys ordered `z` then `a` to prove insertion (not
+  alphabetical) order decides.
+- PHASE 0 item 2 (modelReasoning parenthetical) is the one place the spec's
+  prose and today's outcome table disagree; the outcome table won (AC2).
+- Pre-existing, untouched, for the record: the wire's `ignoreCase`/
+  `context`/`limit` camelCase names never reach `Grep#execute` (ruby_llm
+  arity gate rejects unknown `:ignoreCase` first) — gem layer, out of
+  scope; no coercion ported (pi's Value.Convert gap stays queued).
+
+STATUS: COMPLETE_WITH_CONCERNS (PHASE 0 item 2 — spec prose vs outcome table on out-of-vocabulary modelReasoning, resolved by AC2's outcome table, judge may re-rule; wrapper path names/detail text are the itemized rule-3 approximations)
 
 ## Verdict
 
