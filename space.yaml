@@ -67,7 +67,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: dry-rb-flow
+  current_iteration: zai-provider
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1782,4 +1782,10 @@ project:
     rehearsal:
       gates_digest: 895a31ef86861d2a8678a1ce195715ce1dcddcb1b2f5c8c6d83495363742896b
       at: '2026-10-13T07:37:48-06:00'
+  - name: zai-provider
+    ordinal: 46
+    file: architecture/I46-zai-provider.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
