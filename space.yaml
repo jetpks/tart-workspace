@@ -1785,7 +1785,26 @@ project:
   - name: zai-provider
     ordinal: 46
     file: architecture/I46-zai-provider.md
-    freeze_sha:
+    freeze_sha: 93f04375843c5bfa29f4e4947c24f889222bbb97
     verdict: pending
-    lanes: []
+    lanes:
+    - name: zai
+      repo: tart
+      touch_set:
+      - lib/tart/schemas/models.rb
+      - lib/tart/shapes/model.rb
+      - lib/tart/models.rb
+      - lib/tart/agent/loop.rb
+      - lib/tart/print.rb
+      - lib/tart/render/chat.rb
+      - bin/tart
+      - README.md
+      - test/schemas_test.rb
+      - test/shapes_test.rb
+      - test/models_test.rb
+      - test/agent_loop_test.rb
+      - test/chat_test.rb
+    rehearsal:
+      gates_digest: 0fdb913c344d85ec8af101e02e5c95060252a60c0ec567d8357f531cf0190292
+      at: '2026-10-13T09:02:14-06:00'
   integration_branch: project/pi-port
