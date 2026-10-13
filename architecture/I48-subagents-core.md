@@ -467,9 +467,15 @@ nil)`
 - Resolve the agent (§1 table), the model pair (§1), and the defaults:
   `timeout_ms` default `1_800_000` (pi's 30-minute single-run default;
   `nil`/0 = unbounded, settable per call — T2's first kind);
-  `tool_timeout_ms` default nil (T2's second kind, §6).
+  `tool_timeout_ms` default nil (T2's second kind, §6). A `:fork` agent
+  with NO parent session available falls back to fresh (no preamble) —
+  pi's implicit-fork fallback rule, tool-reference.md's Fork context
+  details.
 - Mint the run id/dir; write `system-prompt.md` (the agent's prompt);
-  write initial `status.json` (state running).
+  write initial `status.json` (state running). **Returns the run record
+  Hash** (symbol keys: `{id:, agent:, state:, dir:, pid:, pgid:, async:,
+  timed_out:, started_at:, tool_call_id:}` — `#runs` returns the same
+  records; `state` is a Symbol, the disk form a String).
 - Spawn the child (§4 — the exact argv/env): foreground = `Process.spawn`
   + pgroup + `Process.detach` + a blocking pipe wait on the tool's worker
   thread; async = the same spawn (detached), no wait — the watcher owns
@@ -504,6 +510,8 @@ nil)`
   the request id is minted by the steer call, carried in the file name +
   body, and matched against the CHILD's own log line — the plumbing the
   ENTRY 7 intercom inherits (leaf-id-addressed, not name-addressed).
+  **Returns** `{state: :delivered|:queued|:missed|:failed, request_id:,
+  text:}` (text = the §7 receipt).
 
 ### 2.4 stop — `#stop(id:)`
 
@@ -548,7 +556,9 @@ kernel: nil, agent: nil)` with `#spawn_run`, `#steer`, `#stop`,
 the print drain's predicate), `#drain(timeout:)` (print agent-end:
 waits for every outstanding run, each bounded by its own deadline;
 records notifications; returns when none outstanding), `#shutdown` (test
-teardown: stop every running run, join threads).
+teardown: stop every running run, join threads), and **
+`#spawn_argv_and_env(run)`** → `[argv, env]` — the §4 builder, PUBLIC
+(the gate's pin target: the argv flags + the closed env key set).
 
 ## 3. The tool (`lib/tart/tools/subagent.rb` — new;
 `Tart::Tools::Subagent < RubyLLM::Tool`, wire name `"subagent"`)
