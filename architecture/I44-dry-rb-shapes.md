@@ -1828,15 +1828,165 @@ STATUS: COMPLETE_WITH_CONCERNS
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section dry-rb-shapes verdict --from <file>`. -->
+# Verdict — I44 dry-rb-shapes (judge session, fresh, 2026-10-13)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify dry-rb-shapes`)?
+Mechanical post-flight (cold, this session): `architect verify` 4/4 PASS
+(frozen untouched / zero builder commits / report exists / in-bounds —
+touched set = exactly the 21 declared files, untracked-inclusive);
+freeze-diff vs 55ca77a0615b45d9c07b9120f46a271b129adefe = ONLY the
+post-freeze Builder Prompt/Report provenance sections (single hunk at
+:807+); `git log 0c6ee246..` in the lane worktree EMPTY. Evidence
+transcribed verbatim (94/94 lines, commit 4f79a8de).
+
+Gate run cold in the lane worktree (tmp/i44-gate-lane-cold.txt):
+**20/21 PASS, 1 FAIL — wire-bodies**. The FAIL is the WORKTREE-PATH
+artifact, judge-proven by a three-way control, all cold this session:
+(1) BASE at the canonical checkout (repos/tart @ 0c6ee246) reproduces
+the frozen pins exactly — request bodies `2ece7d4b…`, tools
+`7360fd1e…` — so the pin literal is canonical-path-bound (the sandbox
+`<cwd>` embeds the checkout prefix; the gate's baked gsub cannot absorb
+a worktree prefix); (2) BASE in the lane worktree (judge-executed
+`git stash` control) yields `6323a1b6…`; (3) SHAPES in the same
+worktree yields the SAME `6323a1b6…` — byte-identical to base
+in-environment. ZERO wire bytes moved base→shapes; the binding HARD
+rule holds on lane evidence, with the decisive canonical-path run on
+the integrated tree (below). Suite 846 runs / 3641 assertions / 0
+failures / 0 errors / 1 pre-existing skip (base 823/3511); s1–s10 exit
+0 cold INCLUDING s9 (no deep-path artifact this run — the canonical
+short out dirs held); TART_MODE_OK (s1_tart exit 1 by design, gate
+accepts ≤1); both probe gates OK; SESSION_GOLDEN_OK (all six frozen
+digests exact); DEPS_SHAPES_OK / SHAPES_OK / NO_ALIASING_OK; SCOPE_OK
+(vacuous in an uncommitted worktree by construction — the real scope
+proof is verify's in-bounds PASS + the integrated-tree re-run).
+
+Judge-cold environmental adjudications (the three builder flags):
+
+- **W-1 (wire pin, environment-bound) — UPHELD.** The three-way control
+  above. The pin was correctly NOT adjusted (frozen literal); the
+  canonical-path integrated run is the decider.
+- **W-6 (launcher clamp test) — UPHELD, pre-existing.** Judge ran it at
+  BASE in repos/tart: with `PI_MODEL` unset it FAILS at base
+  (`Expected "high", Actual "xhigh"` — the legacy footer boot id
+  defaults to the glm id whose known map floors nothing); with the
+  space's shell env it passes at base AND with the lane diff. Not this
+  iteration's defect; recorded for the human as a pre-existing
+  environmental coupling (`<IDENTITY>_MODEL` in the suite's shell).
+- **W-2 (the four legacy-compat shims) — UPHELD as forced by the frozen
+  contract** (see P0-1 below): the spec froze those four test files
+  (must-not) while Grounds §5's re-pin enumeration missed assertions
+  they carry — a spec enumeration defect, not builder drift.
+
+## Disagreement rulings
+
+Every PHASE 0 item and all five spec OQs, ruled by the plan letter:
+
+**Spec OQs (adjudicated):**
+- **OQ-1 the gem seam — ACCEPT.** `.to_h` at `add_message` keeps the
+  gem's Hash API and the pinned output shape (the untouched
+  session_test :107/:160 + e2e payload pins green; the context digests
+  in SESSION_GOLDEN). Port-side RubyLLM::Message construction was
+  correctly rejected (round-trip into port code = wire-byte risk).
+- **OQ-2 ResolvedSettings honest typing — ACCEPT.** Strict only where
+  resolution guarantees the class; file-sourced scalars Nominal::Any
+  with the malformed rows pinned verbatim (defaultModel 5, apiBase [],
+  apiKey {"deep"=>1}, contextWindow "abc"→nil — the tier fall-through).
+  The I43 no-filter pin is untouched and still green.
+- **OQ-3 mechanical re-pins — ACCEPT.** Judge verified semantics-
+  neutrality on the diff: every §5-enumerated line is an accessor or
+  `.to_h` comparison swap; nothing re-asserted different semantics; all
+  other edits additive.
+- **OQ-4 boot entry completeness — ACCEPT.** `max_tokens: nil`
+  implemented; the boot entry's hash shape is unpinned; no consumer
+  reads it there.
+- **OQ-5 read_header API move — ACCEPT, with the builder's factual
+  correction adopted.** OQ-5's "no test pins the hash shape" was WRONG
+  (e2e :118/:183 read `["parentSession"]` and `.key?` — frozen files);
+  the P0-1c discovery readers on the struct are the minimal compat that
+  keeps both the API move and the frozen pins. The struct's fields are
+  the API; `[]`/`key?` are documented discovery-compat only.
+
+**Builder PHASE 0 items P0-1…P0-11:**
+1. **ACCEPT** — the enumeration defect is real (judge re-read commands_
+   test :106-131, model_menu_test, e2e :118/:183, launcher_smoke
+   :77/:117/:175-198 — all frozen, all pinning legacy shapes at seams
+   the spec migrates). "Frozen tests win" is the only reading that
+   satisfies suite-green + the frozen must-not list. The four shims are
+   documented, minimal, and each sits INSIDE the shape-owning seam
+   ducking over legacy INPUT shapes only the frozen tests feed; every
+   Grounds §2 PRODUCTION consumer reads struct attributes (judge
+   verified bin/tart, chat.rb, model_menu.rb, settings.rb diffs line by
+   line). This is NOT aliasing "left behind at the migrated seams" —
+   the migrated seams are typed; the ducks are frozen-pin compat.
+   FLAGGED RESIDUAL (not silent): the four shim sites are cleanup
+   candidates the day those tests can be re-pinned (a future iteration
+   with the must-not lifted; goes to the human's backlog, not new work
+   now).
+2. **ACCEPT** — a declared-attributes to_h provably cannot round-trip
+   the open body (tool bodies carry `tool_call_id`/`tool_calls` in
+   recorded order; declaration order would re-order and trim). The
+   constructor-pinned recorded-order to_h is the only design satisfying
+   the typed-projection letter AND the wire-byte constraint; proven by
+   SESSION_GOLDEN + the recorded-key-order pin + s2/s3 green.
+3. **ACCEPT** — the letter's word "String" is subordinated to its own
+   discipline paragraph ("no new raise reaches a user surface";
+   coercion only where today coerces — nil→"" only). Strict-String
+   validation of `content: 5` would be a NEW raise today's projection
+   never had. Zero-change reading.
+4. **ACCEPT** — rows stay plain Hashes per the letter; the `entry:`
+   carrier is the minimal typed hand-off; no re-hashing.
+5. **ACCEPT** — the keyword-hash switch path is frozen in chat_test;
+   normalization through the struct's own gate is the least-code
+   resolution and production paths deliver structs.
+6. **ACCEPT** — followed the frozen letter's Strict::String; the
+   one-layer-earlier crash on a MALFORMED settings file value is
+   itemized (W-3), matches the letter's own typing declaration, and
+   touches no pinned behavior (no test exercises a malformed
+   defaultModel file → boot).
+7. **ACCEPT** — outcome-identical: every consumer treats non-true as
+   false; "no-model" matches no catalog entry exactly as nil never
+   matched; launcher_smoke :175-198 green.
+8. **ACCEPT** — camelCase keys cannot ride transform_keys into
+   snake_case attributes (Grounds §3's own finding); the promoted
+   string/symbol-tolerant scan is exact and the recorder's symbol-keyed
+   in-memory projection is the reason symbol-tolerance exists at all
+   (judge checked: no caller feeds symbol-keyed entries to the
+   projections — all file-loaded or JSON-round-tripped).
+9. **ACCEPT** — matches B2's own enumeration (file-tier window via the
+   I43 contract); the env/model/registry tiers stay in
+   Settings.resolve_context_window exactly where the launcher reads
+   them.
+10. **ACCEPT** — kept-entry matching keeps today's raw compare against
+    the wrapped nominal field (exact `==` semantics preserved); the
+    scan DETECTION rides the wrap per B3; `entry["id"]`/`["type"]`
+    reads remain legal under the frozen no-aliasing gate's own
+    enumeration.
+11. **ACCEPT** — print.rb diff verified = exactly 1 line.
+
+## Acceptance Criteria integrity
+
+Frozen sections unchanged since freeze — `architect verify` (a) PASS;
+the freeze-diff shows only post-freeze provenance sections.
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | deps-shapes PASS, shapes-presence PASS; judge diff read: home/naming/Types module/transform_keys-on-JSON-fed/tolerance-wrap/nominal-flows-through/byte-rule all followed | plan ENTRY 2, Specification | PASS |
+| AC2 | no-aliasing PASS non-vacuous (judge re-grepped base: 10× `boot[`, 3× `entry[:` in chat.rb — the gate's targets existed at 0c6ee246); Model to_h key-order pin; resolve match table + boot tiers re-pinned; thinking_facts typed; every §2 production consumer reads attributes | §B1 | PASS |
+| AC3 | outcome table pinned per precedence row incl. malformed flows-through; typed constants key-for-key + frozen (inner maps too); DEFAULT_THINKING_LEVEL single-sources (pinned); chat.rb's 3 + print.rb's :65 read the constant (judge-verified in diff); Result#settings + no-filter pin untouched | §B2 | PASS |
+| AC4 | SESSION_GOLDEN_OK (6/6 digests exact, lane worktree); tolerance rows pinned on the real load path; write path untouched (judge diff); context_messages output shape pinned + untouched e2e/session pins; wire-bodies FAIL in-worktree = judge-proven path artifact, zero byte moves base→shapes (three-way control), canonical-path run below | §B3 | PASS |
+| AC5 | suite 846/3641/0F/1skip (823 base, +23 additive); SEAM_BENCH_OK; s1–s10 + s1-tart + probes cold exit 0 (s9 clean); in-bounds PASS; scope gate vacuous in-worktree, non-vacuous on the integrated run below | §AC5 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+## Iteration
+
+**CONTINUE** — the diff is a faithful implementation of the frozen
+Specification at every seam (typed Model/Provider/ModelRef/
+ThinkingFacts family, ResolvedSettings built once per boot over today's
+exact resolution helpers, session read path on tolerant envelopes with
+the recorded-order to_h at the gem seam), the HARD byte constraints
+hold (session JSONL digests exact; wire bytes zero-moved, proven
+three-way cold), the parity battery is green cold, and ENTRY 3
+(dry-rb-flow) can compose on both landed families. Program advances to
+ENTRY 3.
+
+Post-verdict (recorded at integrate time): integrated tree merge
+<merge-sha> — full gate re-run cold at the canonical path:
+<gate-line>.

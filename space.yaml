@@ -1713,7 +1713,7 @@ project:
     ordinal: 44
     file: architecture/I44-dry-rb-shapes.md
     freeze_sha: 55ca77a0615b45d9c07b9120f46a271b129adefe
-    verdict: pending
+    verdict: continue
     lanes:
     - name: shapes
       repo: tart
@@ -1739,6 +1739,13 @@ project:
       - test/settings_test.rb
       - test/session_test.rb
       - test/chat_test.rb
+      base_sha: 0c6ee246c1f5d061038c745ab313deed780dc94b
+      worktree: build/I44-dry-rb-shapes-shapes/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: a9c57b7074cb303633be0609b30af8632f1934d5b9d02431c0d36b6a8708493d
       at: '2026-10-13T05:37:52-06:00'
