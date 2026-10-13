@@ -19,7 +19,9 @@
 # messages. runlog's display discipline carries over: thinking dim, assistant
 # text plain, tool calls one-lined with their args, results one-lined with a
 # line count, ✓ done / ✗ failed with usage summed across the exchange, and
-# truncation at RUNLOG_LIMIT (default 2000) characters. Thinking text is NOT
+# truncation at RUNLOG_LIMIT (default 2000) characters. Followed lines carry
+# the record's own timestamp (HH:MM:SS local) after the run tag; --list shows
+# last-activity HH:MM beside the age. Thinking text is NOT
 # truncated — set RUNLOG_THINK to clamp it if a run goes feral.
 
 require "json"
@@ -273,7 +275,7 @@ class Follower
   POLL = 0.5
   RESCAN = 2.0
 
-  Run = Struct.new(:path, :run_id, :agent, :tag, :renderer, :offset, :partial)
+  Run = Struct.new(:path, :run_id, :agent, :tag, :renderer, :offset, :partial, :stamp)
 
   def initialize(space:, replay:, all:, list_only:)
     @space = space
@@ -310,9 +312,10 @@ class Follower
         age_min = (now - t.mtime) / 60
         active = (now - t.mtime) < WINDOW
         cwd, task = backscan(t.path)
-        puts format("%s %-9s %5.0fm %7sK  %s  %s",
+        puts format("%s %-9s %5s %5.0fm %7sK  %s  %s",
                     active ? green("●") : dim("·"),
                     tag_label(t.agent, cwd),
+                    dim(Time.at(t.mtime).strftime("%H:%M")),
                     age_min, t.size / 1024,
                     dim(t.run_id[0, 8]),
                     dim(task.to_s[0, 70]))
@@ -331,7 +334,7 @@ class Follower
     cwd, task = backscan(t.path)
     tag = paint_tag(tag_label(t.agent, cwd), t.run_id)
     run = Run.new(t.path, t.run_id, t.agent, tag, Renderer.new,
-                  @replay ? 0 : t.size, +"")
+                  @replay ? 0 : t.size, +"", stamp_now)
     @runs[t.path] = run
     emit(run, [bold("▶ #{t.agent} #{t.run_id[0, 8]}") +
                (cwd ? dim("  @ #{cwd.sub(Dir.home, '~')}") : "") +
@@ -355,13 +358,29 @@ class Follower
       rescue JSON::ParserError
         next
       end
+      run.stamp = stamp_for(rec)
       emit(run, run.renderer.render(rec))
     end
   end
 
   def emit(run, lines)
-    lines.each { |l| puts "#{run.tag} #{l}" unless l.nil? || l.empty? }
+    stamp = run.stamp ? "#{dim(run.stamp)} " : ""
+    lines.each { |l| puts "#{run.tag} #{stamp}#{l}" unless l.nil? || l.empty? }
     $stdout.flush
+  end
+
+  private
+
+  def stamp_now = Time.now.strftime("%H:%M:%S")
+
+  # Records carry epoch-ms +"ts" and an ISO +"timestamp+" (UTC); display local.
+  def stamp_for(rec)
+    t = if rec["ts"].is_a?(Numeric)
+          Time.at(rec["ts"] / 1000.0)
+        elsif (iso = rec["timestamp"])
+          Time.parse(iso) rescue nil
+        end
+    t&.strftime("%H:%M:%S")
   end
 end
 
