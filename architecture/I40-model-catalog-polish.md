@@ -504,6 +504,7 @@ ref; the OQ dispositions from Grounds §5).
     ! grep -q 'levels.first unless levels.include?' lib/tart/render/chat.rb && echo NO_FLOOR_OK
   expect:
     stdout_match: NO_FLOOR_OK
+```
 
 ## Builder Prompt
 
