@@ -1879,7 +1879,7 @@ project:
     ordinal: 48
     file: architecture/I48-subagents-core.md
     freeze_sha: a5901f5891477dfeb2ab56acaee4440fe2080bd6
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
@@ -1896,10 +1896,24 @@ project:
       - test/subagents_test.rb
       - test/agent_loop_test.rb
       - test/settings_test.rb
+      base_sha: b54a3b15d4aa211e6ad67d104f89f7b489445f42
+      worktree: build/I48-subagents-core-core/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
     - name: e2e
       repo: tart
       touch_set:
       - test/subagents_e2e_test.rb
+      base_sha: b54a3b15d4aa211e6ad67d104f89f7b489445f42
+      worktree: build/I48-subagents-core-e2e/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: 9319291b8f934d31ff11ac53165f93beed21b410e8f15db14f69811fb54432a1
       at: '2026-10-13T13:49:05-06:00'

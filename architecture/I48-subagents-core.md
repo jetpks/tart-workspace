@@ -2095,15 +2095,174 @@ STATUS: COMPLETE_WITH_CONCERNS — the battery is written, red-exactly-as-declar
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section subagents-core verdict --from <file>`. -->
+# Verdict — I48 subagents-core
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify subagents-core`)?
+Judged cold on the integrated tree (base b54a3b1 + both lanes' 13-file
+diff, staged uncommitted before the formal merge; every gate re-run after
+`architect integrate` lands byte-identical content). Mechanical post-flight
+first: `architect verify` 8/8 PASS (frozen regions untouched, zero builder
+commits, reports present, both lanes in-bounds); frozen region diff vs
+freeze a5901f58 = byte-identical (1312 lines); `git -C <worktree> log
+b54a3b15..` empty both lanes; core worktree = exactly the 12-file touch
+set, e2e = exactly test/subagents_e2e_test.rb.
+
+## OQ rulings (Grounds §8 — by the plan letter, all "Recommend ACCEPT")
+
+All eight AFFIRMED as lettered, each with builder evidence verified at
+judge: OQ-1 opt-in gate (DEFAULTS false + `<IDENTITY>_SUBAGENTS` env tier;
+off-build carries no tool; the frozen `7360fd1e…` tools digest held —
+wire-bodies PASS cold proves the zero-behavior bar); OQ-2 run dirs under
+`<agent root>/subagents` + `<IDENTITY>_SUBAGENTS_HOME` (hermeticity pinned);
+OQ-3 uuidv7 run ids full-display (e2e pins nibble 7); OQ-4 the wake +
+print drain (drain adds no stdout — leg B's `stdout.strip == final` pin);
+OQ-5 adapted start-message guidance (byte shape, no bg_wait, status action
+named); OQ-6 the itemized cut list (nothing silent; README pointer); OQ-7
+the CLOSED child env (unsetenv_others at the Manager; the sanctioned key
+set; no gate row → children never nest); OQ-8 tool timeout as the bash
+default (ms→s, warn+ignore invalid, explicit call values win — pinned
+in-process AND through a real child's slow bash call).
+
+## PHASE 0 rulings — core lane (12 items)
+
+- **P0-1 watcher = plain Thread in all boots — ACCEPT.** `Core::Loop#async`
+  is reactor-context-only (verified: core/loop.rb), and register/spawn
+  both occur off-reactor; the frozen §2.6 letter itself offered "or a
+  plain Thread". The OBSERVABLE — the wake kick as `kernel.async {
+  agent.wake }` — is preserved faithfully through `Subagents::KernelBridge`
+  → TUI synthetic-event channel → `kernel.on_event` → `kernel.async(&blk)`
+  on the reactor (the bridge rides the kernel's own `:synthetic` source
+  protocol; the frozen gate's fake kernel captures the Manager-side call
+  unchanged).
+- **P0-2 print.rb requires subagents — ACCEPT.** lib/tart.rb is out of
+  bounds; the frozen gate's `require "tart"` needs the module loadable;
+  print.rb (touchable, loaded by lib/tart.rb) is the minimal sound
+  transitive point.
+- **P0-3 additive defaulted kwargs (`register(identity:)`,
+  `Manager.new(arm_deadline_supervisor:)`, record-internal keys) —
+  ACCEPT.** Every §2.7/§1 frozen drive remains valid (defaults); the
+  disarm seam is REQUIRED by the spec §8's own letter ("self-deadline
+  honored when the parent-side supervisor thread is disarmed" — pinned);
+  the record's internal keys are forced by the frozen gate itself, which
+  rebuilds argv/env from the returned record via `#spawn_argv_and_env`.
+  All ten public keys present.
+- **P0-4 child API key/base fall back to the gem global — ACCEPT.**
+  Necessity proven by the frozen gate's own staging (HOME only + global
+  RubyLLM.configure; children must reach the mock server); production
+  convergence holds (env tier always wins; file-tier parents re-resolve
+  identically under the same HOME/cwd).
+- **P0-5 sentinel-fd exit observation (no waitpid) — ACCEPT.** The spec
+  tension (T3's "no waitpid anywhere" vs §2.2's non-zero-exit branch) is
+  real and spec-internal; EOF-on-child-held-pipe + the print-mode
+  invariant (final text present = success) preserve every pinned
+  observable; `exitCode` nil except parent-escalated signals is itemized,
+  pi's "unexplained signal → stopped" class unreachable in the port.
+- **P0-6 flag-threading details — ACCEPT.** `--session-root` → Recorder
+  `root:` in bin/tart is §5.2's own parenthetical; the child-path
+  bash-session-env cut is itemized and entailed by OQ-6's no-nesting cut.
+- **P0-7 stop-file consumption dir — ACCEPT.** §5.1 ("`<dir>/*.json`",
+  the steer inbox) and §2.4 (stop files to the SIBLING stop-requests/)
+  genuinely conflict; draining BOTH dirs at the same consumption points
+  is the minimal reconciliation preserving both letters.
+- **P0-8 FROZEN GATE DEFECT — CONFIRMED, judge-reproduced.** The frozen
+  `subagents-units` line 118 `rq["body"]["messages"]` is mechanically
+  unsatisfiable: `MockLLMServer#captured_requests` returns PARSED bodies
+  (test/support/mock_llm_server.rb:150 `@requests << parsed_body` — no
+  "body" key exists). Judge reproduced cold on the integrated tree: the
+  verbatim gate runs green through line 117 (foreground, argv/env
+  closure, async start bytes, T1 steer + log correlation) then dies
+  `-:118: undefined method '[]' for nil`. The ONE-TOKEN judge form
+  (`rq["messages"]`) runs to `SUBAGENTS_UNITS_OK` — every other frozen
+  literal green. Recorded, never amended (the I45/I41/I47 class; the
+  frozen Judge note authorizes the minimally-repaired equivalent).
+- **P0-9 wire-bodies lane-worktree artifact — CLOSED at canonical depth.**
+  The judge's integrated-tree run (canonical repos/tart depth) passed the
+  frozen wire-bodies gate VERBATIM — both digests EXACT
+  (`2ece7d4b…`/`7360fd1e…`); s1–s10 exit 0 cold. Tenth precedent, moot
+  on the integrated run.
+- **P0-10 MockLLMServer fixed 0.1s pause — ACCEPT.** Verified at source
+  (chunk_every never wired; :250-252); an instrument fact both lanes
+  handled by sizing windows at observed pace.
+- **P0-11 `Session file:` always present ("(none)" fallback) — ACCEPT.**
+  §7 pins the tail unconditionally; pi's omission-when-absent is the
+  divergence, the port serves the pinned shape.
+- **P0-12 wake's capture-and-restore over Hooks#pending_next_turn —
+  ACCEPT.** The I47 seam is drain-only with no peek (must-not-touch);
+  drain-then-restore-verbatim (FIFO onto the fresh-empty queue) lets the
+  run's own §I47 drain deliver — the mounting proof holds.
+
+## PHASE 0 rulings — e2e lane (8 items)
+
+All ACCEPT: (1) the same MockLLMServer pause fact; (2) rake auto-discovery
+making the lane-tree suite exit 1 with EXACTLY the four declared
+NameErrors (959/4038 = base + 4 erroring runs; substance holds, AC5 judged
+on the integrated tree); (3) the HOME-agnostic fallback pin
+(`Session.default_root`-based — matches the built `Subagents.home`
+exactly); (4) leg C's "with a recorder" read as the notification-recording
+seam (Hooks) — the §2.7 constructor takes no recorder, the reading is
+forced; (5) cwd-independent bin/tart resolution — grounded on the frozen
+units gate's own spawn shape; (6) leg B's capture-order bet — DOCUMENTED,
+fails loud, and it PASSED on the integrated tree (leg B green both under
+rake and standalone post-fix); (7) the watchdogged parent runner —
+test-side robustness only; (8) the ps/zombie semantics probe — sound.
+
+## JUDGE FOUND one e2e-file defect, fixed at integration (I36/I31
+precedent, recorded here — never silent)
+
+`test/subagents_e2e_test.rb` copied I42's root-ladder
+`String#shellescape` backtick but dropped I42's `require "shellwords"`
+(e2e_session_test.rb:9). Under rake the require loads transitively — the
+battery's four legs all PASSED inside the cold 993-run suite; the FROZEN
+gate's standalone form (`bundle exec ruby -Itest
+test/subagents_e2e_test.rb`) died with NoMethodError at :366 in legs A/B.
+Judge applied the one-line fix (the identical require, comment cites this
+ruling) to the lane worktree + integrated tree; the frozen e2e gate then
+runs cold to `SUBAGENTS_E2E_OK — 4 runs, 77 assertions, 0 failures,
+0 errors, 0 skips`. The lane's declared red-at-base discipline is
+unimpaired (the red was the NameError, before any require could matter);
+the defect sat in exactly the declared "integrated-tree-only, unverifiable
+in this lane's tree" risk class.
+
+## Acceptance Criteria
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | subagents-units judge-form SUBAGENTS_UNITS_OK (verbatim red = gate defect P0-8); off-build no tool + `7360fd1e…` EXACT (wire-bodies PASS); builtin table/preamble byte-verified at judge against pi-subagents 0.77.0 (descriptions byte-carried, DEFAULT_FORK_PREAMBLE 342 bytes exact vs types.js:133-136) | §6/Grounds §6 | PASS |
+| AC2 | subagents-e2e SUBAGENTS_E2E_OK post one-line judge fix (4/77/0F; leg B drain + notification bytes pinned); units green on async lifecycle/notification/display/wake; suite 993/4402/0F | §7.2/§7.6 | PASS |
+| AC3 | units + e2e leg C (T1: delivered only on the child's steer-log entry for the minted id; the child's NEXT request carries the steer text) + leg D (stop ladder, stopped, no zombie, ps clean); no waitpid anywhere (T3); reconcile-from-disk pinned | §5.1 (Grounds §3) | PASS |
+| AC4 | both kinds independently settable (default 1_800_000/0=unbounded; tool default unset→bash); self-deadline honored with the parent supervisor DISARMED (both-sides T2 pinned); env closure pinned at `spawn_argv_and_env` + real-child echo; hermeticity pinned (owner `~/.tart` untouched) | §5.1 (Grounds §3) | PASS |
+| AC5 | suite 993/4402/0F/1skip (base 955/4038/1; +38 additive); SEAM_BENCH_OK; s1–s10 exit 0 cold canonical; TART_MODE_OK; both probes OK; WIRE_BODIES_OK both digests EXACT; SESSION_GOLDEN_OK; scope = EXACTLY the 13 declared files (12 core + 1 e2e), hooks.rb/registry.rb/memory*/herdr*/schemas/shapes/models/compaction/session/render/core untouched | §5.1/§8 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+All five AC PASS. The three supervisor traps are PINNED as spec-level
+requirements, not implementation details: T1 (request-id-correlated
+consumption — units + leg C), T2 (both kinds both sides — self-deadline
+pin), T3 (detach-owned reap, terminal-status+observed-exit forgetting,
+disk-first reconcile). The Grounds §4 harness decision (print-mode
+subprocess, one path both modes) is implemented as decided, with the
+in-process option recorded as the fallback.
+
+## Residuals (recorded, none blocking)
+
+- The frozen `subagents-units` literal stays broken on any tree (P0-8);
+  the one-token repair is recorded here, the gate file NEVER amended.
+- The print drain's notification flush is gated on `outstanding?` at
+  agent end — a child settling in the sub-ms window between the loop's
+  final drain and that check could leave a queued notification unflushed
+  (letter-faithful: §5.4 gates the drain on exactly this predicate;
+  bounded by the 250ms poll granularity; same check-then-wait shape as
+  pi's auto-drain).
+- Interactive wake is unit-pinned only (no live-TUI e2e this entry — the
+  core lane's itemization stands; the render path is the I47 custom
+  block, gate-covered by session/wire digests).
+- Foreground child's stdout has ONE trailing newline normalized away
+  (`read_output` strips `\n\z`) — the frozen gate pins the stripped form;
+  noted for any future byte-exact stdout consumer.
+
+## Iteration
+
+**CONTINUE** — the delegation core landed faithful to the frozen letter:
+every regression gate GREEN cold on the integrated tree with the default-off
+zero-behavior bar proven by the EXACT wire/session digests, the capability
+gates green (one via the recorded one-token gate-defect repair, one via the
+recorded one-line lane-file fix at integration), scope exactly the declared
+13 files, the I47 seam consumed never edited, and both traps-and-harness
+spec requirements pinned end-to-end. Program moves to ENTRY 7.
