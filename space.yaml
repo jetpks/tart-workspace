@@ -1667,7 +1667,38 @@ project:
   - name: dry-rb-boundaries
     ordinal: 43
     file: architecture/I43-dry-rb-boundaries.md
-    freeze_sha:
+    freeze_sha: 71b8a6b5262454aa75080b15e5ff9e42b964e12b
     verdict: pending
-    lanes: []
+    lanes:
+    - name: schemas
+      repo: tart
+      touch_set:
+      - tart.gemspec
+      - Gemfile.lock
+      - lib/tart.rb
+      - lib/tart/schemas.rb
+      - lib/tart/schemas/settings.rb
+      - lib/tart/schemas/models.rb
+      - lib/tart/schemas/mcp.rb
+      - lib/tart/schemas/tools.rb
+      - lib/tart/settings.rb
+      - lib/tart/models.rb
+      - lib/tart/mcp/config.rb
+      - lib/tart/tools/safe_execute.rb
+      - lib/tart/tools/bash.rb
+      - lib/tart/tools/edit.rb
+      - lib/tart/tools/read.rb
+      - lib/tart/tools/write.rb
+      - lib/tart/tools/ls.rb
+      - lib/tart/tools/grep.rb
+      - lib/tart/tools/find.rb
+      - test/schemas_test.rb
+      - test/settings_test.rb
+      - test/models_test.rb
+      - test/mcp_test.rb
+      - test/tools_test.rb
+      - test/bash_tool_test.rb
+    rehearsal:
+      gates_digest: 55d62cc389fa92bb4ad539833eb9b50c8ecff588eba4b2d3e6173949cede353b
+      at: '2026-10-13T03:53:22-06:00'
   integration_branch: project/pi-port
