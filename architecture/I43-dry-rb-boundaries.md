@@ -804,7 +804,7 @@ frozen test file, no `bin/tart`, no render/agent/print file.
   ac: AC1
   cwd: repos/tart
   cmd: |-
-    bundle install --quiet && bundle exec ruby -Ilib -e 'require "tart"; abort "Tart::Schemas missing" unless defined?(Tart::Schemas) && defined?(Tart::Schemas::Settings) && defined?(Tart::Schemas::Models) && defined?(Tart::Schemas::Mcp) && defined?(Tart::Schemas::Tools); test -f test/schemas_test.rb or abort "test/schemas_test.rb missing"; puts "SCHEMAS_OK"'
+    bundle install --quiet && bundle exec ruby -Ilib -e 'require "tart"; abort "Tart::Schemas missing" unless defined?(Tart::Schemas) && defined?(Tart::Schemas::Settings) && defined?(Tart::Schemas::Models) && defined?(Tart::Schemas::Mcp) && defined?(Tart::Schemas::Tools); abort "test/schemas_test.rb missing" unless File.file?("test/schemas_test.rb"); puts "SCHEMAS_OK"'
   expect:
     exit_code: 0
     stdout_match: SCHEMAS_OK
@@ -814,6 +814,7 @@ frozen test file, no `bin/tart`, no render/agent/print file.
   cwd: repos/tart
   cmd: |-
     bundle install --quiet && bundle exec ruby -Ilib -e 'require "tart"; require "tmpdir"; Dir.mktmpdir do |dir|
+      File.write(File.join(dir, "entry.txt"), "x\n")
       ls = Tart::Tools::Ls.new(cwd: dir)
       r = ls.execute(limit: "x")
       abort "ls wrapper vocabulary missing: #{r.inspect}" unless r.is_a?(Hash) && r[:error].to_s.start_with?("Validation failed for tool \"ls\":")
