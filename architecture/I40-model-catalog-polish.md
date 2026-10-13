@@ -702,11 +702,151 @@ PHASE 0 section). STATUS line last.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I40-model-catalog-polish-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence model-catalog-polish --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# LANE `core` — I40 model-catalog-polish (builder report)
+
+Repo `tart`, lane worktree `build/I40-model-catalog-polish-core/wt`, base `project/pi-port` @ **9beb6a6** (HEAD unchanged: `git log --oneline 9beb6a6..HEAD | wc -l` → `0`; no stash entries; nothing staged/committed).
+
+## PHASE 0 — disagreements / deviations (mandatory itemization)
+
+1. **FORCED CONFLICT, resolved minimally (the only spec deviation):** the letter requires BOTH
+   (a) DELETE the `thinking_menu_items` display floor (item 3; AC3; the `floor-gone` gate greps
+   `! grep 'levels.first unless levels.include?'`) AND (b) the I28 pin
+   `test_thinking_menu_gates_to_off_for_a_non_reasoning_runtime_model` (chat_test.rb:2433)
+   "stays green untouched" (WHY §"their existing pins ... keep green, do not touch"; Tests item 8).
+   These are mutually exclusive: that pin's line :2444 `assert_includes rows, "✓ off", "the ✓ clamps
+   onto the gated set"` pins exactly the floor — its fixture (footer_data `thinking_level: "medium"`,
+   `reasoning: false` → gated set `["off"]`) only renders `✓ off` because
+   `current = levels.first unless levels.include?(current)` rewrites "medium"→"off" (chat.rb:1767-1768
+   at base). With the floor deleted, pi's exact-equality letter (thinking-selector.ts:69-73
+   `level === currentLevel ? "✓ " : "  "`; model_menu.rb:312 draws `✓` only on `item[:current]`)
+   renders NO ✓ row — which is also precisely what the letter's own test 7 requires ("NO item
+   flagged current"). AC3 + the `floor-gone` gate + AC6 (suite fully green) cannot all hold with
+   :2444 byte-identical. **Resolution:** amend ONLY that one assertion (+ its two-line rationale
+   comment) to the new letter — `refute_includes rows, "✓"` — keeping the pin's gating assertions
+   byte-identical (`["off"]` item set; preselect index 0 → "off"; `refute "minimal"`). The :2412
+   cross-resolution pin is untouched (model menu — a different seam; item 3 does not reach it).
+2. **Followed the letter as written (note, not a deviation):** level-for-switch =
+   `Settings.declared_thinking_level(root:, cwd:) || (@thinking_level || footer fact)` — two tiers,
+   no terminal `?? DEFAULT` ("medium") tier. pi's `_getThinkingLevelForModelSwitch`
+   (agent-session.ts:2670-2679) ends `?? DEFAULT_THINKING_LEVEL`; the divergence is reachable only
+   when the surface holds NO level fact at all, which no real boot produces (bin/tart's clamped
+   `resolve_thinking_level` always yields a ladder member and the loop ctor receives it —
+   sdk.ts:268-277's cascade is likewise never nil at boot). Fixture-only corner; nil clamps to
+   `available.first || "off"` (models.rb clamp's unknown-rung branch).
+3. **Process note:** a `git stash`/`git stash pop` pair was used once to re-confirm the base suite
+   counts (763/3092); branch history verified untouched (zero commits after 9beb6a6, stash list
+   empty, working tree intact). No other git writes; nothing committed.
+4. No other disagreements. Everything else in the letter was verified against the pi sources
+   (agent-session.ts:2477-2496/:2610-2634/:2670-2679/:2683-2685; models.ts:1224-1254; sdk.ts:268-279;
+   settings-manager.ts:758-770; thinking-selector.ts:69-73/:101-107; interactive-mode.ts:5165-5191/
+   :5342-5367/:3495-3498) and the live tree before coding; the declared-default reader reuses
+   `read_file`/`deep_merge`/`ROOT_KEY`/`CONFIG_DIR` as required; no Result surgery, no new state;
+   no placeholders.
+
+## File list + wc (the frozen lane set — exactly 6 files)
+
+```
+     537 bin/tart
+     326 lib/tart/settings.rb
+    1963 lib/tart/render/chat.rb
+    5290 test/chat_test.rb
+     468 test/settings_test.rb
+     274 test/launcher_smoke_test.rb
+    8858 total
+```
+
+Diff summary: settings.rb +22 (the `declared_thinking_level` reader + doc); chat.rb +44/−10
+(switch re-clamp in `apply_model_selection`; ✓-floor deletion in `thinking_menu_items`;
+`default_thinking_level` unclamped-badge chain); bin/tart +18/−6 (boot clamp in `footer_data` +
+`default_thinking_level:` fact; `boot_thinking_kwargs` gains the clamped level; `print_mode` drops
+its explicit unclamped `thinking_level:`); tests +204/−9 (7 new chat pins + 1 amended assertion +
+the :2284 double gains the new seam method; 6 new settings pins; 1 new launcher pin).
+
+## Level-resolution table (pin case: input state → level-for-switch → effective, with the pi cite)
+
+| # | Pin (test file) | Input state | Level-for-switch | Effective | pi cite |
+|---|---|---|---|---|---|
+| 1 | `test_switch_re_clamps_a_stored_level_through_the_switched_model` (chat) | stored `xhigh`, no file default → switch to map-less reasoning entry (glm-5.3) | `xhigh` (session tier) | **`high`** (map-less ceiling off..high) | `_getThinkingLevelForModelSwitch` :2670-2679 `?? this.thinkingLevel`; `setThinkingLevel` :2610-2634 → `clampThinkingLevel` models.ts:1235-1254 (forward scan stops at high) |
+| 2 | `test_switch_to_a_non_reasoning_model_clamps_the_level_to_off` (chat) | stored `high` → switch to `reasoning: false` entry (glm-5-air) | `high` | **`off`** (supported set is `["off"]`) | models.ts:1225 `if (!model.reasoning) return ["off"]`; clamp :2610-2634 |
+| 3 | `test_switch_prefers_the_declared_default_over_the_session_level` (chat) | file declares `"low"` @ settings_root; session `high` → map-less reasoning switch | **`low`** (declared tier wins) | `low` (exact pass) | :2676-2677 `getDefaultThinkingLevel() ?? this.thinkingLevel`; settings-manager.ts:758-760 (file-declared only) |
+| 4 | `test_switch_keeps_an_in_set_session_level_without_a_declared_default` (chat) | no file; session `medium` → map-less reasoning switch | `medium` | **`medium`** (exact pass) | :2677 `?? this.thinkingLevel`; clamp's includes branch models.ts:1238 |
+| 5 | `test_switch_clamps_an_out_of_set_declared_default` (chat) | file declares `"xhigh"`; session `low` → map-less reasoning switch | **`xhigh`** (declared) | **`high`** (clamped) | :2676 + :2610-2634 — the clamp runs on the composed level |
+| 6 | `test_switch_enqueues_no_thinking_status_row` (chat) | case 1's state | — | transcript tail carries ONLY `Model: glm-5.3`; no `Thinking level:` row | interactive-mode.ts:5347-5351 (model status only) + :3495-3498 (`thinking_level_changed` → footer+border, no status) |
+| 7 | `test_thinking_menu_marks_no_row_for_an_out_of_set_stored_level` (chat) | stored `xhigh`, map-less reasoning menu (off..high) | — | **NO item flagged current**; preselect index 0 → `off` | thinking-selector.ts:69-73 exact equality; buildSelectList :101-107 |
+| 8 | `test_thinking_menu_gates_to_off_for_a_non_reasoning_runtime_model` (chat, AMENDED 1 assertion) | stored `medium`, `reasoning: false` menu (`["off"]`) | — | gated set `["off"]`; preselect `off`; **no ✓ row** | models.ts:1225; thinking-selector.ts:69-73 |
+| 9 | `test_footer_data_clamps_the_boot_level_but_keeps_the_badge_source_raw` (launcher) | staged file `"xhigh"` + map-less reasoning boot model | boot: `xhigh` | `thinking_level:` **`high`** (clamped) AND `default_thinking_level:` **`xhigh`** (unclamped badge) | sdk.ts:271-279 (createSdk clamp, every mode); thinking-selector.ts:71-72 via interactive-mode.ts:5187 (badge = raw default; out-of-set marks NO row) |
+| 10 | `test_model_menu_enter_switches_the_model_and_refreshes_the_surface` (chat, regression) | stored/boot `medium` → map-less reasoning switch | `medium` | `medium`; footer `glm-5.3 • medium` unchanged | unchanged behavior (exact pass) |
+| 11 | glm footer pins :67-89 (launcher, regression) | settings `medium` / `off` + glm boot (known map covers every level) | — | clamped == raw → `medium` / `off` (unchanged) | sdk.ts:271-279 (clamp no-ops when in-set) |
+| 12 | settings: `test_declared_thinking_level_*` ×6 | user file → value; project overrides user; keyless project file keeps user value; no key → nil (baked DEFAULTS never counts); `"loud"` → nil; live across `Settings.save` | — | — | settings-manager.ts:758-760 (`return this.settings.defaultThinkingLevel` — undefined unless declared); load precedence settings.rb:103-113 |
+
+## Verification — verbatim command output
+
+- `bundle install --quiet && bundle exec rake` (base: **763 runs / 3092 assertions**, 1 skip — re-confirmed at base this session):
+  ```
+  777 runs, 3122 assertions, 0 failures, 0 errors, 1 skips
+  ```
+  Δ **+14 runs / +30 assertions**, fully green; the 1 skip is pre-existing at base (not mine).
+- `bundle exec ruby bench/seam_bench.rb` → tail:
+  ```
+  SEAM_BENCH_OK
+  ```
+- Parity gates, SHORT out-dirs (`--out tmp/g<n>`), per-scenario exit + wall time:
+  ```
+  s1 (s1_text_turn): exit 0 in 5s
+  s2 (s2_tool_turn): exit 0 in 5s
+  s3 (s3_tool_turn_files): exit 0 in 5s
+  s4 (s4_bash_variants): exit 0 in 6s
+  s5 (s5_bash_truncation): exit 0 in 5s
+  s6 (s6_long_calls): exit 0 in 5s
+  s7 (s7_compaction): exit 0 in 5s
+  s8 (s8_zero_usage_compaction): exit 0 in 6s
+  s9 (s9_startup_help): exit 1 in 6s
+  ```
+  s9 deep-path evidence (archived `s9-worktree-deeppath-report.md`): exit 1 from
+  `2x unknown-candidate / 6x parity-run-path / 4x staged-path-wrap-fragment / 2x
+  footer-provider-prefix` — the known I34/I36/I39-ruled lane-worktree deep-path artifact
+  (both apps completed, requests 1/1, no TIMEOUT). Equal-depth controls (via `git archive`,
+  read-only):
+  - base tree @ `/tmp/i40-base-ctl`: `s9 ... --out tmp/g9-ctl` → **exit 0**
+  - this lane's tree @ `/tmp/i40-mine-ctl`: `s9 ... --out tmp/g9-mine` → **exit 0**
+  i.e. the exit 1 is purely the deep-path environment, not the lane's diff; the
+  integrated-tree run at canonical depth is the record.
+- Probe re-run (`ruby gems/tui-split-rig/bin/model-menu-probe --out tmp/mmp-i40`): **exit 0**;
+  all 12 frames present (`{pi,tart}-{model,thinking}-{menu,selected}.txt`, 40 lines each);
+  `grep -ci timeout` → 0. Both thinking menus render `→ ✓ off` (the mock boot's gated floor).
+  stdout tail (archived `probe-i40-stdout.log` + frames under `probe-i40-frames/`):
+  ```
+  - /Users/eric/.../I40-model-catalog-polish-core/wt/tmp/mmp-i40/sandbox/pi (lane/I40...
+  - 0.0%/33k (auto)                                                                                            (mock) mock-1
+  + /Users/eric/.../I40-model-catalog-polish-core/wt/tmp/mmp-i40/sandbox/tart
+  + 0.0%/33k (auto)                                                                                                   mock-1
+
+  frames at /Users/eric/.../I40-model-catalog-polish-core/wt/tmp/mmp-i40
+  ```
+  (the footer/path lines are the probe's known instrument-header classes — evidence, not a gate).
+- Tripwire gates, verbatim:
+  ```
+  SWITCH_TIER_OK   (grep declared_thinking_level: settings.rb + chat.rb)
+  BOOT_FACT_OK     (grep default_thinking_level: bin/tart)
+  NO_FLOOR_OK      (! grep 'levels.first unless levels.include?' chat.rb)
+  ```
+
+## Scope rulings honored (itemized, not re-litigated)
+
+- Per-model thinking overrides: CUT (no `getModelThinkingLevel` tier — no scoped-models surface, no writer in the port).
+- Session-file `thinking_level_change`/`model_change` entries: CUT (resume replay untouched; no session-format change).
+- Badge-REF semantics under env boot: I28-frozen shape stands (`boot_model_ref` untouched).
+- `Commands::Handler` full-ladder `/thinking` branch: frozen I27 shape (the surface's `gate_thinking_level` owns the runtime gate).
+- `ModelMenu.thinking` sealed full-ladder constructor: I36 design stands (the gate builds in chat.rb's `thinking_menu_items`).
+- Files NOT touched: `lib/tart/agent/loop.rb`, `lib/tart/models.rb`, `lib/tart/render/model_menu.rb`, `lib/tart/commands.rb`, `lib/tart/print.rb`, `lib/tart/render/transcript.rb`, `footer.rb`, `theme.rb`, `editor.rb`, `test/parity/**`, `gems/**`, every other file. `git status --short` lists exactly the 6 lane files.
+
+## Evidence archive (this directory)
+
+- `probe-i40-stdout.log`, `probe-i40-frames/` (12 frames), `s9-worktree-deeppath-report.md`, this report.
+
+STATUS: COMPLETE_WITH_CONCERNS
 
 ## Verdict
 
