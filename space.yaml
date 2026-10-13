@@ -67,7 +67,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: dry-rb-shapes
+  current_iteration: dry-rb-flow
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1750,4 +1750,10 @@ project:
     rehearsal:
       gates_digest: a9c57b7074cb303633be0609b30af8632f1934d5b9d02431c0d36b6a8708493d
       at: '2026-10-13T05:37:52-06:00'
+  - name: dry-rb-flow
+    ordinal: 45
+    file: architecture/I45-dry-rb-flow.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
