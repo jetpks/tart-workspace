@@ -415,51 +415,202 @@ itself (no rig dependency).
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse loadout-session-env` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze loadout-session-env` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria — I41 loadout-session-env
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+Gate calibration: `loadout-pin`, `env-pin`, and `print-identity-pin` are the
+iteration's NEW-capability gates — RED at base BY DESIGN (the base ships the
+7-tool superset, no session env, and the pi-default print tier); they must be
+GREEN on the integrated tree, non-vacuously (each asserts ≥1 matching test
+run / exact wire content). The s-gates keep the CANONICAL short out dirs
+(Grounds 1's environmental note). AC6's scope diff is against **9f8c8d7**
+(the pre-iteration integrated tip).
 
-**AC1.** ...
+**AC1 (the default-4 loadout).** `Settings.selected_tools({})` resolves to
+pi's `DEFAULT_TOOL_NAMES` list — `["read","bash","edit","write"]`, in ORDER —
+and the I10 modifier semantics hold on the new base (plain replace; `+name`
+appends; `-name` removes; all-modifier lists ride the base; layered
+mergeDefaultTools unchanged). The README `defaultTools` row and `--help`
+state the new default and the `+find`-style escape hatch. Pinned by
+re-pinned settings tests (the two base-bearing modifier cases move; the
+base-independent pins do not).
+
+**AC2 (wire + prompt order follow the resolved list).** `Tools::Registry.
+build` preserves the SELECTED order: at default configuration the request's
+tools array is exactly `["read","bash","edit","write"]` (pi's captured wire
+order), and under modifiers the resolved list's order. The composed prompt's
+`<tools>` rows and `<rules>` bullets follow the same list — at default the
+`<rules>` section opens with the loadout-conditional bullet ("Use bash for
+file operations like ls, rg, find") and orders per-tool guidelines read →
+bash → edit → write. Pinned by the loadout-pin gate (wire array + both
+sections byte-compared against pi's captured bytes, Grounds 5) and an
+inlined-golden system_prompt test with the derivation recorded.
+
+**AC3 (session-env exposure, pi's five).** The bash TOOL path composes the
+child env as pi's `resolveSpawnContext` analog: the five
+`<PREFIX>_<SUFFIX>` keys (`SESSION_ID`, `SESSION_FILE`, `PROVIDER`, `MODEL`,
+`REASONING_LEVEL` under `Identity.env_key`) are scrubbed from a copy of ENV,
+then set from LIVE readers resolved at spawn (nil reader → unset). Provider/
+model are the CATALOG pair (surface `current_model_ref` / boot pair — OQ-2),
+session id/file from the current recorder (interactive) or a minted
+ephemeral id with no file (print — OQ-3), level from the loop's current
+level. `run_user` (`!`/`!!`) exposes NOTHING and does not scrub (pi's user
+path). No settings toggle exists (pi has none). Pinned by the hermetic
+bash_tool family: sources, nil-conditionals + scrub, parent-leak guard,
+run_user exclusion, identity prefixes (PI_/TART_/FOO_), per-spawn
+resolution, exactly-pi's-five shape.
+
+**AC4 (print identity tier).** `Print.run` forwards the resolved identity
+into `Agent::Loop`, so the print path's loop env tier reads
+`<PREFIX>_CONTEXT_WINDOW` under the resolved face (tart → `TART_`, foo →
+`FOO_`) instead of the pi default. Pinned by print/agent-loop tests
+(forwarding + the tier readback); existing no-identity Print.run tests stay
+green on the default.
+
+**AC5 (regression).** The default rake task fully green with run-count
+delta > 0; s1–s9 exit 0 cold at the canonical out dirs; s1_tart (the
+tart-mode scenario) completes: tart boots, connects, and completes its
+expected requests; SEAM_BENCH_OK.
+
+**AC6 (scope).** The integrated diff vs 9f8c8d7 touches exactly the lane's
+enumerated files, nothing else — in particular NO `gems/tui-split-rig/**`
+file, and `lib/tart/agent/system_prompt.rb`, `lib/tart/identity.rb`,
+`test/chat_test.rb`, and `lib/tart/agent/session.rb` are untouched.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse loadout-session-env` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/parity-gate-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/parity-gate-s6
+  expect:
+    exit_code: 0
+
+- id: s7-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7
+  expect:
+    exit_code: 0
+
+- id: s8-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml --out tmp/parity-gate-s8
+  expect:
+    exit_code: 0
+
+- id: s9-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s9_startup_help.yml --out tmp/parity-gate-s9
+  expect:
+    exit_code: 0
+
+- id: s1-tart-mode
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_tart.yml --out tmp/parity-gate-s1tart; ec=$?; if [ "$ec" -gt 1 ]; then exit 1; fi; ruby -rjson -e 's = JSON.parse(File.read("tmp/parity-gate-s1tart/summary.json"))["runs"][0]["apps"]["tart"]; abort "tart incomplete" unless s["completed"] && s["requests"] == s["expected_requests"]; puts "TART_MODE_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: TART_MODE_OK
+
+- id: loadout-pin
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/loadout-gate-s1 && ruby -rjson -e 'req = JSON.parse(File.readlines("tmp/loadout-gate-s1/run-1/tart-requests.jsonl")[0]); tools = req["body"]["tools"].map { |t| t.dig("function", "name") }; abort "wire loadout: #{tools.inspect}" unless tools == %w[read bash edit write]; sys = req["body"]["messages"][0]["content"]; golden_tools = "- read: Read file contents\n- bash: Execute bash commands (ls, grep, find, etc.)\n- edit: Make precise changes with exact text replacement, including multiple disjoint edits in one call\n- write: Create or overwrite files\n\nIn addition to the tools above, you may have access to other custom tools depending on the project."; golden_rules = "- Use bash for file operations like ls, rg, find\n- Use read to examine files instead of cat or sed.\n- You can inspect PI_* environment variables for current model and session details.\n- Use edit for precise changes (edits[].oldText must match exactly)\n- When changing multiple separate locations in one file, use one edit call with multiple entries in edits[] instead of multiple edit calls\n- Each edits[].oldText is matched against the original file, not after earlier edits are applied. Do not emit overlapping or nested edits. Merge nearby changes into one edit.\n- Keep edits[].oldText as small as possible while still being unique in the file. Do not pad with large unchanged regions.\n- Use write only for new files or complete rewrites.\n- Be concise in your responses\n- Show file paths clearly when working with files"; tools_section = sys[/<tools>\n(.*?)\n<\/tools>/m, 1]; abort "tools section diverges:\n#{tools_section}" unless tools_section == golden_tools; rules_section = sys[/<rules>\n(.*?)\n<\/rules>/m, 1]; abort "rules section diverges:\n#{rules_section}" unless rules_section == golden_rules; puts "LOADOUT_PIN_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: LOADOUT_PIN_OK
+
+- id: env-pin
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    out=$(bundle exec ruby -Itest test/bash_tool_test.rb -n /session_environment/ 2>&1); ec=$?; echo "$out" | tail -3; [ "$ec" -eq 0 ] && echo "$out" | grep -qE '^[1-9][0-9]* runs, [1-9][0-9]* assertions, 0 failures' && echo ENV_PIN_OK
+  expect:
+    exit_code: 0
+    stdout_match: ENV_PIN_OK
+
+- id: print-identity-pin
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    out1=$(bundle exec ruby -Itest test/print_test.rb -n '/identity/' 2>&1); ec1=$?; echo "$out1" | tail -3; out2=$(bundle exec ruby -Itest test/agent_loop_test.rb -n '/env_tier|recorder/' 2>&1); ec2=$?; echo "$out2" | tail -3; [ "$ec1" -eq 0 ] && echo "$out1" | grep -qE '^[1-9][0-9]* runs, [1-9][0-9]* assertions, 0 failures' && [ "$ec2" -eq 0 ] && echo "$out2" | grep -qE '^[1-9][0-9]* runs, [1-9][0-9]* assertions, 0 failures' && echo PRINT_IDENTITY_OK
+  expect:
+    exit_code: 0
+    stdout_match: PRINT_IDENTITY_OK
+
+- id: scope
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only 9f8c8d7 HEAD | grep -qvE '^(lib/tart/settings\.rb|lib/tart/tools/registry\.rb|lib/tart/tools/bash\.rb|lib/tart/agent/loop\.rb|lib/tart/render/chat\.rb|lib/tart/print\.rb|bin/tart|README\.md|test/settings_test\.rb|test/tools_test\.rb|test/bash_tool_test\.rb|test/system_prompt_test\.rb|test/print_test\.rb|test/agent_loop_test\.rb)$'; then exit 1; else echo SCOPE_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
 
 ## Builder Prompt
