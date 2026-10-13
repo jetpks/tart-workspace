@@ -1345,6 +1345,149 @@ Never commit. Never edit architecture/** or space.yaml. Never touch
 repos/pi or sources outside your worktree. The frozen iteration file
 is read-only contract.
 
+### rig
+
+# Lane prompt — I47 seam-memory, lane `rig`
+
+You are the builder for LANE `rig` of iteration I47 seam-memory (space
+20261009-pi-port, repo repos/tart, worktree provisioned from frozen base
+cac2612, branch lane/I47-seam-memory-rig). This prompt is your complete,
+self-contained contract. You never commit; you write code + tests in your
+worktree and a scratch report at build/I47-seam-memory-rig/report.md.
+PHASE 0 discipline applies: disagreements with this contract are RESEARCHED
+(pi source at repos/pi, the rig's own sources, the frozen iteration file
+architecture/I47-seam-memory.md) and ITEMIZED in your report's PHASE 0
+section — never silently implemented differently, never silently blocking.
+
+## Mission
+
+Author the s11 memory-recall parity scenario and its staging in the rig:
+both apps run with the owner's memory behavior ACTIVE — pi loads the
+owner's memory.ts VERBATIM from a committed fixture, tart through the
+settings row (staged by the runner) — and the settled screen diff (plain +
+styled) pins the recall block byte-for-byte. At base this scenario is RED
+BY DESIGN (tart has no memory module — the core lane builds it; the gate
+goes GREEN on the integrated tree). Your deliverable is the scenario +
+staging + rig unit pins, verified to (a) parse and stage correctly, and
+(b) run END TO END against staged pi (the pi side of the capture must be
+complete and settling — pi alone, `--app pi`, completes with
+expected_requests reached).
+
+## Grounding you may rely on (verified; re-cite in code comments)
+
+- The runner's existing staging patterns: runner.rb `boot_session` /
+  `stage_pi_agent` (:201-226 — models.json + settings.json under
+  <stage>/home/pi/.pi/agent) / `stage_tart_home` (:229-262 — .tart/
+  models.json + optional settings.json) / `stage_project_resources`
+  (:204-250 — the s9 precedent for a scenario staging flag). Scenario
+  parsing: scenario.rb (the flag precedent `stage_project_resources`).
+- pi auto-loads user-dir extensions with NO settings row
+  (package-manager.ts :2446-2453 + collectAutoExtensionEntries —
+  verified EMPIRICALLY this session: staged
+  <home>/pi/.pi/agent/extensions/memory.ts loads and renders the
+  "[Extensions]\n  memory.ts" header row).
+- The staged-pi oracle capture (frozen Grounds §6, run this session at
+  120x40): after "hello" the settled region shows the user row, blank,
+  the bold "[memory-recall]" label row, blank, then the padded
+  markdown index rows ("- deploy (deploy.md): …"). The staged index
+  bytes (USE THESE EXACTLY, they are the frozen scenario content):
+  `- [deploy](deploy.md): deploys via herdr pipeline, stage first\n-
+  [api-notes](api-notes.md): gateway streams SSE, no websockets\n`.
+- The memory project-key rule (memory.ts): project dir = basename of
+  the git root (walk up for a .git FILE or dir) else basename of cwd.
+  The rig sandboxes (`<stage>/sandbox/pi`, `<stage>/sandbox/tart`)
+  carry NO .git → the keys are "pi" and "tart" per app; the staging
+  writes each app's MEMORY.md under its own key dir.
+- The tart side (core lane, NOT yours to build): settings key
+  "memory": true in <home>/tart/.tart/settings.json activates the
+  native module; its store reads <home>/tart/.tart/memory/tart/. The
+  runner merges the memory row into the staged settings.json WITHOUT
+  clobbering the compaction rows the context_window lever writes
+  (today only the s7/s8 family sets them; s11 sets none — but merge
+  correctly anyway).
+
+## The contract (the frozen Specification §6, condensed — the file governs)
+
+1. **`gems/tui-split-rig/fixtures/memory.ts`** — a BYTE-VERBATIM copy of
+   the owner's /Users/eric/architect/src/github.com/jetpks/
+   pi-extensions/memory.ts (173 lines; verify `cmp` against the source
+   at build time — any drift is a PHASE 0 item). Committed as a rig
+   fixture (read-only for the run; copied into the staged tree).
+2. **`scenarios/s11_memory_recall.yml`**: name s11_memory_recall,
+   prompt "hello", expected_requests 1, `stage_memory: true`, one
+   plain-text stream response (a short fixed reply, the s1 style).
+3. **Scenario flag** (scenario.rb): `stage_memory` parses like
+   `stage_project_resources` (boolean, default false) with the doc
+   comment updated.
+4. **Runner staging** (runner.rb): under `stage_memory`, BEFORE the
+   boot — pi: copy the fixture to
+   `<stage>/home/pi/.pi/agent/extensions/memory.ts`; write the frozen
+   index bytes to `<stage>/home/pi/.pi/agent/memory/pi/MEMORY.md`
+   (mkdir -p). tart: merge `{"memory" => true}` into
+   `<stage>/home/tart/.tart/settings.json` (create or update; keep any
+   existing rows — deep-merge semantics, write pretty like today's
+   staging) and the same index bytes to
+   `<stage>/home/tart/.tart/memory/tart/MEMORY.md`. NO other staging
+   change; NO registry.yml class (the recall bytes are the gate, not a
+   sanctioned difference).
+5. **Rig tests** (test/scenario_test.rb, additive): the flag parses
+   (true/false/default); a staging unit pin — run the staging helpers
+   against a temp stage and assert BOTH apps' files exist with the
+   exact index bytes and the tart settings row (follow the existing
+   staging-test idiom in the file; if the staging is only reachable
+   through boot_session, factor the pure file-writing part into a
+   small helper the test can drive — no runner.rb behavior change).
+6. **End-to-end verification in YOUR worktree** (the scenario is RED
+   at base BY DESIGN for the tart side — the core lane's module is
+   absent): run
+   `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s11_memory_recall.yml --app pi --out tmp/i47-rig-s11pi`
+   — staged pi must COMPLETE (requests == expected_requests, the
+   capture shows the recall block + the [Extensions] memory.ts row);
+   archive the pi capture path in your report. Then the full both-apps
+   run (RED expected — record the unknown-candidate list: the missing
+   recall block + the missing [Extensions] row on the tart side are
+   the EXPECTED base candidates). ALSO re-run s1 and s9 cold (your
+   scenario.rb/runner.rb edits must not disturb the unstaged paths) —
+   both exit 0.
+
+## May touch (EXACTLY these; the ```lanes block is the frozen source)
+
+    gems/tui-split-rig/scenarios/s11_memory_recall.yml
+    gems/tui-split-rig/fixtures/memory.ts
+    gems/tui-split-rig/lib/tui_split_rig/runner.rb
+    gems/tui-split-rig/lib/tui_split_rig/scenario.rb
+    gems/tui-split-rig/test/scenario_test.rb
+
+**Must not touch**: everything else — in particular lib/tart/**,
+bin/tart, test/** (the core lane's tree), the other scenario files,
+gems/tui-split-rig/lib/tui_split_rig/{differ,report}.rb,
+gems/tui-split-rig/bin/**, registry.yml, bench/**, test/support/**,
+and any source outside repos/tart's rig subtree. The fixture copy is
+byte-verbatim from the owner's repo — never edited, never "improved".
+
+## Verification (run in YOUR worktree; the judge re-runs on the tree)
+
+- `bundle install --quiet && bundle exec rake` from the repo ROOT — the
+  main Rakefile already includes gems/tui-split-rig/test/**/*_test.rb in
+  the default task; fully green with your additive pins (run count > 886).
+  NOTE: the core lane lands in parallel; at YOUR base the suite is green
+  and your scenario_test pins must be green against the current rig
+  sources alone.
+- The `--app pi` run above completes; the both-apps run records the
+  expected base candidate list; s1 + s9 re-run cold exit 0.
+- `git diff --name-only cac2612` — EXACTLY the 5-file set above.
+
+## Report
+
+Write build/I47-seam-memory-rig/report.md: the file table, the staging
+verification (the pi-only run's summary.json numbers + capture path),
+the base both-apps candidate list, the s1/s9 cold re-run results, PHASE
+0 disagreements itemized, and a final line `STATUS: COMPLETE |
+COMPLETE_WITH_CONCERNS | BLOCKED — <one line why>`.
+
+Never commit. Never edit architecture/** or space.yaml. The frozen
+iteration file is read-only contract.
+
 ## Builder Report
 
 <!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
