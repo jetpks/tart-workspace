@@ -471,15 +471,29 @@ STATUS: COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section user-bash-streaming verdict --from <file>`. -->
+# Verdict — I38 user-bash-streaming
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify user-bash-streaming`)?
+Judged cold: mechanical post-flight clean (`architect verify` all-PASS; `git diff fb726ef HEAD` on the iteration file appends only Builder Prompt post-freeze; lane worktree zero commits past base `a48aaca9`). Cold gate at base: suite 705/2899/0, `SEAM_BENCH_OK`, s1–s10 exit 0, `transcript-frozen`/`scope` PASS; the two new gates RED at base exactly BY DESIGN (AC5's letter, clean exit-1 digests, no 127). Independent re-verification in the lane worktree: suite 726/2989/0 failures (+21 runs/+90 assertions), `user-bash-stream-probe --gate` exit 0 / `USER_BASH_STREAM_GATE_OK` with mid-flight header+loader+output and settled header+3-output/0-loader in BOTH apps — the builder's numbers reproduce exactly. The diff read against the Specification: faithful on every named seam (bash.rb `on_chunk` CR-removal per pipe read; user_bash.rb three sinks with start-before-spawn and explicit terminals; chat.rb mutex-held state, `live_lines` below assistant rows, `spinner_frame(anchor)` extracted with separate anchors, animate gated `busy? || user_bash_streaming?`; bash_block.rb shared `user_bash_block_head` making the prefix property true by construction).
+
+- **Disagreement rulings** —
+  1. Empty-chunk letter vs pi's executor guard — **ACCEPT** (builder followed the spec letter, pi's guard noted in the comment): every AC is indifferent (joined-stream equality and CR-only-vanish hold either way), and in the port's strip-only rule an empty chunk arises only from CR-only reads, which the AC pins vanish downstream; forking the seam's documented shape for an unobservable difference would buy nothing.
+  2. `stream_end_sink` fired once at `finish` entry rather than per named arm — **ACCEPT**: strictly stronger than the letter; covers the outcome arm, the worker-error arm, AND the terminal-without-outcome micro-window in one site, still exactly-once per run (cancel clears its own path — `finish` never runs after the stopped task dies at the bridge pop), and it fires before the enqueue so AC2's no-mixed-frame ordering is uniform.
+  3. AC5 "machinery tripwire" read as the gates' own red-at-base discipline, no repo test — **ACCEPT**: the tripwire is the `stream-machinery` gate (grep chain + `test -x`), red at base by design and confirmed red in this session's cold gate; the builder additionally demonstrated the clean-1-not-127 behavior via a stash run. No weakening — AC5's deliverable gates are green in the built tree.
+  4. Grounds 6d stays out of scope — **ACCEPT** (agreement, not a disagreement): the completed-placement-while-turn-runs divergence is a base property this iteration's letter explicitly freezes.
+  5. Test-infra note (side-reactor thread owns no terminal) — **ACCEPT**: the pre-existing escape-cancel idiom artifact (visible in the BASE suite's Async warning, reproduced in this session's cold gate); the coverage mapping — mid-flight facts via the side reactor, settled byte-identity via the main-thread control enqueue — pins every AC2 claim without inventing new harness machinery.
+- **Grounds open questions** —
+  - **OQ-1 — ACCEPT the live region** (the plan letter): it already renders below transcript content and below streaming assistant rows — both of pi's container placements are reproduced observably; per-frame recomposition avoids in-place churn on a block that grows every chunk; and it keeps `transcript.rb` (the iteration's strongest must-not) wholly out of scope. The only visible divergence is scrolled-up-mid-run pinning behavior, which the rig cannot see and the owner's follow-end habit does not exercise — recorded as residual, not defect.
+  - **OQ-2 — ACCEPT the byte-for-byte copy**: `Running... (escape/ctrl+c to cancel)` is pi's own hint/behavior quirk (the hint names the select-cancel pair while the actual abort binding is escape-only — interactive-mode.ts:3074); parity-first per BRIEF §8, and the probe's literal marker matched pi's LIVE frames (loader-rows=1 pre-settle) — the oracle itself pinned the bytes.
+  - **OQ-3 — ACCEPT the itemized cut and the out-of-scope ruling**: stripping ANSI on the chunk path alone would fork mid-flight bytes from settled bytes (the completed content carries CR-removal only); the cut is inherited and revisitable as one slice touching both paths; the completed-placement divergence (6d) is unchanged by this iteration, as ruled.
+- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify` PASS; diff-since-freeze appends Builder Prompt/Builder Report/Verdict only).
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | mid-flight family unit-pinned (composer prefix property incl. span styles; chat mid-flight draws: header/`alpha`-only/loader bytes/no transcript block) and live-pinned (probe: pre-settle frames header+loader+output in BOTH apps) | §8 | PASS |
+| AC2 | byte-identical control enqueue test; worker-error + escape-cancel + outcome all leave zero live rows/zero `Running...`; clear-before-enqueue ordering in every terminal; replay zero loader rows; s1–s10 exit 0 (builder worktree pass; base cold pass; post-integration gate re-run below) | §8 | PASS |
+| AC3 | seam tests: joined chunks == returned content post-CR-strip, mid-flight firing, CR-only vanish, `execute` parameter-pinned callback-free; `transcript-frozen` gate PASS | §8 | PASS |
+| AC4 | glyph advances across chunkless draws on the injected clock; anchor resets at run start, independent of the border anchor (stays nil); animate window open while streaming, `@busy` false, no border Working | §8 | PASS |
+| AC5 | `--gate` exit 0 cold, `USER_BASH_STREAM_GATE_OK`, both apps pass (a)/(b)/(c); evidence mode exit 0 with digest; RED at base demonstrated (stash run + this session's cold gate) | §8 | PASS |
+| AC6 | suite 726/2989/0 failures, +21 runs (chat surgery additive: helpers + 11 new tests, none modified); `SEAM_BENCH_OK`; diff touches exactly the declared set; pi citations + constructor-seam/module-function style throughout | §8 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+- **Iteration** — **CONTINUE** — the diff vs the Specification is faithful on every seam and the core claim is live-pinned against the pi oracle (mid-flight header+loader+output rows in both apps, settled screens unmoved); no criterion weakened, no scope leak.

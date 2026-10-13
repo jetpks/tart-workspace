@@ -1519,7 +1519,7 @@ project:
     ordinal: 38
     file: architecture/I38-user-bash-streaming.md
     freeze_sha: fb726eff23e435f432bb2ff022c5829138baf0b0
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
@@ -1534,6 +1534,13 @@ project:
       - gems/tui-split-rig/bin/user-bash-stream-probe
       - gems/tui-split-rig/scenarios/probe_user_bash.yml
       - gems/tui-split-rig/test/**
+      base_sha: a48aaca90fbc7b227fec69887562f3f9264adfa2
+      worktree: build/I38-user-bash-streaming-core/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: 135fc5fda6d6017e8edde0d816eea65363a7a2500530be7ebfb9540daff7fea9
       at: '2026-10-12T18:02:33-06:00'
