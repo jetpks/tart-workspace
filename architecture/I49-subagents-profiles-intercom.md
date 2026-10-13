@@ -648,9 +648,14 @@ Manager#shutdown), `#reply(reply_to:, message:)`, `#pending_text`,
     stopped — pi's `inactive`): register pending (request-id keyed) +
     surface ONCE: `hooks.send_next_turn(custom_type:
     "subagent_supervisor_request", content: <§4.4 text>, display:
-    true)` + the completion kick shape (`kernel.async { agent.wake }`
-    — idle interactive; busy/print parents ride the existing nextTurn
-    drain; kernel/agent nil = queue only, the print shape).
+    true)` + the completion kick shape (`kernel.async { agent.wake }`).
+    Delivery (the I47/I48 seams, no new loop mechanism): an IDLE
+    interactive parent's wake drains the ask as the turn's opening
+    messages (user-role wire text + the session custom_message entry —
+    the notification path); a BUSY parent's queued ask rides the next
+    `add_user_message` drain (the next steering/user boundary — a
+    latency divergence from pi's mid-turn delivery, itemized OQ-8);
+    kernel/agent nil (print boots) = queue only.
   - Lifecycle sweep each tick: reply present → resolved (drop pending,
     unlink request); expired (now > expiresAt) → drop + unlink; run
     terminal → drop + unlink (T3's disk-first rule).
@@ -819,24 +824,35 @@ gate-on builtin tier over `Tart::Prompts` — D7)
   blank-message error; **the T1 wrong-id pin: reply_to a NON-request
   address (the run id, the agent name, a stale id) raises the pi
   error and the child's reply file is NEVER written**); pending_text
-  (empty + populated + the re-read shape); the ROUND-TRIP unit: a
-  real print child (MockLLMServer, staged HOME) scripted to call
-  contact_supervisor → the channel surfaces the ask → reply → the
-  child's NEXT captured request carries `**Reply from supervisor:**
-  <answer>` as the tool result → the child completes; the
-  workflow-template pins (§7).
+  (empty + populated + the re-read shape); the ROUND-TRIP pins — (a) the
+  channel form: a real print child (MockLLMServer, staged HOME)
+  scripted to call contact_supervisor → the channel surfaces the ask →
+  reply → the child's NEXT captured request carries `**Reply from
+  supervisor:** <answer>` as the tool result → the child completes;
+  (b) the parent-loop form: a REAL in-process `Agent::Loop` (the
+  agent_loop_test.rb construction pattern) whose scripted model spawns
+  the asking child async, ends its turn, and — after the channel's
+  kick block runs `wake` — receives the ask as its NEXT request's
+  user-role text (the reasonHeading + the `Reply with:` hint on the
+  wire), proving the ask reaches a MODEL turn, not just the queue;
+  the workflow-template pins (§7).
 - **`test/subagents_e2e_test.rb` (MOD — the e2e lane; legs A–D
-  unmodified)**: **leg E — the intercom round-trip end-to-end**: a
+  unmodified)**: **leg E — the print-parent intercom shape end-to-end**: a
   real PARENT print run (gate on) whose scripted model spawns an
-  async child; the CHILD (real subprocess, same server) calls
-  contact_supervisor (scripted); the parent's NEXT captured request
-  carries the surfaced ask (`subagent_supervisor_request` user-role
-  text with the `Reply with:` hint naming the request id); the
-  parent's scripted reply calls `subagent({ action: "reply",
-  reply_to: <id>, … })`; the child unblocks — its next request
-  carries the supervisor answer; both processes complete; the
-  parent's session records the custom_message entry; no leftover
-  request files. **leg F — profiles end-to-end**: a staged
+  async child that calls contact_supervisor; the parent's own turn
+  completes (a print parent never answers mid-run — OQ-8's ruled
+  semantics); the parent's drain flushes the queued ask — its session
+  file gains the `custom_message` entry customType
+  `subagent_supervisor_request` with the §4.4 content bytes (the
+  reasonHeading + Run:/Agent: + the `Reply with:` hint naming the
+  request id); NO reply file is ever written; the child proceeds at
+  its bound (the leg sets a short run deadline; state stopped or the
+  child's own ask-timeout path) and the parent exits 0 with the
+  drain recorded; no leftover request files after the run ends. (The
+  full question→surface→reply→unblock ROUND TRIP is pinned at full
+  strength — real child, real channel, real unblock — by the units
+  gate + the parent-loop suite pin; this leg pins the print-parent
+  surface + record + bound.) **leg F — profiles end-to-end**: a staged
   `~/.tart/agents/researcher.md` (tools read/grep/find/ls/bash,
   model provider/id routed) + a project-tier override of `worker`;
   the parent spawns `researcher` → the child's request model field
