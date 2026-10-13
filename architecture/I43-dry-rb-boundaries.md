@@ -529,51 +529,311 @@ files untouched):
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse dry-rb-boundaries` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze dry-rb-boundaries` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria — I43 dry-rb-boundaries
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+Gate calibration (pre-declared): **RED at base BY DESIGN** — `deps-pin`,
+`schemas-presence`, `tool-input-vocab` (the dry deps, the schema family,
+and the new failure vocabulary do not exist at 6d8a079); they must be
+GREEN on the integrated tree, non-vacuously. **Regression guards (GREEN
+at base, must stay GREEN)** — `suite`, `bench`, `s1`–`s10`,
+`s1-tart-mode`, both probe gates, `wire-declarations`, `error-goldens`
+(today's behavior IS the contract; the parity battery proves zero
+observable byte moves). The s-gates keep the CANONICAL short out dirs
+(I41 Grounds 1's environmental note). The KNOWN s9 lane-worktree
+deep-path artifact (I34/I36/I39/I40/I42 precedent, five confirmations)
+does not fail this iteration when the same tree exits 0 at canonical
+depth — the judge runs the battery on the integrated tree.
 
-**AC1.** ...
+**AC1 (the pattern lands).** `Tart::Schemas` exists at the specified
+home (`lib/tart/schemas.rb` + `schemas/{settings,models,mcp,tools}.rb`)
+with the four boundary members, contracts instantiated once at load;
+`tart.gemspec` declares `dry-schema ~> 1.16` + `dry-validation ~> 1.11`
+as PRODUCTION deps; `Gemfile.lock` carries them plus the accepted
+transitive tree. The pattern contract (naming, JSON flavor, error
+discipline rules 1–5, key tolerance, settings no-filtering) is followed
+by all four boundaries. Pinned by `deps-pin` + `schemas-presence` +
+judge read of the diff.
+
+**AC2 (settings equivalence).** Every resolution outcome is unchanged:
+the env > project > user > defaults precedence exactly (env tier rides
+the identity namespace), pi's settings-manager.ts:126 flows-through
+preserved (type-invalid file values land in `Result#settings` verbatim —
+no filtering, no new diagnostics, no new rejections), the
+non-digit-env / non-positive-file context-window fall-throughs
+unchanged, the thinking-vocabulary and modelReasoning truthiness
+outcomes unchanged, `read_file`/`deep_merge`/`save`/modifier semantics
+untouched. Pinned by the new precedence-matrix + no-filter unit pins
+and the existing settings pins green UNTOUCHED; spot-pinned by
+`error-goldens`.
+
+**AC3 (models.json equivalence).** `Models.load` produces, for every
+Grounds §5 fixture, TODAY'S EXACT error string (header, line order incl.
+the multi-error interleave, path suffix); valid catalogs parse to
+byte-identical entries (the I36 symbolization semantics hold); the
+loader still never raises (error-as-field); the hand-rolled `validate*`
+family is deleted (the contract replaces it). Pinned by the
+accept/reject unit tables + `error-goldens`.
+
+**AC4 (mcp.json equivalence).** `Mcp::Config.load` raises
+`ConfigError` with the EXACT pinned strings (root shape, the six
+per-server messages — Grounds §5) for every fixture, fail-fast on the
+FIRST invalid server in insertion order; the parser-error passthrough
+and the normalized success output are unchanged. Pinned by the exact-
+string unit table (mcp_test stays green untouched) + `error-goldens`.
+
+**AC5 (tool inputs).** All seven built-in tools validate their inputs
+through the ONE shared seam at the top of `execute` (inside
+`safe_execute`): bash `timeout` −1 / Float::INFINITY and edit's
+empty/not-array `edits` return the two PINNED messages byte-exactly;
+new shape failures (wrong-typed args on any tool) return pi's
+loop-level wrapper vocabulary (`Validation failed for tool "<name>":
+…Received arguments:…`); RUNTIME raises (cwd/path/binary/EOF/file-access
+families) stay raises, untouched; `Edit#call`'s normalize_arguments
+runs before validation; NO coercion is added; the wire JSON-Schema
+declarations are byte-unchanged (`PARAMETERS_SCHEMA`/`DESCRIPTION`
+constants; the captured request's tools array hash-pinned). Pinned by
+`tool-input-vocab` + `wire-declarations` + the unit tables + the
+golden_parity pins green untouched.
+
+**AC6 (parity + regression + scope).** The default rake task fully
+green with new additive pins (run count > 796); `SEAM_BENCH_OK`; s1–s10
+exit 0 cold at the canonical out dirs; `s1-tart-mode` completes
+(TART_MODE_OK); both probe gates OK (TOOL_PENDING_GATE_OK,
+USER_BASH_STREAM_GATE_OK); the integrated diff vs **6d8a079** touches
+EXACTLY the lane's declared file set — no `gems/tui-split-rig/**`, no
+frozen test file, no `bin/tart`, no render/agent/print file.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse dry-rb-boundaries` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-parity
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/parity-gate-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/parity-gate-s6
+  expect:
+    exit_code: 0
+
+- id: s7-parity
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7
+  expect:
+    exit_code: 0
+
+- id: s8-parity
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml --out tmp/parity-gate-s8
+  expect:
+    exit_code: 0
+
+- id: s9-parity
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s9_startup_help.yml --out tmp/parity-gate-s9
+  expect:
+    exit_code: 0
+
+- id: s10-parity
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s10_editor_wrap.yml --out tmp/parity-gate-s10
+  expect:
+    exit_code: 0
+
+- id: s1-tart-mode
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_tart.yml --out tmp/parity-gate-s1tart; ec=$?; if [ "$ec" -gt 1 ]; then exit 1; fi; ruby -rjson -e 's = JSON.parse(File.read("tmp/parity-gate-s1tart/summary.json"))["runs"][0]["apps"]["tart"]; abort "tart incomplete" unless s["completed"] && s["requests"] == s["expected_requests"]; puts "TART_MODE_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: TART_MODE_OK
+
+- id: tool-pending-gate
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tool-pending-probe --gate --out tmp/i43-tp
+  expect:
+    exit_code: 0
+    stdout_match: TOOL_PENDING_GATE_OK
+
+- id: user-bash-stream-gate
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    test -x gems/tui-split-rig/bin/user-bash-stream-probe && gems/tui-split-rig/bin/user-bash-stream-probe --gate --out tmp/i43-ubs
+  expect:
+    exit_code: 0
+    stdout_match: USER_BASH_STREAM_GATE_OK
+
+- id: wire-declarations
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/i43-wire && ruby -rjson -rdigest -e 'req = JSON.parse(File.readlines("tmp/i43-wire/run-1/tart-requests.jsonl")[0]); tools = req["body"]["tools"]; names = tools.map { |t| t.dig("function","name") }; abort "loadout: #{names.inspect}" unless names == %w[read bash edit write]; digest = Digest::SHA256.hexdigest(JSON.generate(tools)); abort "tool declarations moved on the wire: #{digest}" unless digest == "7360fd1ec6419b5f9966c3067588314cdd0d29231a78346443a0002923c23707"; puts "WIRE_DECLARATIONS_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: WIRE_DECLARATIONS_OK
+
+- id: error-goldens
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby -Ilib -e 'require "tart"; require "tmpdir"; require "json"; Dir.mktmpdir do |dir|
+      models = lambda do |body|
+        File.write(File.join(dir, "models.json"), body)
+        Tart::Models.load(root: dir).error
+      end
+      multi = models.call(%({"default": 5, "providers": {"a": {"name": 5, "models": [{"id": ""}, {"id": "m", "thinkingLevelMap": {"low": 5}}]}}}))
+      want = "Invalid models.json schema:\n  - default: expected a \"provider/model-id\" string\n  - providers.a.name: expected a string\n  - providers.a.models[0].id: required non-empty string\n  - providers.a.models[1].thinkingLevelMap.low: expected a string or null\n("
+      abort "models multi-error diverges:\n#{multi}" unless multi&.start_with?(want)
+      fields = models.call(%({"providers": {"a": {"name": 5, "baseUrl": 5, "apiKey": 5, "api": 5}}}))
+      want2 = "Invalid models.json schema:\n  - providers.a.name: expected a string\n  - providers.a.baseUrl: expected a string\n  - providers.a.apiKey: expected a string\n  - providers.a.api: expected a string\n("
+      abort "models field order diverges:\n#{fields}" unless fields&.start_with?(want2)
+      path = File.join(dir, "mcp.json")
+      check = lambda do |body, want3|
+        File.write(path, JSON.generate(body))
+        begin
+          Tart::Mcp::Config.load(path)
+          abort "expected ConfigError for #{body.inspect}"
+        rescue Tart::Mcp::Config::ConfigError => e
+          abort "mcp diverges: #{e.message.inspect} (want #{want3.inspect})" unless e.message == "#{path}: #{want3}"
+        end
+      end
+      check.call({"mcpServers" => "nope"}, %(expected an object with an "mcpServers" object))
+      check.call({"mcpServers" => {"x" => "nope"}}, %(server "x" must be an object))
+      check.call({"mcpServers" => {"x" => {"command" => "c", "args" => "nope"}}}, %(server "x": args must be an array of strings))
+      check.call({"mcpServers" => {"x" => {"command" => "c", "env" => {"a" => 1}}}}, %(server "x": env must map names to strings))
+      check.call({"mcpServers" => {"x" => {"cwd" => 3}}}, %(server "x": cwd must be a string))
+      check.call({"mcpServers" => {"x" => {"url" => "https://e/mcp"}}}, %(server "x": streamable HTTP transport is not supported (stdio only)))
+      check.call({"mcpServers" => {"x" => {"args" => []}}}, %(server "x" needs either "command" (stdio) or "url" (streamable HTTP)))
+      check.call({"mcpServers" => {"a" => "nope", "b" => {"command" => "c"}}}, %(server "a" must be an object))
+      bash = Tart::Tools::Bash.new(cwd: dir)
+      r = bash.execute(command: "true", timeout: -1)
+      abort "bash timeout message diverges: #{r.inspect}" unless r == {error: "Invalid timeout: must be a finite number of seconds"}
+      edit = Tart::Tools::Edit.new(cwd: dir)
+      r2 = edit.execute(path: "absent.txt", edits: [])
+      abort "edit empty-edits message diverges: #{r2.inspect}" unless r2 == {error: "Edit tool input is invalid. edits must contain at least one replacement."}
+      settings = Dir.mktmpdir do |sdir|
+        File.write(File.join(sdir, "settings.json"), %({"contextWindow": "abc", "thinkingLevel": 5, "identity": "pi"}))
+        result = Tart::Settings.load(cwd: dir, root: sdir)
+        abort "settings filtered a malformed value: #{result.settings.inspect}" unless result.settings["contextWindow"] == "abc" && result.settings["thinkingLevel"] == 5
+        abort "settings diagnostics grew" unless result.diagnostics.empty?
+        "OK"
+      end
+      abort "settings no-filter diverges" unless settings == "OK"
+      puts "ERROR_GOLDENS_OK"
+    end'
+  expect:
+    exit_code: 0
+    stdout_match: ERROR_GOLDENS_OK
+
+- id: deps-pin
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'dry-schema' tart.gemspec && grep -q 'dry-validation' tart.gemspec && grep -q 'dry-schema' Gemfile.lock && grep -q 'dry-validation' Gemfile.lock && bundle install --quiet && bundle exec ruby -e 'require "dry-schema"; require "dry-validation"; puts "DEPS_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: DEPS_OK
+
+- id: schemas-presence
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec ruby -Ilib -e 'require "tart"; abort "Tart::Schemas missing" unless defined?(Tart::Schemas) && defined?(Tart::Schemas::Settings) && defined?(Tart::Schemas::Models) && defined?(Tart::Schemas::Mcp) && defined?(Tart::Schemas::Tools); test -f test/schemas_test.rb or abort "test/schemas_test.rb missing"; puts "SCHEMAS_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: SCHEMAS_OK
+
+- id: tool-input-vocab
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec ruby -Ilib -e 'require "tart"; require "tmpdir"; Dir.mktmpdir do |dir|
+      ls = Tart::Tools::Ls.new(cwd: dir)
+      r = ls.execute(limit: "x")
+      abort "ls wrapper vocabulary missing: #{r.inspect}" unless r.is_a?(Hash) && r[:error].to_s.start_with?("Validation failed for tool \"ls\":")
+      bash = Tart::Tools::Bash.new(cwd: dir)
+      r2 = bash.execute(command: "true", timeout: "5")
+      abort "bash shape-failure vocabulary missing: #{r2.inspect}" unless r2.is_a?(Hash) && r2[:error].to_s.start_with?("Validation failed for tool \"bash\":")
+      puts "TOOL_VOCAB_OK"
+    end'
+  expect:
+    exit_code: 0
+    stdout_match: TOOL_VOCAB_OK
+
+- id: scope
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only 6d8a079 HEAD | grep -qvE '^(tart\.gemspec|Gemfile\.lock|lib/tart\.rb|lib/tart/schemas\.rb|lib/tart/schemas/settings\.rb|lib/tart/schemas/models\.rb|lib/tart/schemas/mcp\.rb|lib/tart/schemas/tools\.rb|lib/tart/settings\.rb|lib/tart/models\.rb|lib/tart/mcp/config\.rb|lib/tart/tools/safe_execute\.rb|lib/tart/tools/bash\.rb|lib/tart/tools/edit\.rb|lib/tart/tools/read\.rb|lib/tart/tools/write\.rb|lib/tart/tools/ls\.rb|lib/tart/tools/grep\.rb|lib/tart/tools/find\.rb|test/schemas_test\.rb|test/settings_test\.rb|test/models_test\.rb|test/mcp_test\.rb|test/tools_test\.rb|test/bash_tool_test\.rb)$'; then exit 1; else echo SCOPE_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
 
 ## Builder Prompt
