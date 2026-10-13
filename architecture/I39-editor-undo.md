@@ -47,35 +47,45 @@ Plan ENTRY 3 (`build/loop/plan-20261012T184702Z.md`: "editor-undo" — the D-ser
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section editor-undo specification --from <file>`. -->
+# Specification — I39 editor-undo
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+- **Objective.** Port pi's editor undo (plan ENTRY 3; the D-series item whose kill-ring half was I26): a dumb `Tart::Render::UndoStack` (pi undo-stack.ts 1:1), the snapshot discipline threaded through EVERY mutating Editor op (pi's push inventory, Grounds 1), the `undo` op, pi's TWO clear semantics split across the port's surfaces (submit clears the stack; escape/ctrl+c clears are undoable — Grounds 4/D2), and ctrl+- wired in chat.rb's input routing. Editor-internal state only: undo restores state; the existing I35 render/window machinery re-derives everything else (pi's undo touches no render state). Settled screens must not move (s1–s10). Why now: the chat.rb queue re-opened (ARCHITECT backlog item 5: "undo-stack ctrl+- remains out of scope since I04"); the owner's daily driver has no undo.
+
+- **Lane `core` (single lane — chat.rb iterations are serial by design).**
+
+  - **Deliver 1 — the stack class.** `lib/tart/render/undo_stack.rb`: `Tart::Render::UndoStack`, a 1:1 port of pi `packages/tui/src/undo-stack.ts` (39 l): `push(state)` deep-copies then stacks (clone-on-push — pi's `structuredClone`; Ruby equivalent = a small recursive `deep_copy` class function over Array / Hash / String / Struct members, scalars returned as-is), `pop` returns the detached snapshot directly, `clear`, `length`. Dumb: no cap, no redo, no knowledge of Editor.
+  - **Deliver 2 — the snapshot + pushes.** `Editor::Snapshot = Struct.new(:lines, :cursor_line, :cursor_col)` (pi EditorSnapshot minus pastes/pasteCounter — the port cut those features; itemized). Private `push_undo_snapshot` pushes a Snapshot wrapping the LIVE `@lines`/`@cursor_line`/`@cursor_col` (the stack's push clones — pi :2117 passes live refs). The push inventory, op by op (pi cites in parentheses):
+    - `insert` (:130) — the fish-style coalescing (pi :1205-1212): push iff `text` contains whitespace OR `@last_action != :type_word`; then set `@last_action = :type_word` as today. Single-char inserts through `insert_printable` reproduce pi's per-char coalescing exactly.
+    - `insert_paste` (:145) — push unconditionally at the top, before the filter (pi handlePaste :1265).
+    - `add_new_line` (:156) — push at the top (pi :1333).
+    - `delete_backward` (:169) / `delete_forward` (:183) — push inside EACH mutating branch only (pi :1384/:1433, :1790/:1808; a no-op delete pushes nothing).
+    - `delete_to_line_start` (:327) / `delete_to_line_end` (:342) / `delete_word_backward` (:389) / `delete_word_forward` (:407) — push inside each branch, at the branch top BEFORE the kill-ring push (pi :1634/:1650, :1670/:1680, :1703/:1720, :1748/:1763).
+    - `yank` (:360) / `yank_pop` (:373) — push after the op's guard return, before any mutation (pi :2001/:2017).
+    - `replace_token` (:116) — push at the top before the write, keep `@last_action = nil` (pi pushes at every applyCompletion site :772/:793/:2244/:2395 — a tab-applied completion is undoable).
+    - `clear` (:103) — becomes pi's `setText("")` analog: `push_undo_snapshot unless input.empty?` first, then today's reset (pi :1120-1124 — push iff content differs; the escape :803 and ctrl+c :815 callers become pi-exact UNDOABLE clears with zero chat.rb edits).
+    - `navigate_history` (:917) — push at the entering-browsing site (when `@history_index == -1 && new_index >= 0`), BEFORE the draft capture (pi :465).
+  - **Deliver 3 — the ops.** Public `undo` (pi :2120-2134, exact letter): `exit_history_browsing` FIRST; `snapshot = @undo_stack.pop`; return if nil; `@lines`/`@cursor_line`/`@cursor_col` = the snapshot's fields (assign directly — do NOT route through `set_cursor_col`); `@last_action = nil`; `@preferred_visual_col = nil`. `@scroll_offset` and `@last_width` untouched (pi touches neither; the window re-clamps at the next render). Public `clear_undo_stack` — `@undo_stack.clear` (pi submitValue :1373). No new public readbacks (pi keeps the stack private; tests pin behaviorally).
+  - **Deliver 4 — chat.rb wiring.** (a) A `when "-"` arm by the kill/yank family (:905-907): `ctrl ? @editor.undo : @editor.insert_printable(event)`, with the pi-precedence note (pi matches undo BEFORE the autocomplete block, editor.ts:751-755 — undo fires with the list open; the list is neither cancelled nor re-filtered: the arm fires regardless of `@autocomplete.suggestions`, and the trailing `update if printable` stays off ctrl+-). (b) `submit` (:926-933): `@editor.clear_undo_stack` immediately after `@editor.clear` (:932) — pi's submitValue clears the stack; the push-then-clear pair is observably pi's submitValue (Grounds 4/D2, OQ-1).
+  - **Deliver 5 — tests.** New `test/render/undo_stack_test.rb` (direct class — the kill_ring_test.rb precedent): LIFO push/pop; length; clear; pop-on-empty nil; **clone-on-push independence** (push live arrays/structs, mutate the originals afterwards, pop returns the pre-mutation deep copy — pi's structuredClone letter; deep_copy over nested Array/Hash/String/Struct, scalars as-is). New `test/render/editor_undo_test.rb` (drive Editor directly, `TUI.key_event` for printables — model every case on pi's `describe("Undo")` block, editor.test.ts:1597+, adapted to the port's op names): empty-stack no-op; word-char coalescing ("hello world" → undo → "hello" → undo → ""); spaces one at a time; newlines (multi-line I35 shape); backspace; forward delete; delete_word_backward; delete_to_line_end WITH cursor restore (pi's post-undo mid-line typing assertion + direct cursor_line/cursor_col asserts); delete_to_line_start; yank undo; yank_pop undo; single- AND multi-line paste atomicity (one undo restores pre-paste text AND cursor); multi-line cursor restore across wrapped rows; the kill-ring interactions (kill → undo → yank still pastes the killed text — the ring is NOT snapshotted; undo breaks the accumulate window — two accumulating kills, undo, a third kill lands as a separate entry; undo breaks the yank-pop window); replace_token push (apply → undo → pre-apply text + cursor); history-entry push (type, `add_to_history`, `history_previous`, undo → the pre-browse text); clear-is-undoable (insert, clear, undo → text + cursor); clear-on-empty pushes nothing; submit semantics (insert, clear, clear_undo_stack, undo → no-op). `test/chat_test.rb` additive: ctrl+- routes to undo through `on_event` (the I26 binding-test pattern); bare "-" inserts; ctrl+- with the list open leaves the list open (pi precedence — pin if cleanly expressible; PHASE 0 may flag fragility).
+
+- **Output format.** Raw evidence to scratch: file list + wc; the new tests with verbatim run tails; suite counts before/after; the push-inventory table (port op → pi cite → push site, as implemented); the s1–s10 exit codes; PHASE 0 disagreements mandatory (the Grounds 1/2/4 premises are checkable against repos/pi and the live editor.rb). STATUS line last.
+
+- **Tool guidance.** Verification (tart): `bundle install --quiet && bundle exec rake`, `bundle exec ruby bench/seam_bench.rb`; parity gates: `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml --out tmp/<short-out>` (s1–s10 exit 0; SHORT out-dirs — deep paths trip the footer-cwd truncation sensitivity; 60 s+ each, both apps boot). pi sources (READ THEM — the oracle): `packages/tui/src/undo-stack.ts` (whole file), `packages/tui/src/components/editor.ts` (:219-231 snapshot types, :368, :751-755 undo routing, :1116-1137 setText/insertTextAtCursor, :1205-1213 coalescing, :1265 paste push, :1333, :1364-1386 submitValue, :1384-1815 the delete family, :2001-2034 yank family, :2116-2134 push/undo, :465 history push), `packages/tui/src/keybindings.ts:142`, `packages/tui/test/editor.test.ts:1597+` (the Undo describe block — model the port's tests on it). Gem contract: `RatatuiRuby::Event::Key` single-char codes with `modifiers: ["ctrl"]` (`TUI.key_event`, lib/tart/tui.rb:289-291).
+
+- **Boundaries.** May touch exactly: `lib/tart/render/undo_stack.rb` (new), `lib/tart/render/editor.rb`, `lib/tart/render/chat.rb`, `test/chat_test.rb` (additive binding tests only), `test/render/**` (new files; additive edits to existing files only). Must not: `lib/tart/render/{transcript,motd,viewport,selection,footer,kill_ring,model_menu,picker,text,panel,file_blocks,tool_block,bash_block,user_bash,autocomplete,markdown,slash_source}.rb`, `lib/tart/{theme,settings,commands,models,identity,tui}.rb`, `lib/tart/{agent,tools,core}/**`, `bin/tart`, `bench/**`, `gems/tui-split-rig/**` (the WHOLE rig — undo changes no settled bytes; no scenario/registry/probe work), any golden, `README.md` (a keybinding-table line is the coordinator's call at integrate, not the lane's). Out of scope: Grounds 5's pre-existing divergences (ctrl+c-with-list, the :811 comment blemish), redo, stack caps, jump mode, external-editor setText, any `@last_action` window beyond pi's. No placeholders; search before implementing.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision editor-undo`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/render/undo_stack.rb
+    - lib/tart/render/editor.rb
+    - lib/tart/render/chat.rb
+    - test/chat_test.rb
+    - test/render/**
 ```
+
+- **Effort.** `core` = high (the I26 editor-lane precedent: subtle interaction semantics — the coalescing window, the ring/undo interaction, the two clear semantics — where a wrong-but-green implementation is easy).
 
 ## Acceptance Criteria
 
