@@ -1599,7 +1599,7 @@ project:
   - name: loadout-session-env
     ordinal: 41
     file: architecture/I41-loadout-session-env.md
-    freeze_sha: 8c8cd59f0579a3caccaf1844563a75d7d9af5d65
+    freeze_sha: 0101851d083332967c6c6a4f65a913ffea9eed8b
     verdict: pending
     lanes:
     - name: core
@@ -1619,6 +1619,13 @@ project:
       - test/system_prompt_test.rb
       - test/print_test.rb
       - test/agent_loop_test.rb
+      base_sha: 9f8c8d794fd281884a35a264a48022982206b3f3
+      worktree: build/I41-loadout-session-env-core/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: d60d20191c5bc88bf292e8fddc5b480cdbcea997f5128914e211ab176ce16eb0
       at: '2026-10-12T21:49:45-06:00'
