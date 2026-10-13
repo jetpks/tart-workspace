@@ -60,7 +60,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: editor-undo
+  current_iteration: model-catalog-polish
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1570,4 +1570,10 @@ project:
     rehearsal:
       gates_digest: 19bda973f34a0cb485a78936289b118c8ab56b8b549f1e2c4862f766c78cf687
       at: '2026-10-12T19:16:09-06:00'
+  - name: model-catalog-polish
+    ordinal: 40
+    file: architecture/I40-model-catalog-polish.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
