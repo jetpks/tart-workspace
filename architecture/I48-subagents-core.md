@@ -1320,10 +1320,246 @@ PHASE 0 items, not gate fixes.
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I48-subagents-core-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section subagents-core prompt --append --lane <lane> --from build/I48-subagents-core-<lane>/prompt.md`. -->
+### core
+
+# Lane prompt — I48 subagents-core, lane `core`
+
+You are the builder for LANE `core` of iteration I48 subagents-core (space
+20261009-pi-port, repo repos/tart, worktree provisioned from frozen base
+b54a3b1, branch lane/I48-subagents-core-core). This prompt is your complete,
+self-contained contract. You never commit; you write code + tests in your
+worktree and a scratch report at build/I48-subagents-core-core/report.md.
+PHASE 0 discipline applies: disagreements with this contract are RESEARCHED
+(pi-subagents 0.77.0 installed at
+~/.pi/agent/npm/node_modules/pi-subagents/ — READ IT; pi source at repos/pi;
+the frozen iteration file architecture/I48-subagents-core.md) and ITEMIZED
+in your report's PHASE 0 section — never silently implemented differently,
+never silently blocking.
+
+**Your lane is the machinery**: the subagents module + tool, the
+loop/print/launcher/settings/bash seams, the boot wiring, docs, the unit
+pins. The e2e instrument (test/subagents_e2e_test.rb) is ANOTHER lane's
+file — do NOT create or touch it.
+
+## Mission
+
+Land tart's native delegation core behind an opt-in settings gate: the
+`subagent` tool (foreground blocking + async detached children as
+print-mode subprocesses), the run registry with on-disk status lifecycle,
+the steering inbox with request-id-correlated receipts, stop, both timeout
+kinds (run deadline + per-tool), the completion notification that wakes an
+idle interactive parent, and the builtin agent table {worker, oracle,
+reviewer} — mounted on the I47 `Tart::Hooks` seam WITHOUT touching
+hooks.rb or registry.rb (the mounting proof). Default-off = zero bytes
+move (the frozen digests prove it).
+
+## Grounding you may rely on (verified; re-cite in code comments)
+
+- pi-subagents 0.77.0 (the observable-shape oracle, NOT a porting target):
+  docs/tool-reference.md (`async` default TRUE :104; timeoutMs/toolTimeoutMs
+  :107-113; steer modes + "correlated consumption by the child, not merely
+  inbox acceptance"; Fork context details — implicit fork falls back to
+  fresh); docs/observability.md (:8 foreground child in-process, :12
+  background child in a detached runner; agent_end auto-drain); the exact
+  strings — async-execution.js :143-152 + :2119 (`Async: <agent> [<id>]` +
+  guidance), notify.js :188-235 + :458-474 + :610 (`Background task
+  <status>: **<agent>**`, display = source-foreground || !completed ||
+  scheduled, `Session file:`), run-status.js :625-653 (Run:/State:/Mode:/
+  Started:/Updated:/Dir:/Output:), async-status.js :618+ (list heading
+  `Active async runs`, fleet-empty line at fleet-view.js:391),
+  async-steering-action.js :127-165 (receipts + `Failed to queue steering
+  for async run …`), async-stop-action.js :198 (`Stop requested for async
+  run <id>.`); control-channel.js :80-200 (the file inbox: steer-requests/
+  stop-requests/, atomic temp+rename, POLL_INTERVAL_MS 250 at
+  shared/types.js:107); shared/types.js :145-150 (DEFAULT_FORK_PREAMBLE —
+  byte-exact), :94-100 (their async dirs — internal, the port relocates
+  under ~/.tart/subagents per the frozen OQ-2); agents/{worker,oracle,
+  reviewer}.md (frontmatter: tools/thinking/systemPromptMode/defaultContext);
+  extension/index.js :116-127 (their session layout — internal, the port
+  pins the run dir instead).
+- This space's supervisor traps (frozen Grounds §3, SPEC-LEVEL
+  requirements): T1 leaf-id reply routing → steer receipts correlate by
+  REQUEST id against the CHILD's consumption log; T2 both timeout kinds →
+  timeout_ms + tool_timeout_ms independently settable, both enforced;
+  T3 detached-reaping safety → Process.detach owns every reap, a run is
+  forgotten only after terminal status AND observed exit, status
+  reconciles from disk.
+- tart @ b54a3b1 (the mounting surface): lib/tart/hooks.rb (CONSUME, never
+  edit — emit/register_tool/send_next_turn/pending_next_turn),
+  lib/tart/tools/registry.rb (ditto — hooks: kwarg + registered_tools
+  merge exist), agent/loop.rb (`@steering_queue` + `push_message` :145-157,
+  the two consumption points :300-313 + :348-356, the I47 nextTurn drain
+  `add_user_message`/`drain_next_turn_messages` :622-653), print.rb
+  (Print.run kwargs; NullSession), agent/session.rb (Recorder cwd:/root:/
+  parent_session:, uuidv7 ids — CONSUME, never edit), settings.rb
+  (DEFAULTS/RESOLUTION_ENV :80-87 — the memory-row precedent), tools/
+  bash.rb (timeout: seconds param, pgroup kill), bin/tart (OptionParser
+  :161-178, the boot wiring, `@kernel.async { @agent.run(text) }` kick
+  shape), core/loop.rb (`async`, `stop!`), test/support/mock_llm_server.rb
+  (slow_stream = per-CHAR chunk_every pauses — size your steer windows),
+  test/e2e_session_test.rb (the hermetic subprocess discipline — env
+  exactly {PATH, HOME, PI_API_KEY, PI_API_BASE, TART_MCP_CONFIG} +
+  unsetenv_others; you ADD the child-env shape, §4).
+- The spec-time probes (Grounds §4, tmp/i48-spec/probe{A,B,C}_*.rb — read
+  them): in-process children work (~26ms) but async detach forces a
+  subprocess (survives parent exit, measured); print boot ≈330ms over
+  in-process; SIGTERM-to-pgroup kills mid-run in ~11.5ms, termsig 15.
+
+## The contract (the frozen Specification, condensed — the file governs)
+
+1. **`lib/tart/subagents.rb`** — `Tart::Subagents`: `register(hooks:,
+   kernel: nil, agent: nil, cwd:, env: ENV, home: nil)` (boot wiring calls
+   it ONLY when the resolved settings gate is on; registers the tool,
+   builds the Manager); `.home(env:, identity:)` =
+   `<IDENTITY>_SUBAGENTS_HOME` env else `<agent root>/subagents`;
+   `BUILTIN_AGENTS` frozen table {worker, oracle, reviewer} with the
+   frozen §6 frontmatter (tools/thinking/context; descriptions
+   byte-carried; prompts adapted with the plain-report fallback sentence);
+   `DEFAULT_FORK_PREAMBLE` byte-exact (Grounds cites); `resolve_model(
+   spec, catalog:, fallback:)` → [provider, model_id, level] with the
+   `:level` suffix vocabulary (off/minimal/low/medium/high/xhigh/max;
+   invalid → error naming the set).
+2. **`lib/tart/subagents/manager.rb`** — `Tart::Subagents::Manager.new(
+   cwd:, home:, env:, identity:, hooks:, kernel: nil, agent: nil)`.
+   Thread-safe. Run record Hash (symbol keys {id:, agent:, state:, dir:,
+   pid:, pgid:, async:, timed_out:, started_at:, tool_call_id:}; state a
+   Symbol). Run dir `<home>/<uuidv7>/` with status.json (atomic), control/
+   steer-requests/, control/stop-requests/, control/steer-log.jsonl,
+   result.json, runner.stdout.log, runner.stderr.log, system-prompt.md,
+   sessions/. States running → completed|failed|stopped (+timedOut flag;
+   result.json BEFORE the terminal status flip; task text NEVER recorded —
+   taskChars only). `#spawn_run(agent:, task:, async:, model: nil,
+   timeout_ms: nil, tool_timeout_ms: nil, tool_call_id: nil,
+   parent_session: nil)` → the run record; defaults timeout_ms
+   1_800_000 (0/nil = unbounded), tool_timeout_ms nil; :fork agent with
+   no parent session → fresh (pi's implicit-fork fallback). `#steer(id:,
+   message:, mode: "auto", ack_timeout_ms: 3000)` → {state:
+   :delivered|:queued|:missed|:failed, request_id:, text:} — the request
+   file `control/steer-requests/<ts-13-padded>-<requestId>.json`
+   {type: "steer", id, ts, message, mode, source: "tool"}, 128KB cap;
+   delivered ONLY on the child's steer-log entry for THAT request id.
+   `#stop(id:)` — stop-requests file, ≤5s graceful wait, TERM pgroup, ≤2s,
+   KILL; `Stop requested for async run <id>.` `#status(id: nil)` —
+   disk-first (reconcile); the §7 line shapes. `#result(id:)`,
+   `#runs`, `#outstanding?`, `#drain` (bounded per-run), `#shutdown`,
+   `#spawn_argv_and_env(run)` → [argv, env] PUBLIC (the gate's pin
+   target). The watcher: reactor task (kernel.async, 0.25s) or thread;
+   on terminal → send_next_turn(custom_type: "subagent-notify", content:,
+   display: state != "completed") + interactive wake `kernel.async {
+   agent.wake }`. The deadline supervisor: parent-side backstop thread
+   (stop request → 5s → TERM → 2s → KILL) + the child self-deadline env
+   (both-sides, T2).
+3. **`lib/tart/tools/subagent.rb`** — `Tools::Subagent < RubyLLM::Tool`,
+   wire name "subagent", manager constructor-injected; params
+   {agent, task, async, model, timeout_ms, tool_timeout_ms, action,
+   id, message, mode} (snake_case — the port's own tool); dispatch per
+   Specification §3 (async default TRUE); results plain Strings; unknown
+   combos → the safe-next-steps error.
+4. **The child spawn** (Specification §4 EXACTLY): argv
+   `<ruby> bin/tart -p <task> --tools <allowlist> --system-prompt-file
+   <run>/system-prompt.md --session-root <run>/sessions --steer-inbox
+   <run>/control/steer-requests` (+ `--resume <parent session>` for
+   :fork agents, fork preamble prepended to the task); env CLOSED
+   (unsetenv_others): {PATH, HOME, <IDENTITY>_IDENTITY, _API_KEY,
+   _API_BASE, _MODEL, _PROVIDER, _MODEL_REASONING, _THINKING_LEVEL,
+   _CONTEXT_WINDOW, _TOOL_TIMEOUT_MS?, _RUN_DEADLINE_MS?, _SUBAGENTS_HOME}
+   — omit nil keys; NO subagents gate row (children never nest), NO MCP.
+   pgroup: true + Process.detach; stdout/stderr → the run logs.
+5. **Loop seam** (agent/loop.rb): `steer_inbox:` kwarg — drained at the
+   SAME consumption points as @steering_queue (fold into
+   steering_messages): steer files → push_message + append
+   {requestId, consumedAt} to steer-log.jsonl + unlink (at-least-once);
+   stop files → the kernel-interrupt path (Async::Cancel; :agent_end
+   interrupted: true); poison files unlinked+skipped. `Loop#wake` —
+   run-shaped, drains pending_next_turn as the turn's opening messages;
+   empty queue + empty steering → return with NO model call; NO-OP when
+   a run is in flight (race-safe, one Loop one fiber).
+6. **Print/launcher** (print.rb + bin/tart): the four print-only flags
+   (--steer-inbox, --tools, --system-prompt-file, --session-root)
+   threading to Print.run kwargs; the print boot constructs Hooks +
+   registers Subagents when the gate is on; the drain AFTER the final
+   response prints (parent's answer never delayed), before exit.
+   Interactive: register with kernel + the agent callable; the MOTD
+   gains NO new row (subagents is a tool, not an extension module row —
+   itemized: pi-subagents' config lives outside the [Extensions] list;
+   do NOT add one).
+7. **Settings + bash** (settings.rb, tools/bash.rb): DEFAULTS
+   "subagents" => false; RESOLUTION_ENV "subagents" => "SUBAGENTS" and
+   "thinkingLevel" => "THINKING_LEVEL"; bash gains the
+   <IDENTITY>_TOOL_TIMEOUT_MS default for calls that omit timeout
+   (read at construction; invalid → warn + ignore; unset = today).
+8. **README**: the §Subagents section per Specification §9.
+9. **Tests** (Specification §8): NEW test/subagents_test.rb (the unit
+   pin table — every §7 string byte-pinned, the §2.7 surface, T1/T2/T3
+   behaviors, the settings gate, env closure via spawn_argv_and_env);
+   ADDITIVE pins in agent_loop_test.rb (inbox drain, stop file, #wake)
+   and settings_test.rb (the two rows). Run counts only GO UP.
+
+## May touch (EXACTLY these; the ```lanes block is the frozen source)
+
+    lib/tart/subagents.rb
+    lib/tart/subagents/manager.rb
+    lib/tart/tools/subagent.rb
+    lib/tart/agent/loop.rb
+    lib/tart/print.rb
+    lib/tart/settings.rb
+    lib/tart/tools/bash.rb
+    bin/tart
+    README.md
+    test/subagents_test.rb
+    test/agent_loop_test.rb
+    test/settings_test.rb
+
+**Must not touch**: test/subagents_e2e_test.rb (the e2e lane's file),
+lib/tart/hooks.rb + lib/tart/tools/registry.rb + lib/tart/memory.rb +
+lib/tart/herdr.rb + lib/tart/tools/memory.rb (the I47 seam — CONSUMED,
+never edited; this is the mounting proof), lib/tart/agent/session.rb +
+system_prompt.rb + bridge/status/context_files, schemas/**, shapes/**,
+models.rb, compaction.rb, the six other tool bodies + safe_execute +
+output_accumulator + support/**, mcp*, render/** (the notification
+renders through the I47 custom block — zero render edits), identity/
+skills/prompts/theme/tui, core/**, gemspec, Gemfile.lock, bench/**,
+gems/tui-split-rig/**, test/support/**, and every test file outside the
+declared set (frozen: print_test.rb, e2e_session_test.rb,
+golden_parity_test.rb, loop_test.rb, tools_test.rb, bash_tool_test.rb,
+mcp_test.rb, flow_test.rb, markdown_test.rb, theme_test.rb, tui_test.rb,
+launcher_smoke_test.rb, kernel_carryin_test.rb, identity_test.rb,
+prompts_test.rb, compaction_test.rb, skills_test.rb, chat_test.rb,
+models_test.rb, hooks_test.rb, memory_test.rb, herdr_test.rb,
+commands_test.rb, system_prompt_test.rb, test/render/**,
+test/fixtures/**).
+
+## Verification (run in YOUR worktree; the judge re-runs on the tree)
+
+- `bundle install --quiet && bundle exec rake` — fully green, run count
+  > 955, the one base skip unchanged.
+- `bundle exec ruby bench/seam_bench.rb` — SEAM_BENCH_OK.
+- The frozen gate commands (architecture/I48-subagents-core.md ```gates):
+  your lane's `subagents-units` must be GREEN in your worktree (drive the
+  EXACT §2.7/§3 surface names — the gate is the independent judge form);
+  `wire-bodies` (the two digests), `session-golden`, `suite`, `bench`
+  must stay GREEN. `subagents-e2e` is NOT yours (it stays RED in your
+  worktree — the e2e lane's file is not in your tree). The s-gates +
+  s1-tart-mode + probes: run them if your environment can (tmux; note
+  the gates scrub HERDR_*); the KNOWN s9 lane-worktree deep-path
+  artifact has nine judge precedents — use CANONICAL short out dirs
+  (tmp/parity-gate-*) and record any deep-path exit-1 as the known
+  artifact, with the equal-depth control.
+- `git diff --name-only b54a3b1` — EXACTLY the 12-file set above.
+
+## Report
+
+Write build/I48-subagents-core-core/report.md: a file-by-file table with
+line counts, the verification transcript tail (suite + bench +
+subagents-units + wire-bodies + session-golden), PHASE 0 disagreements
+(itemized, researched, with pi-subagents/source citations), OQ notes
+(Grounds §8 — you may add evidence, never silently override), and a
+final line `STATUS: COMPLETE | COMPLETE_WITH_CONCERNS | BLOCKED —
+<one line why>`.
+
+Never commit. Never edit architecture/** or space.yaml. Never touch
+repos/pi or ~/.pi (READ-ONLY grounding) or sources outside your
+worktree. The frozen iteration file is read-only contract.
 
 ## Builder Report
 
