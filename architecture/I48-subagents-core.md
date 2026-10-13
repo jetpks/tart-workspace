@@ -2266,3 +2266,32 @@ gates green (one via the recorded one-token gate-defect repair, one via the
 recorded one-line lane-file fix at integration), scope exactly the declared
 13 files, the I47 seam consumed never edited, and both traps-and-harness
 spec requirements pinned end-to-end. Program moves to ENTRY 7.
+
+## Post-merge judge addendum (same session — two integration fixes,
+recorded, I36 precedent)
+
+The FIRST post-merge cold battery flaked leg B once under the loaded rake
+suite (session tail `[message, message]` — the subagent-notify entry never
+flushed; the same bytes passed the pre-merge battery, both standalone e2e
+gate runs, and the pre-fix rake run). Root-caused to TWO holes in one
+contract ("a completed child's notification is recorded on the parent's
+session before exit"), both mine to close at integration:
+
+1. `settle_run` flipped the terminal state inside its mutex but queued the
+   notification AFTER releasing it — a drain poll landing in the window
+   returned with an empty queue. Fix (tart 8f5620a): notify under the SAME
+   mutex (Hooks#send_next_turn is a leaf queue-append — safe);
+   `outstanding? == false` now ATOMICALLY implies queued, as the builder's
+   own comment claimed but the code did not deliver.
+2. bin/tart's flush lived inside `if manager&.outstanding?` — a child
+   completing during the parent's own run queued a notification that was
+   then never flushed. Fix: drain (guarded, letter-faithful) → shutdown
+   (settles every still-running run) → flush unconditionally.
+
+Discriminating pin added
+(`test_terminal_state_implies_the_notification_is_queued`); cold re-runs:
+units 27/27, repaired subagents-units SUBAGENTS_UNITS_OK, e2e standalone
+2× SUBAGENTS_E2E_OK (4/77/0F), full rake 994/4407/0F/1skip, and the final
+full battery re-run on the committed tree (see the index row). The
+pre-verdict residual note "notification flush gated on outstanding?"
+is RETIRED by this fix — the residual list otherwise stands.
