@@ -515,10 +515,190 @@ ref; the OQ dispositions from Grounds §5).
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I40-model-catalog-polish-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section model-catalog-polish prompt --append --lane <lane> --from build/I40-model-catalog-polish-<lane>/prompt.md`. -->
+### core
+
+# LANE `core` — I40 model-catalog-polish (the only lane)
+
+You are the builder for LANE `core` of iteration I40 model-catalog-polish, target
+repo `repos/tart`, branch base = the current `project/pi-port` tip. Your lane owns
+ONE seam family: pi's stored-thinking-level discipline across the model lifecycle.
+Everything below is your lane's whole world — the other frozen files are NOT yours.
+
+## YOUR TOUCH SET (exhaustive — nothing else)
+
+May touch: `lib/tart/render/chat.rb`, `lib/tart/settings.rb`, `bin/tart`,
+`test/chat_test.rb`, `test/settings_test.rb`, `test/launcher_smoke_test.rb`.
+
+Must NOT touch: `lib/tart/agent/loop.rb` (the seams exist), `lib/tart/models.rb`
+(the clamp exists), `lib/tart/render/model_menu.rb`, `lib/tart/commands.rb`,
+`lib/tart/print.rb`, `lib/tart/render/transcript.rb`, `footer.rb`, `theme.rb`,
+`editor.rb`, `test/parity/**`, `gems/**` (the rig — the probe re-run is evidence,
+never an edit), every other file. No placeholders; search before implementing.
+
+## WHY (grounded)
+
+Base 9beb6a6a. The plan queued three I27/I28 model-menu residuals; two are already
+CLOSED on the live tree and verified by driving the classes this session: the
+thinking-level gating (non-reasoning model → `["off"]` alone; map-less reasoning →
+off..high — chat.rb:1718-1721) and the ✓/· marker cross-resolution under env boot
+(chat.rb:1877-1893). Their existing pins (chat_test.rb:2412, :2429+) are regression
+guards — keep green, do not touch. THE WORK is the third residual's family:
+
+1. **The switch re-clamp (the named I28 residual).** pi `setModel`
+   (agent-session.ts:2477-2496) resolves a level FOR THE SWITCH via
+   `_getThinkingLevelForModelSwitch` (:2670-2679) — `explicitLevel ??
+   getModelThinkingLevel(provider,id) ?? getDefaultThinkingLevel() ??
+   this.thinkingLevel ?? DEFAULT` — then `setThinkingLevel` (:2610-2634) clamps it
+   through the NEW model's supported set (`availableLevels.includes ? level :
+   clampThinkingLevel`, models.ts:1235-1254). The port's `apply_model_selection`
+   (chat.rb:1837-1855) leaves the stored level untouched: verified live — stored
+   `xhigh` survives a switch to a map-less reasoning model (pi: `high`) and to a
+   non-reasoning model (pi: `off`). Observable divergence: footer `model • <level>`
+   + editor border render the UN-clamped level while the I36 request hook silently
+   clamps the wire.
+2. **The boot clamp (same family).** pi createSdk clamps the boot level through the
+   boot model (sdk.ts:271-279, "off" when no model); the port composes it
+   UNclamped into the loop kwargs and the footer fact (bin/tart:213/:280/:407).
+3. **The ✓ letter.** pi marks NO thinking-menu row when the current level is
+   outside the gated set (thinking-selector.ts:69-73:
+   `level === currentLevel ? "✓ " : "  "`); the port floors the marker onto
+   `levels.first` (chat.rb:1767-1768) — delete the floor.
+4. **The badge source must stay UNclamped.** pi's thinking menu badges the row
+   matching `getDefaultThinkingLevel() ?? DEFAULT` UNclamped
+   (interactive-mode.ts:5187 via thinking-selector.ts:71-72) — an out-of-set
+   default marks NO row (the badge only rides an existing gated row). If the boot
+   clamp threaded the clamped value into the badge source, a default `xhigh` on a
+   map-less model would badge `high` where pi badges nothing.
+
+Scope rulings (itemize in your report, do not re-litigate): per-model thinking
+overrides CUT (pi's scoped-models surface is a recorded I27 cut; no writer in the
+port); session-file `thinking_level_change`/`model_change` entries CUT (the port's
+session format carries session/message/compaction — a recorded reduction; resume
+replay untouched); the badge-REF semantics under env boot keep the I28-frozen shape;
+`Commands::Handler`'s full-ladder `/thinking` branch keeps the frozen I27 shape (the
+surface's `gate_thinking_level` owns the runtime gate — unreachable through the
+surface path); `ModelMenu.thinking`'s sealed full-ladder constructor keeps the I36
+design (the gate builds in chat.rb's `thinking_menu_items`).
+
+## WHAT TO BUILD
+
+### `lib/tart/settings.rb` — the declared-default reader
+
+`Settings.declared_thinking_level(root:, cwd:)` → String|nil: the `thinkingLevel`
+value a settings FILE declares — user `<root>/settings.json` overridden by project
+`<cwd>/.tart/settings.json` (project over user, the load precedence settings.rb:103-113);
+re-read from disk per call (live across mid-session `Settings.save` writes — pi's
+in-memory settingsManager view). nil when NEITHER file declares the key — the baked
+`DEFAULTS["thinkingLevel"]` never counts (pi's defaultThinkingLevel is
+undefined-unless-file-declared, settings-manager.ts:758-760). A declared value
+outside `THINKING_LEVELS` reads as nil (pi's settings schema cannot declare it).
+Reuse `read_file`/`ROOT_KEY`; no Result surgery, no new state.
+
+### `lib/tart/render/chat.rb` — the switch re-clamp + the ✓ letter
+
+In `apply_model_selection(entry, persist:)`, AFTER `@runtime_model = entry` and the
+`@agent&.switch_model(...)` call, compose pi's level-for-switch and clamp through
+the SWITCHED entry's facts (already composed at chat.rb:1845 —
+`Settings.thinking_facts(entry, model_id: entry[:id])`):
+
+- level-for-switch = `Settings.declared_thinking_level(root: @settings_root, cwd: <the surface's cwd resolution>) || <the session-level reader>` (chat.rb:1524-1527 — `@thinking_level ||` the footer fallback). cwd source: `@footer_data&.fetch(:cwd, nil) || Dir.pwd` (the existing idiom, chat.rb:673). Pi order note: no explicit tier, no per-model tier — the declared default, else the session level.
+- effective = `Models.clamp_thinking_level(level_for_switch, map: facts[:thinking_level_map], reasoning: facts[:reasoning])`
+  (pi's includes-then-clamp collapses onto the clamp's exact-pass branch).
+- Store BOTH states: `@thinking_level = effective` (join the existing
+  `@mutex.synchronize` block that sets `@runtime_model`) and
+  `@agent&.set_thinking_level(effective)` — AFTER `switch_model` (pi swaps the
+  model first, agent-session.ts:2484-2494).
+- NO `Thinking level:` status row on the switch path (pi's setModel shows only the
+  model status; `thinking_level_changed` refreshes footer+border through the
+  existing `footer_data` overlay — no new wiring). persist:true flows through the
+  SAME re-clamp.
+
+In `thinking_menu_items` (chat.rb:1757-1773): DELETE the display-floor
+`current = levels.first unless levels.include?(current)` — the ✓ marker rides exact
+equality only; the ModelMenu preselect already lands on index 0 when nothing
+matches (pi buildSelectList :101-107 shape).
+
+In `default_thinking_level` (chat.rb:1909-1912): prefer the NEW unclamped footer
+fact (below), falling back to `:thinking_level` then the built-in default
+(additive — existing footer-fact fixtures keep behaving).
+
+### `bin/tart` — the boot clamp (both boots, one composition)
+
+- `footer_data` (bin/tart:385-407): `thinking_level:` becomes
+  `Models.clamp_thinking_level(Settings.resolve_thinking_level(settings), map: facts[:thinking_level_map], reasoning: facts[:reasoning])`
+  — the session level the surface reader falls back to AND the interactive loop
+  ctor receives (bin/tart:280) — and the hash GAINS `default_thinking_level:` =
+  `Settings.resolve_thinking_level(settings)` UNCLAMPED (the badge source).
+- `boot_thinking_kwargs` (bin/tart:413-417) gains the same clamped
+  `thinking_level:`; `print_mode` (bin/tart:212-214) drops its explicit
+  `thinking_level: Settings.resolve_thinking_level(settings)` and takes the kwarg's
+  (pi createSdk clamps for every mode; one helper, both boots).
+
+### Tests
+
+1. `test/chat_test.rb` (the `with_chat` idiom — footer facts + staged Config
+   catalogs, as the existing I28 pins do):
+   - switch re-clamp: stored `xhigh` → switch to a map-less reasoning entry →
+     session level `high`; agent spy (`chat.agent=` double) received
+     `set_thinking_level("high")` AFTER `switch_model` (order pin).
+   - switch to a `reasoning: false` entry → session level `off`.
+   - declared-default tier: staged settings file declaring `"thinkingLevel": "low"`
+     at the surface's `settings_root`, session level `high`, switch (map-less
+     reasoning) → `low` (declared wins, pi `_getThinkingLevelForModelSwitch`).
+   - no declared default → the session level survives the switch unchanged when
+     in-set (`high` → `high`).
+   - out-of-set declared default clamps through the new model (`xhigh` declared +
+     map-less switch → `high`).
+   - no status row: after a switch that re-clamps, the transcript tail carries ONLY
+     the `Model: <id>` row (refute any `Thinking level:` row).
+   - ✓ letter: `thinking_menu_items` with a hand-driven out-of-set stored level →
+     NO item flagged current (preselect index 0).
+   - the I28 regression pins (cross-resolution :2412, non-reasoning gating :2429+)
+     stay green untouched.
+2. `test/settings_test.rb`: `declared_thinking_level` — user file declares →
+   value; project overrides user; neither → nil; value outside THINKING_LEVELS →
+   nil; visible across a `Settings.save` write (fresh read).
+3. `test/launcher_smoke_test.rb`: `Executable.footer_data` — staged settings
+   `"thinkingLevel": "xhigh"` + a map-less reasoning chat model →
+   `data[:thinking_level] == "high"` AND `data[:default_thinking_level] == "xhigh"`;
+   the existing glm pins (:67-89) stay green (glm's map supports every level —
+   clamped equals raw).
+
+## VERIFY (exact commands)
+
+- `bundle install --quiet && bundle exec rake` (base: 763 runs / 3092 assertions —
+  your pin matrix must grow it; fully green).
+- `bundle exec ruby bench/seam_bench.rb` → prints SEAM_BENCH_OK.
+- Parity gates in YOUR tree (SHORT out-dirs — deep paths trip the known footer-cwd
+  truncation sensitivity; allow 60 s+ each, both apps boot):
+  `bundle exec ruby gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml --out tmp/g<n>`
+  for s1_text_turn, s2_tool_turn, s3_tool_turn_files, s4_bash_variants,
+  s5_bash_truncation, s6_long_calls, s7_compaction, s8_zero_usage_compaction,
+  s9_startup_help — each must exit 0 (the settled screens are unmoved; if s9 exits
+  1 in your worktree on the staged-path wrap fragment, that is the known
+  I34/I36/I39-ruled deep-path artifact — verify with an equal-depth base control
+  and report it; the integrated-tree run is the record).
+- Probe re-run (evidence — archive stdout + frames under
+  `build/I40-model-catalog-polish/`): `ruby gems/tui-split-rig/bin/model-menu-probe --out tmp/mmp-i40`
+  — completes, both apps' model+thinking menus captured, no TIMEOUT.
+
+pi sources at `repos/pi/packages/` (read before coding; cite what you port):
+coding-agent/src/core/agent-session.ts (:2477-2496 setModel, :2610-2634
+setThinkingLevel, :2641-2653 cycleThinkingLevel, :2656-2662 getAvailableThinkingLevels,
+:2670-2679 _getThinkingLevelForModelSwitch, :2683-2685 _clampThinkingLevel),
+ai/src/models.ts (:1224-1254), coding-agent/src/core/sdk.ts (:268-279 the boot
+clamp), coding-agent/src/core/settings-manager.ts (:758-770),
+coding-agent/src/modes/interactive/components/thinking-selector.ts (:69-73, :101-107),
+coding-agent/src/modes/interactive/interactive-mode.ts (:5165-5191, :5342-5367,
+:3495-3498).
+
+## OUTPUT FORMAT (your report)
+
+File list + wc; the level-resolution table (each pin case: input state →
+level-for-switch → effective level, with the pi cite); verbatim test tails + suite
+counts (base 763/3092); the probe re-run stdout tail; every deviation from this
+letter PHASE 0-flagged with citations (disagreements mandatory, in the report's
+PHASE 0 section). STATUS line last.
 
 ## Builder Report
 
