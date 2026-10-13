@@ -200,8 +200,6 @@ reproduced below) — the disposition:
 
 ## Specification
 
-# I40 model-catalog-polish — Specification (scratch → `architect section`)
-
 ## Objective
 
 Close the model-menu parity gaps that remain OPEN on the live tree (base 9beb6a6a) —
