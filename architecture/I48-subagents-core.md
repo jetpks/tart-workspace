@@ -767,7 +767,8 @@ NOT touched.
 NEW `test/subagents_e2e_test.rb` (the e2e lane — RED at base by
 design): four legs, I42 discipline (staged HOME per leg,
 MockLLMServer, `unsetenv_others`, real `bin/tart -p` subprocesses,
-printed root ladder) — **A** foreground delegation end-to-end: a real
+printed `[i48-e2e] …` root-ladder lines — the I42 `[e2e]` precedent,
+the e2e gate's grep marker) — **A** foreground delegation end-to-end: a real
 parent print run (subagents ON via staged settings) whose scripted
 model calls `subagent` (async false) → a real CHILD subprocess runs a
 scripted task → the parent's captured request 2 carries the child's
