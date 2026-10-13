@@ -1003,11 +1003,243 @@ never commit; the architect integrates.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I46-zai-provider-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence zai-provider --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### zai
+
+# Builder report — I46 zai-provider, lane `zai`
+
+Worktree: `build/I46-zai-provider-zai/wt` (from frozen base a236876, branch
+lane/I46-zai-provider-zai). Never committed; `git diff --name-only a236876`
+touches EXACTLY the 13 declared lane files. No live z.ai call (no
+`ZAI_API_KEY` in the environment — re-verified this session; static build +
+MockLLM pins only, no new credential paths).
+
+## PHASE 0 — researched disagreements + the re-pin enumeration
+
+All letter cites re-verified against `repos/pi/packages/ai/src/api/openai-completions.ts`
+(:841-848 maxTokensField, :855-863 tool_stream + empty-tools fallback,
+:880-892 the zai arm, :749-755 the clamped effort input, :1233
+instructionRole), `packages/ai/src/providers/compat-schema.ts` (11-literal
+thinkingFormat union, 2-literal maxTokensField union, all-Optional keys,
+`additionalProperties: true`), the gem
+`ruby_llm-2.1.0/lib/ruby_llm/protocols/chat_completions/chat.rb` (:67/:96-99
+max field on the openai slug, :85-87 inert effort path, :376-383
+`format_role` developer default) and `protocol.rb` (:143-155 hooks last),
+and `packages/ai/src/compaction/compaction.ts:605-607` (the summarization
+carries the session level). One binding rule read: pi's zai arm REPLACES
+the generic effort arms for zai-format models (else-if chain), and the
+port's clamp is `Models.clamp_thinking_level` (pi :749-755).
+
+### Disagreements / findings (itemized, none blocking)
+
+1. **Grounds §5's re-pin inventory is incomplete — a FOURTH entry-hash
+   assert needed the mechanical re-pin.** The "grep-verified, complete"
+   inventory names shapes_test :49-57 + :94-111 and models_test :69-71,
+   but `test/schemas_test.rb:63-76`
+   (`test_models_accept_table_loads_byte_identical_entries`) also asserts a
+   loaded entry's `to_h` and broke when `Shapes::Model#to_h` gained
+   `compat:`. I added the same mechanical `compat: nil` there (no assert
+   deleted; schemas_test is in the touch set, additive). The complete
+   entry-hash assert set is shapes :52/:158/:160, models :71, schemas :73
+   (grep-verified this session).
+
+2. **Pin 6 requires a seam the I36 hook never had: the compaction
+   summarization one-shot chat.** ruby_llm 2.1.0 stores `before_request`
+   callbacks per-Chat-instance (`chat.rb:142` — `@callbacks` starts empty;
+   `Context#chat` builds a fresh Chat), and `Agent::Loop#build_summary_chat`
+   constructs a fresh `context.chat` — so the construction hook NEVER ran
+   on the summarization request. Empirical probe at base (MockLLM,
+   scripted compaction): today's summary request carries NO
+   `reasoning_effort`, NO `thinking`, `max_completion_tokens` (e.g. `0`
+   under the tiny-reserve fixtures), `developer` role. Pin 6 ("that
+   request's max-token key is max_tokens … the thinking object rides it
+   too") therefore cannot be satisfied by the session-chat hook alone.
+   Resolution: `install_summary_chat_seam` (loop.rb, in scope) installs the
+   ZAI ARM ONLY on the one-shot when `@compat` is zai; the I36 effort arm
+   stays OFF it. This satisfies pin 6 (rename + thinking + mapped effort
+   land on the summarization) AND pin 8's "today's exact shapes" for
+   compat-nil (the one-shot keeps no-effort / max_completion_tokens /
+   developer byte-exact) AND AC2's "I36 effort map+clamp+off-floor
+   untouched" AND the dispatch's "every wire byte for existing paths
+   unchanged". The unconditional alternative (installing the full hook
+   there) was REJECTED: it would add `reasoning_effort` to compat-nil
+   summary requests — a wire byte change on an existing path. Both pins
+   are in agent_loop_test (:410 zai, :460 compat-nil) and pass.
+
+3. **`compat: null` (JSON null, key present) is tolerated as absent.** The
+   contract enumerates "expected an object" for "present but not an
+   object"; pi's typebox would reject null. The port's boundary convention
+   is uniform null-tolerance (`name`/`reasoning`/`thinkingLevelMap` all
+   treat null ≡ absent), so I followed the family convention
+   (`schemas/models.rb`: `next if compat.nil?`). No enumerated error line
+   changes; flagged for the judge.
+
+4. **`Config#entry_compat` has no production caller.** Spec §1.3 mandates
+   the legacy-raw-hash bridge; the shipped threading sites read the typed
+   attribute directly (`resolve_boot_entry(...)&.compat` per Spec §3, and
+   `entry.compat` in `apply_model_selection` after the legacy wrap). It is
+   implemented and pinned (models_test :160) as the spec'd public bridge.
+
+5. **OQ-1…OQ-6: ACCEPT, as itemized in the frozen file.** No `store`
+   field, no `strict` on tool defs, no URL detection, no `$ENV` expansion
+   (README documents it), OQ-5 implemented (the zai off-edge supersedes
+   the I36 String-off floor — pinned at agent_loop_test :334), OQ-6
+   unchanged (compat-nil keeps the gem's developer role — pinned at :460).
+
+6. **Shapes mechanics (researched, load-bearing):** `attribute :compat,
+   Shapes::ModelCompat.optional.default(nil)` is the only form satisfying
+   the frozen contract simultaneously — (a) omittable at construction
+   (bare `.optional` raises `MissingKeyError` on omission, breaking FROZEN
+   constructors in settings_test :342/:350 and chat_test :2246/:2411);
+   (b) to_h ALWAYS emits `compat:` (the mechanical re-pin semantics;
+   `attribute?` would exclude omitted keys from to_h and break the
+   re-pins); (c) reads nil when omitted. Verified empirically against the
+   repo's dry-struct 1.8.1 / dry-types 1.9.1. Same form for ModelCompat's
+   five attributes. `ModelCompat` is declared BEFORE `Model` in
+   shapes/model.rb (dry-struct evaluates attribute types at class-body
+   time); the Model ATTRIBUTE order (compat between thinking_level_map and
+   provider) is the pinned to_h emission order.
+
+### The frozen re-pins made (exact asserts)
+
+All mechanical `compat: nil` additions; no assert deleted, no other change:
+
+- `test/shapes_test.rb` `test_model_to_h_is_todays_entry_hash_key_order_included`
+  (now :49-58): expected hash gains `compat: nil` between
+  `thinking_level_map` and `provider`; the key-order assert gains `:compat`
+  (`%i[id name reasoning context_window max_tokens thinking_level_map
+  compat provider]`).
+- `test/shapes_test.rb` `test_models_load_entries_to_h_equal_todays_entry_hashes`
+  (now :152-163): BOTH loaded entry hashes gain `compat: nil`.
+- `test/models_test.rb` `test_loads_the_catalog_with_entries_and_provider_config`
+  (now :66-71): the entry hash gains `compat: nil`.
+- `test/schemas_test.rb` `test_models_accept_table_loads_byte_identical_entries`
+  (now :71-74 — the inventory-gap pin, itemized above): the expected hash
+  gains `compat: nil`.
+- `test/chat_test.rb` `test_model_menu_enter_switches_the_model_and_refreshes_the_surface`
+  (:2288-2307, the ONE enumerated chat_test edit): the
+  `switch_model` singleton signature gains `compat: nil`, the recorded
+  hash and the expected kwargs hash gain `compat: nil`. Nothing else in
+  chat_test changed (verified: the file's full diff is that one hunk pair).
+
+## What was built (file by file)
+
+- `lib/tart/shapes/model.rb` — `Shapes::ModelCompat` (five nil-defaulted,
+  omittable attributes: `thinking_format` 11-literal enum,
+  `max_tokens_field` 2-literal enum, `supports_developer_role`,
+  `supports_reasoning_effort`, `zai_tool_stream` bools); `Shapes::Model`
+  gains `compat` declared between `thinking_level_map` and `provider`
+  (to_h emission order).
+- `lib/tart/schemas/models.rb` — CatalogContract per-model compat rules
+  AFTER contextWindow/maxTokens: object check (`expected an object` at
+  `providers.<key>.models[<i>].compat`), then `thinkingFormat`
+  (`expected a thinking format`), `maxTokensField`
+  (`expected "max_tokens" or "max_completion_tokens"`), and the three
+  booleans (`expected a boolean`), at the dotted raw-key paths; UNKNOWN
+  keys tolerated (owner's verbatim object loads clean); error-as-field
+  preserved.
+- `lib/tart/models.rb` — `build_model` passes `compat:
+  build_compat(model["compat"])`; `build_compat` picks the five keys into
+  the typed struct (rest dropped), nil without a Hash; `Config#entry_compat`
+  bridges legacy raw-hash entries the `entry_field` way.
+- `lib/tart/agent/loop.rb` — ctor + `switch_model` gain `compat:` stored as
+  `@compat` (read at request time; switch re-resolves wholesale);
+  `install_thinking_seam` now branches: compat zai → `apply_zai_dialect`
+  (thinking enabled/clear_thinking:false at any effort / disabled at
+  clamped off with NO I36 off-floor; effort only when present AND
+  `supports_reasoning_effort == true`, map-String-else-level;
+  tool_stream iff flag AND non-empty tools Array; developer role iff
+  `@model_reasoning && supports_developer_role == true`, else rewrite every
+  developer-role message to system; `max_tokens` rename when
+  `max_tokens_field == "max_tokens"`), else TODAY'S arm byte-exact (I36
+  effort wiring untouched); the replay `:reasoning` normalization runs for
+  both arms. `build_summary_chat` calls the new
+  `install_summary_chat_seam` (zai arm only — finding 2). No store field,
+  no tool strict anywhere.
+- `lib/tart/print.rb` — `run` gains `compat:` (default nil), forwarded to
+  the loop.
+- `lib/tart/render/chat.rb` (the two enumerated methods only) —
+  `apply_model_selection`: the legacy wrap adds `compat:
+  entry.fetch(:compat, nil)`; `switch_model` gains `compat: entry.compat`.
+  `boot_model_entry` constructs `compat: nil`. Footer/thinking-facts
+  renderers untouched (no screen byte).
+- `bin/tart` (boot threading only) — the interactive `Agent::Loop.new`
+  gains `compat: resolve_boot_entry(models, boot)&.compat`;
+  `boot_thinking_kwargs` composes `compat: entry&.compat` from the same
+  single resolve (both boots thread it).
+- `README.md` (§Models only) — the compat paragraph: the five keys, the
+  zai dialect effects, unknown-key tolerance, the unexpanded-`$ENV` apiKey
+  note, the unchanged fireworks default, and the owner's zai catalog block
+  (apiKey elided).
+- Tests — schemas_test (+2 tables: 8-row reject line table with exact
+  strings/paths/order, accept+interleave table with the owner's verbatim
+  object), shapes_test (+3: ModelCompat construction/nil defaults, enum+
+  bool constraint raises incl. the other ten literals, Model#compat
+  carry/default), models_test (+3: the owner's zai block loads clean with
+  the typed compat, absent→nil + partial pick-five, the entry_compat
+  bridge), agent_loop_test (+10 wire pins, MockLLM captured bodies, the
+  Spec §5 table 1:1), chat_test (the one re-pin only).
+
+## Local gate results (verbatim frozen commands, this worktree)
+
+Runner: `tmp/run_gates.rb` executes the architecture file's ```gates block
+byte-for-byte (cwd repos/tart → this worktree). Final tree, cold.
+
+| Gate | Exit | Headline |
+|---|---|---|
+| suite | 0 | SUITE_OK — 886 runs, 3823 assertions, 0 failures, 0 errors, 1 skips (the pre-existing opt-in LiveRunTest skip; base was 868/3713/1 — +18 new pins, count > 868 per AC4) |
+| bench | 0 | SEAM_BENCH_OK |
+| s1–s8, s10 parity (×9) | 0 each | exit 0 at canonical short out dirs `tmp/parity-gate-<n>` |
+| s9-parity | 1 | KNOWN deep-path worktree artifact (8th precedent: I34/I36/I39/I40/I42/I43/I44) — diff classes `parity-run-path`/`staged-path-wrap-fragment`/`footer-provider-prefix`; PROVEN exit 0 at canonical depth: identical tree rsynced to a short path (`/tmp/i46s9`, refreshed after the final edit) → exit 0 |
+| s1-tart-mode | 0 | rig exit 1 by design; TART_MODE_OK |
+| tool-pending-gate | 0 | TOOL_PENDING_GATE_OK |
+| user-bash-stream-gate | 0 | USER_BASH_STREAM_GATE_OK |
+| wire-bodies | 1 | worktree-layout artifact, PROVEN byte-identical (below) |
+| session-golden | 0 | SESSION_GOLDEN_OK (all seven digests) |
+| zai-wire | 0 | ZAI_WIRE_OK (owner dialect, off-edge, supports-false, compat-nil floor semantics) |
+| zai-catalog | 0 | ZAI_CATALOG_OK (owner catalog loads clean, typed compat, both reject lines) |
+| scope | 0 | SCOPE_OK — VACUOUS in the worktree (HEAD == a236876, nothing committed). The real check: `git diff --name-only a236876` = exactly the 13 declared files |
+
+**wire-bodies byte proof.** In the worktree the gate digests `df515177…`
+vs the frozen `2ece7d4b…`. Diffed against the spec-time base capture
+(`repos/tart/tmp/i46-wire`, base a236876, clean): the ONLY differing bytes
+are the invocation-relative sandbox prefix inside the `<cwd>` prompt
+section (`build/I46-zai-provider-zai/wt/…` vs `repos/tart/…`) — the rig
+launches the app via tmux `-c <path>` (runner.rb :85, :348) and the gate's
+single `gsub("tmp/i46-wire/run-1/sandbox", "<SBX>")` leaves that residual
+prefix in the digest; the frozen constant was minted from the canonical
+repos/tart layout. Recomputing my capture with the canonical prefix:
+bodies == `2ece7d4b875c98590b2f839814a0d3444fbfe1a8514b09c17d000663466c25d2`
+EXACT, tools == `7360fd1ec6419b5f9966c3067588314cdd0d29231a78346443a0002923c23707`
+EXACT (the tools digest is path-independent and passed unmodified in the
+worktree). Same environmental family as the s9 precedent; the judge
+re-runs at repos/tart where the layout matches the mint.
+
+## Interpretation calls (for the judge)
+
+- Summary-chat seam scope (finding 2) — the one real design decision;
+  both directions are wired as tests (:410 zai / :460 compat-nil).
+- `compat: null` tolerance (finding 3).
+- `entry_compat` production-caller status (finding 4).
+- pi's `reasoningEffort` input is the CLAMPED level (:749-755); the map
+  lookup keys on the clamped level's symbol — a null map value for a
+  SUPPORTED level is unreachable (null marks unsupported, the clamp skips
+  it), matching the spec's parenthetical.
+- The frozen pin table's pin 4 "the same session's tool-less request" is
+  realized as the tool-less SESSION (no registry) plus the tools-less
+  summarization one-shot (:372, :410's last assert) — the two payload
+  shapes pi :855-863 distinguishes.
+
+STATUS: COMPLETE_WITH_CONCERNS
+- s9-parity + wire-bodies fail in this lane worktree for the documented
+  worktree-layout reason only; both are proven green/byte-identical for
+  this exact tree (s9 exit 0 at canonical depth; wire digests exact under
+  the canonical prefix) — the judge's battery at repos/tart is expected
+  green.
+- Grounds §5's re-pin inventory missed schemas_test :63-76; the fourth
+  mechanical re-pin was made (itemized above).
+- The summary-chat zai-only seam is an interpretation of pin 6 + pin 8
+  (finding 2); reversible by deleting `install_summary_chat_seam` + its
+  call if the judge rules otherwise.
 
 ## Verdict
 
