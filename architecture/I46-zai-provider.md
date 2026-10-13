@@ -1243,15 +1243,116 @@ STATUS: COMPLETE_WITH_CONCERNS
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section zai-provider verdict --from <file>`. -->
+# I46 zai-provider — ARCHITECT VERDICT (judge session, 2026-10-13)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify zai-provider`)?
+Mechanical post-flight (all cold, this session): `architect verify zai-provider`
+→ 4/4 PASS (frozen untouched, no builder commits, report exists, in-bounds);
+`git diff 93f04375 HEAD` = only the dynamic Builder-Prompt/Builder-Report
+sections + space.yaml lane metadata (plan file byte-clean);
+`git -C wt log a2368769..` empty (nothing committed; 13 modified files =
+exactly the declared touch set). Evidence transcribed at d695b1fb (235 lines,
+STATUS COMPLETE_WITH_CONCERNS). Cold gate in the lane worktree:
+**18 PASS / 2 FAIL of 20** — the two FAILs are exactly the documented
+worktree-layout pair, both independently re-proven green by this judge (below).
+
+## Live-probe condition (Grounds §6) — resolves FALSE for the judge too
+
+No `ZAI_API_KEY` (nor any zai credential) in the judge environment — only
+FIREWORKS/EXA keys; `~/.pi/agent/auth.json` is pi's store, not an environment
+key, and the I36 rule forbids new credential paths. Static pins stand;
+**the one live-only unknown (z.ai's 200 on the exact dialect bytes) is FLAGGED
+FOR THE HUMAN** — see residual items.
+
+## Disagreement rulings (every PHASE 0 item; standing OQs by the letter)
+
+- **OQ-1 supportsStrictMode cut — ACCEPT.** ENTRY 4's shape enumerates exactly
+  five compat keys (BRIEF §3 scope letter governs); `strict` is a capability
+  hint, absence = the gem's non-strict today-shape; live check needs the key
+  (§6, unavailable) — human backlog item, not a rework.
+- **OQ-2 no URL compat-detection — ACCEPT.** The letter says the dialect
+  "activates from the catalog"; porting detectCompat would reach beyond the
+  enumeration and risk the zero-change bar (BRIEF §8).
+- **OQ-3 $ENV apiKey unexpanded — ACCEPT.** Verbatim apiKey is today's pinned
+  behavior; expansion is new behavior outside the touch set; README documents
+  it (the iteration's own docs row).
+- **OQ-4 supportsStore tolerated-unparsed — ACCEPT.** pi emits `store:false`
+  only for supportsStore-TRUE providers; zai is false → no zai-wire
+  divergence; the detected-fireworks case is a pre-existing standing item
+  outside compat scope.
+- **OQ-5 zai off-edge supersedes the I36 String-off floor — ACCEPT.** pi's zai
+  arm REPLACES the generic effort arm in the else-if chain (:880-892 before
+  the generic arms); the frozen zai-wire gate + agent_loop_test :334 pin the
+  disabled-thinking/no-effort edge exactly as pi (BRIEF §8 exact parity).
+- **OQ-6 compat-nil developer role — ACCEPT.** Pre-existing divergence (no
+  compat existed before I46); fixing it would move today's pinned wire bytes
+  (wire-bodies digest) and break the zero-change bar; itemized, not fixed.
+- **Finding 1 (fourth mechanical re-pin, schemas_test :63-76) — ACCEPT.**
+  Grounds §5's inventory was incomplete (a spec-documentation gap, not a scope
+  violation): `to_h` gaining `compat:` necessarily re-pins every entry-hash
+  assert; the re-pin is mechanical, no assert deleted (verified in the diff),
+  file in the touch set, enumerated in the report per the itemize-and-defend
+  discipline.
+- **Finding 2 (summary-chat seam, zai arm only) — ACCEPT.** Pin 6 is
+  unreachable via the session hook (ruby_llm callbacks are per-Chat-instance,
+  chat.rb:142; the summarization builds a fresh chat) — builder proved it
+  empirically at base. The zai-only installation satisfies pin 6 (rename +
+  thinking + mapped effort on the one-shot) AND pin 8 (compat-nil summary
+  keeps today's exact bytes — no effort, `max_completion_tokens`, developer)
+  AND AC2's "I36 arm untouched"; the rejected full-hook alternative would have
+  moved wire bytes on an existing path — correctly rejected. The letter itself
+  cites compaction.ts:605-607 (the summarization carries the session level),
+  so the second installation site is the letter's own requirement realized
+  minimally. Reversible as the builder notes.
+- **Finding 3 (`compat: null` tolerated as absent) — ACCEPT.** Uniform
+  null-tolerance is the port's established family convention (name/reasoning/
+  thinkingLevelMap all null ≡ absent, the ENTRY-1 pattern); the divergence is
+  confined to a case pi rejects and the port reads as "no compat" → default
+  arm; no enumerated error line changes; cannot produce a wrong wire.
+- **Finding 4 (`Config#entry_compat` without a production caller) — ACCEPT.**
+  Spec §1.3 mandates the bridge; implemented + pinned (models_test :160);
+  threading sites read the typed attribute per Spec §3. Harmless.
+
+**s9-parity + wire-bodies worktree FAILs — disposition per the standing
+three-way-control precedent (I44/I45; now the 9th confirmation):** my own
+cold controls this session — (1) s9 rsynced to a short path (/tmp/i46j-s9,
+fresh, my exclusion set) exits **0**; (2) the worktree wire capture diffed
+against the spec-time base capture is **byte-identical modulo the
+invocation-relative cwd prefix**, the tools digest is **exact**
+(`7360fd1e…`), and recomputing with the canonical prefix yields the frozen
+body digest **`2ece7d4b…` EXACT**. Layout artifact family confirmed; the
+canonical battery re-runs post-integrate.
+
+## Acceptance Criteria
+
+Frozen sections unchanged since freeze — YES (`architect verify` 4/4; the
+plan and Grounds/Spec/AC byte-clean since 93f04375).
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | zai-catalog PASS; suite schema/shape/model pins green; re-pins mechanical (diff-verified) | §3 | PASS |
+| AC2 | zai-wire PASS (owner dialect / off-edge / supports-false / compat-nil floor); pins 1–10 present 1:1, spot-checked non-vacuous | §8 | PASS |
+| AC3 | session-golden PASS (7/7); wire bytes proven identical (canonical-prefix control, tools digest exact); threading pins 9–10 green; render = the two enumerated methods only; README complete | §8 | PASS |
+| AC4 | suite 886/3823/1-skip (>868, base skip unchanged); SEAM_BENCH_OK; s1–s8,s10 + s9-at-canonical-depth exit 0; both probe gates OK; scope = exactly the 13 declared files (judge-checked `git diff --name-only a236876`) | §3/§8 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+## Iteration — CONTINUE
+
+Diff vs BRIEF §3/§8 and the frozen Specification is faithful: pi's zai wire
+byte-modeled at the one seam, the fireworks default and every compat-less
+path byte-identical (proven, not claimed), scope exact, batteries green.
+Program moves to ENTRY 5.
+
+## Residual items for the human (none block ENTRY 5)
+
+1. **Live z.ai verification unpaid** (Grounds §6): the dialect bytes are
+   pi's, statically pinned, but z.ai's 200 has never been observed by this
+   space — run one scripted live request from a key-holding environment
+   (I36 `tmp/repro_*` shape) on first zai daily-driver use.
+2. **OQ-1 backlog candidate**: `strict` on function tool defs if z.ai
+   rejects non-strict tools (live-check dependent).
+3. **OQ-3 backlog candidate**: `$ENV`/`!command` apiKey expansion if the
+   owner copies pi's templated catalogs.
+4. **OQ-6 standing item**: compat-nil developer-role divergence on
+   fireworks-class URLs (pre-existing, pinned unchanged).
+5. Grounds §5 re-pin inventory discipline: future to_h-shape changes should
+   grep the FULL entry-hash assert set (four sites, now enumerated in the
+   builder report).
