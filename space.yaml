@@ -1647,12 +1647,13 @@ project:
       - test/print_test.rb
       - test/session_test.rb
       base_sha: d1a420929ad6d941a7529cbfbaef4c5d7fd3c072
-      worktree: build/I42-e2e-session-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: a985f0e5f0865acba7512d0087d535ab0e333ba0
     rehearsal:
       gates_digest: 70d0c4a378ef1accc5a7ec2f1b6b43213b3605d35b32a99d4d8966335ae4bd3b
       at: '2026-10-12T23:16:13-06:00'
