@@ -344,9 +344,13 @@ settings.rb + consumers)
 - Consumed at the launcher's scattered sites (Grounds §2): print +
   interactive construct it once after identity resolution;
   `require_api_key`'s settings tier, `footer_data`'s legacy boot shape +
-  level, `build_chat`'s api tiers read struct attributes. The Settings
-  helpers' public signatures stay (they remain the Settings domain's
-  API; the struct is the consumer view).
+  level, `build_chat`'s api tiers read struct attributes. chat.rb's
+  three `DEFAULTS.fetch("thinkingLevel")` sites (:1733, :1768, :1942)
+  AND print.rb's fourth (:65 — `Print.run`'s default-level fallback)
+  read the typed constant (the same migration class; print.rb's touch
+  is that one line). The Settings helpers' public signatures stay
+  (they remain the Settings domain's API; the struct is the consumer
+  view).
 - **Typed constants** in settings.rb via `Shapes::Types` map types
   applied at load, then `.freeze`: `MODEL_CONTEXT_WINDOWS`
   (`Hash.map(Strict::String, Strict::Integer)`), `MODEL_REASONING`
@@ -474,14 +478,15 @@ is committed. No path/git vendoring; no `required_ruby_version` change.
 `tart.gemspec`, `Gemfile.lock`, `lib/tart.rb`, `lib/tart/shapes.rb`,
 `lib/tart/shapes/{types,model,settings,session}.rb` (new),
 `lib/tart/models.rb`, `lib/tart/settings.rb`, `lib/tart/agent/session.rb`,
-`lib/tart/render/chat.rb`, `lib/tart/render/model_menu.rb`, `bin/tart`,
+`lib/tart/render/chat.rb`, `lib/tart/render/model_menu.rb`,
+`lib/tart/print.rb` (the :65 constant-read line ONLY), `bin/tart`,
 `test/shapes_test.rb` (new), `test/{models,schemas,settings,session,
 chat}_test.rb` (the Grounds §5 enumerated re-pins + additive pins only).
 
 **Must not touch**: everything else, in particular — `lib/tart/schemas*
 ` (ENTRY 1's family, inherited verbatim), `lib/tart/tools/**`,
 `lib/tart/mcp/**`, `lib/tart/agent/{loop,bridge,status,context_files,
-system_prompt}.rb`, `lib/tart/print.rb`, `lib/tart/compaction.rb`,
+system_prompt}.rb`, `lib/tart/compaction.rb`,
 `lib/tart/commands.rb` (pass-through consumer — zero reads to migrate),
 `lib/tart/identity.rb`, `lib/tart/skills.rb`, `lib/tart/prompts.rb`,
 `lib/tart/theme.rb`, `lib/tart/tui.rb`, `lib/tart/core/**`,
@@ -497,7 +502,10 @@ system_prompt}.rb`, `lib/tart/print.rb`, `lib/tart/compaction.rb`,
 
 **Out of scope** (itemized, not lost): the gem seam (add_message Hash |
 Message boundary — Grounds OQ-1); the Recorder write path + entry
-factories (byte-frozen); footer_data (render facts); Compaction::
+factories (byte-frozen); footer_data (render facts); the render-side
+session replay reads (transcript.rb :305/:594 `entry["message"]` —
+the render family is the byte-critical parity surface; the shapes
+family covers the AGENT-side load/resume path); Compaction::
 Settings + the loop's compaction seam; Agent::Loop/MCP-client
 dry-monads (ENTRY 3); the settings helpers' internal hash domain;
 pi Value.Convert tool-arg coercion and the bash >2147483.647s tier
@@ -530,6 +538,7 @@ bin/tart; parallel lanes would collide on the same files):
     - lib/tart/agent/session.rb
     - lib/tart/render/chat.rb
     - lib/tart/render/model_menu.rb
+    - lib/tart/print.rb
     - bin/tart
     - test/shapes_test.rb
     - test/models_test.rb
