@@ -375,35 +375,482 @@ ENTRY 7 by the plan letter. No checkpoint needed.
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section subagents-core specification --from <file>`. -->
+# Specification — I48 subagents-core
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+Objective: land tart's native delegation core — the opt-in `subagent`
+tool driving print-mode subprocess children (foreground blocking + async
+detached), the run registry with on-disk status lifecycle, the steering
+inbox with request-id-correlated receipts, stop, run/tool timeout
+enforcement, and the completion notification that wakes the parent — all
+mounted on the I47 seam, with the default-off zero-byte bar (with
+`"subagents"` off — the default — every existing byte on screen, wire,
+and session file is unchanged, proven by the frozen digests). pi-subagents
+0.77.0's OBSERVABLE shapes are the contract (Grounds §2); its TS machinery
+is not ported (the §4 decision). One iteration (Grounds §7).
+
+## 1. `Tart::Subagents` (`lib/tart/subagents.rb` — new)
+
+- **`Subagents.register(hooks:, kernel: nil, agent: nil, cwd:, env: ENV,
+  home: nil)`** — called by the boot wiring ONLY when the resolved
+  settings gate is on (OQ-1). Builds the {Manager} (§2), registers the
+  `subagent` tool via `hooks.register_tool` (declared LAST, the I47 merge
+  order), and in interactive boots passes `kernel:` + the `agent:`
+  callable (the current `Agent::Loop` — a callable because /new and
+  resume swap it) so the completion watcher can wake the parent (§2.6).
+  Print boots pass neither (the drain path, §5). Returns the Manager.
+- **`Subagents.home(env:, identity:)`** — the runs root:
+  `<IDENTITY>_SUBAGENTS_HOME` env else `<agent root>/subagents` (the
+  memory-home idiom; OQ-2). `~/.tart/subagents/<run-id>/` per run.
+- **The builtin agent table** (frozen constant, Grounds §6) — three
+  entries, each `{name:, description:, system_prompt:, tools:, thinking:,
+  context:}`: `worker` (tools read/grep/find/ls/bash/edit/write, thinking
+  "high", context :fresh), `oracle` (read/grep/find/ls/bash, "high",
+  :fork), `reviewer` (read/grep/find/ls, "high", :fresh). The
+  `contact_supervisor`/`watchdog_diff` entries in pi's frontmatter are
+  CUT (ENTRY 7 / pi-subagents-only tool; OQ-6/OQ-7). The system prompts
+  are adapted ports of agents/{worker,oracle,reviewer}.md with the
+  contact_supervisor paragraphs replaced by the plain-report fallback
+  sentence each file already carries ("If contact_supervisor is
+  unavailable…" — the fallback IS the prompt); `description` byte-carried
+  from the frontmatter. Unknown `agent:` → error listing the three names
+  (pi's close-match shape).
+- **`DEFAULT_FORK_PREAMBLE`** — pi's wrapForkTask string VERBATIM
+  (types.js:145-150): "You are a delegated subagent running from a fork
+  of the parent session. Treat the inherited conversation as
+  reference-only context, not a live thread to continue. Do not continue
+  or answer prior messages as if they are waiting for a reply. Your sole
+  job is to execute the task below and return a focused result for that
+  task using your tools." — prepended `"<preamble>\n\nTask:\n" + task`
+  when the agent's context is :fork (worker/reviewer :fresh = bare task).
+- **Model routing** — `Subagents.resolve_model(spec, catalog:, fallback:)`:
+  `spec` is `"provider/id"` or `"provider/id:level"` (pi's suffix
+  vocabulary, off/minimal/low/medium/high/xhigh/max; an invalid suffix →
+  error naming the valid set); resolution order call > agent default
+  (none shipped) > the parent's current model (fallback). The split pair
+  + level ride the child spawn env (§4).
+
+## 2. The Manager (`lib/tart/subagents/manager.rb` — new; thread-safe —
+called from tool workers, the reactor watcher, and tests)
+
+### 2.1 Run dirs + status lifecycle
+
+- Run id: `Fast::UUID.uuid_v7` (the session-id discipline; OQ-3). Dir:
+  `<home>/<run-id>/` holding `status.json`, `control/steer-requests/`,
+  `control/stop-requests/`, `control/steer-log.jsonl`, `result.json`,
+  `runner.stdout.log`, `runner.stderr.log`, `system-prompt.md`,
+  `sessions/` (the child's session root override, §4). Created before
+  spawn; nothing outside `<home>` is written.
+- `status.json` (atomic write, temp+rename — the control-channel idiom):
+  `{id, agent, task: null | "<task>" (task text never recorded — pi
+  redacts; store `taskChars: <length>` only), mode: "single", state,
+  pid, cwd, asyncDir, sessionRoot, timeoutMs, toolTimeoutMs, startedAt,
+  lastUpdate, endedAt, toolCallId}` (+ `error`, `timedOut`, `exitCode`,
+  `signal`, `outputFile` on terminal). States: `running` at spawn →
+  terminal `completed | failed | stopped` (OQ-6 cuts `paused`; the
+  deadline kill lands `stopped` + `timedOut: true`, pi's terminal
+  vocabulary). `result.json` is written BEFORE the terminal status flip
+  (reconcile reads result-then-status, §2.7).
+- **T3 (detached-reaping safety), encoded**: a run is forgotten only
+  after BOTH its terminal status is on disk AND its process exit is
+  observed (or it is unrecoverably dead: ESRCH on both pid and pgid);
+  `Process.detach` owns every child reap (no `waitpid` anywhere in the
+  parent — no early reap, no zombie); the registry NEVER deletes run
+  dirs (retention is the owner's); `status`/`reconcile` re-read disk for
+  every non-terminal run (a terminal result.json + terminal status.json
+  found on disk reconciles the in-memory state even if the watcher
+  missed the event — the stale-run-reconciler discipline).
+
+### 2.2 spawn — `#spawn_run(agent:, task:, async:, model: nil,
+timeout_ms: nil, tool_timeout_ms: nil, tool_call_id: nil, parent_session:
+nil)`
+
+- Resolve the agent (§1 table), the model pair (§1), and the defaults:
+  `timeout_ms` default `1_800_000` (pi's 30-minute single-run default;
+  `nil`/0 = unbounded, settable per call — T2's first kind);
+  `tool_timeout_ms` default nil (T2's second kind, §6).
+- Mint the run id/dir; write `system-prompt.md` (the agent's prompt);
+  write initial `status.json` (state running).
+- Spawn the child (§4 — the exact argv/env): foreground = `Process.spawn`
+  + pgroup + `Process.detach` + a blocking pipe wait on the tool's worker
+  thread; async = the same spawn (detached), no wait — the watcher owns
+  it. Foreground and async share ONE spawn path; only the waiter differs.
+- **The deadline supervisor** (both modes): armed at spawn — at
+  `startedAt + timeout_ms`, write the stop request (§2.4 graceful),
+  wait 5s for exit, `SIGTERM` the pgroup, wait 2s, `SIGKILL`; state
+  `stopped`, `timedOut: true`. Implemented as one background thread per
+  running run (joinable; cancels itself on observed exit) — the parent
+  side is the BACKSTOP; the child self-deadlines too (§4 env), so the
+  deadline holds even when the parent process is gone (both-sides
+  enforcement, T2).
+- Foreground return: on exit, write result.json + terminal status; the
+  tool result = the child's final text (stdout bytes verbatim); non-zero
+  exit / no final text → `{error:}`-shaped tool result carrying the
+  first stderr line (the port's tool contract). Async return: the §7
+  start message immediately; the tool call ENDS the parent's turn free.
+
+### 2.3 steer — `#steer(id:, message:, mode: "auto", ack_timeout_ms: 3000)`
+
+- Target must be non-terminal; else `missed` (OQ-6: follow_up-on-terminal
+  = ENTRY 7 resume). Write the request file
+  `control/steer-requests/<ts-13-padded>-<requestId>.json` =
+  `{type: "steer", id: <uuid>, ts: <epoch_ms>, message:, mode:, source:
+  "tool"}` (atomic; 128KB message cap — pi's bound). `mode: "steer"` and
+  `"auto"` wait up to `ack_timeout_ms` for the CHILD's consumption log
+  entry for THAT request id (steer-log.jsonl, §5); `"follow_up"` returns
+  `queued` immediately. Receipt states: `delivered` (the child consumed
+  the request id — correlated consumption, NEVER mere inbox acceptance —
+  T1), `queued` (written, unconsumed), `missed` (run terminal without
+  consuming), `failed` (write error). Receipt text §7. **T1, encoded**:
+  the request id is minted by the steer call, carried in the file name +
+  body, and matched against the CHILD's own log line — the plumbing the
+  ENTRY 7 intercom inherits (leaf-id-addressed, not name-addressed).
+
+### 2.4 stop — `#stop(id:)`
+
+Write `control/stop-requests/<ts>-<uuid>.json` `{type: "stop", ts}`;
+wait ≤5s for exit; `SIGTERM` pgroup; ≤2s; `SIGKILL`; state `stopped`
+(user stop; `timedOut` stays false). Foreground children stop the same
+way (the waiting tool observes the exit). Receipt text §7.
+
+### 2.5 status — `#status(id: nil)`
+
+- With id: the run's lines (§7 shape) read from disk-first (reconcile,
+  §2.1). Unknown id → error naming the active ids (pi's resolver shape).
+- Without id: every run this session's registry knows, running first,
+  newest first — heading `Active async runs: <n>` + one row per run
+  `- <id> | <state> | single | <agent>` (pi's formatRunHeader shape,
+  single-run minimal); empty → pi's fleet-empty line (§7).
+
+### 2.6 The completion watcher (async runs)
+
+One reactor task in interactive boots (`kernel.async { … }`, 0.25s sleep
+loop — POLL_INTERVAL_MS) or a plain Thread when no kernel (print/tests):
+per running run, poll for (a) process exit (ESRCH — the detach thread
+reaped it), (b) `result.json` present, (c) deadline due (the supervisor
+backstop arms here too when the §2.2 thread is absent). On terminal:
+write/verify result.json + terminal status.json; then **notify**:
+`hooks.send_next_turn(custom_type: "subagent-notify", content: <§7
+builder>, display: <state != "completed">)` (pi's display rule:
+completed background notices are model-visible only) and, when
+interactive, **wake**: if the parent loop is idle (not busy), the
+surface kick `kernel.async { agent.wake }` (§5.3 — pi's `triggerTurn` on
+the port's existing seams; when busy, the queued notification rides the
+in-flight run's next `add_user_message` drain — the I47 mechanism, no
+kick needed). The watcher exits when no runs are outstanding and none
+spawn (re-arms on the next spawn).
+
+### 2.7 The driven surface (exact names — the gates drive these)
+
+`Tart::Subagents::Manager.new(cwd:, home:, env:, identity:, hooks:,
+kernel: nil, agent: nil)` with `#spawn_run`, `#steer`, `#stop`,
+`#status`, `#result(id:)` (the result.json Hash or nil),
+`#runs` (the registry snapshot), `#outstanding?` (any non-terminal run —
+the print drain's predicate), `#drain(timeout:)` (print agent-end:
+waits for every outstanding run, each bounded by its own deadline;
+records notifications; returns when none outstanding), `#shutdown` (test
+teardown: stop every running run, join threads).
+
+## 3. The tool (`lib/tart/tools/subagent.rb` — new;
+`Tart::Tools::Subagent < RubyLLM::Tool`, wire name `"subagent"`)
+
+- Parameters (snake_case, the port's own tool vocabulary — pi-subagents'
+  camelCase is TS-surface, not an owner observable):
+  `{agent: string, task: string, async: boolean, model: string,
+  timeout_ms: integer, tool_timeout_ms: integer, action: string
+  (status|steer|stop), id: string, message: string, mode: string
+  (steer|follow_up|auto)}` — none required; validated in execute.
+- Dispatch: `agent`+`task` (no action) → spawn (`async:` default TRUE,
+  pi's default-on); `action:"status"` (+ optional `id:`); `action:
+  "steer"` + `id:` + `message:` (+ `mode:`); `action:"stop"` + `id:`.
+  Unknown/absent combination → the safe-next-steps error (pi's shape:
+  name `status` and `list`… the port names `status`). Management
+  actions on unknown ids error with the active ids. No `guide`/
+  `children.list`/workflows/missions (OQ-6).
+- The tool holds the Manager (constructor-injected); results are plain
+  Strings (the OQ-7 I47 rule); the spawn result text is §7's start
+  message (async) or the child output (foreground).
+
+## 4. The child spawn (print-mode subprocess — Groundings §4's decision)
+
+One builder, `Manager.spawn_argv_and_env(run)` (the pin target):
+
+- **Argv**: `<ruby> bin/tart -p <task text> --tools <allowlist>
+  --system-prompt-file <run>/system-prompt.md --session-root
+  <run>/sessions --steer-inbox <run>/control/steer-requests`
+  (+ `--resume <parent session path>` when the agent's context is
+  :fork — I42's fork copy records the child under the run's session
+  root with the parentSession link, seeds the parent's turns, and the
+  fork preamble rides in the task text, §1).
+- **Env (CLOSED — OQ-7; unsetenv_others at spawn)**: exactly
+  `{PATH, HOME (the parent's), <IDENTITY>_IDENTITY (the resolved face),
+  <IDENTITY>_API_KEY, <IDENTITY>_API_BASE, <IDENTITY>_MODEL,
+  <IDENTITY>_PROVIDER, <IDENTITY>_MODEL_REASONING,
+  <IDENTITY>_THINKING_LEVEL (the routing pair + level, §1),
+  <IDENTITY>_CONTEXT_WINDOW (the parent's resolved window),
+  <IDENTITY>_TOOL_TIMEOUT_MS (when set, §6),
+  <IDENTITY>_RUN_DEADLINE_MS (the deadline epoch — the child
+  self-deadline, §2.2)}` — omitting nil/absent keys. NO subagents gate
+  row (children never load the subagent tool — nested delegation CUT,
+  itemized), NO MCP config (children have no MCP this entry, itemized).
+  The key/base/model values are the PARENT'S resolved ones (the child
+  boots exactly as the parent would, on the routed model).
+- **`pgroup: true` + `Process.detach`** (T3); stdout/stderr → the run
+  dir logs; the final text is the child's stdout (print mode's final
+  response, I07).
+- **`--tools`**: comma list, the agent's allowlist (validated against
+  the Registry's names; order = the table's order — the I41 wire-order
+  rule).
+- **`--session-root`**: the Recorder's `root:` override — the child's
+  session lands `<run>/sessions/sessions/--<encoded-cwd>--/<ts>_<id>
+  .jsonl` (one nested `sessions/` component: root + the layout; the
+  watcher globs it for the Session-file line). Internal layout choice
+  (OQ-2 family); the OBSERVABLE is the `Session file: <path>` line.
+
+## 5. Loop/print/launcher seams
+
+### 5.1 The steering inbox (`Agent::Loop`, additive kwarg `steer_inbox:
+nil`)
+
+- When set, the loop's `steering_messages` read ALSO drains
+  `<dir>/*.json` (sorted — the ts-padded names make lexicographic =
+  temporal) at EVERY consumption point (the outer-loop boundary and the
+  inner loop's complete branch — the exact sites today, one seam): each
+  `{"type":"steer","id":…,"message":…}` file → `@steering_queue <<
+  message` + append `{"requestId": id, "consumedAt": <epoch_ms>}` to
+  `<dir>/../steer-log.jsonl` + DELETE the request file (atomic-ish:
+  read, log, unlink; a crash between log and unlink re-delivers —
+  at-least-once, never lost — the same discipline pi's inbox takes).
+  A `{"type":"stop"}` request (read at the same points) → interrupt the
+  run exactly as the kernel interrupt does (the Async::Cancel path:
+  `:agent_end interrupted: true`; the child exits non-zero with the
+  abort message on stderr). Files that fail JSON parse are unlinked and
+  skipped (poison-pill safety).
+- `steer_inbox:` threads through `Print.run` (kwarg) — the print child
+  consumes steering/stop at its turn boundaries mid-run. Interactive
+  parents never set it (their own editor steering rides the existing
+  queue).
+
+### 5.2 Print child flags (`bin/tart` OptionParser + `Print.run` kwargs)
+
+`--steer-inbox DIR`, `--tools A,B,C`, `--system-prompt-file PATH`,
+`--session-root DIR` — print-mode only (error in interactive mode);
+each threads to its `Print.run` kwarg (`steer_inbox:`,
+`selected_tools:`, `system_prompt:` (file bytes),
+`session_root:` → the Recorder's `root:`). No flag changes any existing
+invocation's behavior (absent = exactly today).
+
+### 5.3 The wake (`Agent::Loop#wake` — new public method, additive)
+
+`wake` = `run` with no prompt, but the first turn drains the hooks'
+`pending_next_turn` queue AS the opening messages when no prompt and no
+steering message opens the run (each pending: the §I47 drain path —
+user-role chat message, `:message_start/:message_end` with the
+CustomMessage, session `custom_message` entry); empty queue + empty
+steering → return immediately (no model call). `Print.run` does NOT
+grow a wake (print parents drain, §2.6/OQ-4). The interactive surface
+calls it ONLY from the subagents completion kick (`kernel.async {
+agent.wake }`) — the submit path is untouched.
+
+### 5.4 The print drain (`bin/tart` print wiring)
+
+After `Print.run`'s agent run completes (before printing the final
+response), if a Manager exists and `outstanding?`: `manager.drain
+(timeout: <sum of outstanding deadlines>)` — the parent process waits
+for its async children (pi's agent_end auto-drain), each completion
+recording its notification custom_message entry on the parent's session
+(no model turn, no extra stdout — itemized in OQ-4). The child result
+artifacts stay on disk (result.json) for later inspection.
+
+### 5.5 Settings + bash seams
+
+- `Settings::DEFAULTS["subagents"] = false`; `RESOLUTION_ENV` gains
+  `"subagents" => "SUBAGENTS"` and `"thinkingLevel" => "THINKING_LEVEL"`
+  (the latter is the child's level routing env — an additive boot knob,
+  unset = today's resolution). OQ-1: off → `Subagents.register` never
+  called → no tool, no watcher, no wires moved.
+- `Tools::Bash`: when `<IDENTITY>_TOOL_TIMEOUT_MS` is set (positive
+  integer), it is the DEFAULT `timeout` for calls that omit one (read
+  once per tool construction; invalid values ignored with a warn — the
+  env never crashes a child boot). Unset = today (no default). OQ-8.
+
+## 6. Timeout discipline (T2 — both kinds, independently settable)
+
+- `timeout_ms` (run deadline): default 1_800_000; `0`/absent-of-effect
+  → unbounded. Enforcement BOTH sides (child self-deadline env →
+  `Print.run` arms a deadline thread: sleep(remaining) →
+  `Process.kill("-TERM", 0)` (own pgroup) — the child dies mid-run,
+  exit-by-signal; parent supervisor backstop §2.2). Terminal state
+  `stopped` + `timedOut: true`; result.json records both.
+- `tool_timeout_ms` (per-tool-call): env-only (§5.5); default unset.
+  Applies to bash (the only tool with a timeout knob); the child's bash
+  calls that omit `timeout:` get the env default; explicit call values
+  always win (the model's own choice). Never extends the run deadline.
+- Both settable per spawn call from the tool (`timeout_ms`,
+  `tool_timeout_ms` params) — the dispatch-ops memory's rule made API:
+  a parent that spawns children sets BOTH explicitly.
+
+## 7. The exact strings (byte-pinned; `<…>` are interpolations)
+
+- **Async start** (the async spawn's tool result): `Async: <agent>
+  [<id>]\n\nDetached. Return control now: native completion wakes you,
+  so do not sleep or poll for it.\nOne-shot check: subagent({ action:
+  "status", id: "<id>" }).` (pi's headline byte-exact; the guidance
+  adapted per OQ-5 — no bg_wait; the id filled).
+- **Completion notification** (single): `Background task <state>:
+  **<agent>**\n\n<preview>\n\nRun dir: <dir>\nSession file: <path>`
+  where state ∈ completed|failed|stopped; preview = the child's final
+  text, UTF-8-head-truncated to 2000 bytes with the marker
+  `...[preview truncated]` (pi's bound + marker), `"(no output)"` when
+  empty; failed/stopped prepend `Error: <first stderr/error line>\n\n`
+  before the preview (pi's shape). `customType "subagent-notify"`,
+  display per §2.6.
+- **Foreground result**: the child's stdout verbatim (no wrapper).
+- **Status (one run)**: `Run: <id>\nState: <state>\nMode: single\n
+  Started: <iso8601>\nUpdated: <iso8601 | "n/a">\nDir: <dir>` + `Output:
+  <result.json path>` (terminal only) + `Error: <msg>` (failed only) +
+  `Timed out: true` (when timedOut).
+- **Status (list)**: empty → `No active subagent fleet. Background runs
+  that already finished are available through completion notifications
+  or subagent({ action: "status", id: "..." }).` (pi byte-exact);
+  non-empty → `Active async runs: <n>\n\n- <id> | <state> | single |
+  <agent>` per run.
+- **Steer receipts**: `Steering delivered to async run <id> (request
+  <rid>).` / `Steering queued for async run <id> (request <rid>).` /
+  `Steering missed async run <id> (request <rid>): the run ended before
+  consumption.` / `Failed to queue steering for async run <id>:
+  <error>.`
+- **Stop receipt**: `Stop requested for async run <id>.` (pi
+  byte-exact).
+
+## 8. Tests
+
+NEW `test/subagents_test.rb` (the unit pin table — RED at base by
+design): the builtin table (three agents, prompts carry their
+fallback-report sentence, descriptions byte-carried); model-suffix
+resolution (pair/level/invalid); fork-preamble bytes; the Manager
+against a REAL subprocess child on MockLLMServer — spawn
+foreground (result = child stdout; run dir complete; status transitions
+running→completed), async (start-message bytes; watcher delivers the
+notification within poll granularity ×2; display rule; wake contract
+via a fake kernel capturing `async` calls + a real loop's `wake`
+drain order on the wire), steer (request file name/format; receipt
+delivered with the child's steer-log entry for THAT request id — T1;
+queued on follow_up; missed on terminal; the 128KB cap), stop (file →
+child interrupt exit; TERM escalation; state stopped; timed_out false),
+deadline (short `timeout_ms` → stopped + timedOut true; the child
+self-deadline honored when the parent-side supervisor thread is
+disarmed — both-sides T2 proof), tool timeout (env → bash default via a
+child run's slow command; unset → today), reconcile-from-disk (a
+manager that never saw the watcher finds terminal result.json + status
+and reports terminal — T3), env closure (the spawn env is EXACTLY §4's
+key set — captured via a child run echoing env sorted), hermeticity
+(staged HOME; no writes outside `<home>` + the staged sessions root),
+status strings byte-pinned (§7), settings gate (off → no tool on the
+wire, no watcher, zero diff in the boot loadout; on → tool last).
+ADDITIVE pins: `agent_loop_test.rb` (steer_inbox drain: a steer file
+consumed at the turn boundary + logged + unlinked; stop file →
+interrupted run, `:agent_end interrupted: true`; poison file skipped;
+`#wake` — pending notification as opening message on the wire +
+session entry; empty wake = no request), `settings_test.rb` (the two
+rows: DEFAULTS false, env tier, unknown-key list), `launcher_smoke`
+NOT touched.
+NEW `test/subagents_e2e_test.rb` (the e2e lane — RED at base by
+design): four legs, I42 discipline (staged HOME per leg,
+MockLLMServer, `unsetenv_others`, real `bin/tart -p` subprocesses,
+printed root ladder) — **A** foreground delegation end-to-end: a real
+parent print run (subagents ON via staged settings) whose scripted
+model calls `subagent` (async false) → a real CHILD subprocess runs a
+scripted task → the parent's captured request 2 carries the child's
+output as the tool result; the run dir + child session + result.json
+asserted; **B** async + drain: the parent delegates async:true (the
+Async: start line rides the parent's tool result), its own turn ends,
+the child outlives it (slow stream), the parent process DRAINS, its
+session file gains the `subagent-notify` custom_message entry with §7's
+header bytes; exit 0; **C** steer-reach: the test is the parent
+(in-process Manager + hooks + recorder) — spawn async child (slow
+stream), steer, assert the child's NEXT captured request body contains
+the steer text as a user message (the mid-run reach), the receipt was
+`delivered` for the minted request id; **D** stop + deadline: stop
+mid-stream (exit within grace, state stopped, no zombie — `ps` clean)
+and a short-deadline run (state stopped, timedOut true). Every leg
+stages `<IDENTITY>_SUBAGENTS_HOME` under the staged home.
+
+## 9. Docs (README.md)
+
+A `## Subagents` section: the settings row + env tier, the tool's four
+actions with examples, foreground vs async, steering/stop/status
+vocabulary (the §7 strings), run dirs under `~/.tart/subagents/<id>/`,
+the two timeout knobs (both recommended explicit — the dispatch-ops
+lesson), the builtin agents, the child-harness decision summary
+(print-mode subprocess; in-process recorded as the rejected-for-now
+option with the probe numbers), and the CUT list pointer (ENTRY 7 for
+profiles/intercom/council). No other doc surface moves.
+
+## 10. May touch (the ```lanes block is the frozen source of truth)
+
+Lane `core` (repo tart): the subagents module + tool, the loop/print/
+launcher/settings/bash seams, the boot wiring, docs, the unit pins.
+Lane `e2e` (repo tart): the e2e instrument only. DISJOINT by
+construction (no shared file).
+
+**Must not touch**: `lib/tart/hooks.rb` (the I47 seam is CONSUMED
+as-is — this is the mounting proof), `lib/tart/tools/registry.rb`,
+`lib/tart/memory.rb`, `lib/tart/herdr.rb`, `lib/tart/tools/memory.rb`,
+`lib/tart/schemas/**` + `schemas.rb`, `lib/tart/shapes/**` +
+`shapes.rb`, `lib/tart/models.rb`, `lib/tart/compaction.rb`,
+`lib/tart/agent/{bridge,status,context_files,session,system_prompt}
+.rb` (session gains NOTHING — the custom_message entry is I47's),
+`lib/tart/tools/{read,edit,write,find,grep,ls}.rb` +
+`safe_execute.rb` + `output_accumulator.rb` + `support/**`,
+`lib/tart/mcp*`, `lib/tart/render/**` (the notification renders through
+the I47 custom block — zero render edits), `lib/tart/{identity,skills,
+prompts,theme,tui}.rb`, `lib/tart/core/**`, `tart.gemspec`,
+`Gemfile.lock`, `bench/**`, `gems/tui-split-rig/**` (NO rig scenario
+this entry — the notification block is I47-rendered; the interactive
+wake is unit-pinned, itemized), `test/support/**`, and every test file
+outside the declared set (frozen: `print_test.rb`,
+`e2e_session_test.rb`, `golden_parity_test.rb`, `loop_test.rb`,
+`tools_test.rb`, `bash_tool_test.rb`, `mcp_test.rb`, `flow_test.rb`,
+`markdown_test.rb`, `theme_test.rb`, `tui_test.rb`,
+`launcher_smoke_test.rb`, `kernel_carryin_test.rb`, `identity_test.rb`,
+`prompts_test.rb`, `compaction_test.rb`, `skills_test.rb`,
+`chat_test.rb`, `models_test.rb`, `hooks_test.rb`, `memory_test.rb`,
+`herdr_test.rb`, `commands_test.rb`, `system_prompt_test.rb`,
+`test/render/**`, `test/fixtures/**`).
+
+**Out of scope** (itemized, not lost — OQ-6 + Grounds §8): everything
+pi-subagents ships beyond the owner's working set; ENTRY 7 owns
+profiles/intercom/council; nested delegation (children spawning
+children) is cut with the child env's missing gate row; the async
+widget/fleet TUI; `bg_wait`; worktrees; acceptance gates; missions/
+schedules/watchdog; share/gist; OSC 7501.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision subagents-core`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/subagents.rb
+    - lib/tart/subagents/manager.rb
+    - lib/tart/tools/subagent.rb
+    - lib/tart/agent/loop.rb
+    - lib/tart/print.rb
+    - lib/tart/settings.rb
+    - lib/tart/tools/bash.rb
+    - bin/tart
+    - README.md
+    - test/subagents_test.rb
+    - test/agent_loop_test.rb
+    - test/settings_test.rb
+- name: e2e
+  repo: tart
+  touch:
+    - test/subagents_e2e_test.rb
 ```
+
+Two lanes: `core` owns the machinery + unit pins; `e2e` owns the
+end-to-end instrument — disjoint by construction (the I47 core+rig
+precedent, minus the rig). Both lanes' capability gates are RED at base
+BY DESIGN and must be GREEN on the integrated tree, non-vacuously.
 
 ## Acceptance Criteria
 
