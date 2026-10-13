@@ -232,34 +232,311 @@ live in `tmp/i44-probe1/` (gitignored; findings transcribed here).
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section dry-rb-shapes specification --from <file>`. -->
+# Specification — I44 dry-rb-shapes
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+## Objective
+
+Program ENTRY 2 (`build/loop/plan-20261013T092136Z.md`): dry-types/dry-struct
+for tart's internal shapes — typed structs replace the hash-table masses at
+the Model catalog, the resolved-settings reads, and the session-entry load
+path. Composes on ENTRY 1 (I43): the `Tart::Schemas` family and its 5-rule
+error discipline are inherited unchanged; this iteration adds the VALUE side
+(structs), not new validation. Parity track: internal only — ZERO observable
+byte moves on screen or wire. HARD constraint (the letter): session-file
+bytes and wire bytes do not move — the JSONL format is pi-parity I07 and the
+replay probe proved byte-stability; the Grounds §4 goldens are frozen gate
+literals. Known-models tables become typed constants. Consumers read the
+structs; no hash-shape aliasing is left behind at the migrated seams
+(enumerated in Grounds §2; the seams that do NOT move are Grounds §6).
+
+## The shape contract (composes on I43's pattern contract)
+
+- **Home + naming.** One module family: `lib/tart/shapes.rb` (aggregate
+  require, house style of `lib/tart/schemas.rb`) +
+  `lib/tart/shapes/{types,model,settings,session}.rb`, namespace
+  `Tart::Shapes`. `shapes/types.rb` defines `Tart::Shapes::Types`
+  (`include Dry::Types()`), the one shared Types module — member files
+  `require_relative "types"` and reference `Shapes::Types::…`. `lib/tart.rb`
+  gains `require_relative "tart/shapes"`. Consumers require their own
+  shapes member directly (the existing require discipline).
+- **Structs are `Dry::Struct` subclasses**, one class per shape, attribute
+  names snake_case (the Ruby-facing vocabulary), `Types` from
+  `Shapes::Types`. Structs fed parsed-JSON input declare
+  `transform_keys(&:to_sym)` (Grounds §3). No schema re-validation rides
+  struct construction (shape typing ≠ boundary validation — I43 rule 1).
+- **Error discipline (I43's rules, applied to values).** Structs never
+  construct where today's code does not branch: the session-entry
+  envelopes' tolerant wrap (`rescue Dry::Struct::Error → nil`) reproduces
+  today's guard-chain nil-skips EXACTLY (Grounds §3 p4); NO new raise
+  reaches a user surface. The known-table type literals raise
+  `MapError` at LOAD time only (compile-time constants).
+- **Byte rule.** No struct's `to_h` output crosses a byte-frozen surface
+  (Grounds §6): the write path stays hashes; the gem seam gets `.to_h`.
+  `Shapes::Model#to_h`'s key order is DECLARED to equal today's
+  `build_model.merge(provider:)` hash (Grounds §3, p5-verified) — pinned
+  by unit test.
+- **No filtering, no coercion beyond today.** Where a struct types a
+  flows-through value, it uses `Types::Nominal::Any` (documented);
+  coercing types appear ONLY where today's code already coerces (role
+  `.to_sym`, content nil→`""` — the entry-coercion table as types).
+
+## B1 — the Model family (lib/tart/shapes/model.rb + models.rb + consumers)
+
+- `Shapes::Model` — attributes IN ORDER: `id`, `name`
+  (`Strict::String`), `reasoning` (`Strict::Bool`), `context_window`,
+  `max_tokens` (`Strict::Integer.optional`), `thinking_level_map`
+  (`Strict::Hash.map(Strict::Symbol, Strict::String | Strict::Nil).optional`),
+  `provider` (`Strict::String`). `to_h` == today's entry hash, key order
+  included (unit-pinned). `thinking_level_map` values are the
+  symbolized Partial-Record shape (I36 semantics ride unchanged).
+- `Shapes::Provider` — `name`, `base_url`, `api_key`, `api`
+  (`Strict::String.optional` — today's parse may omit them), `models`
+  (`Strict::Array.of(Model)`).
+- `Shapes::ModelRef` — `provider`, `id` (`Strict::String`).
+- `Shapes::ThinkingFacts` — `reasoning` (`Strict::Bool`), `thinking_level_map`
+  (the map type above).
+- `Models.build_providers`/`build_model` construct the structs (the
+  provider key feeds `Model#provider` at build); `Config` keeps its
+  `::Struct` shell with `providers` now `Hash[String => Shapes::Provider]`;
+  `Config#model_entries` → `Array[Shapes::Model]` (flat_map over
+  `provider.models` — no merge); `Config#resolve` → `Shapes::Model|nil`
+  with today's exact match table (canonical/scoped/bare, ambiguity =
+  no match); `Config#provider(key)` → `Shapes::Provider|nil`.
+- `Models.resolve_boot_model` returns `Shapes::ModelRef` (same precedence
+  table; the settings-tier reads keep the merged Hash — Grounds §6).
+  `Settings.thinking_facts` returns `Shapes::ThinkingFacts` (same
+  catalog-entry-first/known-tables-second table).
+- **Consumers** (Grounds §2's work list, ALL migrated): bin/tart
+  (`boot.provider`/`boot.id`; `provider&.api_key`/`&.base_url`;
+  `facts.reasoning`/`facts.thinking_level_map`), chat.rb
+  (`apply_model_selection` reads `entry.id`/`.provider`/`.context_window`;
+  `@runtime_model` holds the struct; `boot_model_entry` builds a
+  `Shapes::Model` (the `max_tokens: nil` completeness note — Grounds OQ-4);
+  `boot_model_ref` builds a `Shapes::ModelRef`), model_menu.rb
+  (`model()` builds UI-row hashes FROM the struct — `{value:, label:,
+  provider:, id:, name:, current:, default:}` rows stay plain Hashes
+  (render rows); `ref_key` reads `.provider`/`.id` — Model and ModelRef
+  both respond). commands.rb passes entries through unindexed —
+  untouched.
+
+## B2 — resolved settings + typed tables (lib/tart/shapes/settings.rb +
+settings.rb + consumers)
+
+- `Shapes::ResolvedSettings` — the typed view of the RESOLVED settings,
+  built ONCE per boot by `.from_load(settings_or_result, identity:,
+  env: ENV)` which runs today's exact resolution arithmetic per key
+  (env tier via `Identity.env_key`, then the merged file hash, then
+  DEFAULTS — the `resolve_setting` table; thinking level via
+  `resolve_thinking_level`; the file-tier context window via
+  `Schemas::Settings.context_window_value`; tools via
+  `selected_tools`; compaction via the `compaction_kwargs` key set):
+  - strict where resolution guarantees the type: `identity`
+    (`Strict::String` — Identity.resolve validates), `thinking_level`
+    (`Strict::String` — the vocab-resolved value or "medium"),
+    `context_window` (`Strict::Integer.optional` — the file-tier
+    contract output), `default_tools` (`Strict::Array`).
+  - `Types::Nominal::Any` where pi flows-through (documented in the
+    class): `default_model`, `default_provider`, `api_base`, `api_key`
+    (raw staged values ride verbatim — Grounds OQ-2).
+  - `compaction` → `Shapes::CompactionSettings` (`attribute?` for
+    `enabled`/`reserve_tokens`/`keep_recent_tokens`, nominal values —
+    the present-keys slice `compaction_kwargs` produces today).
+- Consumed at the launcher's scattered sites (Grounds §2): print +
+  interactive construct it once after identity resolution;
+  `require_api_key`'s settings tier, `footer_data`'s legacy boot shape +
+  level, `build_chat`'s api tiers read struct attributes. The Settings
+  helpers' public signatures stay (they remain the Settings domain's
+  API; the struct is the consumer view).
+- **Typed constants** in settings.rb via `Shapes::Types` map types
+  applied at load, then `.freeze`: `MODEL_CONTEXT_WINDOWS`
+  (`Hash.map(Strict::String, Strict::Integer)`), `MODEL_REASONING`
+  (`Hash.map(Strict::String, Strict::Bool)`), `THINKING_LEVEL_MAPS`
+  (`Hash.map(Strict::String, Hash.map(Strict::Symbol, Strict::String |
+  Strict::Nil))`) — CONTENT byte-identical (values compared key-for-key
+  in unit pins); a malformed literal fails at load (MapError). New
+  `DEFAULT_THINKING_LEVEL = "medium"` (`Strict::String` literal) becomes
+  the single source of `DEFAULTS["thinkingLevel"]`; chat.rb's three
+  `DEFAULTS.fetch("thinkingLevel")` sites (:1733, :1768, :1942) read the
+  constant. `DEFAULTS` itself (the merged-file tier source, byte-pinned
+  by settings_test) stays a frozen Hash.
+
+## B3 — session-entry typed views, READ path only
+(shapes/session.rb + agent/session.rb + chat.rb resume block)
+
+- `Shapes::MessageEntry` — `transform_keys(&:to_sym)`; `type`
+  (`Strict::String.enum("message")`), `role` (`Strict::String` — read
+  from `message["role"]`), `message` (`Strict::Hash` — the open
+  recorded-message body). Class method `.of(raw)` = constructor inside
+  `rescue Dry::Struct::Error → nil` (the tolerance idiom) — a non-Hash,
+  wrong-typed, role-less, or body-less entry reads nil, exactly today's
+  guard outcomes (unit-pinned against the §2 read sites' inputs).
+- `Shapes::CompactionEntry` — `type` (`enum("compaction")`), `id`,
+  `first_kept_entry_id` (`Nominal::Any` — the scan's raw reads; strict
+  typing would change malformed-entry outcomes, Grounds §2), `summary`
+  (`Nominal::Any` — the projection's own String guard stays).
+  `.of(raw)` as above.
+- `Shapes::SessionHeader` — `type` (`enum("session")`), `id`
+  (`Strict::String`), `cwd` (`Nominal::Any` — `cwd_matches?` guards),
+  `version`/`timestamp`/`parentSession` (`attribute?`, nominal).
+  `Session.read_header` returns it (or nil) — the Grounds OQ-5 API move;
+  `find_most_recent`/`list` pass `header.cwd` into the unchanged
+  `cwd_matches?`; bin/tart reads `.id`.
+- `Shapes::ContextMessage` — `role`
+  (`Types::Constructor(Strict::Symbol) { _1.to_sym }`), `content`
+  (nil→`""` String constructor) — the projection OUTPUT. The three
+  projection functions (`entry_to_context_message`,
+  `bash_execution_context_message`, `compaction_summary_message`)
+  consume the envelope wraps and return `Shapes::ContextMessage` (the
+  bash record's per-field `is_a?` guards stay verbatim inside the
+  projection — its field reads go through the envelope's `message`
+  hash, unchanged tolerance table); `context_messages` applies `.to_h`
+  at the gem seam (output shape unchanged — Grounds §6, unit-pinned).
+  `message_entry_with_role?` and `preview` ride the MessageEntry wrap;
+  `context_entries`' compaction scan rides the CompactionEntry wrap
+  (kept-entry matching semantics unchanged); chat.rb's `resume_session`
+  block reads the wraps (assistant-text filter + compaction count).
+- The Recorder write path, the three entry factories, and
+  `Recorder#context_entries`' deep-copy stay Hash literals (Grounds
+  §6) — the JSONL bytes are the frozen surface, byte-pinned by the
+  Grounds §4 goldens.
+
+## Dependency changes
+
+`tart.gemspec` gains `spec.add_dependency "dry-struct", "~> 1.8"` and
+`spec.add_dependency "dry-types", "~> 1.9"` (production deps — lib
+requires them at boot; dry-types is declared directly because shapes
+files require it, even though I43's tree already carries it
+transitively). No other gemspec change; `Gemfile.lock` regenerates and
+is committed. No path/git vendoring; no `required_ruby_version` change.
+
+## New unit pins (test/shapes_test.rb + the re-pinned sites)
+
+- **Construction + coercion failures** (the letter's pin set): every
+  struct constructs from its feeding input (Model from a catalog-hash
+  fixture, Provider with nested models, ModelRef, ThinkingFacts,
+  ResolvedSettings from a merged-hash fixture per precedence row,
+  ContextMessage role/content coercions, envelopes from JSON-string-keyed
+  lines); wrong-typed input raises `Dry::Struct::Error` (Model id:5,
+  reasoning:"true"; envelope type:"usage"; header id:nil); the
+  `.of(raw)` tolerance table (nil outcomes for every malformed class
+  today's guards skip — the null-content, role-less, non-Hash,
+  wrong-type rows).
+- **`Shapes::Model#to_h` byte-shape pin**: key order + values == the
+  Grounds §3 merged-hash shape, including `thinking_level_map`
+  symbolization and the provider-last order.
+- **Catalog equivalence**: `Models.load` on the models_test CATALOG
+  fixture yields `model_entries.map(&:to_h)` == today's entry hashes
+  (line-for-line); `Config#resolve`'s match table re-pinned through
+  attribute reads; `resolve_boot_model` → ModelRef `.to_h` rows (env /
+  catalog-default / settings tiers, both identity namespaces).
+- **ResolvedSettings outcome table**: per key, env-only / file-only /
+  default-only / env+file / all / none (the I43 precedence matrix's
+  keys), asserting each attribute equals today's `resolve_setting`
+  output for the same fixture — including the malformed flows-through
+  rows (`"contextWindow": "abc"` lands verbatim in the nominal
+  attributes; no raise, no filter).
+- **Typed-constant pins**: the three tables' contents compared
+  key-for-key with today's literals; `DEFAULT_THINKING_LEVEL ==
+  Settings::DEFAULTS.fetch("thinkingLevel")`; a doctored bad literal
+  raises `Dry::Types::MapError` (a load-time check demonstrated in-test
+  via `Types[...]` application on a bad literal).
+- **Session projection pins** (additive in session_test): the wrap
+  tolerance rows; `context_messages` output == today's Hash shape (the
+  :107/:160 pins stay green untouched); the read_header struct's
+  fields.
+
+## Tool guidance (verify against live deps before writing code)
+
+- Read the installed versions' sources first: reference clones at
+  `~/architect/src/github.com/dry-rb/{dry-struct,dry-types}` (1.8.1 /
+  1.9.1). Probed idioms that work on this exact stack (Grounds §3):
+  `attribute`/`attribute?`; `transform_keys(&:to_sym)`;
+  `Types::Strict::…`; `.optional`; sum types inside `Hash.map`;
+  `Types::Constructor(type) { … }`; `Strict::Array.of(Model)`; the
+  `rescue Dry::Struct::Error → nil` wrap idiom; `Types[...]`
+  application on literals (MapError on mismatch, apply-then-freeze).
+  Do NOT invent: `Dry.Struct` old macros, `schema.strict` input
+  processors, per-call type redefinition.
+- Verification (exact, per repo): `bundle install --quiet && bundle
+  exec rake` (suite), `bundle exec ruby bench/seam_bench.rb`
+  (SEAM_BENCH_OK), `gems/tui-split-rig/bin/tui-split-rig run
+  gems/tui-split-rig/scenarios/<s>.yml --out tmp/<canonical-short-dir>`
+  for s1–s10 + the two `--gate` probes (cold; s1_tart exits 1 by
+  design). The byte gates below are the freeze-time literals — if one
+  fails, a byte moved: STOP and report, never adjust the literal.
+- Comment phrasing: the no-aliasing gates grep source text — phrase
+  comments to avoid the literal patterns (write "the boot ref", never
+  `boot[`).
+
+## Boundaries
+
+**May touch** (the ```lanes block is the frozen source of truth):
+`tart.gemspec`, `Gemfile.lock`, `lib/tart.rb`, `lib/tart/shapes.rb`,
+`lib/tart/shapes/{types,model,settings,session}.rb` (new),
+`lib/tart/models.rb`, `lib/tart/settings.rb`, `lib/tart/agent/session.rb`,
+`lib/tart/render/chat.rb`, `lib/tart/render/model_menu.rb`, `bin/tart`,
+`test/shapes_test.rb` (new), `test/{models,schemas,settings,session,
+chat}_test.rb` (the Grounds §5 enumerated re-pins + additive pins only).
+
+**Must not touch**: everything else, in particular — `lib/tart/schemas*
+` (ENTRY 1's family, inherited verbatim), `lib/tart/tools/**`,
+`lib/tart/mcp/**`, `lib/tart/agent/{loop,bridge,status,context_files,
+system_prompt}.rb`, `lib/tart/print.rb`, `lib/tart/compaction.rb`,
+`lib/tart/commands.rb` (pass-through consumer — zero reads to migrate),
+`lib/tart/identity.rb`, `lib/tart/skills.rb`, `lib/tart/prompts.rb`,
+`lib/tart/theme.rb`, `lib/tart/tui.rb`, `lib/tart/core/**`,
+`lib/tart/render/**` except `chat.rb`+`model_menu.rb`, `bench/**`,
+`gems/tui-split-rig/**`; the frozen test files (`golden_parity_test.rb`,
+`e2e_session_test.rb`, `launcher_smoke_test.rb`, `agent_loop_test.rb`,
+`loop_test.rb`, `print_test.rb`, `tools_test.rb`, `bash_tool_test.rb`,
+`mcp_test.rb`, `commands_test.rb`, `skills_test.rb`, `identity_test.rb`,
+`theme_test.rb`, `tui_test.rb`, `markdown_test.rb`, `prompts_test.rb`,
+`system_prompt_test.rb`, `compaction_test.rb`,
+`kernel_carryin_test.rb`), `test/render/**`, `test/support/**`,
+`test/fixtures/**`.
+
+**Out of scope** (itemized, not lost): the gem seam (add_message Hash |
+Message boundary — Grounds OQ-1); the Recorder write path + entry
+factories (byte-frozen); footer_data (render facts); Compaction::
+Settings + the loop's compaction seam; Agent::Loop/MCP-client
+dry-monads (ENTRY 3); the settings helpers' internal hash domain;
+pi Value.Convert tool-arg coercion and the bash >2147483.647s tier
+(I43 residuals); `Models::Schemas` behavior; any new validation, any
+new diagnostics, any settings value filtering.
+
+## Lane plan
+
+ONE lane (single-writer — Model and Settings consumers share chat.rb/
+bin/tart; parallel lanes would collide on the same files):
+
+- **shapes** — target `repos/tart`, the full touch set above, the whole
+  objective. Effort: HIGH at dispatch (3 deliverable families, ~13
+  consumer files, deps, the byte-pin discipline).
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision dry-rb-shapes`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: shapes
+  repo: tart
+  touch:
+    - tart.gemspec
+    - Gemfile.lock
+    - lib/tart.rb
+    - lib/tart/shapes.rb
+    - lib/tart/shapes/types.rb
+    - lib/tart/shapes/model.rb
+    - lib/tart/shapes/settings.rb
+    - lib/tart/shapes/session.rb
+    - lib/tart/models.rb
+    - lib/tart/settings.rb
+    - lib/tart/agent/session.rb
+    - lib/tart/render/chat.rb
+    - lib/tart/render/model_menu.rb
+    - bin/tart
+    - test/shapes_test.rb
+    - test/models_test.rb
+    - test/schemas_test.rb
+    - test/settings_test.rb
+    - test/session_test.rb
+    - test/chat_test.rb
 ```
 
 ## Acceptance Criteria
