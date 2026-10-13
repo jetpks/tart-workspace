@@ -1548,7 +1548,18 @@ project:
   - name: editor-undo
     ordinal: 39
     file: architecture/I39-editor-undo.md
-    freeze_sha:
+    freeze_sha: 02bea34c4e1d99f53154e36252f9b31437fee645
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/render/undo_stack.rb
+      - lib/tart/render/editor.rb
+      - lib/tart/render/chat.rb
+      - test/chat_test.rb
+      - test/render/**
+    rehearsal:
+      gates_digest: 19bda973f34a0cb485a78936289b118c8ab56b8b549f1e2c4862f766c78cf687
+      at: '2026-10-12T19:16:09-06:00'
   integration_branch: project/pi-port
