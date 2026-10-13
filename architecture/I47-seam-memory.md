@@ -486,6 +486,31 @@ happens on the loop fiber and worker threads).
   vocabulary comment at loop.rb:27-33 is corrected to include
   `:compaction_start` (the Grounds §2 count correction).
 
+## 1.5 The driven surface (exact names — the gates and the suite drive these)
+
+- `Tart::Hooks.new(on_event: nil)` — `#on(channel, &h)` (returns unsubscribe
+  Proc), `#emit(event, context:)`, `#on_tool_call(&h)`,
+  `#send_next_turn(custom_type:, content:, display: false)`,
+  `#register_tool(tool)`, `#register_command(name, description:,
+  args: false, &h)`, `#registered_tools`, `#registered_commands`,
+  `#tool_call_handlers?` (Registry's wrap predicate), `#batch_terminate?
+  (ids)`, `#pending_next_turn` (the drain source, loop-internal).
+- `Tart::Tools::Registry.build(…, hooks: nil)` — the kwarg threads the
+  gate; `hooks.tool_call_handlers?` false (or hooks nil) = unwrapped.
+- `Tart::Memory` — `Memory.register(hooks:, identity: Identity::DEFAULT)`
+  (bin/tart calls it only when the resolved settings gate is on), the
+  store `Tart::Memory::Store.new(home:, cwd:)` with `#recall_content`
+  (nil when no index), and `Tart::Tools::Memory.new(cwd:, home: nil)` (the
+  tool; `home` nil = the resolved default — `<IDENTITY>_MEMORY_HOME` env
+  else `~/.tart/memory`).
+- `Tart::Herdr` — `Herdr.register(hooks:, env: ENV)` (context comes from
+  each emission) and `Tart::Herdr::Reporter.new(socket_path:, timeouts:
+  [500, 1500])` with `#report_session(session_ref, pane_id:, reason: nil)`
+  and `#report_state(state, message: nil, session_ref: nil, pane_id:)`
+  (both non-blocking; the coalescing lives here), plus the predicate
+  `Herdr.enabled?(env)`. The wire constants (`SOURCE = "herdr:pi"`,
+  `AGENT = "pi"`) are frozen literals.
+
 ## 2. Session plumbing (`lib/tart/agent/session.rb`)
 
 - `Recorder#append_custom_message(custom_type:, content:, display:)` — the
