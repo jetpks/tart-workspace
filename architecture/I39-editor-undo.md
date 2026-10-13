@@ -367,11 +367,140 @@ Self-run before reporting (same commands the architect will gate on): suite, ben
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I39-editor-undo-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence editor-undo --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# I39 editor-undo — lane `core` report (raw evidence)
+
+Base: `project/pi-port` @ **ad2bad28** (worktree clean at start; `git log -1` = `ad2bad2 Merge lane/I38-user-bash-streaming-core`). pi oracle: `repos/pi` @ f1b2e77f5 (packages/tui 1.1.0). All work uncommitted in the lane worktree (no git writes performed).
+
+## PHASE 0 — premises verified, disagreements
+
+Every Grounds premise checked against live sources before coding:
+
+- **pi undo-stack.ts** (whole file, 39 l): `UndoStack<S>` — `push` deep-clones via `structuredClone`, `pop` returns detached, `clear`, `length`; no cap, no redo. Matches spec exactly.
+- **Push inventory** (grep `pushUndoSnapshot` in `packages/tui/src/components/editor.ts`): 23 call sites + the definition (:2116). Every spec table row verified by reading the site: coalescing (:1209-1213: `isWhitespaceChar(char) || lastAction !== "type-word"` → push, then `lastAction = "type-word"`), autocomplete applies (:772 tab, :793 enter-confirm, :2244 click, :2395 force — each push + `lastAction = null`), insertTextAtCursor (:1137), setText push-if-differs (:1120-1124), handlePaste (:1265, before the filters), addNewLine (:1333), backspace (:1385/:1430), deleteToStartOfLine (:1631/:1642), deleteToEndOfLine (:1666/:1676), deleteWordBackwards (:1700/:1713), deleteWordForward (:1745/:1756), forwardDelete (:1786/:1800), yank (:2001), yankPop (:2017), navigateHistory (:465, inside `historyIndex === -1 && newIndex >= 0`, before the `historyDraft` clone).
+- **TWO clear semantics**: `setText("")` (:1116-1128) pushes iff `getText() !== normalized` → escape (interactive-mode.ts) and ctrl+c (`handleCtrlC` → `clearEditor` → `setText("")`) clears are UNDOABLE; `submitValue` (:1364-1381) calls `undoStack.clear()` at **:1373** — the only clear site in the file. Verified.
+- **undo()** (:2120-2134): `exitHistoryBrowsing()` FIRST → pop → nil-check → `Object.assign(this.state, snapshot.state)` (direct, no setCursorCol) → pastes/pasteCounter restore → `lastAction = null` → `preferredVisualCol = null` → onChange. `scrollOffset`/`snappedFromCursorCol` untouched. Verified.
+- **Undo routing** (:751-755): the `tui.editor.undo` match sits BEFORE the autocomplete-mode block (and after the ctrl+c passthrough). Verified.
+- **keybindings.ts:142**: `\"tui.editor.undo\": { defaultKeys: \"ctrl+-\", description: \"Undo\" }`. Verified.
+- **pi kill-ring interaction**: `yank`/`yankPop` push snapshots; `undo` nils `lastAction`; the ring is not in `EditorSnapshot`. Verified.
+- **Gem contract**: `RatatuiRuby::Event::Key` single-char code `\"-\"` + `modifiers: [\"ctrl\"]` (`lib/tart/tui.rb:289-291` `TUI.key_event`); the live ctrl+u/k/y chat arms use the same event class.
+- **Port state at base**: editor.rb 952 l, no `pastes`/`pasteCounter` anywhere; `chat.rb` had no `\"-\"` case; `clear` callers = escape bash-mode, ctrl+c, submit. Verified.
+- **s10**: `gems/tui-split-rig/scenarios/s10_editor_wrap.yml` exists (I35). Verified.
+- **Base suite control (run this session)**: `bundle exec rake` → **726 runs, 2989 assertions, 0 failures, 0 errors, 1 skips** — matches Grounds 7 exactly.
+
+### Disagreements / deviations (all resolved in favor of the spec; recorded per the PHASE 0 rule)
+
+1. **Line-cite drift in Grounds 1/2/3** — the spec's pi cites are up to ~7 lines off the current checkout (e.g. spec `deleteToStartOfLine :1634/:1650`, actual push sites :1631/:1642; spec `handleForwardDelete :1790/:1808`, actual :1786/:1800; spec chat.rb `submit ... clear at :932`, actual `@editor.clear` at :938 in the live file). The CONTENT of every citation is correct; only the numbers drifted (likely a marginally different pi checkout). Resolved in favor of the spec: semantics are what the spec freezes, and they all verified.
+2. **D2 push-then-clear costs one discarded deep copy per submit** (`clear` pushes the pre-submit snapshot, `clear_undo_stack` immediately drops it). Observably identical to pi's `submitValue` (empty editor, empty stack; no observer between the two same-task ops). Negligible cost (one small Array-of-String copy). Spec's frozen shape kept; OQ-1 already records the alternative.
+3. **pi's `insertCharacter(char, skipUndoCoalescing?)` parameter is dead at pi 1.1.0** — no caller passes `true` (all three sites :982/:988/:994 pass one arg). The port has no skip path, so nothing to port. No conflict.
+4. **The port's `insert(text)` accepts multi-char strings from test setups** (e.g. `kill_ring_test.rb` `editor_with_text`); pi's `insertCharacter` is single-char. The spec's letter (`push iff text contains whitespace OR @last_action != :type_word`) handles multi-char sanely and keeps every existing test green. No conflict.
+5. **Implementation discovery (not a disagreement)**: Ruby `keyword_init: true` Structs reject positional `new` (`Struct.new(:a, keyword_init: true).new(1)` raises ArgumentError on this Ruby), so `UndoStack.deep_copy`'s Struct branch builds member-wise (`class.new.tap { |c| members.each { |m| c[m] = deep_copy(v[m]) } }`) — works for every Struct shape; pinned by tests.
+6. **s1 gate ambiguity (two s1 scenario files)**: the rig has `s1_text_turn.yml` AND `s1_tart.yml` (I16 identity-staging instrument). I ran BOTH (11 gates total, strictly stronger than the s1–s10 letter). Finding: `s1_tart` exits **1** (unknown-candidate lines) **at base too** — see the gates section; it is a by-design work-list instrument (the frozen `registry.yml` header: \"There are NO sanctioned MOTD/logo/version/glyph classes\"), so the exit-0 s1 gate maps to `s1_text_turn`. No plan conflict (my run set subsumes both readings).
+
+## Changed files (AC5 scope)
+
+| file | status | wc |
+|---|---|---|
+| `lib/tart/render/undo_stack.rb` | NEW | 55 |
+| `lib/tart/render/editor.rb` | modified | 952 → 1032 (+86/−3 per diffstat incl. comments) |
+| `lib/tart/render/chat.rb` | modified | 1925 → 1932 (+6: the `when \"-\"` arm + comment; +1: submit `clear_undo_stack`) |
+| `test/chat_test.rb` | additive only | 5064 → 5113 (+49; 5 new binding tests) |
+| `test/render/undo_stack_test.rb` | NEW | 81 (6 tests) |
+| `test/render/editor_undo_test.rb` | NEW | 318 (26 tests) |
+
+`git status --short` (base ad2bad28 → worktree): exactly the six files above; nothing else. `git diff ad2bad28 -- lib/tart/render/kill_ring.rb gems/tui-split-rig lib/tart/render/transcript.rb bin/tart bench README.md` → **empty** (kill ring and the whole rig byte-identical; no golden, no registry, no scenario touched).
+
+## The push-inventory table (port op → pi cite → push site, as implemented)
+
+| port op (editor.rb) | pi cite (editor.ts) | push site as implemented |
+|---|---|---|
+| `insert` | insertCharacter :1209-1213 | after `exit_history_browsing`, before the splice: `push_undo_snapshot if text.match?(WHITESPACE) \|\| @last_action != :type_word`; `@last_action = :type_word` kept as today |
+| `insert_paste` | handlePaste :1265 | after `@last_action = nil`, before the filter — unconditional |
+| `add_new_line` | :1333 | after `@last_action = nil`, before the split |
+| `delete_backward` | :1385 / :1430 | inside each mutating branch |
+| `delete_forward` | :1786 / :1800 | inside each mutating branch |
+| `delete_to_line_start` | :1631 / :1642 | branch tops, BEFORE the kill-ring push (incl. before `kill_newline_merge_previous`) |
+| `delete_to_line_end` | :1666 / :1676 | branch tops, BEFORE the ring push |
+| `yank` | :2001 | right after the empty-ring guard, before any mutation |
+| `yank_pop` | :2017 | right after the `last_action == :yank && length > 1` guard |
+| `delete_word_backward` | :1700 / :1713 | col-0 arm inside the positive-line guard; main arm before the ring push |
+| `delete_word_forward` | :1745 / :1756 | end-of-line arm inside the next-line guard; main arm before the ring push |
+| `replace_token` | applyCompletion :772/:793/:2244/:2395 | at the top before the write; `@last_action = nil` kept |
+| `clear` | setText :1120-1124 | `push_undo_snapshot unless input.empty?` first, then today's reset verbatim |
+| `navigate_history` | :465 | inside `@history_index == -1 && new_index >= 0`, BEFORE the draft capture |
+| `undo` (new public) | :2120-2134 | `exit_history_browsing`; pop; nil → return; direct assigns (no `set_cursor_col`); `@last_action = nil`; `@preferred_visual_col = nil`; `@scroll_offset`/`@last_width` untouched |
+| `clear_undo_stack` (new public) | submitValue :1373 | `@undo_stack.clear` |
+| `push_undo_snapshot` (new private) | :2116-2119 | `Snapshot.new(lines: @lines, cursor_line: @cursor_line, cursor_col: @cursor_col)` — live refs; the stack's push deep-copies |
+
+## Chat wiring (Deliver 4)
+
+- `when \"-\"` arm immediately after the u/k/y kill/yank family: `ctrl ? @editor.undo : @editor.insert_printable(event)` — fires regardless of `@autocomplete.suggestions` (pi's undo match precedes the autocomplete block, editor.ts:751-755); the trailing `@autocomplete.update(@editor) if printable` stays off ctrl+- (printable is false under ctrl). Bare `-` falls through to `insert_printable`; alt+- hits the modifier-guard no-op.
+- `submit`: `@editor.clear_undo_stack` immediately after `@editor.clear` (pi submitValue :1373).
+
+## Suite counts (before / after)
+
+- Before (base control, this session): **726 runs, 2989 assertions, 0 failures, 0 errors, 1 skips**
+- After (full `bundle exec rake`): **763 runs, 3092 assertions, 0 failures, 0 errors, 1 skips**
+- Delta: +37 runs / +103 assertions = exactly the new tests (6 undo_stack + 26 editor_undo + 5 chat binding). The 1 pre-existing skip unchanged.
+
+## New-test run tails (verbatim)
+
+```
+$ bundle exec ruby test/render/undo_stack_test.rb
+6 runs, 24 assertions, 0 failures, 0 errors, 0 skips
+
+$ bundle exec ruby test/render/editor_undo_test.rb
+26 runs, 71 assertions, 0 failures, 0 errors, 0 skips
+
+$ bundle exec ruby test/chat_test.rb
+227 runs, 1003 assertions, 0 failures, 0 errors, 0 skips
+
+$ bundle exec ruby test/render/kill_ring_test.rb
+15 runs, 36 assertions, 0 failures, 0 errors, 0 skips
+```
+
+## Parity gates (SHORT out-dirs `tmp/i39-<scenario>`; rig exit semantics: 0 = all diffs sanctioned, 1 = unknown-candidate lines exist, 2 = rig failure)
+
+| gate | exit (my tree) | exit (base control) |
+|---|---|---|
+| s1_text_turn | 0 | — |
+| s1_tart | 1 (10x unknown-candidate: the staged tart-vs-pi identity rows — MOTD/logo/version/help — plus footer/path classes; editor-region bytes identical in the diff) | **1** (pristine `git archive ad2bad28` export run in /tmp: 20x unknown-candidate, same semantics) |
+| s2_tool_turn | 0 | — |
+| s3_tool_turn_files | 0 | — |
+| s4_bash_variants | 0 | — |
+| s5_bash_truncation | 0 | — |
+| s6_long_calls | 0 | — |
+| s7_compaction | 0 | — |
+| s8_zero_usage_compaction | 0 | — |
+| s9_startup_help | 0 | — |
+| s10_editor_wrap | 0 (the editor's own settled-screen instrument) | — |
+
+s1_tart's exit-1 is pre-existing and by-design (the frozen registry deliberately sanctions no identity classes; its candidate list IS the work list). The exit-0 \"s1\" gate is s1_text_turn. All ten spec'd gate stems green in my tree; the editor area shows zero new difference lines anywhere.
+
+## Bench
+
+`bundle exec ruby bench/seam_bench.rb` → tail: `\"animation_window_s\": 3.0, ... }` + **`SEAM_BENCH_OK`**.
+
+## Test-coverage map (AC2/AC3 letters → tests)
+
+- AC2a empty-stack no-op: `test_undo_on_an_empty_stack_is_a_no_op`, `test_undo_past_the_first_snapshot_is_a_no_op`
+- AC2b coalescing: `test_consecutive_word_chars_coalesce_into_one_undo_unit` (\"hello world\"→\"hello\"→\"\"), `test_spaces_undo_one_at_a_time`, `test_newlines_undo_and_the_next_word_is_its_own_unit`
+- AC2c every op undoable, text+cursor: backspace (incl. line-merge), forward delete, word backward/forward, to-line-start/end (incl. newline-merge; pi's post-undo mid-line `\"hello |world\"` pin), yank, yank_pop, single- AND multi-line paste atomic (cursor pinned `[0, 5]` + post-undo `\"hello| world\"`), multi-line wrapped-row cursor restore `[1,0]`/`[0,48]`
+- AC2d history push: `test_entering_history_browsing_pushes_so_undo_restores_the_draft`
+- AC2e kill-ring interactions: `test_undo_never_touches_the_ring` (kill→yank→undo→yank), `test_undo_breaks_the_kill_accumulate_window`, `test_undo_breaks_the_yank_pop_window`
+- AC2f clone-on-push: `UndoStackTest#test_push_deep_copies_so_later_source_mutations_are_invisible`, `test_deep_copy_covers_nested_arrays_hashes_strings_and_structs`, `test_pop_returns_a_detached_snapshot`
+- AC3a clear undoable / no-op on empty: `test_clear_is_undoable` (text + cursor `[0,5]`), `test_clear_on_an_empty_buffer_pushes_nothing`
+- AC3b submit clears: `test_submit_clears_the_stack` (direct) + `chat_test.rb#test_submit_clears_the_undo_stack` (through `on_event`)
+- AC4 bindings: `test_ctrl_minus_undoes_the_last_edit_through_the_key_surface`, `test_bare_minus_still_types`, `test_alt_minus_stays_a_no_op`, `test_ctrl_minus_with_the_list_open_leaves_the_list_open` (pin via `chat.suggestions` — clean, not fragile: a re-filter would dismiss the list once undo empties the token)
+
+## Residual notes
+
+- The live ctrl+- keypress path (kitty CSI-u → crossterm → gem) remains reasoned-from-the-ctrl-letter-class, unit-pinned only (Grounds 3's residual; OQ-3 precedent) — unchanged by this lane.
+- Grounds 5's pre-existing divergences (ctrl+c-with-list-open, the chat.rb:811 comment blemish) untouched, per scope.
+- `chat.rb` `when \"-\"` arm: ctrl+alt+- routes to undo (the house `ctrl = modifiers.include?(\"ctrl\")` idiom shared by every arm) — same idiom class as ctrl+u/k/y at base.
+
+STATUS: COMPLETE
 
 ## Verdict
 
