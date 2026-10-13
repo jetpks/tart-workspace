@@ -1772,12 +1772,13 @@ project:
       - test/mcp_test.rb
       - test/support/mcp_echo_server.rb
       base_sha: 4c2e6a9af266d18b113f17aa85a7708e6a6c29f4
-      worktree: build/I45-dry-rb-flow-flow/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 7ba74a3d6a54e0277222f78b40fbf6a1ff8c5f81
     rehearsal:
       gates_digest: 895a31ef86861d2a8678a1ce195715ce1dcddcb1b2f5c8c6d83495363742896b
       at: '2026-10-13T07:37:48-06:00'
