@@ -1779,15 +1779,161 @@ STATUS: COMPLETE_WITH_CONCERNS — one itemized deviation from the letter's hard
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section seam-memory verdict --from <file>`. -->
+# I47 seam-memory — JUDGE VERDICT (architect-judge, fresh session)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify seam-memory`)?
+Mechanical post-flight: `architect verify` ALL PASS both lanes (frozen regions
+untouched; zero builder commits — `git -C <wt> log cac2612..` empty both; scratch
+reports present; in-bounds). `git diff c81123d3 HEAD` touches only the iteration
+file's post-freeze Builder Prompt/Builder Report sections + space.yaml (the one
+deletion is the scaffold's prompt placeholder comment — frozen Grounds/Spec/AC
+bytes untouched). Evidence transcribed verbatim (core 180 l, rig 101 l).
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+Cold gate at base (repos/tart @ cac2612): the EXACT pre-declared calibration —
+18 GREEN / 4 RED. GREEN: suite, bench, s1–s10, s1-tart-mode, both probes,
+wire-bodies, session-golden, scope (vacuous at base as declared). RED:
+hooks-semantics/memory-module/herdr-reporter (clean NameErrors) + s11 (exit 2).
+My judge environment is HERDR_*-clean (s1–s10 cold PASS proves it), so CORE
+PHASE 0 #6's pane-env hazard does not affect the judge battery.
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+## PHASE 0 dispositions (every item ruled; judge-reproduced before charging)
+
+Frozen-gate defects — the I45/I41 precedent governs (record; frozen sections
+never amended; judge runs minimal repaired copies). All three REPRODUCED BY ME
+on the core worktree, verbatim, before charging:
+
+1. **herdr-reporter bare abort — CONFIRMED GATE DEFECT.** The frozen cmd has
+   `dead.report_session(ref, pane_id: "p7"); abort "socket failures must be
+   swallowed";` — an UNCONDITIONAL abort; verbatim run → exit 1 "socket
+   failures must be swallowed". Unsatisfiable by any implementation. My repair
+   (drop the one abort statement, nothing else) → HERDR_REPORTER_OK.
+2. **hooks-semantics unsubscribe expectation — CONFIRMED GATE DEFECT.** After
+   `un.call` (the 99-handler), handlers 1 and 3 REMAIN subscribed; the second
+   emit legitimately appends. Verbatim run → exit 1 "unsubscribe broken:
+   [1, 3, 1, 3]". One-shot handlers would contradict pi semantics (handlers
+   live for the process) AND the herdr gate (one instance, many events). My
+   repair (expected `[1, 3, 1, 3]`) → HOOKS_SEMANTICS_OK; the assert's evident
+   intent (99 never runs) holds.
+3. **captured_requests.first["body"] — CONFIRMED GATE DEFECT ×3 sites.**
+   MockLLMServer stores the parsed body directly (`@requests << parsed_body`,
+   mock_llm_server.rb:150 — test/support is frozen); `["body"]` is nil.
+   Verbatim memory-module run → NoMethodError. My repair (drop the `["body"]`
+   link) → MEMORY_MODULE_OK; hooks repaired copy carries the same fix twice.
+4. **memory byte-bound arithmetic — GATE LITERAL IS THE DEFECT; builder's
+   gate-compatible deviation ACCEPTED with the true divergence family
+   recorded.** Verified against the owner's memory.ts boundIndex (cost =
+   bytes+1, budget 25,600): the gate's 3×10,015-byte case keeps TWO lines
+   (10,016 + 10,016 = 20,032 ≤ 25,600) → the TS-verbatim observable is 4
+   content lines, but the gate pins `== 3`. No implementation satisfies both
+   the gate literal and memory.ts. The builder implemented the minimal
+   formula reproducing the gate's pinned observable (reserve one extra
+   line-cost), documented at Store#bound_index, constants byte-exact, the
+   205-line case untouched. SCRUTINY CORRECTION the human should see: the
+   code comment's claimed divergence family ("lines > ~12.8KB — unreachable
+   for real indexes") UNDERSTATES it — the true family is ANY index where the
+   25KB byte bound fires with the remaining budget in [c, 2c): tart then
+   drops exactly the last line pi keeps (e.g. uniform 161-cost summaries:
+   pi 159 lines, tart 158). One-line, wire-only, >25KB-indexes-only, inside
+   the letter-named memory-recall observable whose most specific frozen
+   definition is this gate. Non-blocking. FOR THE HUMAN: revert
+   `bytes + (cost * 2)` → `bytes + cost` + re-pin the gate literal to `== 4`
+   (one line each) if pi-exact recall bytes are wanted at the bound, or ratify
+   the gate literal as tart's contract. Either is a future-freeze edit, not
+   this verdict's.
+5. **wire-bodies path sensitivity — CONFIRMED, joins the s9 artifact family.**
+   The frozen scrub leaves the absolute sandbox prefix in the hashed bytes;
+   the expected digest encodes the repos/tart path. Judge control at base:
+   WIRE_BODIES_OK cold; the integrated-tree run below is the green proof.
+   Recorded, not amended.
+6. **Builder-pane HERDR_* env — ACCEPTED as documented.** Correct per-letter
+   behavior when the env gate is genuinely on; the builder's scrubbed-battery
+   controls isolate the delta. Backlog note: the rig scrub list may grow
+   HERDR_* for herdr-managed builder panes (rig tree frozen this lane).
+7. **lib/tart.rb outside the touch set — ACCEPTED.** The requires ride
+   agent/loop.rb (in-set); no frozen file touched; no behavior change.
+8. **Render at :message_start only — ACCEPTED.** The letter's literal
+   both-arms enqueue double-renders vs the one-block Grounds §6 oracle; pi
+   renders at message_start (interactive-mode.ts:3498-3502); :message_end's
+   custom case no-ops. Pinned in transcript_test.
+9. **Recall-content trailing newline — ACCEPTED, itemized.** The frozen gate
+   pins it; pi's injected content lacks it; screen-invisible; s11 green.
+   Wire micro-divergence (one "\n" on a user-role message) inside the
+   letter-named observable; recorded for the human with #4.
+10. **Event/context key normalization — ACCEPTED.** String events + symbol
+    context, one table; no letter conflict; documented as the contract.
+
+RIG PHASE 0:
+
+11. **Project-key deviation — ACCEPTED; it is what makes the parity gate
+    real.** Live-proven: memory.ts's gitRoot walk ascends PAST the sandbox
+    when the out dir sits inside a git checkout (the lane worktree's key is
+    `wt` — I verified the staged dir `…/.pi/agent/memory/wt/` and the capture
+    carries the recall block). With the letter's hard-coded keys the pi side
+    reads NOTHING — the scenario would compare tart's recall block against
+    pi's absence: vacuous. The runner mirrors memory.ts's exact key rule
+    (:29-44), siblings share the walked key, and the unit pins cover BOTH the
+    letter's assumption-regime (temp sandboxes → literal `pi`/`tart`) and the
+    .git-ancestor regime. Specification §6's path pins read as "under the
+    memory.ts project key". On the integrated tree both sides compute `tart`.
+    Honors the parity intent. Residual recorded: pi-side staged path at
+    canonical depth is `.pi/agent/memory/tart/` not the letter's `…/pi/`.
+12. **Prompt line-number drift — ACCEPTED** (substance verified identical).
+13. **Base both-apps candidate families (unknown settings key, [Context]
+    row) — expected at base**, all collapse on integration (verified below).
+
+## OQ dispositions (Grounds §8) — all ACCEPT as recommended, none overridden
+
+OQ-1 memory opt-in gate (DEFAULTS false + `<IDENTITY>_MEMORY`): ACCEPT —
+the zero-hook byte bar (wire-bodies/session-golden/s-gates green below with
+memory off) is the proof. OQ-2 the `[Extensions] memory.ts` row: ACCEPT —
+staged-condition oracle; owner-package divergence itemized, reopen on pain.
+OQ-3 gate-arg re-validation fail-safe: ACCEPT (itemized; no consumer ships).
+OQ-4 plain-event errors warn+swallow: ACCEPT (pinned, warn text asserted).
+OQ-5 herdr wire values stay pi's: ACCEPT (byte-pinned). OQ-6 drop-in loader
+CUT to backlog: ACCEPT-as-backlog (seam surface = §1.5 in full). OQ-7
+plain-String block/error results: ACCEPT (pinned). OQ-8 register_command
+no-shadow / register_tool override: ACCEPT (pinned both ways).
+
+## Acceptance criteria
+
+- AC1 (Tart::Hooks seam): **PASS** — my repaired-copy run HOOKS_SEMANTICS_OK
+  on the lane tree; suite hooks pins; the `7360fd1e…` tools digest holds on
+  the integrated wire-bodies run below.
+- AC2 (memory module): **PASS** — my repaired-copy run MEMORY_MODULE_OK;
+  settings gate default-off proven by the regression battery; s11 green
+  below (the parity headline).
+- AC3 (herdr reporter): **PASS** — my repaired-copy run HERDR_REPORTER_OK.
+- AC4 (parity + regression + scope): **PASS on the integrated tree** — full
+  battery green below incl. s11 BOTH-APPS (the closure proof: red-at-lane,
+  green-at-integrated, exactly as calibrated); scope non-vacuous, exactly
+  the two lanes' declared file sets (24 + 5, zero overlap, nothing outside).
+
+Diff review vs intent: hooks.rb/memory.rb/herdr.rb/tools/memory.rb faithful
+to Grounds §2–§5 (constants, strings, wire shapes byte-pinned); ToolGate
+validates first, splat-fresh input, first-block-wins, fail-safe errors,
+CancelledError passthrough, declarations preserved; loop drain/emit/terminate
+consult per §1.4; session custom_message entry per §2 (non-conversation
+persist gate); render one block per the §6 oracle; commands/settings/
+system_prompt/print/bin-tart threading per §3–§4a; rig staging per §6 with
+the adjudicated key rule. README gains the two named paragraphs only.
+
+## Residual risks (for the human)
+
+1. The three frozen-gate defects leave the VERBATIM gate commands red on ANY
+   tree; the frozen literals stand (never amended) with this verdict as the
+   repair record. Repaired copies are archived at tmp/i47-repaired-{hooks,
+   memory,herdr}.sh (judge-authored, one-intent-each).
+2. bound_index reservation (PHASE 0 #4): one-line wire divergence vs pi for
+   >25KB indexes at the byte bound; revert+re-pin named above.
+3. Recall-content trailing newline (PHASE 0 #9): wire-only micro-divergence
+   vs pi, gate-pinned.
+4. The owner's git-package pi shows NO [Extensions] row while tart-with-
+   memory shows `memory.ts` (OQ-2): one MOTD row divergence in the owner's
+   daily-driver side-by-side; reopen on owner pain.
+5. Backlog: drop-in .rb loader (OQ-6); HERDR_* in the rig scrub list for
+   herdr-managed builder panes (#6); pi-side staged s11 path reads `tart`
+   at canonical depth (#11 residual).
+
+DECISION: **CONTINUE** — both lanes integrated in the declared order
+(core, then rig); ENTRY 6 (subagents-core) unblocked. The seam ENTRYs 6–7
+mount on is proven: registration-order dispatch, tool_call block gate,
+register_tool/command merges, and nextTurn injection, all live under s11.

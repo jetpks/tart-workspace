@@ -1819,7 +1819,7 @@ project:
     ordinal: 47
     file: architecture/I47-seam-memory.md
     freeze_sha: c81123d3b8c6a3b7535d59fc9d05e2a0ed3ae801
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
@@ -1848,6 +1848,13 @@ project:
       - test/settings_test.rb
       - test/system_prompt_test.rb
       - test/render/transcript_test.rb
+      base_sha: cac2612be9e4214acf163bf8d2ec3f85d60a9e53
+      worktree: build/I47-seam-memory-core/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
     - name: rig
       repo: tart
       touch_set:
@@ -1856,6 +1863,13 @@ project:
       - gems/tui-split-rig/lib/tui_split_rig/runner.rb
       - gems/tui-split-rig/lib/tui_split_rig/scenario.rb
       - gems/tui-split-rig/test/scenario_test.rb
+      base_sha: cac2612be9e4214acf163bf8d2ec3f85d60a9e53
+      worktree: build/I47-seam-memory-rig/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: daf32ed2f99c668069efa9a0db5a33ceed59001d1e2fd4e6ca6218a687bb3795
       at: '2026-10-13T10:51:57-06:00'
