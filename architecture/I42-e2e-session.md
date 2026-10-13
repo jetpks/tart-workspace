@@ -1193,15 +1193,146 @@ STATUS: COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section e2e-session verdict --from <file>`. -->
+- **Re-freeze acceptance (8155fd3a → b3d39a12).** The frozen-region
+  delta is EXACTLY the ` ```lanes ` block insertion at the Specification's
+  tail (judge diffed 8155fd3a..b3d39a12 this session): single lane `core`,
+  touch list transcribed verbatim from the frozen Boundaries' "Touch
+  EXACTLY" list — same 7 files, same order, nothing else derived. The one
+  other hunk in that range is the Builder Prompt section append (commit
+  5cf536a, between the two freezes) — a post-freeze-appendable section by
+  the file's own header contract, not a frozen-region change. Gates
+  byte-unchanged; the re-freeze bookkeeping (0653988) touched space.yaml
+  only. Judge's cold gate run reproduces the carried rehearsal vector
+  exactly: 13 GREEN / 1 RED (e2e-session RED at base BY DESIGN — the file
+  does not exist at d1a4209; LoadError, not a behavior failure). Re-freeze
+  ACCEPTED (I06 precedent, properly scoped). Cosmetic annotation, left
+  untouched by instruction: the Builder Prompt's embedded provenance line
+  still reads "frozen at 8155fd3a" — the operative freeze is b3d39a12
+  (space.yaml), and the SPEC/AC content is byte-identical between the two;
+  no reader is misled about content, only about the sha.
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify e2e-session`)?
+- **Disagreement rulings** — the builder raised "none blocking" with two
+  PHASE 0 interpretation notes plus nine itemized deviations; every one
+  ruled, none silent (BRIEF §5.1 itemize-and-defend held):
+  1. **Per-leg fresh HOME vs cross-leg resume — ACCEPT.** The spec demands
+     both "a FRESH staged HOME per leg" and legs B/C/C2 resuming their
+     predecessor's session; a session file lives under its run's HOME, so
+     the two are reconcilable only inside one home. Re-running the full
+     predecessor chain as REAL subprocess runs (10 boots across 4 methods)
+     is the only reading where lineage, parentSession links, and
+     most-recent selection are the run's true products — never copied
+     fixtures — and it is what makes leg C2's byte-size comparison read
+     the same server's capture, as AC5 requires. BRIEF §7.7 beside
+     e2e_session_test.rb setup/teardown: the instrument drives the real
+     launcher, and it does.
+  2. **Space-root walk-up ≤ 2 levels over the literal "(strip `/.git`,
+     take the parent)" — ACCEPT.** Measured: the literal lands at
+     `<space>/repos`, which fails the spec's own validation markers (no
+     `repos/tart` child, no `space.yaml`) and would push EVERY layout onto
+     the checkout-root fallback — contradicting Grounds §3's own
+     description ("the space root resolves through `git rev-parse
+     --git-common-dir`"). The walk-up (checkout → parent → grandparent,
+     first validating) is the minimal faithful correction; TART_E2E_SPACE
+     override and the checkout-root fallback behave exactly as specified.
+     Judge-verified this session: the instrument resolved and PRINTED the
+     true space root from the lane worktree (a layout the literal rule
+     could never reach).
+  3. **repo_dir fallback for standalone clones — ACCEPT.** With root =
+     checkout root the literal `<root>/repos/tart/...` tool paths do not
+     exist; deriving `repo_dir` (root's `repos/tart` when present, else
+     root) keeps every assertion byte-identical either way, and every
+     space-rooted run uses exactly the spec's paths.
+  4. **print_mode ordering (resume resolution after the boot checks,
+     before recorder construction) — ACCEPT.** The spec's "FIRST" governs
+     the recorder dependency (resolution precedes the fork's birth; a
+     missing target aborts before any file is created), which the
+     implementation satisfies; placement mirrors the interactive path's
+     own session-prep position (bin/tart:246 pattern).
+  5. **--help "Sessions:" row left as "Interactive runs are recorded by
+     default" — ACCEPT, annotated.** Grounds §6 froze the usage text as
+     untouched ("loses nothing; the abort at :206 goes"); the builder
+     honored it. The row is now incomplete (print runs record too) but
+     not false; README.md carries the full truth. Post-freeze polish
+     candidate, non-blocking — noted for the owner, not a deviation
+     against the builder.
+  6. **`Session.load_entries(parent_session || "")` nil guard — ACCEPT.**
+     `load_entries` raises on a nil path; the guard keeps the fresh-run
+     (no parent) case inside the ONE allowed block. Judge re-read the
+     session.rb diff line-by-line: the copy block + its doc comment only,
+     zero other moves — the boundary held.
+  7. **Leg C additive assertion (B's prompt present in C's file) —
+     ACCEPT.** Beyond the spec's leg-C list but within its file-parse
+     scope; it is the two-hop self-containment proof (A→B→C), exactly the
+     defect Gap 3 described. Strengthening, not weakening.
+  8. **Leg C2 most-recent proof via the new file's parentSession == C's
+     path — ACCEPT.** After C2's own run lands, C is by construction no
+     longer the newest file; the resolve-time product (what `-r` with no
+     id picked) is the only sound witness, and it is what the AC's
+     "the most-recent session for the root is C's" asserts.
+  9. **`unsetenv_others: true` — ACCEPT.** The spec says the subprocess
+     env is "exactly {PATH, HOME, PI_API_KEY, PI_API_BASE,
+     TART_MCP_CONFIG}"; the launcher_smoke pattern (merge into parent
+     env) is looser than the letter. The instrument closes the env
+     strictly; judge confirmed hermeticity independently (owner's
+     `~/.tart/sessions`: 0 new files across this session's runs; 0
+     scratch leftovers under the space's tmp/).
+
+- **Open-question rulings (Grounds §5):**
+  - **OQ-1 — print-mode recording + print `--resume` IN-LANE: AFFIRMED.**
+    The plan letter names `--resume` on the print path explicitly, which
+    is precisely I41 OQ-3's reopener ("print recording reopens as its own
+    item only on owner demand") being invoked; nothing to resume without
+    a recording. Delivered: `Print.run` forwards all four seams verbatim
+    (AC2), bin/tart constructs the recorder always and resolves `--resume`
+    through the shared helper (AC3). BRIEF §7.4/§7.1 beside main.ts:447-448.
+  - **OQ-2 — fork entry copy in-lane: AFFIRMED.** pi's `forkFrom` copies
+    (session-manager.ts:1847-1853); the port's fork wrote header-only — a
+    latent incompleteness since I07 that this instrument surfaces. ~18
+    lines in `Recorder#initialize` + the one re-pin; a resumed file is now
+    self-contained (AC4, pinned by session_test AND leg C's two-hop
+    assertion).
+  - **OQ-3 — the port's fork resume model retained over pi's
+    append-in-place: AFFIRMED.** Standing I15 deviation, unchanged in
+    shape but now CONTENT-COMPLETE — with OQ-2's copy the fork satisfies
+    pi's own fork contract; pi's `--resume` (same file, append) remains
+    the itemized divergence it has been since I15.
+  - **OQ-4 — space-root fallback (checkout root) over strict abort:
+    AFFIRMED.** The gate must exit 0 cold on any fresh clone; "this very
+    space" holds wherever the space exists, and the fallback keeps the
+    instrument honest (real files either way) and VISIBLE (the chosen
+    root is printed — judge's runs show it). BRIEF §7.7's "on this very
+    space" beside the root-resolution ladder.
+  - **OQ-5 — cuts: print MULTI-prompt runs and `--no-session`: AFFIRMED
+    as itemized cuts.** pi's `messages` array and inMemory opt-out are
+    real pi surface, but the port's `-p` is single-prompt and recording
+    is always-on like the interactive default; both were itemized in the
+    Grounds and the report, untouched in code. Reopen on owner demand
+    (the OQ-1 reopener pattern).
+
+- **Acceptance Criteria integrity** — `architect verify e2e-session`: 4/4
+  PASS (frozen sections untouched since b3d39a12; no builder commits;
+  scratch report present; in-bounds). Judge's own gate runs: cold at base
+  13 GREEN / 1 RED (the designed e2e-session RED); on the integrated lane
+  tree the e2e gate GREEN verbatim (`4 runs, 90 assertions, 0 failures,
+  0 errors, 0 skips`, `E2E_SESSION_OK`, stable) and the suite green
+  (`796 runs, 3268 assertions, 0 failures, 0 errors, 1 skips` — the
+  pre-existing opt-in skip; +6 runs / +107 assertions vs base 790/3161).
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | `test/e2e_session_test.rb` exists, suite-included (the 796-run rake tally includes its 4), drives the REAL `bin/tart -p` subprocess against the real space root (resolved AND printed; judge's run shows `[e2e] space root: <the space>`), staged HOME + MockLLMServer via `PI_API_*`, full-7 defaultTools staged, scratch confined to `<root>/tmp/` with teardown (0 leftovers); hermeticity judge-confirmed (owner `~/.tart/sessions` untouched); gate `E2E_SESSION_OK` cold on the integrated tree, 4 methods / 90 assertions non-vacuous | §7.7 | PASS |
+| AC2 | kwargs forwarded VERBATIM (witnessed-construction pin: recorder/seed_messages 42-window/{enabled: false} all captured; plus a real-recording pin: header + [user, assistant], `context_messages` replays); bin/tart constructs the recorder ALWAYS; leg A's file: header cwd == root, roles `[user] + [assistant, tool]×6 + [assistant]` in order, exactly one jsonl | §7.4 | PASS |
+| AC3 | the abort at :206 DELETED; `resolve_resume` shared with the interactive path (no id → most-recent, path as-is, id by suffix/header — judge re-read the helper); leg B payload == A's recorded conversation + the new prompt LAST; new file parentSession == A's path; SESSION_ID/SESSION_FILE recorder-backed PROVEN IN THE LARGE (leg A's bash turn: line 2 == header id, line 3 == the recorded path); PROVIDER/MODEL/REASONING_LEVEL unchanged | §7.1 | PASS |
+| AC4 | copy block: non-header entries verbatim (byte-identical pin in session_test + leg B), ids merged (no collisions), leaf chains from the copied tail (parentId pin), missing/invalid parent → `load_entries` [] contract → header-only; `context_messages(resumed.path)` replays the full lineage; the ONE stale pin re-pinned | §7.1 | PASS |
+| AC5 | knobs reach the loop (`Settings.compaction_kwargs` threaded; `PI_CONTEXT_WINDOW=10` env tier); leg C: 2 requests, the second WITHOUT tools (the standalone one-shot), compaction entry tokensBefore 15 ≥ 10, firstKeptEntryId a String; leg C2: summary marker present, A's first prompt absent, payload byte-smaller than leg C's first request | §7.6 | PASS |
+| AC6 | suite 796/3268/0F (+6 runs); SEAM_BENCH_OK; s1–s8 exit 0 cold at canonical out dirs; s9 exit 0 cold from the main checkout (judge's own run); the lane-worktree s9 exit 1 judge-reproduced and ruled the KNOWN deep-path artifact (the 2 unknown-candidate fragments are `d`/`.md` — the staged sandbox path wrapping one column earlier under the lane prefix; both apps completed; equal-depth control exits 0) — I34/I36/I39/I40 precedent, fifth confirmation; s1_tart TART_MODE_OK with the base-identical diff-class set; scope: judge's own `git diff d1a4209` read = exactly the 7 lane files, untracked = the e2e test only, loop.rb/compaction.rb/settings.rb/tools/support/rig/bench untouched | §7.8/§5 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+- **Iteration — CONTINUE.** The diff is faithful to the frozen letter on
+  all six items and to pi's mechanics at every cited line (judge re-read
+  forkFrom, resolveSpawnContext, and the port seams against the diff);
+  the §7.7 instrument exists, is hermetic, is non-vacuous, and is green
+  cold on the integrated tree — the queued program's closure proof is
+  delivered. Residuals (both owner-visible, neither blocking): the
+  --help "Sessions:" row under-describes print recording (frozen-out by
+  Grounds §6; README carries the truth), and the OQ-5 cuts (multi-prompt
+  print, `--no-session`) remain the standing reopen-on-demand items.

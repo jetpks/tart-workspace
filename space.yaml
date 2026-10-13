@@ -1634,7 +1634,7 @@ project:
     ordinal: 42
     file: architecture/I42-e2e-session.md
     freeze_sha: b3d39a128359bed3f3c08ecc93b10a13b4397269
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
@@ -1646,6 +1646,13 @@ project:
       - test/e2e_session_test.rb
       - test/print_test.rb
       - test/session_test.rb
+      base_sha: d1a420929ad6d941a7529cbfbaef4c5d7fd3c072
+      worktree: build/I42-e2e-session-core/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: 70d0c4a378ef1accc5a7ec2f1b6b43213b3605d35b32a99d4d8966335ae4bd3b
       at: '2026-10-12T23:16:13-06:00'
