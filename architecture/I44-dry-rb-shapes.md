@@ -596,7 +596,8 @@ carry raw values verbatim, no raise, no filter); it is consumed at the
 launcher's Grounds §2 sites; the three known-models tables are
 type-checked constants with contents byte-identical to today's literals;
 `DEFAULT_THINKING_LEVEL` single-sources the default and chat.rb's three
-`DEFAULTS.fetch("thinkingLevel")` sites read it; `Result#settings`'
+`DEFAULTS.fetch("thinkingLevel")` sites plus print.rb's fourth (:65)
+read it; `Result#settings`'
 merged-hash shape and the I43 no-filter pin are untouched. Pinned by
 the new unit pins + `no-aliasing` + the existing settings/schemas pins
 green (the I43 precedence matrix untouched).
@@ -789,7 +790,7 @@ file, no rig file.
   ac: AC2
   cwd: repos/tart
   cmd: |-
-    if grep -q 'boot\[' bin/tart; then echo "FAIL boot ref indexing in bin/tart"; exit 1; fi; if grep -qnE 'entry\[:' lib/tart/render/chat.rb lib/tart/render/model_menu.rb lib/tart/settings.rb; then echo "FAIL entry hash indexing at migrated seams"; exit 1; fi; if grep -qnE 'fetch\(:api_key|fetch\(:base_url' bin/tart; then echo "FAIL provider config hash indexing in bin/tart"; exit 1; fi; if grep -q 'DEFAULTS.fetch("thinkingLevel")' lib/tart/render/chat.rb; then echo "FAIL DEFAULTS hash read in chat.rb"; exit 1; fi; if grep -q 'provider.fetch(:models)' lib/tart/models.rb; then echo "FAIL models hash indexing in models.rb"; exit 1; fi; if grep -qnE 'entry\.fetch\(:reasoning|entry\[:thinking_level_map\]' lib/tart/settings.rb; then echo "FAIL thinking_facts hash indexing"; exit 1; fi; if grep -qnE '\["message"\]' lib/tart/agent/session.rb lib/tart/render/chat.rb; then echo "FAIL session envelope hash indexing"; exit 1; fi; if grep -qnE 'facts\[:' bin/tart lib/tart/render/chat.rb; then echo "FAIL thinking_facts hash indexing at consumers"; exit 1; fi; echo NO_ALIASING_OK
+    if grep -q 'boot\[' bin/tart; then echo "FAIL boot ref indexing in bin/tart"; exit 1; fi; if grep -qnE 'entry\[:' lib/tart/render/chat.rb lib/tart/render/model_menu.rb lib/tart/settings.rb; then echo "FAIL entry hash indexing at migrated seams"; exit 1; fi; if grep -qnE 'fetch\(:api_key|fetch\(:base_url' bin/tart; then echo "FAIL provider config hash indexing in bin/tart"; exit 1; fi; if grep -qn 'DEFAULTS.fetch("thinkingLevel")' lib/tart/render/chat.rb lib/tart/print.rb; then echo "FAIL DEFAULTS hash read in chat.rb/print.rb"; exit 1; fi; if grep -q 'provider.fetch(:models)' lib/tart/models.rb; then echo "FAIL models hash indexing in models.rb"; exit 1; fi; if grep -qnE 'entry\.fetch\(:reasoning|entry\[:thinking_level_map\]' lib/tart/settings.rb; then echo "FAIL thinking_facts hash indexing"; exit 1; fi; if grep -qnE '\["message"\]' lib/tart/agent/session.rb lib/tart/render/chat.rb; then echo "FAIL session envelope hash indexing"; exit 1; fi; if grep -qnE 'facts\[:' bin/tart lib/tart/render/chat.rb; then echo "FAIL thinking_facts hash indexing at consumers"; exit 1; fi; echo NO_ALIASING_OK
   expect:
     exit_code: 0
     stdout_match: NO_ALIASING_OK
@@ -798,7 +799,7 @@ file, no rig file.
   ac: AC5
   cwd: repos/tart
   cmd: |-
-    if git diff --name-only 0c6ee246 HEAD | grep -qvE '^(tart\.gemspec|Gemfile\.lock|lib/tart\.rb|lib/tart/shapes\.rb|lib/tart/shapes/types\.rb|lib/tart/shapes/model\.rb|lib/tart/shapes/settings\.rb|lib/tart/shapes/session\.rb|lib/tart/models\.rb|lib/tart/settings\.rb|lib/tart/agent/session\.rb|lib/tart/render/chat\.rb|lib/tart/render/model_menu\.rb|bin/tart|test/shapes_test\.rb|test/models_test\.rb|test/schemas_test\.rb|test/settings_test\.rb|test/session_test\.rb|test/chat_test\.rb)$'; then exit 1; else echo SCOPE_OK; fi
+    if git diff --name-only 0c6ee246 HEAD | grep -qvE '^(tart\.gemspec|Gemfile\.lock|lib/tart\.rb|lib/tart/shapes\.rb|lib/tart/shapes/types\.rb|lib/tart/shapes/model\.rb|lib/tart/shapes/settings\.rb|lib/tart/shapes/session\.rb|lib/tart/models\.rb|lib/tart/settings\.rb|lib/tart/agent/session\.rb|lib/tart/render/chat\.rb|lib/tart/render/model_menu\.rb|lib/tart/print\.rb|bin/tart|test/shapes_test\.rb|test/models_test\.rb|test/schemas_test\.rb|test/settings_test\.rb|test/session_test\.rb|test/chat_test\.rb)$'; then exit 1; else echo SCOPE_OK; fi
   expect:
     exit_code: 0
     stdout_match: SCOPE_OK
