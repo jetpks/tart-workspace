@@ -1938,6 +1938,161 @@ mechanically unsatisfiable; repaired form green, transcript recorded) and
 P0-9 (wire digest path artifact in lane worktrees; equal-depth control
 byte-exact); everything else green in-worktree.
 
+### e2e
+
+# Lane report — I48 subagents-core, lane `e2e`
+
+Builder: e2e lane. Worktree `build/I48-subagents-core-e2e/wt` @ frozen base `b54a3b1`,
+branch `lane/I48-subagents-core-e2e`. Touch set: `test/subagents_e2e_test.rb` ONLY.
+Raw evidence below; no interpretation beyond the itemizations the prompt asks for.
+
+## 1. The deliverable
+
+`test/subagents_e2e_test.rb` — 546 lines, `ruby -cw` clean, `frozen_string_literal`.
+Module `Tart::SubagentsE2ETest < Tart::Test` (test_helper + support/mock_llm_server
+required). Four self-contained legs (A foreground, B async+drain, C steer-reach,
+D stop+deadline), I42 discipline (staged HOME per leg via `Dir.mktmpdir`, CLOSED
+subprocess env via `unsetenv_others: true`, printed `[i48-e2e] …` staging lines,
+bounded polling everywhere, full teardown: manager shutdown → stray-child sweep →
+server stop → `rm_rf`).
+
+## 2. Leg-by-leg design table
+
+| Leg | What it spawns | Script (MockLLMServer) | Key assertions |
+|---|---|---|---|
+| A — foreground delegation | REAL parent `bin/tart -p` subprocess (staged settings `{"subagents": true}`; env exactly {PATH, HOME, PI_API_KEY, PI_API_BASE, PI_MODEL=`accounts/fireworks/models/glm-e2e-routed`, PI_SUBAGENTS_HOME, TART_MCP_CONFIG→absent}, unsetenv_others, 180s watchdog, pgroup) whose model calls `subagent {agent: worker, async: false}` → REAL child print subprocess | 3 specs, deterministic order (foreground parent blocks): [tool_call c1, child answer, parent final] | parent exit 0 + final on stdout; 3 captures; `subagent` declared on the parent wire; parent AND child request `model` == ROUTED_MODEL; child request carries the task; tool result c1 carries the child answer (strip-equal = §7 verbatim); ONE run dir under staged PI_SUBAGENTS_HOME; status.json `completed` + `timedOut:false` + task text absent; result.json `success:true` + output; exactly 1 child session under `<run>/sessions/**` |
+| B — async + print drain | Same parent shape; tool `async: true`; parent's own turn completes while the child slow-streams; parent PROCESS drains | [tool_call c1, parent final, child slow_stream 34 chars] — order bet: parent's tool-result turn beats the child's ~350ms boot (Grounds §4 probe B; ~100× margin; comment in-file) | exit 0; `stdout.strip == final` (no extra stdout, OQ-4); tool result = `Async: worker [<id>]` headline + `native completion wakes you` + `subagent({ action: "status"` lines; id is uuidv7 (nibble `7`, OQ-3); child request on ROUTED_MODEL; `Dir.children(home) == [id]`; parent session (1 file) ENDS with `custom_message` entry `customType "subagent-notify"`, content starts `Background task completed: **worker**`, carries `Session file: ` + `Run dir: ` + the id, `display:false`; child status.json `completed`; 1 child session under the run dir |
+| C — steer-reach (T1) | NO parent subprocess: in-process `Tart::Subagents::Manager.new(cwd: REPO_ROOT, home: staged, env: closed, hooks: real Hooks)` + REAL async child spawned via `Tart::Tools::Subagent.new(manager:).execute(agent: "worker", task:, timeout_ms: 0)` (async default TRUE) | [slow_stream 69 chars ≈ 6.9s window, steered answer] | `BUILTIN_AGENTS` names {oracle, reviewer, worker} + worker allowlist order read,grep,find,ls,bash,edit,write; start-message headline byte-equal `Async: worker [<id>]`; run `:running` at steer time; `steer(mode: "steer", ack_timeout_ms: 30_000)` → `:delivered` + 36-char request_id + §7 receipt bytes `Steering delivered to async run <id> (request <rid>).`; `control/steer-log.jsonl` names the SAME request id (T1); run `:completed` ≤25s; steer text rides the child's NEXT request as a user message (index-ordered AFTER request 1; NOT folded into request 1); result.json output + status completed; `subagent-notify` in `hooks.pending_next_turn` with §7 header; `ps -p <pid>` empty |
+| D — stop + deadline (T3/T2) | In-process Manager; two real async children | (1) slow_stream 35 chars (≈3.5s — inside stop's 5s grace); (2) slow_stream 50 chars ≫ 1.5s deadline | (1) `stop(id:)` receipt byte-equal `Stop requested for async run <id>.`; `:stopped` ≤10s; status.json `stopped` + `timedOut:false`; `ps -p <pid>` EMPTY ≤5s (no zombie); (2) `spawn_run(timeout_ms: 1500)` → `:stopped` ≤15s with `timedOut:true`; ps clean |
+
+Shared staging in every leg: `Tart::Subagents.home` driven through BOTH tiers
+(env tier `PI_SUBAGENTS_HOME` wins; fallback == `File.join(Agent::Session.default_root,
+"subagents")`) — this is also each leg's first frozen-surface touch, which makes the
+at-base red the DECLARED NameError. Leg C additionally pins the builtin table.
+
+## 3. Red-at-worktree transcript (the declared reds)
+
+`bundle install --quiet && bundle exec ruby -Itest test/subagents_e2e_test.rb` — exit 1:
+
+```
+4 runs, 0 assertions, 0 failures, 4 errors, 0 skips
+  1) Error: test_leg_a_foreground_delegation_end_to_end:
+     NameError: uninitialized constant Tart::Subagents
+       test/subagents_e2e_test.rb:333:in 'stage_subagents_home'
+  2) Error: test_leg_d_stop_and_run_deadline:   NameError: ... Tart::Subagents (same site)
+  3) Error: test_leg_c_steer_reaches_a_running_child: NameError: ... Tart::Subagents (same site)
+  4) Error: test_leg_b_async_delegation_and_print_drain: NameError: ... Tart::Subagents (same site)
+```
+
+All four legs fail at the SAME first frozen-surface touch (`Tart::Subagents.home`)
+BEFORE any subprocess spawn — exactly the declared missing-surface red; no syntax
+errors, no fixture-path defects. The `[i48-e2e]` staging lines print (gate grep
+satisfied), teardown ran cleanly after every leg (zero leftover `i48-e2e-home-*`
+dirs; no process of mine in ps).
+
+## 4. Verification battery (raw results)
+
+| Gate | Command | Result |
+|---|---|---|
+| e2e (declared red) | `bundle exec ruby -Itest test/subagents_e2e_test.rb` | exit 1; `4 runs, 0 assertions, 0 failures, 4 errors, 0 skips`; 4× `NameError: uninitialized constant Tart::Subagents` |
+| suite | `bundle exec rake` | exit 1; `959 runs, 4038 assertions, 0 failures, 4 errors, 1 skips` — the 4 errors are EXACTLY my four declared NameErrors (grep count 4); base 955 runs + 4038 assertions + 1 skip unchanged ⇒ every OTHER test green (see PHASE 0-2 for why rake runs my file at all) |
+| bench | `bundle exec ruby bench/seam_bench.rb` | `SEAM_BENCH_OK`, exit 0 |
+| s1–s8, s10 | frozen `env -u HERDR_* … tui-split-rig run scenarios/sN.yml --out tmp/parity-gate-sN` | all exit 0 |
+| s9 | same | exit 1 IN WORKTREE — diff classes `parity-run-path: 6, staged-path-wrap-fragment: 5, unknown-candidate: 1, footer-provider-prefix: 2` = the KNOWN nine-precedent (I34/I36/I39/I40/I42/I43/I44/I46/I47) lane-worktree deep-path artifact. EQUAL-DEPTH CONTROL: same scenario from `repos/tart` @ `b54a3b1` (clean tree) → exit 0 |
+| s1-tart-mode | frozen gate command | raw rig exit 1 (by design; ≤1 tolerated), `TART_MODE_OK` printed, gate exit 0 |
+| tool-pending probe | `gems/tui-split-rig/bin/tool-pending-probe --gate --out tmp/i48-tp` | `TOOL_PENDING_GATE_OK`, exit 0 |
+| user-bash-stream probe | `gems/tui-split-rig/bin/user-bash-stream-probe --gate --out tmp/i48-ubs` | `USER_BASH_STREAM_GATE_OK`, exit 0 |
+| wire-bodies | frozen gate command | IN WORKTREE: digest mismatch `41fa1ab0…` vs frozen `2ece7d4b…` — the deep worktree path survives the gate's `gsub("tmp/i48-wire/run-1/sandbox", "<SBX>")` (body carries `<deep-prefix>/tmp/i48-wire/run-1/sandbox`). EQUAL-DEPTH CONTROL: `repos/tart` @ `b54a3b1` → `WIRE_BODIES_OK` (both digests exact). Same deep-path artifact class as s9; a test-file addition cannot move wire bytes |
+| session-golden | frozen gate command (in worktree) | `SESSION_GOLDEN_OK`, exit 0 |
+| scope | `git status --porcelain` / `git diff --name-only b54a3b1` | ONLY `?? test/subagents_e2e_test.rb`; no tracked file modified |
+
+HERDR note: this dispatch environment IS herdr-managed (`TERM_PROGRAM=herdr` +
+six `HERDR_*` vars present). Every rig invocation above used the frozen `env -u
+HERDR_ENV …` scrub verbatim; the e2e legs themselves use `unsetenv_others` closed
+envs, so no HERDR_* can reach staged tart through my battery.
+
+## 5. PHASE 0 items (researched, itemized; spec cites)
+
+1. **`chunk_every` is NOT honored by MockLLMServer.** The doc comment
+   (test/support/mock_llm_server.rb:40) and the lane prompt ("slow_stream =
+   per-CHAR chunk_every pauses — size windows accordingly"; spec §8 same letter)
+   promise per-char pacing, but the implementation sleeps a FIXED `spec_pause`
+   0.1s per inter-chunk pause (mock_llm_server.rb:227, :250-252) and has done so
+   through the file's entire history (git log -p — `chunk_every` never wired).
+   RESOLUTION: all windows sized at the OBSERVED pace (0.1s/char), `chunk_every`
+   values passed but never relied upon; a future honoring implementation could
+   only shorten streams (bounds still hold). The file is frozen for both lanes —
+   no edit possible or needed; the core lane inherits the same fact.
+2. **rake auto-discovers the new file** (Rakefile: `FileList["test/**/*_test.rb",
+   …]`), so `bundle exec rake` in MY tree runs the battery and exits 1 with
+   exactly my four declared NameErrors (959 = 955 + 4 runs; 4038 assertions =
+   base count unchanged because the legs error before any assert; 0 failures; 1
+   skip unchanged). The prompt's "every OTHER test still green" holds in
+   substance; AC5's `suite` gate is judged on the integrated tree where the
+   battery is green. No way to exclude the file from discovery without touching
+   the frozen Rakefile — none attempted.
+3. **`Subagents.home` fallback tier — HOME source not lettered** (spec §1:
+   "`<IDENTITY>_SUBAGENTS_HOME` env else `<agent root>/subagents`" — the agent
+   root's HOME source, test-process ENV vs the passed env:, is unstated).
+   RESOLUTION: the env tier is pinned + exercised end-to-end (subprocess legs
+   stage `PI_SUBAGENTS_HOME`; run dirs land there); the fallback tier is pinned
+   HOME-agnostically as `File.join(Agent::Session.default_root, "subagents")` —
+   the spec's own composition — which holds under EITHER implementation reading
+   (`env["HOME"] ||` Dir.home both collapse to the same default_root under
+   `env: {}`). This avoids staging the SUITE process's HOME (the units gate's
+   `ENV["HOME"] = home` mutation is safe in its standalone process; I chose zero
+   process-global mutation inside the shared suite). The owner's `~/.tart` is
+   never written either way (AC4).
+4. **Leg C "in-process Manager + Tart::Hooks with a recorder"** — the Manager
+   constructor (spec §2.7) takes no recorder parameter. RESOLUTION: read "with a
+   recorder" as the notification-RECORDING seam; in-process that is Hooks
+   (`send_next_turn`/`pending_next_turn`), and leg C asserts the queued
+   `subagent-notify` (§7 header bytes) through the real watcher — the exact
+   observable the print drain records from (§2.6/§5.4). No machinery implied.
+5. **bin/tart resolution is cwd-independent — grounding relied upon.** Legs A/B
+   run the parent with workdir = space root; legs C/D construct the Manager with
+   `cwd: REPO_ROOT`. The frozen `subagents-units` gate itself spawns a Manager
+   with `cwd: Dir.mktmpdir(...)` and its REAL children boot and answer — so the
+   child argv's relative `bin/tart` must resolve from the gem root, not cwd
+   (architecture/I48-subagents-core.md, subagents-units gate body). My legs are
+   conformant under that proof; recorded here because the spec text (§4 argv)
+   does not state the resolution rule.
+6. **Leg B capture-order bet** — scripted [tool_call, parent final, child slow
+   stream] assuming the parent's tool-result turn (issued ~instantly after the
+   async start message) precedes the child's first request (~350ms interpreter
+   boot; Grounds §4 probe B measured ~357ms cold). Margin ≈100×; a flipped order
+   fails LOUD on the `stdout.strip == B_FINAL` pin (the parent would inherit the
+   slow stream and the child would finish before the drain). Documented in-file.
+7. **Watchdogged parent runner** — I42 uses bare `Open3.capture3`; my `tart_sub`
+   adds a hard 180s deadline with pgroup TERM→KILL escalation and waitpid reaping
+   (test-side robustness only; no frozen surface touched): a hung integrated-tree
+   drain fails the leg with a clear message instead of hanging the
+   `subagents-e2e` gate. Kill idioms verified live against pgroup processes
+   (`Process.kill("-TERM", -pid)` delivers; the bash.rb house idiom).
+8. **ps/zombie semantics** — `kill(0)` and `ps -p` both see unreaped zombies;
+   the T3 pin (Process.detach owns the reap) is what empties `ps`. My
+   `assert_ps_clean` polls ≤5s (the units gate sleeps flat 0.5s + `ps -o stat=`
+   — same pin, more load-tolerant form). Verified the semantics with a live
+   pgroup probe before relying on them.
+
+## 6. Residual risks for the judge (integrated-tree-only; unverifiable in this tree)
+
+1. Leg B's capture-order bet (item 6 above) — analysis-backed ~100× margin.
+2. Home-level layout pin (`Dir.children(staged home) == [run_id]`) in legs A/B —
+   fails if the core lane writes home-level non-run artifacts (spec §2.1 letters
+   run dirs only under `<home>`).
+3. Leg C pins the start-message headline as the FULL first line
+   (`Async: worker [<id>]`) — byte-letter §7; stricter than the units gate's
+   `start_with?` but exactly the frozen shape.
+4. uuidv7 pin (`run_id[14] == "7"`, OQ-3) — fails if the core lane ships v4 ids.
+5. `result.json`/`status.json` field pins use the spec §2.1 names
+   (`output`/`success`/`state`/`timedOut`/`task`-absent) — camelCase wire forms
+   per the frozen layout.
+6. The worktree s9/wire-bodies artifacts — equal-depth controls green at
+   `b54a3b1`; the judge's battery runs at canonical depth.
+
+STATUS: COMPLETE_WITH_CONCERNS — the battery is written, red-exactly-as-declared at base, and every pinned-gate/no-regression check passed or is covered by a green equal-depth control; the concerns are the six integrated-tree-only residual risks above (cross-lane pin strictness, none editable from this lane).
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
