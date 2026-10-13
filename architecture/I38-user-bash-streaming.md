@@ -74,51 +74,154 @@
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse user-bash-streaming` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze user-bash-streaming` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria — I38 user-bash-streaming
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC1 — the running block renders mid-flight (the iteration's core claim).** While a `!`/`!!` command executes, the live region renders pi's running block below transcript content and below any streaming assistant rows: leading blank, `─` border in the block's colorKey (`bashMode`; `dim` for `!!`), `$ <command>` bold header, the accumulated output rows (muted, the completed family's last-20-of-last-20 preview discipline, `ctrl+o`-toggle-aware, NO hidden-lines hint while running), blank, the loader row (one-space pad, spinner in the colorKey advancing on the 80 ms time dwell, message span muted with pi's exact bytes `Running... (escape/ctrl+c to cancel)`), `─` border. For any accumulated text T the running rows share the completed family's header/output/border bytes (the prefix property), and T empty renders header + blank + loader row + border. Unit-pinned (composer + chat-level mid-flight draws) and live-pinned by AC5.
 
-**AC1.** ...
+**AC2 — the completed block flushes exactly as today; the live rows are transient.** At every terminal path — normal completion, worker error (the ENOENT arm), and escape-cancel — the completed block (or the existing error/cancelled shapes) enqueues through today's `enqueue_user_bash_block` path with byte-identical rows and position to a control chat that received only that enqueue, the live rows are gone, and no frame ever shows both the live rows and the completed block. Replay renders zero loader rows. Post-integration, cold: s1–s10 all exit 0 (settled screens unmoved).
+
+**AC3 — the chunk seam discipline.** `run_user(command, on_chunk:)` fires the callback per pipe-read with CR-REMOVED text (the returned content's own rule); the joined callback stream equals the returned content after its CR-strip; the model-facing `execute` path fires nothing. Mid-flight, an unterminated trailing line renders as its own row and the next chunk's first piece continues it (pi's appendOutput join, string-buffer equivalent); CR-only chunks vanish. `transcript.rb` is untouched (scope gate).
+
+**AC4 — animation and spinner mechanics.** Frames keep pacing while a run is in flight (the glyph advances across draws with no chunk between — the animation window is open for the run) without `@busy` or any border working-status rendering from a bash run; the bash loader's anchor resets at each run start and is independent of the border status's anchor (pi: one Loader per component). Unit-pinned via the injected clock seam.
+
+**AC5 — the frozen instrument.** `gems/tui-split-rig/bin/user-bash-stream-probe --gate --out <dir>` exits 0 cold (no live keys, quiet tmux server), for BOTH apps: (a) at least one pre-settle frame shows the header row AND the loader row AND at least one OUTPUT row (a `probe line N` row distinct from the header line — chunks painted before completion); (b) the settled frame shows the header row, all three output rows, and zero loader rows; (c) every loader-bearing frame also carries the header row. `USER_BASH_STREAM_GATE_OK` on stdout. The default (no `--gate`) evidence mode is exit 0 with the frame digest. This gate and the machinery tripwire are RED at base BY DESIGN (the streaming rows and the probe are this iteration's deliverables — the I34/I35 tripwire precedent).
+
+**AC6 — quality.** Suite fully green with run-count delta > 0 (new tests; chat_test.rb surgery additive only); `SEAM_BENCH_OK`; the integrated diff touches exactly the declared set (scope gate); house style throughout (pi citations carried in comments, constructor-seam/module-function shapes preserved).
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse user-bash-streaming` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-parity
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/i38-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/i38-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/i38-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/i38-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/i38-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/i38-s6
+  expect:
+    exit_code: 0
+
+- id: s7-parity
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/i38-s7
+  expect:
+    exit_code: 0
+
+- id: s8-parity
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml --out tmp/i38-s8
+  expect:
+    exit_code: 0
+
+- id: s9-parity
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s9_startup_help.yml --out tmp/i38-s9
+  expect:
+    exit_code: 0
+
+- id: s10-parity
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s10_editor_wrap.yml --out tmp/i38-s10
+  expect:
+    exit_code: 0
+
+- id: user-bash-stream-gate
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/user-bash-stream-probe --gate --out tmp/i38-ubs
+  expect:
+    exit_code: 0
+    stdout_match: USER_BASH_STREAM_GATE_OK
+
+- id: stream-machinery
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'on_chunk' lib/tart/tools/bash.rb && grep -q 'stream_chunk_sink' lib/tart/render/user_bash.rb && grep -q 'running_user_bash_rows' lib/tart/render/bash_block.rb && test -x gems/tui-split-rig/bin/user-bash-stream-probe && grep -q -- '--gate' gems/tui-split-rig/bin/user-bash-stream-probe && echo STREAM_MACHINERY_OK
+  expect:
+    exit_code: 0
+    stdout_match: STREAM_MACHINERY_OK
+
+- id: transcript-frozen
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only a48aaca9 HEAD -- lib/tart/render/transcript.rb | grep -q .; then exit 1; else echo TRANSCRIPT_FROZEN_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: TRANSCRIPT_FROZEN_OK
+
+- id: scope
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only a48aaca9 HEAD | grep -qvE '^(lib/tart/tools/bash\.rb|lib/tart/render/user_bash\.rb|lib/tart/render/chat\.rb|lib/tart/render/bash_block\.rb|test/chat_test\.rb|test/render/|test/bash_tool_test\.rb|gems/tui-split-rig/bin/user-bash-stream-probe|gems/tui-split-rig/scenarios/probe_user_bash\.yml|gems/tui-split-rig/test/)'; then exit 1; else echo SCOPE_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
 
 ## Builder Prompt
