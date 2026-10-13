@@ -1988,5 +1988,14 @@ three-way cold), the parity battery is green cold, and ENTRY 3
 ENTRY 3.
 
 Post-verdict (recorded at integrate time): integrated tree merge
-<merge-sha> — full gate re-run cold at the canonical path:
-<gate-line>.
+**4c2e6a9a** (lane integrate 663e25e, `--no-ff` into project/pi-port;
+integrated diff vs 0c6ee246 = exactly the 21 declared files, scope gate
+NON-VACUOUS and green) — full gate re-run cold at the canonical path
+(tmp/i44-gate-integrated-cold.txt): **21/21 PASS** — SUITE_OK (846
+runs / 3641 assertions / 0F / 1 pre-existing skip), SEAM_BENCH_OK,
+s1–s10 exit 0 + TART_MODE_OK, both probe gates OK,
+**WIRE_BODIES_OK** (request bodies `2ece7d4b…` + tools `7360fd1e…`
+EXACT at the canonical path — the worktree FAIL is closed as the
+path artifact, zero wire bytes moved), SESSION_GOLDEN_OK (6/6),
+DEPS_SHAPES_OK / SHAPES_OK / NO_ALIASING_OK / SCOPE_OK. Lane worktree
+torn down.
