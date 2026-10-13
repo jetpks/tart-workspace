@@ -84,7 +84,7 @@
 
 **AC4 — animation and spinner mechanics.** Frames keep pacing while a run is in flight (the glyph advances across draws with no chunk between — the animation window is open for the run) without `@busy` or any border working-status rendering from a bash run; the bash loader's anchor resets at each run start and is independent of the border status's anchor (pi: one Loader per component). Unit-pinned via the injected clock seam.
 
-**AC5 — the frozen instrument.** `gems/tui-split-rig/bin/user-bash-stream-probe --gate --out <dir>` exits 0 cold (no live keys, quiet tmux server), for BOTH apps: (a) at least one pre-settle frame shows the header row AND the loader row AND at least one OUTPUT row (a `probe line N` row distinct from the header line — chunks painted before completion); (b) the settled frame shows the header row, all three output rows, and zero loader rows; (c) every loader-bearing frame also carries the header row. `USER_BASH_STREAM_GATE_OK` on stdout. The default (no `--gate`) evidence mode is exit 0 with the frame digest. This gate and the machinery tripwire are RED at base BY DESIGN (the streaming rows and the probe are this iteration's deliverables — the I34/I35 tripwire precedent).
+**AC5 — the frozen instrument.** `gems/tui-split-rig/bin/user-bash-stream-probe --gate --out <dir>` exits 0 cold (no live keys, quiet tmux server), for BOTH apps: (a) at least one pre-settle frame shows the header row AND the loader row AND at least one OUTPUT row (a `probe line N` row distinct from the header line — chunks painted before completion); (b) the settled frame shows the header row, all three output rows, and zero loader rows; (c) every loader-bearing frame also carries the header row. `USER_BASH_STREAM_GATE_OK` on stdout. The default (no `--gate`) evidence mode is exit 0 with the frame digest. This gate and the machinery tripwire are RED at base BY DESIGN (the streaming rows and the probe are this iteration's deliverables — the I34/I35 tripwire precedent; the gate's `test -x` guard makes the pre-build state a clean RED, not a 127).
 
 **AC6 — quality.** Suite fully green with run-count delta > 0 (new tests; chat_test.rb surgery additive only); `SEAM_BENCH_OK`; the integrated diff touches exactly the declared set (scope gate); house style throughout (pi citations carried in comments, constructor-seam/module-function shapes preserved).
 
@@ -191,7 +191,7 @@
   ac: AC5
   cwd: repos/tart
   cmd: |-
-    gems/tui-split-rig/bin/user-bash-stream-probe --gate --out tmp/i38-ubs
+    test -x gems/tui-split-rig/bin/user-bash-stream-probe && gems/tui-split-rig/bin/user-bash-stream-probe --gate --out tmp/i38-ubs
   expect:
     exit_code: 0
     stdout_match: USER_BASH_STREAM_GATE_OK
@@ -200,7 +200,7 @@
   ac: AC1
   cwd: repos/tart
   cmd: |-
-    grep -q 'on_chunk' lib/tart/tools/bash.rb && grep -q 'stream_chunk_sink' lib/tart/render/user_bash.rb && grep -q 'running_user_bash_rows' lib/tart/render/bash_block.rb && test -x gems/tui-split-rig/bin/user-bash-stream-probe && grep -q -- '--gate' gems/tui-split-rig/bin/user-bash-stream-probe && echo STREAM_MACHINERY_OK
+    grep -q 'on_chunk' lib/tart/tools/bash.rb && grep -q 'stream_chunk_sink' lib/tart/render/user_bash.rb && grep -q 'running_user_bash_rows' lib/tart/render/bash_block.rb && test -x gems/tui-split-rig/bin/user-bash-stream-probe && grep -q 'USER_BASH_STREAM_GATE_OK' gems/tui-split-rig/bin/user-bash-stream-probe && echo STREAM_MACHINERY_OK
   expect:
     exit_code: 0
     stdout_match: STREAM_MACHINERY_OK
