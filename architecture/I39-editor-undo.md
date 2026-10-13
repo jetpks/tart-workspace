@@ -89,51 +89,179 @@ Plan ENTRY 3 (`build/loop/plan-20261012T184702Z.md`: "editor-undo" — the D-ser
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse editor-undo` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze editor-undo` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria — I39 editor-undo
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC1 — undo machinery exists (pi undo-stack.ts 1:1 + the editor ops).** `lib/tart/render/undo_stack.rb` defines `Tart::Render::UndoStack` with pi's surface — `push` (clone-on-push: the pushed state is deep-copied, later mutations of the source invisible to the stack), `pop` (detached snapshot, nil when empty), `clear`, `length` — and no other behavior (no cap, no redo). `Editor` gains a private `push_undo_snapshot`, a public `undo`, and a public `clear_undo_stack`; the snapshot value object carries exactly `{lines, cursor_line, cursor_col}` (pi EditorSnapshot minus the port's cut pastes/pasteCounter — itemized in the lane's comments).
 
-**AC1.** ...
+**AC2 — pi's undo semantics, test-pinned (direct-class).** `test/render/undo_stack_test.rb` + `test/render/editor_undo_test.rb` pin, green in the suite: (a) undo on an empty stack is a no-op; (b) fish-style coalescing — consecutive word-chars are ONE undo unit, each whitespace its own unit captured pre-space (pi editor.test.ts:1605-1650 letters: "hello world" → undo → "hello" → undo → ""); (c) every mutating op is undoable and restores text AND cursor (`insert`, `insert_paste` single- and multi-line ATOMICALLY — one undo per paste, `add_new_line`, `delete_backward`, `delete_forward`, `delete_word_backward`, `delete_word_forward`, `delete_to_line_start`, `delete_to_line_end`, `yank`, `yank_pop`, `replace_token`) — cursor restore asserted directly on `cursor_line`/`cursor_col` for at least one mid-line case and one multi-line case; (d) entering history browsing pushes a snapshot — undo after recall restores the pre-browse draft (pi :465); (e) the kill-ring interactions: undo restores text but NOT ring contents (kill → undo → yank still pastes the killed text), and undo breaks both the kill-accumulate window and the yank-pop window (`last_action` niled); (f) clone-on-push independence at the class level (mutating the pushed source after push does not corrupt a later pop).
+
+**AC3 — pi's two clear semantics, test-pinned.** (a) The escape/ctrl+c clear surface (`Editor#clear`) pushes a snapshot iff the buffer is non-empty — a cleared buffer is UNDOABLE (text + cursor restored), and clearing an already-empty buffer pushes nothing (a following undo is a no-op); (b) the submit surface clears the stack — after `clear` + `clear_undo_stack` (chat.rb `submit`'s sequence), undo is a no-op (pi submitValue :1373). Both pinned by direct-class tests; the chat submit path calls `clear_undo_stack` (gate-mechanical).
+
+**AC4 — binding + settled parity.** chat.rb's input routing dispatches ctrl+- → `@editor.undo` (a `when "-"` arm; fires with the autocomplete list open, pi editor.ts:751-755 — the list is neither cancelled nor re-filtered), bare "-" still inserts, and alt+"-" stays the existing modifier-guard no-op; pinned by chat-level tests through `on_event` (the I26 binding-test pattern). Post-integration, cold from the integrated tree: **s1–s10 all exit 0** (undo moves no settled bytes — s10 is the editor's own instrument).
+
+**AC5 — scope + suite + bench.** The integrated diff (`git diff --name-only ad2bad28 HEAD`) touches exactly the lane's set — `lib/tart/render/undo_stack.rb` (new), `lib/tart/render/editor.rb`, `lib/tart/render/chat.rb`, `test/chat_test.rb` (additive binding tests), `test/render/**` — and NOTHING else: the whole rig (`gems/tui-split-rig/**` incl. `registry.yml`), `lib/tart/render/kill_ring.rb` (the ring's behavior is unchanged — undo interacts with it, never edits it), `transcript.rb`, `bin/tart`, `bench/**`, and every other file byte-identical to base. The default rake task fully green (run-count delta > 0 — new tests) and the seam bench prints `SEAM_BENCH_OK`.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse editor-undo` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: undo-stack-class
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    test -f lib/tart/render/undo_stack.rb && grep -q 'def push' lib/tart/render/undo_stack.rb && grep -q 'def pop' lib/tart/render/undo_stack.rb && grep -q 'def clear' lib/tart/render/undo_stack.rb && grep -q 'def length' lib/tart/render/undo_stack.rb && echo UNDO_STACK_OK
+  expect:
+    exit_code: 0
+    stdout_match: UNDO_STACK_OK
+
+- id: editor-undo-ops
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'def undo' lib/tart/render/editor.rb && grep -q 'def clear_undo_stack' lib/tart/render/editor.rb && grep -q 'push_undo_snapshot' lib/tart/render/editor.rb && echo EDITOR_UNDO_OPS_OK
+  expect:
+    exit_code: 0
+    stdout_match: EDITOR_UNDO_OPS_OK
+
+- id: ctrl-minus-wired
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'when "-"' lib/tart/render/chat.rb && grep -q '@editor.undo' lib/tart/render/chat.rb && echo CTRL_MINUS_OK
+  expect:
+    exit_code: 0
+    stdout_match: CTRL_MINUS_OK
+
+- id: submit-clears-stack
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    grep -q 'def clear_undo_stack' lib/tart/render/editor.rb && awk '/def submit/,/^      end/' lib/tart/render/chat.rb | grep -q 'clear_undo_stack' && echo SUBMIT_CLEAR_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUBMIT_CLEAR_OK
+
+- id: s1-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/i39-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/i39-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/i39-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/i39-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/i39-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/i39-s6
+  expect:
+    exit_code: 0
+
+- id: s7-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/i39-s7
+  expect:
+    exit_code: 0
+
+- id: s8-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml --out tmp/i39-s8
+  expect:
+    exit_code: 0
+
+- id: s9-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s9_startup_help.yml --out tmp/i39-s9
+  expect:
+    exit_code: 0
+
+- id: s10-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s10_editor_wrap.yml --out tmp/i39-s10
+  expect:
+    exit_code: 0
+
+- id: rig-frozen
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only ad2bad28 HEAD -- gems/tui-split-rig/ | grep -q .; then exit 1; else echo RIG_FROZEN_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: RIG_FROZEN_OK
+
+- id: kill-ring-frozen
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only ad2bad28 HEAD -- lib/tart/render/kill_ring.rb | grep -q .; then exit 1; else echo KILL_RING_FROZEN_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: KILL_RING_FROZEN_OK
+
+- id: scope
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    if git diff --name-only ad2bad28 HEAD | grep -qvE '^(lib/tart/render/undo_stack\.rb|lib/tart/render/editor\.rb|lib/tart/render/chat\.rb|test/chat_test\.rb|test/render/)'; then exit 1; else echo SCOPE_OK; fi
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
 
 ## Builder Prompt
