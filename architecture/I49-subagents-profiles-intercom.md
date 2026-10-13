@@ -923,9 +923,9 @@ legs on the integrated tree, non-vacuously.
 # Acceptance Criteria — I49 subagents-profiles-intercom
 
 Gate calibration (pre-declared): **RED at base BY DESIGN** —
-`subagents-profiles-units` (`Tart::Subagents::Profiles` does not exist at
-8f5620a — NameError is the expected clean red at the gate's FIRST driven
-touch). **GREEN at base, must stay GREEN** — `subagents-e2e` (the I48
+`subagents-profiles-units` (the new surface —
+`Tart::Subagents::WORKFLOW_TEMPLATES` at the gate's first driven touch —
+does not exist at 8f5620a; NameError is the expected clean red). **GREEN at base, must stay GREEN** — `subagents-e2e` (the I48
 four-leg battery exists and passes at base; on the integrated tree it
 gains legs E/F and must pass with them), and the full regression battery
 (`suite`, `bench`, `s1`–`s10`, `s1-tart-mode`, both probe gates,
@@ -1195,6 +1195,7 @@ test file outside the declared set.
     require "tmpdir"
     require "fileutils"
     require "json"
+    require "securerandom"
 
     # --- staging: staged HOME (user tier under it), project cwd, server
     home = Dir.mktmpdir("i49p-h")
@@ -1329,10 +1330,16 @@ test file outside the declared set.
     channel.start
     ctrl = File.join(run[:dir], "control")
     rid = SecureRandom.uuid
-    File.write(File.join(ctrl, "supervisor-requests", "#{rid}.json"), JSON.generate({
+    atomic_request = lambda do |payload|
+      tmp = File.join(ctrl, "supervisor-requests", ".#{payload[:id]}.tmp")
+      final = File.join(ctrl, "supervisor-requests", "#{payload[:id]}.json")
+      File.write(tmp, JSON.generate(payload))
+      File.rename(tmp, final)
+    end
+    atomic_request.call({
       type: "subagent.supervisor.request", id: rid, createdAt: (Time.now.to_f * 1000).to_i,
       expiresAt: (Time.now.to_f * 1000).to_i + 60_000, reason: "need_decision",
-      message: "Should I proceed?", expectsReply: true, runId: run[:id], agent: "researcher"}))
+      message: "Should I proceed?", expectsReply: true, runId: run[:id], agent: "researcher"})
     surfaced = nil
     30.times do
       surfaced = hooks.pending_next_turn.find { |p| p[:custom_type] == "subagent_supervisor_request" }
@@ -1378,9 +1385,9 @@ test file outside the declared set.
     abort "pending empties: #{channel.pending_text.inspect}" unless channel.pending_text == "No pending supervisor requests."
     # progress_update never surfaces (pi's rule)
     pid2 = SecureRandom.uuid
-    File.write(File.join(ctrl, "supervisor-requests", "#{pid2}.json"), JSON.generate({
+    atomic_request.call({
       type: "subagent.supervisor.request", id: pid2, createdAt: (Time.now.to_f * 1000).to_i,
-      reason: "progress_update", message: "half done", expectsReply: false, runId: run[:id], agent: "researcher"}))
+      reason: "progress_update", message: "half done", expectsReply: false, runId: run[:id], agent: "researcher"})
     sleep 1.0
     abort "progress must never surface" if hooks.pending_next_turn.any? { |p| p[:content].to_s.include?("half done") }
     abort "progress request consumed" if File.exist?(File.join(ctrl, "supervisor-requests", "#{pid2}.json"))
