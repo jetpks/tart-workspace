@@ -436,14 +436,25 @@ instrument) — the I48 lane shape. No checkpoint needed.
   ride the prompt-template tier (pi's own delivery for them);
   autocomplete + /help + MOTD parity come free; nothing warrants a
   new command vocabulary. Recommend ACCEPT.
-- **OQ-8 — print-parent asks at drain**: a print parent that has
-  finished its own turn cannot answer (the drain records notifications,
-  never runs model turns — I48 OQ-4's pinned rule); an ask outstanding
-  at drain time is surfaced (queued nextTurn), never answered, and the
-  child proceeds at its ask timeout (pi's gone-parent semantics — the
-  tool errors, the child reports the unanswered decision in its final
-  output per its prompt's fallback sentence). Bounded, no deadlock.
-  Recommend ACCEPT.
+- **OQ-8 — delivery semantics (print + busy parents)**: the ask rides
+  the SAME queue + wake as completions (send_next_turn + the idle
+  kick). THREE ruled consequences, all bounded, none a deadlock:
+  (a) an idle interactive parent answers via the wake turn (the
+  round-trip pin — units gate + parent-loop suite pin); (b) a BUSY
+  parent's ask waits for the next steering/user-message drain — a
+  latency divergence from pi's mid-turn delivery (pi queues at the
+  session's next boundary check; the port's nextTurn queue drains at
+  add_user_message), itemized, reopen on live pain; (c) a print
+  parent that has finished its turn NEVER answers (the drain records
+  notifications, never runs model turns — I48 OQ-4's pinned rule):
+  the ask is recorded on its session as the custom_message entry and
+  the child proceeds at its own bound (pi's gone-parent semantics —
+  the tool errors, the child reports the unanswered decision per its
+  prompt's fallback sentence). The alternative — mid-run delivery to
+  print parents via a steering-seam handoff — was considered and
+  REJECTED: it needs a new print-loop handle seam (print.rb edit) and
+  forks two delivery paths; the port's single queue + wake is the
+  I48-consistent shape. Recommend ACCEPT.
 - **OQ-9 — CUT list (itemized, none silent)**: pi's
   `subagent_supervisor` wire tool (OQ-4); `to:` matching (OQ-5);
   external pi-intercom providers (inter-session chat — one supervisor
