@@ -36,34 +36,40 @@
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section user-bash-streaming specification --from <file>`. -->
+# Specification — I38 user-bash-streaming
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+- **Objective.** Close the user-bash mid-flight divergence (BRIEF §8; Grounds 1): while a `!`/`!!` command runs, tart renders pi's RUNNING block in the live region — blank, `─` border (bashMode, `dim` for `!!`), `$ <command>` bold header, the accumulated output rows (muted, the completed block's last-20 preview discipline, toggle-aware), a blank + the loader row (`Running... (escape/ctrl+c to cancel)`, spinner in the block's colorKey, message muted, 80 ms time-derived dwell, anchored at run start), `─` border — appended BELOW transcript content and BELOW any streaming assistant rows (pi's chat/pending placements, Grounds 6). Chunks flow through an `on_chunk` seam on `Tools::Bash#run_user` over the EXISTING bridge queue to the reactor, where they mutate render state and request a draw. The completed block flushes exactly as today (byte-identical, same enqueue, same expandable registration); the live rows are transient — never transcript entries — and every terminal path clears them. Settled screens must not move (s1–s10).
+
+- **Port shape (single-writer surface work; the constructor-seam idiom of decomp-wave4 is the house style).**
+  - **The execution seam (lib/tart/tools/bash.rb).** `run_user(command, on_chunk: nil)` threads the proc through `spawn_and_stream` into `drain_pipe`: after each pipe read appends to the accumulator, `on_chunk&.call(text.gsub("\r", ""))` — CR-REMOVED per chunk, the same rule the returned content applies (Grounds 2; pi's executor discipline). `execute` (the model-facing tool) passes nothing — its render is I34's pending block, unchanged. The rolling accumulator, truncation, spill, and cancellation contracts are untouched; a cancelled run's partial chunks may still fire the seam after the reactor-side wait died (harmless — see the UserBash wiring).
+  - **The UserBash wiring (lib/tart/render/user_bash.rb).** The bridge run block currently discards yielded items; it now forwards each chunk item to a new constructor-injected `stream_chunk_sink` (reactor fiber — the bridge yields there; Grounds 5). Run start notifies a `stream_start_sink` with `(command, excluded)` before the task spawns; EVERY terminal path — `finish`'s outcome arm, `finish`'s worker-error arm, and `cancel` — notifies a `stream_end_sink` exactly once (the clear is explicit, never implicit in a render sink). The seam names are the contract; Chat owns the state they mutate. The single-flight gate, escape-cancel handshake, slot/sleep-loop, deferred records, and `request_draw` discipline are unchanged.
+  - **The live region (lib/tart/render/chat.rb).** Chat holds the running block's render state (command, excluded, accumulated text, the bash loader's spinner anchor) mutated ONLY by the three sinks under the surface mutex; `live_lines` appends the running rows after the assistant rows (empty-assistant case: the running rows alone, own leading blank — the `return []` gate extends to the running state). The loader glyph derives from the injected `clock:` at render (the I37 `spinner_glyph` discipline — extract/share the math, house judgment) from a bash-run anchor set at `stream_start` (pi: a new Loader per component — independent of the border status's anchor). The running preview reads `@transcript_state.tool_output_expanded` at composition (mid-run ctrl+o toggles it, pi Grounds 6f). Per chunk: append + `@kernel.request_draw`. The animation window extends: `render_frame` re-arms while `busy?` OR a user-bash run is in flight (the 80 ms glyph must advance between chunks; `@busy` itself stays false — no border "Working" status from a bash run).
+  - **The row composer (lib/tart/render/bash_block.rb).** A module-function `running_user_bash_rows(command, width, content:, excluded:, spinner_glyph:, expanded:)` composes the family above, sharing the completed path's exact primitives (`TUI.line` borders, `Panel.padded_fg_rows` header with `modifiers: [:bold]`, muted output rows, `USER_BASH_PREVIEW_LINES` last-20-of-last-20 discipline, `Panel.blank_line` spacers) and the loader row: one-space pad, spinner span in the block's colorKey, message span muted with pi's literal bytes `Running... (escape/ctrl+c to cancel)` (Grounds 3). The observable CONTRACT (property, not implementation): for any accumulated text T, the running rows == `user_bash_block_rows(command, content: T, <zero-status fields>, excluded:, expanded:)` with the status block replaced by [blank, loader row] — i.e. header/output/borders byte-shared with the completed family; and an empty T renders header + blank + loader row + border.
+
+- **Tests (deterministic, in-repo; drive the public surface, no stubs).** New direct-class tests (test/render/ for the composer; test/bash_tool_test.rb for the seam) + chat-level tests through the existing kernel-task pattern (the escape-cancel test's `kernel.submitted` manual-reactor idiom, chat_test.rb:2861-2880): (1) mid-flight rows — a chunking command (`printf 'alpha\n'; sleep 0.2; printf 'beta\n'`) with a draw between chunks shows the running family (header, `alpha` row, loader row bytes) while the transcript has NO block; (2) settled replacement — after completion the transcript is byte-identical (rows + position) to a control chat that received only `enqueue_user_bash_block` with the same fields, and `live_lines` is empty; (3) the prefix property — composer-level: running rows for text T equal the completed family minus status plus [blank, loader row], for T empty / short / >20 lines / wrapped-long-line, both toggle states; (4) chunk-join discipline — sink-fed chunks `["par", "tial\r\nline2", "tail"]` render `partial` then the unterminated `line2tail` row (the appendOutput join, string-buffer equivalent); a CR-only chunk vanishes; (5) the seam — `run_user` with `on_chunk:` on a real quick command: the joined chunks equal the returned content after its CR-strip, and `execute` never fires a callback; (6) every terminal clears — outcome, worker-error (the ENOENT arm), and escape-cancel all leave zero live rows and zero `Running...` anywhere; the cancelled block keeps its partial output (existing behavior); (7) spinner — the injected clock advances the glyph at 80 ms boundaries, the anchor resets at run start, and it is independent of the border-status anchor; (8) the animation window — while a run is in flight, two draws with no chunk between advance the glyph (frames keep pacing; `@busy` false throughout — no border status renders); (9) replay — `replay_user_bash` over a recorded entry renders zero loader rows; (10) `!!` — the running block's border/header/spinner ride `Theme[:dim]`; (11) mid-run ctrl+o toggles the running preview (collapsed last-20 ↔ whole), no hint row either state; (12) the single-flight warning and escape-routing tests stay green unchanged.
+
+- **Rig (the frozen instrument — the I34 probe discipline).** New `gems/tui-split-rig/bin/user-bash-stream-probe` + driver `scenarios/probe_user_bash.yml` (name `probe_user_bash`; `prompt:` = the `!`-command line `!for i in 1 2 3; do echo "probe line $i"; sleep 1; done`; `expected_requests: 1` with one inert scripted stream reply that is never requested — loader constraints, Grounds 7). The probe boots BOTH apps through the runner's staging (the tool-pending probe's shape), settles boot, `send-keys` the command line + Enter, captures plain+styled frame pairs at 0.5 s until 4 identical (settled = spinner gone). Default (evidence) mode: numbered frame pairs + a digest line per frame (header row? loader row? output-row count), exit 0. `--gate` mode: per app PASS iff (a) ≥1 pre-settle frame shows the header row AND the loader row AND ≥1 OUTPUT row (a `probe line N` row that is not the header line — chunk rows painted before completion, the iteration's core claim), (b) the settled frame shows the header row and all three output rows and ZERO loader rows, (c) every loader-bearing frame also carries the header row (the loader rides the block). Both apps must pass (pi = oracle control); on pass print `USER_BASH_STREAM_GATE_OK` and exit 0, else the failing condition's per-frame digest and exit 1. No registry or scenario changes beyond the new probe yml (additions-only if genuinely forced, each evidenced).
+
+- **Output format.** Raw evidence to scratch: file list + wc; the new tests with verbatim run tails; suite counts before/after; the probe gate command line + exit code + digest tail (both modes); the s1–s10 exit codes; PHASE 0 disagreements mandatory (the Grounds 2/3/5/7 premises are checkable against repos/pi, the gem, and the bridge). STATUS line last.
+
+- **Tool guidance.** Verification (tart): `bundle install --quiet && bundle exec rake`, `bundle exec ruby bench/seam_bench.rb`; parity gates: `gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<s>.yml --out tmp/<short-out>` (s1–s10 exit 0; SHORT out-dirs — deep paths trip the pre-existing footer-cwd truncation sensitivity; allow 60 s+ each, both apps boot); the new gate: `gems/tui-split-rig/bin/user-bash-stream-probe --gate --out tmp/i38-ubs` (allow 120 s+; runs both apps ~20 s). pi sources: `repos/pi/packages/coding-agent/src/modes/interactive/components/bash-execution.ts` (whole file), `interactive-mode.ts:6987-7062` + `:3074` + `:3389` + `:4861-4867`, `core/bash-executor.ts:48-160`, `packages/tui/src/components/loader.ts`, `packages/tui/src/keybindings.ts:155-158`. Read user_bash.rb's threading doc and bridge.rb's yield loop before designing (Grounds 5).
+
+- **Boundaries.** May touch exactly: `lib/tart/tools/bash.rb`, `lib/tart/render/{user_bash,chat,bash_block}.rb`, `test/chat_test.rb`, `test/render/**`, `test/bash_tool_test.rb`, `gems/tui-split-rig/bin/user-bash-stream-probe`, `gems/tui-split-rig/scenarios/probe_user_bash.yml`, `gems/tui-split-rig/test/**`. Must not: `lib/tart/render/transcript.rb` (the completed path, the expandable registry, and the `tool_output_expanded` reader are frozen — the live region reads, never writes), `lib/tart/agent/{loop,bridge,session}.rb` (the events and the yield loop are the contract as-is), `lib/tart/render/{editor,motd,viewport,selection,footer,kill_ring,model_menu,picker,text,panel,file_blocks,tool_block}.rb`, `lib/tart/{theme,settings,commands,models,identity}.rb`, `bin/tart`, `bench/**`, any existing scenario yml, `gems/tui-split-rig/registry.yml` (additions-only if genuinely forced — then evidenced), any golden. Out of scope: Grounds 10's list. No placeholders; search before implementing.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision user-bash-streaming`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/tools/bash.rb
+    - lib/tart/render/user_bash.rb
+    - lib/tart/render/chat.rb
+    - lib/tart/render/bash_block.rb
+    - test/chat_test.rb
+    - test/render/**
+    - test/bash_tool_test.rb
+    - gems/tui-split-rig/bin/user-bash-stream-probe
+    - gems/tui-split-rig/scenarios/probe_user_bash.yml
+    - gems/tui-split-rig/test/**
 ```
 
 ## Acceptance Criteria
