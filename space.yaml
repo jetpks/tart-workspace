@@ -1818,7 +1818,45 @@ project:
   - name: seam-memory
     ordinal: 47
     file: architecture/I47-seam-memory.md
-    freeze_sha:
+    freeze_sha: c81123d3b8c6a3b7535d59fc9d05e2a0ed3ae801
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/hooks.rb
+      - lib/tart/memory.rb
+      - lib/tart/herdr.rb
+      - lib/tart/tools/memory.rb
+      - lib/tart/tools/registry.rb
+      - lib/tart/commands.rb
+      - lib/tart/settings.rb
+      - lib/tart/agent/loop.rb
+      - lib/tart/agent/session.rb
+      - lib/tart/agent/system_prompt.rb
+      - lib/tart/print.rb
+      - lib/tart/render/chat.rb
+      - lib/tart/render/transcript.rb
+      - bin/tart
+      - README.md
+      - test/hooks_test.rb
+      - test/memory_test.rb
+      - test/herdr_test.rb
+      - test/agent_loop_test.rb
+      - test/session_test.rb
+      - test/commands_test.rb
+      - test/settings_test.rb
+      - test/system_prompt_test.rb
+      - test/render/transcript_test.rb
+    - name: rig
+      repo: tart
+      touch_set:
+      - gems/tui-split-rig/scenarios/s11_memory_recall.yml
+      - gems/tui-split-rig/fixtures/memory.ts
+      - gems/tui-split-rig/lib/tui_split_rig/runner.rb
+      - gems/tui-split-rig/lib/tui_split_rig/scenario.rb
+      - gems/tui-split-rig/test/scenario_test.rb
+    rehearsal:
+      gates_digest: daf32ed2f99c668069efa9a0db5a33ceed59001d1e2fd4e6ca6218a687bb3795
+      at: '2026-10-13T10:51:57-06:00'
   integration_branch: project/pi-port
