@@ -1709,11 +1709,234 @@ worktree. The frozen iteration file is read-only contract.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I48-subagents-core-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence subagents-core --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# Lane report — I48 subagents-core, lane `core`
+
+Builder: zai/glm-5.3-flash (thinking-high). Worktree
+`build/I48-subagents-core-core/wt`, base b54a3b1, branch
+lane/I48-subagents-core-core. Never committed; `git log b54a3b1..HEAD` is
+empty (0 commits).
+
+## File-by-file table
+
+| File | Status | Δ lines (ins/del) | Total lines | Content |
+|---|---|---|---|---|
+| `lib/tart/subagents.rb` | NEW | +293 | 293 | `Tart::Subagents`: `register` (gate-on boot entry; tool LAST via `hooks.register_tool`), `home` (`<IDENTITY>_SUBAGENTS_HOME` else `<root>/subagents`), `BUILTIN_AGENTS` frozen table {worker, oracle, reviewer} (descriptions byte-carried; fallback-report sentences; pi-only tools cut), `DEFAULT_FORK_PREAMBLE` byte-exact, `resolve_model` (suffix vocabulary, invalid names the set), `KernelBridge` (the wake ferry), `NOTIFY_CUSTOM_TYPE` |
+| `lib/tart/subagents/manager.rb` | NEW | +851 | 851 | The Manager: run dirs + atomic status lifecycle (result BEFORE terminal flip; taskChars only), spawn (§4 argv/env, pgroup + detach + sentinel fd), steer (request-id-correlated receipts, 128KB cap), stop (5s→TERM→2s→KILL), deadline supervisor + child self-deadline, watcher thread (0.25s) with notify+wake, disk-first reconcile (T3), §7 strings, `#spawn_argv_and_env` public |
+| `lib/tart/tools/subagent.rb` | NEW | +157 | 157 | `Tools::Subagent < RubyLLM::Tool`, wire name "subagent", manager-injected; snake_case params; async default TRUE; plain-String results; `{error:}` for foreground failure + safe-next-steps |
+| `lib/tart/agent/loop.rb` | MOD | +144/−2 | 1010 | `steer_inbox:` kwarg; the file inbox folded into `steering_messages` (same consumption points + the outer break); steer → queue + `{requestId, consumedAt}` steer-log + unlink (at-least-once); stop file → `Async::Cancel` (interrupted agent_end); poison files unlinked+skipped; `Loop#wake` (pending as opening messages, no-op in flight, no model call when empty); `running?` |
+| `lib/tart/print.rb` | MOD | +51/−3 | 181 | `require_relative "subagents"` (the `require "tart"` load point — P0-2); kwargs `steer_inbox:`, `selected_tools:`; the child self-deadline thread (`<IDENTITY>_RUN_DEADLINE_MS` epoch → sleep → TERM own pgroup); disarm on exit |
+| `lib/tart/settings.rb` | MOD | +12/−2 | — | `DEFAULTS["subagents"] = false`; `RESOLUTION_ENV` += `"subagents" => "SUBAGENTS"`, `"thinkingLevel" => "THINKING_LEVEL"` |
+| `lib/tart/tools/bash.rb` | MOD | +21/−1 | — | `<IDENTITY>_TOOL_TIMEOUT_MS` read at construction (positive ms → the default `timeout` seconds for calls that omit one; invalid → warn + ignore; unset = today); explicit call values win |
+| `bin/tart` | MOD | +127/−9 | 800 | The four print-only flags (interactive → abort, exit 1); print boot: subagents gate register before build_tools, `--system-prompt-file` overrides the composed prompt, `--session-root` → Recorder `root:`, `--tools` → `selected_tools:`; the drain AFTER the final response (manager.drain → pending_next_turn flushed to the recorder as custom_message entries) + shutdown; interactive: register with the KernelBridge + `-> { surface.agent }` callable (NO MOTD row); `kernel.on_event` lands the synthetic wake block as `kernel.async(&block)` |
+| `README.md` | MOD | +66/−0 | — | §Subagents per Specification §9 (gate, agents, actions, run dirs, both timeouts, harness decision + probe numbers, CUT pointer) |
+| `test/subagents_test.rb` | NEW | +598 | 598 | 26 tests / the unit pin table (§8): builtin table bytes, model suffix, fork preamble bytes, gate rows + opt-in build ordering, foreground e2e, spawn argv/env closure (T2/T3), fork resume + preamble, async start bytes + notification + wake kick, failed-run display, steer receipts + T1 log + file format + 128KB cap + mid-run wire reach, stop escalation + no zombie, run deadline + timedOut, child self-deadline with supervisor disarmed, bash env default (in-process + real child), reconcile-from-disk + fleet-empty line, list shape + unknown-id error, hermeticity, runs/outstanding/shutdown, tool dispatch + async default |
+| `test/agent_loop_test.rb` | MOD | +170/−0 | 1365 | 6 additive pins: steer-inbox drain at the boundary (wire user message + log + unlink), stop file → interrupted agent_end, poison file skipped, wake drains pending as the opening turn (wire + session entry), empty wake = no request, mid-run wake no-op |
+| `test/settings_test.rb` | MOD | +23/−0 | 608 | 2 additive pins: the subagents/thinkingLevel rows; known-key + env-over-file-over-default |
+
+`git diff --name-only b54a3b1` + untracked = EXACTLY the 12 declared files.
+Nothing else touched — hooks.rb, registry.rb, memory*, herdr*, session.rb,
+schemas/shapes/models/compaction, the six tool bodies, mcp*, render/**,
+core/**, gemspec, bench, rig, test/support, and every frozen test file are
+byte-identical (the mounting proof: the I47 seam consumed, never edited).
+
+## Verification transcript (this worktree)
+
+- `bundle install --quiet && bundle exec rake` →
+  `989 runs, 4325 assertions, 0 failures, 0 errors, 1 skips`
+  (base 955/4038/1 skip; +34 tests; the one base LiveRunTest skip
+  unchanged). SUITE GREEN.
+- `bundle exec ruby bench/seam_bench.rb | tail -1` → `SEAM_BENCH_OK`.
+- `subagents-units` (frozen gate):
+  - VERBATIM: crashes at its own line 118 — `undefined method '[]' for
+    nil` on `server.captured_requests.map { |rq| rq["body"]["messages"] }`
+    (`MockLLMServer#captured_requests` returns parsed bodies; there is no
+    "body" key). P0-8 below.
+  - MINIMALLY-REPAIRED equivalent (one token, `rq["messages"]`):
+    `SUBAGENTS_UNITS_OK`, exit 0. Every other frozen literal drove green:
+    gate rows, builtin table, suffix routing, off-build, foreground
+    (result bytes, status.json, session-under-run-dir, argv flags, the
+    CLOSED env set, no PI_SUBAGENTS), async start bytes, T1 steer
+    (delivered + 36-char request id + receipt text + log correlation +
+    child-wire reach), notification header/tail/display, stop receipt
+    bytes + zombie-free, deadline stopped+timedOut, status line tokens,
+    fleet line.
+- `wire-bodies`: the rig run exits 0; the request-body digest over THIS
+  worktree is `d171dfee…` — the sole delta vs the frozen `2ece7d4b…` is
+  the ABSOLUTE repo-root embedded in `<cwd>` (`/build/I48-subagents-core-core/wt/<SBX>`
+  vs `/repos/tart/<SBX>`); the frozen normalization only rewrites the
+  sandbox suffix. EQUAL-DEPTH CONTROL: swapping ONLY the root path yields
+  `2ece7d4b875c98590b2f839814a0d3444fbfe1a8514b09c17d000663466c25d2`
+  byte-exact, and the tools digest is `7360fd1ec6419b5f9966c3067588314cdd0d29231a78346443a0002923c23707`
+  byte-exact as-is. The known lane-worktree path artifact (nine
+  precedents); the judge's integrated-tree run matches verbatim. P0-9.
+- `session-golden` (frozen one-liner) → `SESSION_GOLDEN_OK`.
+- s1–s10 (frozen commands, HERDR_* scrubbed, canonical `tmp/parity-gate-*`
+  out dirs): s1_text_turn, s2_tool_turn, s3_tool_turn_files,
+  s4_bash_variants, s5_bash_truncation, s6_long_calls, s7_compaction,
+  s8_zero_usage_compaction, s9_startup_help, s10_editor_wrap — ALL exit 0.
+  No deep-path artifact this time (the worktree root is path-short).
+- `s1-tart-mode` → `TART_MODE_OK` (completed, requests == expected; exit 1
+  by design tolerated by the gate).
+- `tool-pending-probe --gate` → `TOOL_PENDING_GATE_OK`;
+  `user-bash-stream-probe --gate` → `USER_BASH_STREAM_GATE_OK`.
+- `subagents-e2e`: NOT MINE — stays RED in this tree by design (the e2e
+  lane's file is not in this worktree).
+- Scope: `git diff --name-only b54a3b1` + untracked = exactly the 12-file
+  set; `git log b54a3b1..HEAD` empty; interactive flag rejection exits 1;
+  `--help` carries the four new flags.
+
+## PHASE 0 disagreements (itemized, researched — resolved by the prompt letter, judge adjudicates)
+
+- **P0-1 — the watcher runs as a plain Thread in ALL boots** (the spec
+  offers "reactor task (kernel.async) or thread"). Researched:
+  `Core::Loop#async` is "Reactor context only" (core/loop.rb:151-155 —
+  `Async::Task.current`); every available arming point is off-reactor
+  (register happens in the TUI setup block before `kernel.run`; spawn
+  happens on a Bridge worker thread). The OBSERVABLE contract holds
+  (POLL_INTERVAL 0.25s = pi's 250ms; terminal detection; notify; wake).
+  The WAKE kick keeps the frozen `kernel.async { agent.wake }` shape
+  faithfully through `Subagents::KernelBridge`: the Manager calls
+  `kernel.async(&block)`; the bridge ferries the block through the TUI's
+  synthetic-event channel (ratatui_ruby synthetic_events.rb — a plain
+  mutexed Array, carries Procs); bin/tart's `kernel.on_event` seam lands
+  it as `kernel.async(&event)` ON the reactor. The frozen gate's fake
+  kernel captures the Manager-side call unchanged.
+- **P0-2 — `lib/tart.rb` is NOT in the touch set, but the frozen
+  `subagents-units` gate does `require "tart"` and then drives
+  `Tart::Subagents`** — the module must load transitively. Resolved:
+  `print.rb` (touchable, loaded by lib/tart.rb) requires subagents.
+  Dependency direction is sound: print mode is a consumer of both the
+  Manager (boot registration, §5.4 drain wiring lives in bin/tart) and
+  the deadline seam.
+- **P0-3 — additive optional kwargs beside frozen signatures**:
+  `Subagents.register(identity:)` (default "pi") — the runs-root
+  resolution `<IDENTITY>_SUBAGENTS_HOME` needs the RESOLVED face and the
+  frozen seven-arg signature cannot carry it; `Manager.new(arm_deadline_supervisor: true)`
+  — Specification §8 requires "the child self-deadline honored when the
+  parent-side supervisor thread is disarmed", which needs a disarm seam.
+  Every driven construction from §1/§2.7 remains valid (defaults).
+  Manager records additionally carry port-internal keys beyond the §2.2
+  ten (task_text/tools/model pair/timeouts/fork/exit_pipe/flags) —
+  `#spawn_argv_and_env(run)` must derive the §4 harness from the record
+  alone; the ten public keys are all present.
+- **P0-4 — the child env's API_KEY/API_BASE fall back to the gem's
+  global `RubyLLM.config` when `<IDENTITY>_API_KEY/_API_BASE` are
+  unset.** Necessity: the FROZEN gate stages `ENV["HOME"]` only — no
+  PI_API_KEY/PI_API_BASE — yet its children must reach the MockLLMServer
+  (the gate's own `RubyLLM.configure { openai_api_key = "t";
+  openai_api_base = server.url }` is the only place those facts exist).
+  Production convergence: a parent that resolved its key from
+  models.json/settings has children re-resolve identically from the same
+  staged HOME/cwd; the fallback is inert there (bin/tart boots use a
+  LOCAL `RubyLLM.context`, never the global). Env-tier values always win.
+- **P0-5 — exit-status observability under the T3 letter.** "Process.detach
+  owns every reap (no waitpid anywhere)" makes the true exit
+  code/signal unobservable; the §2.2 "blocking pipe wait" is implemented
+  as a SENTINEL FD passed to the child (`3 => pipe_wr` in Process.spawn;
+  ruby_llm-style spawn marks unlisted fds close-on-exec, so the fd closes
+  exactly at the child's exit) — EOF = observed exit, bounded select loop
+  with cancellation checkpoints. Consequences (itemized): success uses
+  the print-mode invariant (final stdout text present); `exitCode` is
+  recorded nil except where the parent itself escalated (`signal` 15/9 on
+  stop/deadline paths); pi's "unexplained signal → stopped" class is
+  unreachable in the port (every kill is parent-caused and flagged). The
+  frozen gate checks only the pinned facts (state/timedOut/zombie) — all
+  green.
+- **P0-6 — flag threading details.** `--session-root` threads to the
+  Recorder's `root:` in bin/tart (the frozen §5.2 parenthetical says
+  exactly that: "`session_root:` → the Recorder's `root:`"); the other
+  three flags ride Print.run kwargs (`steer_inbox:`, `selected_tools:`,
+  `system_prompt:` already existing). `Print.run(selected_tools:)` builds
+  its own Registry loadout from exactly the list — the bash session-env
+  readers are not threaded on that child path (children-of-children are
+  cut; nothing pins child bash session env) — itemized cut.
+- **P0-7 — stop-file consumption dir.** §5.1's letter says the loop reads
+  "`<dir>/*.json`" where `dir` is the steer INBOX, but §2.4 writes stop
+  files to the SIBLING `control/stop-requests/`. The child loop drains
+  BOTH (steer files from `steer_inbox:`; stop files from
+  `../stop-requests/`) at the same consumption points — the two sections
+  reconciled, no seam added.
+- **P0-8 — FROZEN GATE DEFECT (mechanical).** `subagents-units` line 118:
+  `server.captured_requests.map { |rq| rq["body"]["messages"] }`.
+  `MockLLMServer#captured_requests` pushes the parsed request BODIES
+  (test/support/mock_llm_server.rb: `@requests << parsed_body`) — there
+  is no "body" key, so the verbatim gate raises NoMethodError
+  (`nil["messages"]`) after the drain. The judge-note's
+  "minimally-repaired equivalent" applies: `rq["messages"]` (one token)
+  → SUBAGENTS_UNITS_OK exit 0. Both transcripts above. Evidence that
+  this is a gate bug and not a surface bug: the repaired run passes the
+  assertion the line exists to check (the steer reaches the child wire),
+  and test/subagents_test.rb pins the same behavior against the same
+  server.
+- **P0-9 — the wire-bodies digest in a lane worktree** (the s9-family
+  artifact, tenth precedent): the request body embeds the absolute
+  repo-root in `<cwd>`; the frozen gsub normalizes only the sandbox
+  suffix. Equal-depth control documented above — both frozen digests
+  reproduce byte-exactly when only the root path is canonicalized; zero
+  behavior bytes moved.
+- **P0-10 — MockLLMServer pause reality**: `spec_pause` is hardcoded 0.1s
+  (chunk_every is ignored, test/support frozen). My steer windows are
+  sized against measured reality (120-char ≈ 12s streams), and the frozen
+  gate's own windows (17-char ≈ 1.7s vs ack 8s) verified green.
+- **P0-11 — the notification `Session file:` line**: §7 pins the tail
+  unconditionally; pi omits the line when the child recorded no session.
+  The port keeps the line always (`(none)` when absent) — the pinned
+  completed-run shape is byte-served.
+- **P0-12 — `Loop#wake` capture-and-restore**: `Hooks#pending_next_turn`
+  (frozen, I47 seam) is drain-only — there is no peek. wake drains
+  atomically, restores the captured items verbatim via
+  `send_next_turn` (FIFO onto the fresh-empty queue), and lets the run's
+  own §I47 drain deliver them — the seam stays untouched.
+
+## OQ notes (Grounds §8 — evidence added, nothing overridden)
+
+- **OQ-1** (opt-in surface): implemented exactly; the gate rows are
+  pinned; off-build carries no tool; the frozen digests hold (P0-9
+  control). ACCEPT.
+- **OQ-2** (run dirs under the agent root): `Subagents.home` +
+  `<IDENTITY>_SUBAGENTS_HOME`; hermeticity pinned (no writes outside the
+  staged home; the default sessions root untouched). ACCEPT.
+- **OQ-3** (uuidv7 run ids, full display): `Agent::Session.uuidv7`; start
+  message and `Run:` carry the full id. ACCEPT.
+- **OQ-4** (print drain, no extra stdout): `manager.drain` after the
+  final response prints; notifications reach the session via
+  `recorder.append_custom_message` flushing `hooks.pending_next_turn` —
+  no model turn, no extra stdout. ACCEPT.
+- **OQ-5** (start-message guidance adaptation): byte shape implemented
+  exactly as §7 (no bg_wait; the status action named); gate-pinned.
+  ACCEPT.
+- **OQ-6** (cuts): all cut list items absent; README carries the CUT
+  pointer. ACCEPT.
+- **OQ-7** (closed child env): enforced at the Manager (`unsetenv_others`
+  + the exact key builder), gate-pinned (superset check + no gate row +
+  no MCP). ACCEPT.
+- **OQ-8** (tool timeout as bash default): implemented with the ms→s
+  conversion, warn+ignore on invalid, explicit-wins; pinned in-process
+  AND through a real child's slow bash call. ACCEPT.
+
+## Residual risks
+
+- The verbatim `subagents-units` gate cannot pass anywhere (P0-8) — the
+  judge must run the one-token repaired form (or accept my transcript).
+- The wire-bodies/s9-class path artifact is confined to lane worktrees;
+  the integrated-tree run is expected clean (equal-depth control proves
+  byte-equality modulo the root path).
+- `subagents-e2e` is unverified here BY DESIGN (disjoint lane); legs A/B
+  exercise the print-drain and fork paths through real subprocesses —
+  any integration mismatch surfaces on the integrated tree.
+- The 128KB/128KiB steer cap text and the `Session file: (none)` fallback
+  are port wordings where the spec was silent/pinning-adjacent (P0-11).
+- Interactive wake rendering: `Loop#wake` emits the I47 custom-message
+  events on the live surface; the wake does NOT drive the surface's
+  submit path (per §5.3), so no working/stop state machine churn —
+  unverified against a live TUI (no interactive e2e in either lane).
+
+STATUS: COMPLETE_WITH_CONCERNS — P0-8 (frozen gate line 118 is
+mechanically unsatisfiable; repaired form green, transcript recorded) and
+P0-9 (wire digest path artifact in lane worktrees; equal-depth control
+byte-exact); everything else green in-worktree.
 
 ## Verdict
 
