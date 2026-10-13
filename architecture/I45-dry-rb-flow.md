@@ -257,34 +257,260 @@ parentheses — judge may re-rule)
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section dry-rb-flow specification --from <file>`. -->
+# Specification — I45 dry-rb-flow
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+## Objective
+
+Program ENTRY 3 (`build/loop/plan-20261013T092136Z.md`): dry-monads for
+control flow — the Result discipline through the agent loop's step
+boundary and the MCP client's call surface. The hand-rolled result unions
+(the Bridge's terminal Hash, the MCP client's raise taxonomy) become
+`Dry::Monads::Result` values: `Failure` typed by error class (payload =
+the error INSTANCE), the consumers' existing branches keyed on the
+payload classes. Composes on I43 (schemas + the 5-rule error discipline)
+and I44 (shapes) — both inherited verbatim. Parity track: internal only —
+ZERO observable byte moves on screen or wire. HARD constraints (the
+letter): NO new rescue walls hiding failures — monads make the failure
+path explicit, not silent; the before_request hook's payload effect and
+every wire byte stay identical; cancellation is control flow, never a
+Failure value.
+
+## The flow contract (composes on I43's pattern contract)
+
+1. **Vocabulary.** Each flow file opens with `require "dry/monads/result"`
+   and includes `Dry::Monads::Result::Mixin` at the class level — the
+   gem's own idiom (probed, Grounds §3), NO wrapper module, no
+   `Tart::Flow` indirection, no `Maybe`/`Task`/`Do` notation (out of
+   scope — Result only). `lib/tart.rb` does NOT add a global require;
+   the flow files own theirs (the existing require discipline).
+2. **Failure typing.** `Failure` payload = the error INSTANCE of TODAY'S
+   class (`RubyLLM::*` at the step boundary; `Mcp::Error` /
+   `Mcp::TimeoutError` / `Mcp::ConnectionClosedError` / `RuntimeError`
+   at the MCP surface — Grounds §2.2's table verbatim). NO new error
+   classes (OQ-5); NO symbol/type-parameterized failures; message bytes
+   preserved everywhere.
+3. **Cancellation + kernel interrupts stay exceptions.**
+   `RubyLLM::CancelledError` re-raises ahead of any conversion (it maps
+   to a Failure ONLY where it crosses the Bridge worker boundary as the
+   cancelled terminal — the payload class is the discriminator);
+   `Async::Cancel` propagates through `Bridge#run` exactly as today
+   (on_cancel → bounded join → raise); non-StandardError `Exception`s
+   rescue → cleanup → re-raise (OQ-4). Bare `Try` is unusable at any
+   seam where these must survive (no except-clause, Grounds §3 p1) —
+   checkable conditions construct `Failure` directly; the only
+   exception→Failure conversions are the two EXISTING walls the letter's
+   surfaces name (the Bridge worker's `rescue StandardError`, the MCP
+   send-failure re-raise), converted in place, never extended.
+4. **No silent swallows.** Every consumer branches explicitly on the
+   Result (`case … in Success/ Failure(e)` or `failure?` + payload
+   class) before any use; `value!` only after `success?`; no
+   default-or-else masking; a Failure that reaches a boundary the
+   contract calls terminal is either surfaced (error events / stderr /
+   `{error:}` result) or explicitly classified (cancelled) — never
+   dropped.
+5. **Observables frozen.** Every message string, payload class, event
+   shape, exit code, warn byte, and file byte in Grounds §4 is
+   byte-identical after the rewire (the gates hold the goldens).
+6. **Scope.** Result discipline lands at exactly the two letter surfaces
+   (the loop step boundary incl. `summarize`'s bridge ride and the
+   user_bash terminal read; the MCP client call surface incl. its three
+   consumers). The seven built-ins' `safe_execute` wall stays (OQ-1);
+   everything in Grounds §6 is untouched.
+
+## B1 — the loop step boundary (bridge.rb + loop.rb + user_bash.rb's
+terminal read)
+
+- **`Agent::Bridge#run` returns Result** (replacing the terminal Hash
+  union; the `DONE`/`CANCELLED`/`ERROR` constants retire):
+  - worker completes → `Success()` (no payload — the step's message
+    arrives as a yielded `:step` item exactly as today);
+  - worker raises `RubyLLM::CancelledError` → `Failure(instance)` — the
+    cancelled terminal, payload class = discriminator;
+  - worker raises `StandardError` → `Failure(instance)` — today's
+    `{type: :error, error:}`.
+  The pop loop yields every streamed item in order (unchanged), returns
+  the terminal Result; `Async::Cancel` at the queue wait → on_cancel →
+  bounded join (`JOIN_TIMEOUT`, `finish`) → re-raise, all unchanged.
+- **`step_via_bridge`** consumes the Result: `in Success` → nothing
+  (today's done arm — `@last_message` set by the `:step` item);
+  `in Failure(err)` → `err.is_a?(RubyLLM::CancelledError)` keeps today's
+  cancelled shape (no `@last_error`, no error emit, nil message breaks
+  the loop); otherwise `record_terminal_error`'s body (`@last_error =
+  err` + the assistant message_end error emit). The terminal-Hash check
+  in `record_terminal_error` retires into this arm.
+- **`stopped_on_error?` / `recover_overflow?` / `run`'s agent_end arms
+  stay as-is** — they already branch on `@last_error`'s class (the
+  letter's "the loop's existing error handling branches on Failure
+  types" — the classification surface is the Failure payload landing in
+  `@last_error`); `last_error`/`interrupted?` readbacks and every event
+  payload byte-identical.
+- **`summarize`** (:445-466): the `terminal[:type] == :error` check
+  becomes the non-cancelled Failure arm → nil (compaction aborted,
+  run continues); a cancelled summarization keeps returning nil.
+- **`render/user_bash.rb` :183-184**: `terminal&.dig(:type) == :error`
+  re-points to the Result (`failure?` and payload not CancelledError) —
+  the `bash: <message>` error-line bytes identical; NO other render
+  change (this file's single elif arm is the only render-side edit of
+  the iteration).
+- **New classification pins** (test/flow_test.rb + additive
+  agent_loop_test.rb): the three step-boundary payload classes asserted
+  through the public surface — worker 400 → `RubyLLM::BadRequestError`
+  on `agent_end[:error]` + `last_error`; context-length 400 →
+  `RubyLLM::ContextLengthExceededError` (recovery latch interplay, the
+  existing :725-738 shape); dead endpoint → `Faraday::ConnectionFailed`
+  (Grounds §3 p2's deterministic probe class).
+
+## B2 — the MCP client call surface (mcp/client.rb + mcp.rb + tool.rb)
+
+- **Public API returns Result**: `connect(transport)` →
+  `Success(initialize result)` / `Failure(instance)`;
+  `list_tools` → `Success(Array)` / `Failure`; `call_tool` →
+  `Success(result hash)` / `Failure`. `close` / `closed?` /
+  `connection_state` / the attr_readers unchanged (no failure paths).
+  Success payloads = today's return values byte-identical.
+- **Failure payloads = Grounds §2.2's taxonomy, message bytes exact**:
+  `Mcp::TimeoutError` (deadline exceeded / nil delivery — `timeout_ms`
+  attr preserved), `Mcp::ConnectionClosedError` (require_transport's
+  state message / the closed-delivery default), `Mcp::Error` (JSON-RPC
+  error responses; the seven `Invalid MCP …` validation strings),
+  `RuntimeError` (the four state/protocol-misuse strings), and the
+  send-failure exception instance (today's `raise e` at :148 —
+  converted at the same wall after pending cleanup).
+- **Conversion mechanics**: checkable conditions construct `Failure`
+  directly (the deadline check, the closed-delivery check, the JSON-RPC
+  error branch, require_transport, the validation helpers); the
+  `rescue Exception` cleanup guard in `connect` keeps its cleanup for
+  ALL exceptions, re-raises non-StandardError, and returns
+  `Failure(instance)` for the StandardError family (OQ-4). The
+  validation helpers (`validate_initialize_result`,
+  `validate_list_page`, `validate_call_tool_result`) may return Failure
+  or raise into `connect`'s conversion — implementer's choice, message
+  bytes the contract.
+- **`Mcp.tools_for` / `server_tools`** (mcp.rb): `server_tools` returns
+  Result; the cleanup guard (client close on failure) preserved;
+  `tools_for` branches — `Failure(payload)` → the `$stderr` warn
+  `tart: mcp server "<name>" failed to connect: <payload.message>`
+  (bytes identical) + skip; `Success` → build tools exactly as today.
+  No `rescue StandardError` remains at this seam (the wall the client
+  used to throw over is gone — the Failure arrives as a value).
+- **`Mcp::Tool#execute`** (mcp/tool.rb :62-73): `client.call_tool` →
+  branch — `Failure(payload)` → `{error: payload.message}` (bytes
+  identical); `Success(result)` → today's isError/text mapping
+  unchanged (`isError` is a server RESULT value, not a Failure — the
+  mapping stays in the Success arm). The `RubyLLM::CancelledError`
+  re-raise guard stays (control flow, OQ-4).
+- **Taxonomy pins** (test/mcp_test.rb re-pins + additive): every
+  reachable row through the PUBLIC API — timeout (250 ms sleep),
+  invalid initialize, method-not-found (`Mcp::Error`, code −32601),
+  duplicate-cursor + pages-cap + unsupported-protocol-version (via the
+  two new echo-server toggles, Grounds §5) — payload class + message
+  bytes; plus the transport-send failure family at unit level if the
+  fixture cannot reach it (itemized if cut).
+
+## Dependency changes
+
+`tart.gemspec` gains `spec.add_dependency "dry-monads", "~> 1.11"`
+(production dep; the flow files require it at boot). `Gemfile.lock`
+regenerates and is committed; the transitive set adds nothing new
+(concurrent-ruby/dry-core/zeitwerk already present — Grounds §1). No
+path/git vendoring of the reference clone; no `required_ruby_version`
+change.
+
+## New unit pins (test/flow_test.rb new + the Grounds §5 re-pins)
+
+- **The Bridge Result contract**: failing work → `Failure` payload
+  instance identity; cancelled work (`RubyLLM::CancelledError` raised
+  in the worker) → `Failure(CancelledError)`; clean work → `Success`;
+  streamed items yielded in order before the terminal; interrupt
+  propagation unchanged (kernel discipline already pinned in
+  kernel_carryin/loop tests — the flow pin covers the contract, not the
+  kernel).
+- **The step-boundary classification table** (B1's three rows, public
+  surface).
+- **The MCP taxonomy table** (B2's rows).
+- **The no-silent-swallow golden** (Grounds §2.3): the scripted mid-tool
+  failure — `:tool_execution_end` result, wire tool-message content,
+  recorded session tool-entry content, roles, `agent_end` error nil,
+  normalized session digest — all frozen literals.
+- **The re-pinned mcp_test rows** (three sites, payload class + message
+  preserved) + the two echo-server toggles' additive pins.
+
+## Tool guidance (verify against live deps before writing code)
+
+- Read the reference clone first: `~/architect/src/github.com/dry-rb/
+  dry-monads` (1.11.0 — `lib/dry/monads/result.rb`, `try.rb`,
+  `lib/dry/monads/result/failure.rb`); the probed idioms are Grounds §3
+  — do not invent against old dry-rb folklore (no `Dry::Monads.Right`,
+  no `bind`-only chains, no `Do` notation).
+- Every conversion seam in B1/B2 cites its Grounds §2 line; behavior
+  drift from any pinned byte is a defect, not a judgment call — PHASE 0
+  it with evidence.
+- Verification (exact, per repo): `bundle install --quiet && bundle
+  exec rake` (suite), `bundle exec ruby bench/seam_bench.rb`
+  (SEAM_BENCH_OK), `gems/tui-split-rig/bin/tui-split-rig run
+  gems/tui-split-rig/scenarios/<s>.yml --out tmp/<canonical-short-dir>`
+  for s1–s10 + the two `--gate` probes (cold; s1_tart exits 1 by
+  design).
+
+## Boundaries
+
+**May touch** (the lane's enumerated file set — the ```lanes block is
+the frozen source of truth): `tart.gemspec`, `Gemfile.lock`,
+`lib/tart/agent/bridge.rb`, `lib/tart/agent/loop.rb`,
+`lib/tart/mcp/client.rb`, `lib/tart/mcp.rb`, `lib/tart/mcp/tool.rb`,
+`lib/tart/render/user_bash.rb` (the :183-184 terminal-read arm ONLY),
+`test/flow_test.rb` (new), `test/agent_loop_test.rb` (additive pins
+only — the existing error-path tests stay green untouched),
+`test/mcp_test.rb` (the three enumerated re-pins + additive),
+`test/support/mcp_echo_server.rb` (the two additive env toggles only).
+
+**Must not touch**: everything else, in particular — `lib/tart/schemas*`
+and `lib/tart/shapes*` (I43/I44 families, inherited verbatim),
+`lib/tart/tools/**` (safe_execute + the seven built-ins — OQ-1; their
+input contracts are I43's), `lib/tart/agent/{session,status,context_
+files,system_prompt}.rb`, `lib/tart/compaction.rb`, `lib/tart/mcp/
+{jsonrpc,config,stdio}.rb`, `lib/tart/render/**` except user_bash.rb's
+enumerated arm, `lib/tart/{commands,print,identity,skills,prompts,
+theme,tui}.rb`, `lib/tart/core/**`, `bin/tart`, `bench/**`,
+`gems/tui-split-rig/**`; the frozen test files (Grounds §5's frozen
+list — `print_test.rb`, `e2e_session_test.rb`,
+`golden_parity_test.rb`, `loop_test.rb`, `tools_test.rb`,
+`bash_tool_test.rb`, `chat_test.rb`, `session_test.rb`, and every other
+test file outside the touch set), `test/render/**`, `test/fixtures/**`.
+
+**Out of scope** (itemized, not lost): the built-ins' safe_execute
+Result conversion (OQ-1 — pinned, not converted); `Maybe`/`Task`/`Do`
+notation; dry-transaction/dry-operation on MCP call chains (the
+program's OUT list); any MCP collect-all error semantics; the render
+family's error rendering (consumer, untouched); the gem's error classes
+(payloads, never edit targets); the zai provider dialect (ENTRY 4).
+
+## Lane plan
+
+ONE lane (single-writer — bridge.rb, loop.rb, and mcp/tool.rb share the
+Result contract; parallel lanes would collide on the same files):
+
+- **flow** — target `repos/tart`, the full touch set above, the whole
+  objective. Effort: HIGH at dispatch (the most invasive dry-rb entry —
+  the step machine + the MCP surface + a render-side read + the golden
+  discipline).
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision dry-rb-flow`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: flow
+  repo: tart
+  touch:
+    - tart.gemspec
+    - Gemfile.lock
+    - lib/tart/agent/bridge.rb
+    - lib/tart/agent/loop.rb
+    - lib/tart/mcp/client.rb
+    - lib/tart/mcp.rb
+    - lib/tart/mcp/tool.rb
+    - lib/tart/render/user_bash.rb
+    - test/flow_test.rb
+    - test/agent_loop_test.rb
+    - test/mcp_test.rb
+    - test/support/mcp_echo_server.rb
 ```
 
 ## Acceptance Criteria
