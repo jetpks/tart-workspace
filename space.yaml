@@ -1560,12 +1560,13 @@ project:
       - test/chat_test.rb
       - test/render/**
       base_sha: ad2bad2867b139bad0a77a962da2fe4cfba2fa5d
-      worktree: build/I39-editor-undo-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 8b2bd93c6844630e8aa521848f21f5c55020d597
     rehearsal:
       gates_digest: 19bda973f34a0cb485a78936289b118c8ab56b8b549f1e2c4862f766c78cf687
       at: '2026-10-12T19:16:09-06:00'
