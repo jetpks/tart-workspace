@@ -1620,12 +1620,13 @@ project:
       - test/print_test.rb
       - test/agent_loop_test.rb
       base_sha: 9f8c8d794fd281884a35a264a48022982206b3f3
-      worktree: build/I41-loadout-session-env-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: b27d711dc2d7181d0d05dcbe0cfcab040af98b49
     rehearsal:
       gates_digest: d60d20191c5bc88bf292e8fddc5b480cdbcea997f5128914e211ab176ce16eb0
       at: '2026-10-12T21:49:45-06:00'
