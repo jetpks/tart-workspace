@@ -2279,12 +2279,13 @@ project:
       - gems/tui-split-rig/scenarios/s16_resize_wrap.yml
       - gems/tui-split-rig/test/scenario_test.rb
       base_sha: e099cf3b291e5e95d937a5a932b0b02be396f93f
-      worktree: build/I56-resize-layout-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: e273e5165e4063c31a719bd8bb50458ce1f7d7fa
     rehearsal:
       gates_digest: 9b1d2350b3cb32c9d32779c2b5564ef8e7579778fc03bf125e4223cfe1072455
       at: '2026-10-14T11:27:19-06:00'
