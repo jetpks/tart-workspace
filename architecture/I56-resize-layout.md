@@ -237,35 +237,208 @@ must match.
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section resize-layout specification --from <file>`. -->
+# I56 resize-layout — Specification
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+**Objective.** Close the owner's problems.md items 1+2: the header (hints/notice/
+onboarding rows AND the ascii art) and the editor input react to SIGWINCH itself.
+Three mechanisms, all live-calibrated this session (Grounds §1-§4): the compose
+latch (the post-resize frame composes at the resize event's dims — the root cause
+is the gem's stale `viewport_area` outside draw, Grounds §0/§2), the resize-live
+header rebuild (re-wrap + art re-pick through the I33 expandable registration),
+and the s16 rig scenario proving the SIGWINCH path end-to-end against the live
+pi oracle. The parked whole-transcript re-wrap is NOT reopened (Grounds §6).
+
+**Ground truth (verified this session — re-verify per Tool guidance, never trust
+this file's copies alone).**
+- pi's narrow-width header bytes: `tmp/resize-calib/stage3/pi-w{44,46,48,49,50,
+  51,52,54,56,64,80}.txt` + `.styled` (live tmux captures; pane 80 = the s16
+  width). pi's wrap = `Text.render` (text.ts:66-90, contentWidth = width −
+  paddingX·2, leftMargin per wrapped row) over `wrapTextWithAnsi`/`wrapSingleLine`
+  (utils.ts:900-1010) with `splitIntoTokensWithAnsi`'s whitespace/word token
+  stream (utils.ts:799-880); the header component is `BuiltInHeader(…, 1, 0)`
+  (interactive-mode.ts:1062-1074), its rows built at :1015-1066 (`withLogo`,
+  `compactInstructions`/`compactOnboarding`/`onboarding`, `expandedInstructions`).
+  The continuation quirks (whitespace-break keeps the separator's leading space;
+  word-break leads with the word) are IN the artifacts — pi's own code run over
+  the reconstructed string (deno import of `repos/pi/packages/tui/src/utils.ts`)
+  reproduces every row; that replica is the builder's cross-check oracle.
+- The gem: `RatatuiRuby::Event::Resize#width/#height` (event/resize.rb);
+  base-Event `method_missing`/`respond_to_missing?` (event.rb:113-131 — the
+  `respond_to?(:resize?) && event.resize?` guard form); `viewport_area` staleness
+  (ext terminal/query.rs:118-124) and the test-backend-only synchronous
+  `resize_terminal` (mutations.rs:126-146).
+- The ladder table: `build/i56-spec/ladder.txt` (cell widths; regenerate with
+  `TUI.text_width` over every row — never `String#length`, the art is multibyte).
+- The base candidate list for s16 at 80: Grounds §7 (8 candidates, all this
+  iteration's work).
+
+**Port shape.**
+
+*The compose latch — `lib/tart/render/chat.rb`.* `on_event` grows the resize arm
+in the existing predicate form (`event.respond_to?(:resize?) && event.resize?`,
+before the `key?/paste?` early return). `handle_resize(event)`:
+- latches the event dims (`[event.width, event.height]`) as the compose-time
+  geometry;
+- re-picks the header art through the ladder at the latched width (only when a
+  header block is enqueued — `@header_enqueued`, the existing guard ivar);
+- rebuilds the header block in place (the resize-live rebuild below);
+- `@kernel.request_draw`.
+`viewport_width` and `screen_height` return the latched dims while set;
+`render_frame` clears the latch AFTER `build_widget` (one-frame semantics: on a
+real terminal the frame's draw refreshes the gem area; the pin asserts frame 1
+at the event dims). `build_widget`'s own `@session.viewport_area` reads
+(:1445-1446) route through the same latched values (compose from ONE geometry
+source). No editor.rb change — `input_rows`/`windowed_rows` already recompute
+per frame at the caller's width; the latch supplies the true width.
+
+*The resize-live rebuild — `lib/tart/render/transcript.rb`.* `push_expandable`
+gains `resize_live: false` (every existing caller unchanged); the header's
+registration passes true. New public `rebuild_live_expandables`: re-invoke each
+live-flagged builder at the CURRENT expand state and splice in place — exactly
+`set_tool_output_expanded`'s arithmetic (:386-394) without the state flip and
+without touching non-live registrations. Returns whether anything rebuilt.
+
+*The header builders — `lib/tart/render/motd.rb` + the wrap — `lib/tart/render/
+text.rb`.*
+- `Motd.motd_logo_lines(width, wordmark:)` — the ladder: the piece with the
+  greatest max-row cell-width among those whose `max_cell_width +
+  Panel::OUTPUT_PAD.length <= width`; deterministic tie-break (name asc); when
+  none fits, `[wordmark]` (one row, the identity name). Stateless as today.
+- `Motd.pi_header_lines(expanded:, width:)` — gains the width; EVERY row (mark+
+  version, mark+hints, notice, onboarding; expanded: every keyHint row) wraps
+  through the new span-aware wrap at `width - 2*OUTPUT_PAD`, each wrapped row
+  prefixed by the pad. The mark row's spans and the hint spans flatten to one
+  wrap input (pi wraps the concatenated line — the mark's internal space and
+  the separator are part of the token stream, Grounds §3).
+- The span-aware wrapSingleLine port in `Text` (new function, TUI-line/span
+  vocabulary): flatten spans to (char, style) cells; tokenize whitespace/word
+  runs ACROSS span boundaries; pi's break rules (trimEnd on push, whitespace
+  tokens never start a continuation, over-long tokens hard-broken at width);
+  regroup cells into spans by contiguous style. The existing `wrap_row`/
+  `wrap_resource_row` stay untouched (different vocabularies/uses).
+- `Motd.tart_header_lines` — the art block = the ladder pick threaded by the
+  caller; the floor = the wordmark row; `HINTS_LINE` keeps `Text.wrap` at the
+  current content width (re-invoked at the latched width by the rebuild).
+- `Chat#enqueue_motd_header` — the art source moves from the closed-over sample
+  to an ivar set by the ladder at enqueue time; the resize handler re-sets it
+  before rebuilding; the flip path never touches it (the I33 byte-restore
+  property survives — extend its pin). /new and the compaction rebuild
+  re-enqueue through `enqueue_motd_header` (existing paths, chat.rb:541/:604) —
+  the ladder pick at the then-current width falls out for free; verify the
+  compaction path picks at the CURRENT width, not a boot-time captured value.
+
+*The instrument — `gems/tui-split-rig`.* Scenario knob `resize: [w, h]`
+(optional, two positive integers, load-validated, rejected otherwise — the
+`parse_*` pattern); runner applies it after the boot settle and before the
+paste/prompt block: `tmux("resize-window", "-t", session, "-x", w, "-y", h)` +
+`settle(session, "resize")` (resize-PANE does not move a manual-size session —
+Grounds §1; the no-knob path stays byte-frozen). New scenario
+`gems/tui-split-rig/scenarios/s16_resize_wrap.yml`: name s16_resize_wrap,
+prompt "hello", expected_requests 1, `resize: [80, 40]`, the s1 stream reply
+("The mock reply is fixed and short for the spike.").
+
+**Unit pins (the plan's mandatory gates — name-filtered per the I55 gate
+discipline; every filter verified EMPTY at base before freezing).**
+1. *Hints wrap at narrow width* — pi family: `pi_header_lines` (or the surface's
+   header rows) at width 50 reproduce the artifact rows EXACTLY (the two-row
+   hints incl. the `␣␣· / commands…` continuation, the two-row notice, the
+   two-row onboarding — plain bytes from `pi-w50.txt`; pin 2-3 widths from the
+   table, e.g. 50/52/80, the whitespace-break AND word-break classes); at width
+   ≥ the row's cell width the rows are single-row (the s9-at-120 shape
+   unchanged). tart family: HINTS_LINE re-wraps at the new width after a resize
+   event (multi-row at a narrow width, single-row wide).
+2. *Art ladder selection per width incl. the wordmark floor* — from the
+   MEASURED table (`ladder.txt`): width 120 → slant-relief; 50 → soft (32);
+   43 → twisted (42); 42 → mono-12 (40, tie over rebel by name); 6 or below →
+   the wordmark row `tart`. Plus: the pick re-picks on resize (after the resize
+   event, the rebuilt header carries the new width's piece) and stays stable
+   across a ctrl+o flip.
+3. *Editor reflow on resize without cursor movement* — text in the editor, a
+   synthetic `RatatuiRuby::Event::Resize` with dims ≠ the test terminal's, ONE
+   render: the editor input rows wrap at the EVENT width (assert the row
+   breaks), no key events between; a second render (latch cleared) recomposes
+   from the session area (one-frame semantics pinned).
+4. *The rebuild mechanics* — the header block's transcript rows are replaced in
+   place at the new width (start/delta arithmetic correct: content BELOW the
+   header shifts by the height delta — the flip tests' shape over
+   `rebuild_live_expandables`); non-live expandables (a tool block) do NOT
+   rebuild on resize; `resize_live:` defaults false (existing push_expandable
+   callers byte-identical).
+5. *The scenario knob* — `resize:` parse/validation (accepts [80, 40]; rejects
+   non-positive/non-pair), plus the load pin that the knob is absent-by-default.
+
+**Instrument gate.** `s16_resize_wrap` exits 0 cold: the settled 80-col screens
+byte-equal modulo the sanctioned classes; the gate ALSO asserts both captures
+contain the wrapped continuation rows (` ctrl+o more`, ` extend Pi.`) and the
+pre-fix clipped row (`…ctrl+o` 79 wide / `…or exte`) is gone. Base-red control:
+the base candidate list (Grounds §7) is the declared work list; if new
+candidates appear at build time, fix-to-match pi from live evidence, never pin
+the registry without an owner ruling.
+
+**Tool guidance.** Verify against live sources before writing code: (1) the
+artifact rows against a FRESH live pi capture at 50/52/80 (the probe:
+`tmp/resize-calib/calib3.rb` pattern — boot via the rig primitives,
+`resize-window`, settle, `capture`/`capture_styled`; env-strip the HERDR_* vars
+per the I54/I55 precedent); (2) the wrap port against pi's own
+`wrapTextWithAnsi` (deno import of `repos/pi/packages/tui/src/utils.ts`,
+`/tmp/wrap_probe2.ts` is the template — the replica must agree with the
+artifacts before the port is trusted); (3) the gem's event/predicate forms
+(event/resize.rb, event.rb method_missing) by RUNNING them
+(`bundle exec ruby -rratatui_ruby -e '…'`); (4) the ladder by regenerating
+`build/i56-spec/ladder.txt`; (5) the flip-restore pin still green after the
+builder-registration change. Verification gates: `bundle exec rake`,
+`bundle exec ruby bench/seam_bench.rb` (SEAM_BENCH_OK), the rig battery s1–s10
++ probes cold (s1_tart exits 1 by design), s16 exit 0.
+
+**Output format.** Raw evidence only: STATUS line; per-verification command +
+exit code (suite, bench, s1–s10, s1_tart, probes, s16 base-run candidate list,
+s16 final); the regenerated ladder table; the pi-vs-port wrap comparison rows at
+the pinned widths (plain + effective runs); the latch pin's two renders; files
+changed with line counts; any PHASE 0 disagreements with file:line citations.
+
+**Boundaries.** May touch: `lib/tart/render/chat.rb`, `lib/tart/render/motd.rb`,
+`lib/tart/render/transcript.rb`, `lib/tart/render/text.rb`,
+`test/chat_test.rb`, `test/render/motd_test.rb`, `test/render/text_test.rb`,
+`test/render/transcript_test.rb`, `gems/tui-split-rig/lib/tui_split_rig/
+runner.rb`, `gems/tui-split-rig/lib/tui_split_rig/scenario.rb`,
+`gems/tui-split-rig/scenarios/s16_resize_wrap.yml`,
+`gems/tui-split-rig/test/scenario_test.rb`. Must NOT touch:
+`lib/tart/render/editor.rb` (the latch supplies the width — the editor's
+per-frame recompute is already correct; a PHASE 0 disagreement is the only
+recourse if this proves false), `lib/tart/agent/**`, `lib/tart/render/
+{bash_block,file_blocks,tool_block,panel,markdown,selection,viewport,user_bash,
+autocomplete,picker,model_menu,kill_ring,undo_stack,slash_source}.rb`,
+`lib/tart/{tui,identity,print,session,models,commands,skills,prompts,settings}.
+rb`, `bin/tart`, goldens (`test/fixtures/**`, `test/golden_parity_test.rb` —
+byte-untouched), `gems/tui-split-rig/registry.yml` (no new classes without an
+owner ruling), every existing scenario YAML. No placeholders; search before
+implementing (grep every identifier you move). No refactors beyond the task; no
+new dependencies. The frozen golden payloads and existing scenario pins
+(s1–s15) byte-unchanged.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision resize-layout`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/render/chat.rb
+    - lib/tart/render/motd.rb
+    - lib/tart/render/transcript.rb
+    - lib/tart/render/text.rb
+    - test/chat_test.rb
+    - test/render/motd_test.rb
+    - test/render/text_test.rb
+    - test/render/transcript_test.rb
+    - gems/tui-split-rig/lib/tui_split_rig/runner.rb
+    - gems/tui-split-rig/lib/tui_split_rig/scenario.rb
+    - gems/tui-split-rig/scenarios/s16_resize_wrap.yml
+    - gems/tui-split-rig/test/scenario_test.rb
+  effort: high
 ```
+
+**Effort call.** high — unattended default: the span-aware wrapSingleLine port
+against live-oracle artifacts, the latch threading through the compose geometry,
+and a new live-calibrated rig scenario; the flip/compaction//new lifecycle
+interactions must stay byte-frozen.
 
 ## Acceptance Criteria
 
