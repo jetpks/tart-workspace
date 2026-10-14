@@ -2314,12 +2314,13 @@ project:
       - gems/tui-split-rig/scenarios/s17_edit_tool_bg.yml
       - gems/tui-split-rig/test/scenario_test.rb
       base_sha: 908be5a9fc09f21b150d3497be7cd2cbab290671
-      worktree: build/I57-edit-tool-bg-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: d1b81e915cd556db944b36f43c1f2b6139b2b2a3
     rehearsal:
       gates_digest: 124e2bb0ef770125bc19f8e4da12f794500e780771c9b9ed148bf8e4305dbad6
       at: '2026-10-14T14:13:39-06:00'
