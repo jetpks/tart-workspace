@@ -1786,11 +1786,286 @@ for stdin dispatch. Record + commit:
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I57-edit-tool-bg-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence edit-tool-bg --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# I57 edit-tool-bg — LANE `core` BUILDER REPORT (raw results)
+
+Worktree: build/I57-edit-tool-bg-core/wt @ branch lane/I57-edit-tool-bg-core, base 908be5a.
+Worktree state at report time: 11 modified + 4 new files = exactly the 15 declared touch-set files
+(git status --short verbatim at the bottom). NOTHING committed (git log 908be5a..HEAD is empty — 0 lines).
+
+## PHASE 0 — plan + premise verification (before any code)
+
+Checked against the real files (all verified, no silent compliance):
+
+- Grounds §0's cite drift is real and re-confirmed: `generic_tool_rows` sits at transcript.rb :776-778
+  (spec letter :774-777), the finalize generic arm at :263 (letter :267), render/chat.rb's
+  :tool_execution_end arm at :535-547 — the I56 four-line drift class, content unchanged.
+- `ToolBlock.generic_panel_rows`' keyword default ALREADY IS `bg: Panel.tool_panel_bg(result)`
+  (tool_block.rb:46) — the defect is purely generic_tool_rows' explicit nil-key forwarding
+  (Grounds §2 mechanism confirmed verbatim). The cure therefore lands in transcript.rb, NOT
+  tool_block.rb (must-not-touch).
+- Grounds §5 threading facts confirmed: loop.rb:855-857 emits the SAME ToolCall object the tool
+  mutated (`execute_tool_call` → `tool.call(**tool_call.arguments, tool_call:)` → hooks fire with it);
+  chat.rb's wire conversion (`to_gem_message`) reads content/tool_call_id only — never `to_h` —
+  so the live wire is inert even before the session.rb strip.
+- CONFLICT FOUND pre-code: test/theme_test.rb:63 pins `assert_equal EXPECTED, Theme::TOKENS` (a
+  full-table equality) and is OUTSIDE the touch set → P4's additive tokens could NOT enter TOKENS
+  without breaking the AC5 suite gate. Resolution: a sibling frozen table + lookup fall-through
+  (deviation D2 below).
+- CONFLICT FOUND pre-code: test/chat_test.rb (must-not-touch) drives :tool_execution_end with
+  `ToolCallDouble = Struct.new(:name, :arguments)` (chat_test.rb:5713) — no `details` member →
+  the render arm needs a respond_to? guard (deviation D5).
+- ENV FINDING (I56 precedent re-confirmed live): every bundle/rig command at worktree depth needs
+  `FAST_COMPLETIONS_PATH=/Users/eric/architect/spaces/20261009-pi-port/repos/fast-llm/gems/completions`;
+  the rig's pane env inherits it from the (fresh, per-run) tmux server. `env -u FAST_COMPLETIONS_PATH
+  bundle install` exits 13 at this depth (bundler path error on the relative default).
+
+## THE BIG FINDING (spec-premise correction, evidence-first — deviation D1)
+
+The frozen row oracle (build/i57-spec/pi-edit-block-oracle.txt, 51 rows) documents pi's
+DEFAULT-render-shell frame (11-row success / 8-row error / 6-row pending, TWO pad rows before the
+header). It reproduces BYTE-EXACT from repos/pi@f1b2e77f this session (probe re-run per protocol:
+copies in → `FORCE_COLOR=3 deno run --import-map importmap-scratch.json --node-modules-dir=auto
+editcomp-scratch.ts` → 51/51 rows identical → copies removed → `git status --short` = 0 lines;
+output kept at tmp/parity-gate-s17/oracle/frozen-oracle-rerun.txt).
+
+BUT pi's edit DEFINITION registers `renderShell: "self"` (edit.ts:157, verified at f1b2e77f AND in
+the installed pi 1.1.0 dist the rig boots — dist/core/tools/edit.js:90). The self shell bypasses
+tool-execution's contentBox: the REAL edit frame is
+`[Spacer(plain), padY, header, (padY-spacer, body…), padY]` — ONE pad before the header, 9-row
+success / 6-row error / 4-row pending at width 120. The spec's oracle probe constructed
+`toolDefinition = { name: "edit", ...editRenderers }` WITHOUT the renderShell key → it probed the
+default shell, not the shipped one. The corrected probe (renderShell included, FORCE_COLOR=3, byte
+dump kept at tmp/parity-gate-s17/oracle/selfshell-oracle-120.txt) + the live pi captures agree:
+pi live rows are ` edit edit-bg.txt` with ONE lead cell, the write→edit gap = 3 blanks, the error
+body INSIDE the call component (the preview error == the result error text → formatEditResult
+returns undefined and buildEditCallComponent's own Spacer + error Text carry the body).
+
+The first s17 run (exit 1) failed on exactly this: the port's default-shell skeleton rendered 4
+extra rows and the screen scrolled the write header off. After the self-shell correction:
+s17 exit 0 with the full parity differ clean (only the 2 sanctioned footer classes) — the differ is
+the mechanical judge AC5 names, so the self-shell geometry is the operative truth. Every frozen
+oracle ROW TEXT/TOKEN still holds (header row text, diff rows, colors, inverse runs); what moved is
+the pad count around them (deviation D1, itemized below).
+
+## Per-AC evidence
+
+AC1 (the generic-family live-settle bg cure) — SATISFIED.
+- transcript.rb: `generic_tool_rows(name, result, bg: Panel.tool_panel_bg(result))` — the nil-key
+  forwarding stopped; the finalize arm composes bg'd rows like the replay arm.
+- Units: transcript-bg-units filter `/generic_bg|edit_block/` → 7 runs, 0 failures
+  (`test_generic_bg_live_settle_paints_the_success_bg` pins #254131 on pad+content rows;
+  `…_paints_the_error_bg` pins #5b282a; `…_pending_arm_stays_byte_frozen` pins the pending arm).
+- The replay/pending arms: byte-unchanged (existing transcript_test 23 runs green; s1-s10 green).
+
+AC2 (the pi edit-block family) — SATISFIED (self-shell geometry, D1).
+- lib/tart/render/edit_block.rb: header via the write family's exact primitives
+  (FileBlocks.tool_title_span / tool_path_display / wrapped_call_rows — bold #dee0e1 `edit` +
+  accent #a798d7 path, ~ contraction, "..." fallback); the diff body = a faithful pi renderDiff
+  port (parse `/^([+-\s])(\s*\d*)\s(.*)$/`, non-parsing rows verbatim in toolDiffContext, runs,
+  1-removed+1-added → intra-line word diff, replaceTabs "   " on every parsed row);
+  the intra-line partition = a line-by-line port of jsdiff 8.0.4 word.js + base.js (tokenizer with
+  the stitch loop, equals-on-TRIMMED with the JS whitespace class, Myers with diagonal pruning +
+  run coalescing + buildValues + postProcess/dedupeWhitespace + the util/string.js transcriptions).
+- Partition verification vs REAL jsdiff 8.0.4 (deno, npm:diff@8.0.4): 28/28 targeted cases + 200/200
+  fuzz cases produce IDENTICAL part streams. The three frozen Grounds §4 partitions reproduce
+  verbatim: `COM "line two "/REM "bravo"/ADD "charlie (edited)"`; `COM "line"/ADD "; "/COM "four"`
+  (removed row renders `linefour` — the whitespace-only first changed part strips plain);
+  `COM "line six"/ADD "!"`.
+- The self-shell oracle rows pinned in units: 17 runs, 76 assertions, 0 failures (skeleton, header
+  family, token colors, inverse runs, the whitespace-strip case, partitions, error arm, no-details
+  header-only, string-key replay details, pending, truncation row, non-parsing verbatim, 2+2 runs
+  no-intra, wrap, theme tokens, Theme[] resolution).
+- s17-parity exit 0: the differ found ZERO text candidates and ZERO unknown style candidates on the
+  edit rows (both apps' captures line-identical; the only sanctioned classes: staged-sandbox-path /
+  parity-run-path + footer-provider-prefix).
+
+AC3 (the pending edit block + the rig replay instrument) — SATISFIED.
+- `pending_edit_block_rows` = [Spacer, padY, header, padY] — the header alone under #34383a
+  (pi's pre-preview frame; the preview cut stands).
+- scenario.rb: `replay` knob (absent → false; non-boolean → rig Error, message
+  "replay must be a boolean"). runner.rb: `capture_replay` runs AFTER the completed computation and
+  the primary teardown: pi `pi_command(...) + " --continue"`, tart `tart_command(...) + " -r"`
+  (flag AFTER the workdir positional), same staged home/sandbox, fresh token-scoped session,
+  settle("replay"), writes `<app>.replay.capture{,.styled}`, teardown. `completed` computed BEFORE
+  the leg; no prompt sent. Result hash gains additive `replay_capture`/`replay_styled_capture` keys.
+- Units: scenario_test `/replay_knob/` → 3 runs (default false + true parse; 4 non-boolean shapes
+  rejected; shipped-s17 load), full scenario_test 46 runs green.
+
+AC4 (the per-call details channel, wire-inert) — SATISFIED.
+- ToolCall gains `details` (nil default); Edit sets
+  `tool_call.details = {diff:, patch:, firstChangedLine:}` (camelCase, pi's EditToolDetails names)
+  from the values it already computes; the wire String is byte-unchanged
+  ("Successfully replaced 1 block(s) in f.txt." pinned).
+- Message.tool gains `details:`; `#to_h` emits the key ONLY when non-nil
+  ({role, content, tool_call_id} otherwise) — session-golden SESSION_GOLDEN_OK (all 7 digests exact).
+- Non-edit calls record no key (pinned); error calls carry no details (pinned, incl. the
+  stale-@details reset).
+- session.rb `entry_to_context_message` drops `details` for tool-role messages (defense in depth;
+  from_seed_hash untouched — declared-fields read proven inert).
+- Replay: transcript.replay_entries collects `message["details"]` and threads it; pre-I57 sessions
+  (no details) replay header-only (pinned).
+- LIVE proof: pi's own recorded details in the calib session = {"diff", "patch", "firstChangedLine"}
+  — the port's recorded shape matches (edit-details-units: 7 runs, 0 failures).
+
+AC5 (the standing battery + the new scenario, cold) — SATISFIED.
+- All gates green in this worktree (table below) except the two DOCUMENTED worktree-depth artifacts
+  (s9-parity exit 1 = the known deep-path wrap-fragment; wire-delta's digest = the path-bound
+  instructions — canonical-depth rerun at repos/tart@908be5a reproduced 2faaf667… + 7360fd1e…
+  EXACTLY, and a same-out-dir A/B proved my tree's wire bytes equal to base's modulo that path).
+- s17_edit_tool_bg: exit 0 + S17_PARITY_OK (both apps completed 4/4; live captures carry the header,
+  `-2 line two bravo`, `+2 line two charlie (edited)`, ESC[7m, ESC[48;2;37;65;49m, NO `⎿ edit:`;
+  both replay captures carry the header, the removed row, and the success bg).
+- No existing scenario/golden/registry byte moved (scope check below).
+
+AC6 (scope) — SATISFIED.
+- Builder-time check (worktree diff + untracked): exactly the 15 declared files, no extras, 0
+  must-not-touch files touched → `SCOPE_OK 15 files`.
+- The frozen gate's `git diff --name-only 908be5a..HEAD` form is vacuous at BUILDER time (HEAD ==
+  908be5a; builders never commit — observed: "DECLARED BUT ABSENT" on the committed-diff form). It
+  is the post-integration form; the judge runs it after the lane commit lands.
+
+## The gate table (every gate, exit code, one-line result — run COLD in this worktree)
+
+| gate | exit | result |
+|---|---|---|
+| suite | 0 | `SUITE_OK` — 1137 runs, 5335 assertions, 0 failures, 0 errors, 1 skip (the pre-existing skip) |
+| bench | 0 | `SEAM_BENCH_OK` |
+| s1-parity | 0 | clean (sanctioned classes only) |
+| s2-parity | 0 | clean |
+| s3-parity | 0 | clean |
+| s4-parity | 0 | clean |
+| s5-parity | 0 | clean |
+| s6-parity | 0 | clean |
+| s7-parity | 0 | clean |
+| s8-parity | 0 | clean |
+| s9-parity | 1 | the KNOWN deep-path artifact — 1 unknown candidate `-md`: pi wraps `…/sandbox/pi/AGENTS.` + `-md`, tart `…/sandbox/tart/AGENT` + `S.md` (`.pi` vs `.tart` = 2 cells shifting the 120-col wrap column; pi's fragment matches no class). Reported, not chased (the 12+ precedents; canonical depth wraps both at the classed column). |
+| s10-parity | 0 | clean |
+| s1-tart-mode | raw 1 (BY DESIGN) → gate 0 | `TART_MODE_OK` (tart completed, requests == expected) |
+| tool-pending-gate | 0 | `TOOL_PENDING_GATE_OK` |
+| user-bash-stream-gate | 0 | `USER_BASH_STREAM_GATE_OK` |
+| thinking-pins | 0 | loop filter 14 runs (≥11), settings filter 9 runs (≥8) |
+| hermeticity | 0 | launcher smoke 8 runs (≥8), e2e session 4 runs (≥4) |
+| lock-deps | 0* | static legs ✓ (no ruby_llm in gemspec; both Gemfile pins byte-present), lock check `LOCK_OK`, `GEM_LOAD_OK`. *The `env -u FAST_COMPLETIONS_PATH bundle install` leg exits 13 at worktree depth (bundler path error on the relative default — the documented I55/I56 artifact; Gemfile/lock/gemspec untouched). |
+| zai-data | 0 | dialect filter 2 runs (≥2), `ZAI_DATA_OK` |
+| threads-budget | 0 | `THREADS_BUDGET_OK` (no new Thread.new in lib) |
+| wire-delta | 0* | *Worktree-depth artifact, PROVEN byte-clean: the instructions embed the run cwd, so the frozen sha 2faaf667… is checkout-path-bound. (a) Canonical-depth rerun (repos/tart@908be5a, clean tree): instructions sha `2faaf667…` ✓ and tools sha `7360fd1e…` ✓ EXACT (scratch removed after, repos/tart git-clean). (b) A/B at identical out-dir paths (base `git archive 908be5a` booted in /tmp vs this worktree): messages/tools/key-order/store/stream_options/user-message BYTE-EQUAL; `max_completion_tokens` 27833 vs 27836 — the ±3-token estimate over the 11-char staging-path delta. I56 precedent; the post-integration canonical run is the operative record. |
+| session-golden | 0 | `SESSION_GOLDEN_OK` — all 7 frozen digests exact |
+| edit-block-units | 0 | 17 runs (≥10), 0 failures |
+| transcript-bg-units | 0 | filter `/generic_bg\|edit_block/` → 7 runs (≥4), 0 failures |
+| edit-details-units | 0 | 7 runs (≥5), 0 failures |
+| rig-knobs-replay | 0 | `/replay_knob/` → 3 runs (≥2); full scenario_test 46 runs, 0 failures |
+| s17-parity | 0 | rig exit 0 + `S17_PARITY_OK` (both apps 4/4; live: header + removed/added rows + ESC[7m + ESC[48;2;37;65;49m + NO `⎿ edit:`; replay: header + removed row + success bg, both apps) |
+| scope | 0* | *Builder-time form: worktree diff + untracked == exactly the 15 declared files → `SCOPE_OK 15 files`. The frozen `908be5a..HEAD` form is post-integration (builders never commit; observed "DECLARED BUT ABSENT" on the committed-diff form at builder time). |
+
+RED-at-freeze register (verified this session where directly runnable):
+- edit-block-units at base: `LoadError: test/render/edit_block_test.rb` (file missing) — OBSERVED.
+- edit-details-units at base: same declared-new-file class (not separately run; the file did not
+  exist at base).
+- transcript-bg-units / rig-knobs-replay at base: 0 runs (the filters match only the new tests —
+  no `generic_bg`/`edit_block`/`replay_knob` test names existed at base).
+- s17-parity at base: OBSERVED — `tui-split-rig: …s17_edit_tool_bg.yml: no such scenario file` (rig exit 2).
+- scope at base: OBSERVED — the committed-diff form reports "DECLARED BUT ABSENT" (empty diff at
+  builder time).
+
+## Deviations from the frozen letter (ALL itemized — none silent)
+
+- D1 (P2 skeleton / oracle rows): the frozen oracle documents pi's DEFAULT-shell frame (11/8/6 rows,
+  two pads before the header) because the spec's probe built the toolDefinition without
+  `renderShell` — but pi's edit definition registers `renderShell: "self"` (edit.ts:157, verified at
+  f1b2e77f and in the installed 1.1.0 dist the rig boots). Implemented the SELF-SHELL frames
+  (9/6/4 rows, ONE padY before the header; error body INSIDE the call component). Frozen lines
+  deviated from: P2's "Row skeleton (the oracle dump, rows 0-10)" and AC2's "the oracle rows live in
+  build/i57-spec/pi-edit-block-oracle.txt". Evidence: the first s17 run failed (exit 1) on exactly
+  these 4 rows; the corrected frames give s17 exit 0 with the differ clean. The frozen oracle file
+  itself reproduces byte-exact (provenance intact) and every row TEXT/TOKEN it pins still holds in
+  the shipped rows; the corrected self-shell oracle is kept at
+  tmp/parity-gate-s17/oracle/selfshell-oracle-120.txt. (Reopen for the owner: regenerate the
+  i57-spec oracle with the renderShell key at the next freeze.)
+- D2 (P4 token placement): the three diff tokens live in `Theme::DIFF_TOKENS` (a sibling frozen
+  table) with `Theme.[]` falling through and `indexed` merging both tables — NOT as TOKENS members.
+  Frozen line deviated from: P4 "`tool_diff_added: "#68b78d"`, …" (read as TOKENS members). Reason:
+  the frozen theme_test full-table pin (`assert_equal EXPECTED, Theme::TOKENS`, theme_test.rb:63) is
+  outside the touch set and AC5 requires the suite green. Values, lookup, and the 256-downgrade
+  behave identically (pinned in units).
+- D3 (P2 error-row letter): "the renderResult row `boxPad + textPad + fg(error) text`" — implemented
+  as the self-shell's INSIDE-the-Box body (ONE pad lead + bg fill, wrapped at width-2): the live
+  captures show ONE blank between the error header and the error text, and the corrected probe shows
+  the body inside the call component (formatEditResult returns undefined — preview error == result
+  error). The default-shell `boxPad + textPad` 2-cell lead is the probe artifact (D1's root).
+- D4 (P3 "at execute"): `tool_call.details` is set in `Edit#call` AFTER `super` returns (execute has
+  no tool_call reference; SafeExecute#call consumes the kwarg). Same values (@details), same effect
+  (details ride before the :tool_execution_end hooks fire). Plus `@details = nil` at execute start so
+  an error call after a success carries no stale details.
+- D5 (render arm): `details: call.respond_to?(:details) ? call.details : nil` — the must-not-touch
+  chat_test drives the event with `ToolCallDouble = Struct.new(:name, :arguments)`. The letter
+  ("passes call.details through") holds for real ToolCalls; the guard keeps chat_test green.
+- D6 (runner internals): `boot_session` returns `agent_dir:` (additive key) and `run_app`'s local
+  `boot` renamed `staged` (it was shadowed by the boot settle result) — the replay leg needs the
+  staged paths. The no-knob FLOW is byte-frozen (s1-s10 all green).
+- D7 (P1 cure location): the default became result-derived in `generic_tool_rows` itself
+  (`bg: Panel.tool_panel_bg(result)`), not in tool_block.rb (must-not-touch; its default was already
+  correct). Exactly the Grounds §2 mechanism ("the nil-key forwarding stops").
+- D8 (scope gate form): builder-time evidence uses the worktree diff + untracked files; the frozen
+  `908be5a..HEAD` committed-diff form is the judge's post-integration form (builders never commit).
+
+## Kept artifacts (tmp/parity-gate-s17/)
+
+- run-1/{pi,tart}.{capture,capture.styled} — the LIVE settled screens (parity differ input, exit 0).
+- run-1/{pi,tart}.replay.capture{,.styled} — the replay boots off the recorded sessions
+  (pi `--continue`, tart `<workdir> -r`), both showing the bg'd edit family.
+- run-1/{pi,tart}-requests.jsonl + home/ + sandbox/ — the recorded turns (pi's recorded details =
+  {"diff","patch","firstChangedLine"}, camelCase — the shape the port records).
+- summary.json — the rig's own record (exit_code 0; both apps completed, 4/4 requests).
+- oracle/frozen-oracle-rerun.txt — the frozen oracle reproduced byte-exact from repos/pi@f1b2e77f
+  (51 rows; probes copied in/out per protocol, `git status` clean).
+- oracle/selfshell-oracle-120.txt — the CORRECTED self-shell oracle (renderShell:"self", width 120,
+  FORCE_COLOR=3): PENDING 4 rows, SETTLED success 9 rows (with [7m inverse runs), SETTLED error 6
+  rows — the row-exact target the units pin.
+
+## Residual risks
+
+- s9-parity at this worktree depth exits 1 on the wrap-fragment geometry (`.pi` vs `.tart` shifting
+  the 120-col wrap point). Expected clean at canonical depth (the 12+ precedents); the
+  post-integration canonical run is the operative record.
+- wire-delta's frozen digests are checkout-path-bound; proven byte-clean here (A/B + canonical
+  rerun), but the gate letter only passes at canonical depth (I56 precedent).
+- The jsdiff port uses Ruby character indexing where JS uses UTF-16 code units — divergence is
+  possible only for astral-plane (non-BMP) characters inside intra-line runs; 228/228 battery+fuzz
+  cases vs real jsdiff 8.0.4 passed (BMP domain). Grounds §6's fix-to-match convention covers the
+  exotic class.
+- The error arm relies on pi's own equality (`previewError == result error text` → renderResult
+  empty): the port's edit error strings are the same message by construction (edit_diff.rb feeds
+  both), so the single-body shape holds. A hypothetical future mismatch between validation-time and
+  result-time messages would render pi's double body — out of scope until it exists.
+- Rig gates need FAST_COMPLETIONS_PATH exported to the (fresh) tmux server env at this depth —
+  operators must export it or the panes' bundler refuses at boot (I56-documented).
+- tool_block.rb's `generic_panel_rows` default is now doubly-superseded (generic_tool_rows forwards
+  an equal value) — intentionally left byte-frozen (must-not-touch).
+
+## Worktree state (verbatim)
+
+```
+ M gems/tui-split-rig/lib/tui_split_rig/runner.rb
+ M gems/tui-split-rig/lib/tui_split_rig/scenario.rb
+ M gems/tui-split-rig/test/scenario_test.rb
+ M lib/tart/agent/chat.rb
+ M lib/tart/agent/message.rb
+ M lib/tart/agent/session.rb
+ M lib/tart/render/chat.rb
+ M lib/tart/render/transcript.rb
+ M lib/tart/theme.rb
+ M lib/tart/tools/edit.rb
+ M test/render/transcript_test.rb
+?? gems/tui-split-rig/scenarios/s17_edit_tool_bg.yml
+?? lib/tart/render/edit_block.rb
+?? test/edit_details_test.rb
+?? test/render/edit_block_test.rb
+```
+11 files changed, 329 insertions(+), 40 deletions(-) (tracked) + 4 new files. Zero commits.
+
+STATUS: COMPLETE_WITH_CONCERNS
 
 ## Verdict
 
