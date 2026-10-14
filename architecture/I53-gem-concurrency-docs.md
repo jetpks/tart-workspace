@@ -1300,6 +1300,212 @@ No commits, no pushes, no git write commands. No other repo touched. No exceptio
 
 STATUS: COMPLETE_WITH_CONCERNS
 
+### docs
+
+# I53 gem-concurrency-docs — lane `docs` — builder report
+
+Worktree: `build/I53-gem-concurrency-docs-docs/wt` (branch
+`lane/I53-gem-concurrency-docs-docs`, HEAD = base = `4736ddc`, clean at start).
+Builders never commit; all new files are left untracked, the 2 modified files
+unstaged.
+
+## 1. The page list as built (15 files = the exact touch set)
+
+Modified (2):
+
+| File | Change |
+|---|---|
+| `README.md` (root) | The `gems/completions` bullet gains one sentence + the docs/ link (`Docs live under [gems/completions/docs/](gems/completions/docs/).`). Nothing else. |
+| `gems/completions/README.md` | §2.2 surgery ONLY: 12 table lines (:111–122) → 3-line pointer linking `docs/reference/errors.md`; 4 link definitions appended at EOF. `git diff 4736ddc` shows exactly those two hunks (below). |
+
+New (13):
+
+| File | Content contract realized |
+|---|---|
+| `gems/completions/docs/reference/tools.md` | Tool DSL (description / tool_name / parameters literal+block / execute); wire-name rule (`tool_name` ∥ class basename); parameters VERBATIM; outcome contract (String→to_s, Hash→JSON.generate, `{error:}` → is_error); `with_tools` class-or-instance; batch semantics per frozen spec §1 (one reactor task per call, CONCURRENT, results in CALL order, raising execute isolates to an error result, cancel ⇒ CancelledError + no results); hooks (registration order, id-keyed, before = call order, after = completion order); unknown tool ⇒ `"no such tool: <name>"`. |
+| `gems/completions/docs/reference/dialects.md` | All 13 VOCABULARY keys with defaults + allowed values (table); the shipped `:zai`/`:deepseek`/`:fireworks` declarations verbatim (dialects.rb :150–168); block DSL + kwargs (keywords win); empty declaration legal; `Fast::Completions.dialect(:x)` lookup (KeyError), `.dialects` frozen hash; last-wins incl. lazily-resolved Symbol dialects on existing Models; Model resolution (Dialect ∥ Symbol ∥ default); ArgumentError on unknown key/value; frozen value semantics. |
+| `gems/completions/docs/reference/errors.md` | README's error-taxonomy table moved (rows byte-verbatim); status mapping (400 ∓ overflow-pattern upgrade, 401/403/404/429, 5xx, other → ApiError; message format `"<status>: <provider message>"`, 500-char truncation; non-2xx raises before `:start`); TimeoutError (TTFB + inactivity, one timeout value, distinguishable from user cancel); ConnectionError (full NETWORK_ERRORS list); StreamError (terminal discipline emits `:error` first, malformed chunk path noted); CancelledError NOT under Error + why (rescue-ladder cleanliness; Async::Cancel < Exception). |
+| `gems/completions/docs/reference/stream-events.md` | Full Event vocabulary table with per-type fields (`:start`; `:text_*`; `:thinking_*`; `:tool_call_start/:tool_call_delta/:tool_call_end`; client-level `:error` reason `:error` + `:done` reason `:stop`/`:length`/`:tool_use`); `partial` = the ONE live Message; thinking-block field-signature rule; `#step` block contract. |
+| `gems/completions/docs/tutorials/first-run.md` | Quickstart grown: install → model + client → one tool → streamed turn (`Async do` shape, `#step` block) → `complete?` semantics → follow-up turn via `until chat.complete?` → `client.close`. |
+| `gems/completions/docs/how-to/declare-a-custom-dialect.md` | Declare (block + kwargs) → mount on a Model (`dialect: :acme`; Symbol resolves lazily; explicit Dialect pins) → last-wins override → closed-vocabulary ArgumentError failure. |
+| `gems/completions/docs/how-to/cancel-a-running-chat.md` | `chat.cancel` from a sibling task; mid-stream vs mid-batch (children abort, CancelledError, no phantom `:error`/`:done`, no tool results, no after hooks for aborted calls); self-cancel from inside a tool cancels the step task; the latch (later `step` raises immediately); connection discard + pool reuse; `client.close`. |
+| `gems/completions/docs/how-to/add-a-tool.md` | Subclass → declare → register; outcome contract; fiber-safety note linking tools.md. |
+| `gems/completions/docs/explanation/why-streaming-only.md` | No synchronous requests: fiber-native stance, `stream: true` hard-coded, drift-avoidance argument. |
+| `gems/completions/docs/explanation/why-dialects-as-data.md` | The universal-translation anti-shape; closed vocabulary; fail-loud at declaration; no detection/base-URL sniffing/model catalog; frozen data + last-wins. |
+| `gems/completions/docs/explanation/fiber-native-design.md` | Caller's reactor, ONE persistent `Async::HTTP::Client`, requests as reactor tasks, watchdog as sibling task, Async::Cancel semantics (TimeoutError vs CancelledError), batch executor (children of the step task, immediate re-raise join, call-ordered appends), zero gem-owned threads/reactors, no concurrency knob. |
+| `gems/completions/spec/fixtures/readme/owner-4736ddc.md` | Byte-verbatim copy of `git show 4736ddc:gems/completions/README.md` (4070 bytes; diff empty — output below). |
+| `gems/completions/spec/fast/completions/docs_links_spec.rb` | The five §2.4 properties: (1) line-LCS prose preservation vs the fixture; (2) link resolution over repo README + gem README + CHANGELOG + docs/**, fences skipped, anchors stripped, http(s) pass, `File.exist?` file-or-directory; (3) label closure; (4) the four ruled destinations; (5) quadrant non-emptiness. Pure file IO, no network, no lib behavior. |
+
+## 2. Verification outputs (verbatim)
+
+### 2.1 `bundle install --quiet && bundle exec rspec`
+
+```
+127 examples, 0 failures
+rspec exit: 0
+```
+
+(127 = 122 base examples + 5 new docs_links examples. Final clean run; seeds
+randomized per run.)
+
+### 2.2 Fixture byte-identity
+
+```
+$ git show 4736ddc:gems/completions/README.md | diff - gems/completions/spec/fixtures/readme/owner-4736ddc.md
+DIFF_EMPTY (byte-identical)
+$ wc -c gems/completions/spec/fixtures/readme/owner-4736ddc.md
+4070 gems/completions/spec/fixtures/readme/owner-4736ddc.md
+```
+
+### 2.3 `git diff 4736ddc -- gems/completions/README.md`
+
+```diff
+diff --git c/gems/completions/README.md w/gems/completions/README.md
+index d29b17c..64d974d 100644
+--- c/gems/completions/README.md
++++ w/gems/completions/README.md
+@@ -108,18 +108,9 @@ Re-declaring a name overrides — last declaration wins.
+ 
+ ## Error taxonomy
+ 
+-| Error | Raised for |
+-|---|---|
+-| `Fast::Completions::Error` | base of the API error tree |
+-| `ApiError(status:, body:)` | any non-2xx (`"<status>: <message>"`) |
+-| `BadRequestError` | 400 |
+-| `ContextLengthExceededError` | 400 matching a context-overflow pattern |
+-| `AuthenticationError` / `PermissionError` / `NotFoundError` / `RateLimitError` | 401 / 403 / 404 / 429 |
+-| `ServerError` | 5xx |
+-| `TimeoutError` | TTFB deadline or read inactivity (one timeout value) |
+-| `ConnectionError` | ECONNREFUSED, ECONNRESET, … |
+-| `StreamError` | terminal stream errors (emits `:error` first) |
+-| `CancelledError` | task cancellation (NOT under `Error`) |
++The error table moved to [the error docs](docs/reference/errors.md) —
++every class with the status mapping, the timeout and connection families,
++and why `CancelledError` stands outside `Error`.
+ 
+ ## Parity
+ 
+@@ -135,3 +126,7 @@ requests run inside the caller's reactor — the gem never creates its
+ own. Cancellation (`Async::Cancel` / `Chat#cancel`) aborts the
+ in-flight request, discards the connection, and raises
+ `CancelledError` with no phantom terminal event.
++[see the tool docs]: docs/reference/tools.md
++[see the dialect docs]: docs/reference/dialects.md
++[Dialect Docs]: docs/reference/dialects.md
++[socketry/async-http]: https://github.com/socketry/async-http
+```
+
+Only link definitions + the one moved section. (The four definitions sit
+directly after the last prose line, no blank separator — see deviation D1.)
+
+### 2.4 Touch set enumeration
+
+```
+$ git diff --stat 4736ddc          # tracked-only view
+ README.md                  |  3 ++-
+ gems/completions/README.md | 19 +++++++------------
+ 2 files changed, 9 insertions(+), 13 deletions(-)
+
+$ git diff --name-only 4736ddc
+README.md
+gems/completions/README.md
+
+$ git ls-files --others --exclude-standard   # the 13 NEW files
+gems/completions/docs/explanation/fiber-native-design.md
+gems/completions/docs/explanation/why-dialects-as-data.md
+gems/completions/docs/explanation/why-streaming-only.md
+gems/completions/docs/how-to/add-a-tool.md
+gems/completions/docs/how-to/cancel-a-running-chat.md
+gems/completions/docs/how-to/declare-a-custom-dialect.md
+gems/completions/docs/reference/dialects.md
+gems/completions/docs/reference/errors.md
+gems/completions/docs/reference/stream-events.md
+gems/completions/docs/reference/tools.md
+gems/completions/docs/tutorials/first-run.md
+gems/completions/spec/fast/completions/docs_links_spec.rb
+gems/completions/spec/fixtures/readme/owner-4736ddc.md
+```
+
+2 modified + 13 new = 15 = the exact declared touch set; `git status --short`
+shows no other path (Gemfile.lock, gemspec, lib/, pre-existing specs all
+untouched). NOTE: `git diff --stat 4736ddc` alone shows only the 2 tracked
+modifications because builders never `git add` — the new files are untracked
+until the coordinator integrates.
+
+### 2.5 docs-links gate form (the judge's docs-links command)
+
+```
+$ bundle exec rspec gems/completions/spec/fast/completions/docs_links_spec.rb
+127 examples, 0 failures
+docs_links gate exit: 0
+```
+
+(The `.rspec` `--pattern gems/completions/spec/fast/**/*_spec.rb` is additive
+with an explicit file argument, so this form runs the full suite.)
+
+### 2.6 Extra audits run
+
+- Square-bracket audit of every authored `.md` outside fences: zero stray
+  bracket labels; the only reference-style usages anywhere in scope are the
+  README's four ruled labels (all defined at EOF).
+- `chat_spec.rb:41` stability loop after the cold-run flake (see Concern C1):
+  0 failures / 20 isolated runs; 0 failures / 5 full-suite runs.
+
+## 3. Deviations from the prompt's letter (each with a one-line reason)
+
+- **D1 — the four link definitions are appended with NO blank separator
+  line.** §2.4(1) classifies every added line as link-definition OR part of
+  the single ≤ 6-line errors pointer block; a blank separator at EOF would be
+  neither, so the frozen property forbids it (rendering unaffected — reference
+  definitions parse anywhere).
+- **D2 — link resolution treats an existing file OR directory as resolving.**
+  §2.3's example has the root README link the `docs/` directory, which is not
+  literally "an existing file"; `File.exist?` semantics reconcile the two.
+- **D3 — errors.md documents ConnectionError as the FULL `NETWORK_ERRORS`
+  list** (ECONNREFUSED, ECONNRESET, EPIPE, EHOSTUNREACH, ENETUNREACH,
+  ETIMEDOUT, EOFError, IOError, SocketError), broader than the prompt row's
+  "ECONN*" shorthand — the prompt's own rule is "cite what the code does
+  today" (client.rb).
+- **D4 — errors.md documents StreamError's two raise paths**: the terminal
+  discipline (error/missing finish_reason ⇒ `:error` event FIRST, then
+  StreamError) AND the malformed-chunk path (StreamError mid-stream, no
+  preceding event) — same "code today" rule (client.rb deliver_terminal vs
+  feed_stream).
+- **D5 — the verification `git diff --stat 4736ddc` shows 2 files, not 15.**
+  New files are untracked because builders never `git add`; the full 15-file
+  enumeration is given in §2.4 (diff + ls-files --others). No git write
+  command was run to make the number look different.
+- **D6 — `cd repos/fast-llm` in the prompt's verification block maps to the
+  worktree root** in this lane's provisioned checkout; all commands were run
+  from the worktree root.
+
+## 4. Concerns
+
+- **C1 — one pre-existing-suite flake on the FIRST cold run** (before any
+  warm-up): `chat_spec.rb:41` ("runs a full tool turn") failed once on the
+  initial `bundle exec rspec` after `bundle install`; the failure output was
+  not captured at the time. It never reproduced again: 7+ full-suite runs and
+  20 isolated runs of that example, all 0 failures. My spec is pure file IO
+  with no shared state, so it cannot influence that example; the suspected
+  cause is mock-server cold-start timing (ephemeral-port accept race), which
+  predates this lane. Flagging for the judge's cold battery.
+- **C2 — README line numbers drifted by a few lines vs the Grounds cites**
+  (e.g. Fiber-native cited as :126–133, actually :131–137): the cites were
+  approximate on trailing sections; the frozen surgery is pinned by content
+  (section headings), not line numbers, and the fixture is byte-exact.
+
+## 5. PHASE 0 disagreements (as stated before building; all resolved as planned)
+
+1. No blank line before the trailing definitions block (§2.4(1) forbids it) —
+   implemented as D1.
+2. Directory-target link semantics (File.exist?) — implemented as D2.
+3. ConnectionError/StreamError accuracy corrections — implemented as D3/D4.
+4. Branch name in prompt header (`lane/i53-docs`) differs from the provisioned
+   `lane/I53-gem-concurrency-docs-docs` — cosmetic, harness naming; no action.
+
+STATUS: COMPLETE_WITH_CONCERNS
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
