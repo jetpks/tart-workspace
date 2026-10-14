@@ -67,7 +67,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: fast-completions-gem
+  current_iteration: de-bridge
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1970,16 +1970,33 @@ project:
   - name: de-bridge
     ordinal: 50
     file: architecture/I50-de-bridge.md
-    freeze_sha:
+    freeze_sha: 1facb6bbce477b3235bb57831488ebab722b1f6d
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/agent/bridge.rb
+      - lib/tart/agent/loop.rb
+      - lib/tart/agent/status.rb
+      - lib/tart/tools/bash.rb
+      - lib/tart/render/user_bash.rb
+      - lib/tart/render/chat.rb
+      - test/flow_test.rb
+      - test/agent_loop_test.rb
+      - test/bash_tool_test.rb
+      - test/chat_test.rb
+      - test/launcher_smoke_test.rb
+    rehearsal:
+      gates_digest: a831a07bb6e3b72ed59cfb7f4fa79ff86a1df01ed69efc44a7e18a587ebb9214
+      at: '2026-10-13T20:10:07-06:00'
   - name: fast-completions-gem
     ordinal: 51
     file: architecture/I51-fast-completions-gem.md
-    freeze_sha: 1657e7933825cbe6f38cd70ce5881d5b1908745a
+    freeze_sha:
     verdict: pending
     lanes: []
     rehearsal:
-      gates_digest: 26b0f7b47113237e3034d5043bcd708eb6f431088eb46888c65dd88df142acdf
-      at: '2026-10-13T20:03:28-06:00'
+      gates_digest: 1b800de632bf26b7b12db71dc1b0eb7ffe215083d2639bace87374c406f76ed7
+      at: '2026-10-13T20:02:18-06:00'
   integration_branch: project/pi-port
