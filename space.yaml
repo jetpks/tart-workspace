@@ -1988,12 +1988,13 @@ project:
       - test/chat_test.rb
       - test/launcher_smoke_test.rb
       base_sha: 2943ef0d1baa67453e49605486ce584806249bc4
-      worktree: build/I50-de-bridge-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: main
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 5716ba2f7b36788f711e66f12a9074daf76a678f
     rehearsal:
       gates_digest: a831a07bb6e3b72ed59cfb7f4fa79ff86a1df01ed69efc44a7e18a587ebb9214
       at: '2026-10-13T20:10:07-06:00'
