@@ -2293,7 +2293,7 @@ project:
     ordinal: 57
     file: architecture/I57-edit-tool-bg.md
     freeze_sha: 6e6b086fc11b42e0570c46087e7c09dd16c48b61
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart

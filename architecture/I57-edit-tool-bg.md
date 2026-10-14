@@ -2069,18 +2069,128 @@ STATUS: COMPLETE_WITH_CONCERNS
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section edit-tool-bg verdict --from <file>`. -->
+**CONTINUE — lane `core` integrated.** The owner's defect is closed live and
+on replay, and the port now speaks pi's real edit-renderer family.
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify edit-tool-bg`)?
+### The D1 adjudication (the load-bearing ruling)
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+**ACCEPT — the self-shell correction is the true oracle; the frozen oracle
+letter carries a spec-authoring defect.** Verified independently at every
+leg this session: pi@f1b2e77f edit.ts:157 registers `renderShell: "self"`
+AND the installed pi 1.1.0 dist the rig boots carries it (edit.js:90);
+tool-execution.ts:89-96 swaps the bg'd contentBox for the plain
+selfRenderContainer when the key is set; the spec's own probe
+(build/i57-spec/deno/editcomp-scratch.ts:11) built the toolDefinition
+WITHOUT the key, so the frozen oracle documents the DEFAULT-shell frame
+(11/8/6 rows, double pads). The frozen oracle file itself reproduces
+byte-exact from the probe (judge re-run per protocol, repos/pi left clean;
+copy at build/I57-edit-tool-bg-core/judge-oracles/) — provenance intact,
+the file is a faithful render of a mis-shaped probe. My one-line-corrected
+probe (renderShell added) reproduces the builder's self-shell frames:
+PENDING 4, SETTLED success 9 [Spacer(plain), padY, header, spacer, body,
+padY], and the port's EditBlock emits the same row shapes (diff rows
+byte-identical: padX + marker/lineNum prefix + inverse run boundaries,
+token colors #9da5a9/#ea7f81/#68b78d). The LIVE pi captures (calib + s17)
+show the self-shell geometry (the 3-blank write→edit gap, single pad), and
+the first s17 run's failure on exactly the 4 extra default-shell rows is
+the falsification the builder reported. Per the I54-class precedent: delta
+enumerated (D1/D3 below), correction recorded as honest history
+(judge-oracle copies + this verdict + the ARCHITECT.md index), never
+silent. The frozen spec stays unamended; regenerate the i57-spec oracle
+with the renderShell key at the next freeze (owner reopen noted).
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+### PHASE 0 rulings (all 8 deviations)
+
+- **D1 ACCEPT** (above). Frozen lines deviated: P2's row skeleton + AC2's
+  oracle-file cite. Every row TEXT/TOKEN the frozen oracle pins still holds
+  in the shipped rows; only the pad count moved.
+- **D2 ACCEPT** — forced conflict: theme_test.rb:63 pins full-table
+  `assert_equal EXPECTED, Theme::TOKENS` and is outside the touch set
+  (judge-verified untouched); the sibling DIFF_TOKENS table + Theme[]
+  fall-through + indexed merge is the only resolution consistent with
+  suite-green + scope; values/lookup/downgrade identical (pinned).
+- **D3 ACCEPT** — corollary of D1: the frozen "boxPad + textPad" error row
+  was the default-shell probe artifact; live pi (preview error == result
+  error → formatEditResult undefined → body inside the call component) is
+  the operative shape; the s17 live capture confirms (header, one blank,
+  bg'd error row).
+- **D4 ACCEPT** — execute has no tool_call reference (SafeExecute consumes
+  the kwarg); setting details in Edit#call after super returns rides the
+  same object before the :tool_execution_end hooks fire; the @details reset
+  kills the stale-success leak the letter missed.
+- **D5 ACCEPT** — chat_test.rb's ToolCallDouble (Struct :name, :arguments)
+  is must-not-touch and has no details member; the respond_to? guard keeps
+  the letter's behavior for real ToolCalls.
+- **D6 ACCEPT** — boot_session's additive agent_dir key + the shadowed
+  local rename are pure enablers for the replay leg; s1–s10 green proves
+  the no-knob flow byte-identical.
+- **D7 ACCEPT** — the cure lands at the Grounds §2 site (transcript.rb's
+  generic_tool_rows); tool_block.rb (must-not-touch) was already correct.
+- **D8 ACCEPT** — the scope gate's `git diff 908be5a..HEAD` form is the
+  post-integration form (builders never commit); the builder-time worktree
+  diff (15 files exactly, judge-verified via git status) is the equivalent
+  evidence pre-merge; the integrated run closes it non-vacuously.
+
+### OQ rulings
+
+- **OQ-1 RATIFIED** — the mid-call preview diff stays the recorded Grounds
+  §6 cut (pending = header alone under #34383a; observable window ≈ the
+  tool's own runtime; reopen on owner live-run pain).
+- **OQ-2 RATIFIED** — recorded details are camelCase
+  {diff, patch, firstChangedLine} (pi's EditToolDetails names); pi's own
+  recorded session in the s17 artifacts carries exactly this shape.
+- **OQ-3 RATIFIED** — replay captures assert per-app (known boot-chrome
+  deltas: pi's onboarding hint, tart's resumed row) while the LIVE pair
+  rides the full parity differ; the split is the honest instrument.
+
+### AC scoring
+
+- **AC1 PASS** — the nil-key forwarding is cured at the exact Grounds §2
+  site; generic_bg units pin success/error live-settle; pending/replay arms
+  byte-frozen (transcript-bg-units gate green; suite green).
+- **AC2 PASS** — EditBlock reproduces pi's self-shell family (the D1
+  correction); jsdiff port reproduces all three frozen §4 partitions
+  (judge re-verified directly) and 228/28 targeted+fuzz cases vs real
+  jsdiff 8.0.4 (builder evidence); edit-block-units 17 runs green; s17
+  parity differ clean on the edit rows (exit 0).
+- **AC3 PASS** — pending header-only block; replay knob validated at load,
+  no-knob flow byte-frozen; rig-knobs-replay gate green (3 knob runs + 46
+  scenario_test runs).
+- **AC4 PASS** — details ride the per-call side channel, recorded only
+  when non-nil, context projection drops the key, wire String pinned
+  byte-unchanged, session-golden 7/7 EXACT (judge-run), pre-I57 sessions
+  replay header-only (pinned).
+- **AC5 PASS** — controlled cold run (the two documented worktree-depth
+  env artifacts corrected: FAST_COMPLETIONS_PATH export + the tmux server
+  env it feeds): suite 1137 runs green, bench, s1–s8+s10, s1-tart,
+  tool-pending, user-bash-stream, thinking-pins, hermeticity, zai-data,
+  threads-budget, session-golden, all three new unit gates, and s17 exit 0
+  with S17_PARITY_OK (live: header + diff rows + ESC[7m + success bg, NO
+  defect row, both apps; replay: header + removed row + success bg, both
+  apps). The three lane-worktree FAILs are the documented artifact classes:
+  s9 (deep-path wrap; 12+ precedents), lock-deps' env-u leg and wire-delta
+  (checkout-path-bound digests; I56 precedent) — all closed by the
+  post-integration canonical-depth run below.
+- **AC6 PASS** — exactly the 15 declared files (builder-time worktree diff
+  + judge-verified git status); no must-not-touch file touched; the
+  committed-diff scope gate passes non-vacuously on the integrated tree.
+
+### Honest-history notes
+
+- The judge's first COLD gate run recorded FAILs on every gate needing
+  bundler/tmux (the documented worktree-depth env artifacts: no
+  FAST_COMPLETIONS_PATH export in the judge shell, hence no tmux-server
+  env for the panes — tart booted 0 requests, pi completed 4/4 as the
+  node-binary control). The controlled re-run above is the operative
+  record; nothing about the tree changed between the runs.
+- That cold run's s17 gate (`rm -rf tmp/parity-gate-s17`) consumed the
+  builder's kept oracle archive; judge-run reproductions of both oracles
+  are preserved at build/I57-edit-tool-bg-core/judge-oracles/ with the
+  provenance note.
+- No existing scenario, golden, or registry byte moved; wire/session
+  digests on EXISTING scenarios held EXACT (session-golden 7/7; s1 wire
+  A/B at identical out-dir paths byte-equal per builder evidence +
+  canonical-depth digests below).
 
 ## Builder Report
 
