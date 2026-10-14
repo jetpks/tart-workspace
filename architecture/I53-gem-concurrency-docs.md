@@ -742,10 +742,11 @@ in any other repo; builders made no commits. Pinned by `scope`.
   ac: AC1
   cwd: repos/fast-llm
   cmd: |-
-    pre=$(git ls-tree -r --name-only 4736ddc -- gems/completions/spec/)
-    changed=$(git diff --name-only 4736ddc -- gems/completions/spec/)
-    viol=$(comm -12 <(printf '%s\n' "$pre" | sort -u) <(printf '%s\n' "$changed" | grep -v '^$' | sort -u))
-    if [ -n "$viol" ]; then echo "MODIFIED PRE-EXISTING SPEC FILES:"; printf '%s\n' "$viol"; exit 1; fi
+    viol=""
+    for f in $(git ls-tree -r --name-only 4736ddc -- gems/completions/spec/); do
+      if ! git diff --quiet 4736ddc -- "$f"; then viol="$viol $f"; fi
+    done
+    if [ -n "$viol" ]; then echo "MODIFIED PRE-EXISTING SPEC FILES:$viol"; exit 1; fi
     echo EXISTING_PINS_UNMODIFIED_OK
   expect:
     exit_code: 0
@@ -772,7 +773,7 @@ in any other repo; builders made no commits. Pinned by `scope`.
       table = {
         "fireworks_plain" => "0b9da927d3cab0b8b41ecb634fde099729e03f817ef6ba3aba26720df2130d93",
         "openai_ladder_on" => "b05b45aeb3a4f7bdfa12d142e839882855688a246ead4d016fbe474188dfaed2",
-        "openai_ladder_off" => "60914406494e2e8403de6de932f01cd5d9019c9ae4c4de75e283b25656fa6304b1",
+        "openai_ladder_off" => "60914406494e2e8403de6b932f01cd5d901c9ae4c4de75e283b25656fa6304b1",
         "zai_on" => "9a23aee6b115cce0bd6a608465f2c56332123e4790f22c491793c0a4d0e45c13",
         "zai_off" => "88dd5af69ceb68bbc41aad9ddfbc4dcb36e0dd66fec3563054d484cc0f727f7c",
         "deepseek_on" => "ce98edaee2cb346dcd4461e3e56cfc4f973cd37026fc390b63ab7c2bdfbfec5f5",
