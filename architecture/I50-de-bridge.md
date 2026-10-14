@@ -542,16 +542,16 @@ design to chance.
 # Acceptance Criteria — I50 de-bridge
 
 Gate calibration (pre-declared): **RED at base BY DESIGN** —
-`bridge-absent` (lib/tart/agent/bridge.rb exists at 2943ef0) and
+`bridge-absent` (lib/tart/agent/bridge.rb exists at 2943ef0),
 `debridge-units` (the three new agent_loop pins + the zombie pin do not
 exist at base; the -n filter runs 0 tests, so the run-count assert fails —
-the designed red, not a vacuous pass). **GREEN at base, must stay GREEN** —
+the designed red, not a vacuous pass), and `threads-budget` (its reaper
+check greps the CURRENT tree, where `reaper = Thread.new` still lives at
+bash.rb:250 — rehearsal-verified RED at base). **GREEN at base, must stay GREEN** —
 `suite`, `bench`, `s1`–`s10`, `s1-tart-mode`, `tool-pending-gate`,
 `user-bash-stream-gate` (the de-bridged user_bash streaming surface's live
 proof), `wire-bodies` (`2ece7d4b…` + `7360fd1e…` EXACT — this entry is
-wire-neutral by construction), `session-golden`, and `threads-budget`
-(vacuously green at base — the property is diff-scoped vs 2943ef0; it is
-non-vacuous on the integrated run). Every rig invocation scrubs the six
+wire-neutral by construction), and `session-golden`. Every rig invocation scrubs the six
 HERDR_* env vars (the I47/I48/I49 frozen-gate lesson). The s-gates keep the
 CANONICAL short out dirs. The KNOWN s9 lane-worktree deep-path artifact
 (eleven precedents, I34–I49) does not fail this iteration when the same
