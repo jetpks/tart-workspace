@@ -1508,15 +1508,189 @@ STATUS: COMPLETE_WITH_CONCERNS
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section gem-concurrency-docs verdict --from <file>`. -->
+# Verdict — I53 gem-concurrency-docs (judged in a fresh session, cold)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify gem-concurrency-docs`)?
+Judge: never built nor graded this work. Mechanical post-flight first:
+`architect verify` all-PASS both lanes; the frozen region (everything
+before `## Builder Prompt`) hashes identically at freeze `e7202316` and
+HEAD (the only post-freeze diff is the appended Builder Prompt section —
+the designed flow); `git log 4736ddc..` EMPTY in both lane worktrees
+(builders committed nothing). Every gate re-run COLD on the
+integrated-equivalent tree (repos/fast-llm @ 4736ddc + both lanes'
+19-file overlay, judged on a discarded temp branch), then re-run cold on
+the true integrated tree after `architect integrate` (identical results).
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+## Gate table (cold, integrated tree)
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+| Gate | AC | Result |
+|---|---|---|
+| gem-suite | AC1 | PASS — 133 examples, 0 failures (122 base + 6 concurrency + 5 docs) |
+| existing-pins-unmodified | AC1 | PASS — every pre-existing spec file byte-identical to 4736ddc |
+| changelog-concurrency | AC1 | PASS — serial claim gone; concurrent batch described |
+| wire-fixtures-digests | AC2 | PASS — WIRE_FIXTURES_OK 11 (SHA256 table intact) |
+| wire-parity | AC2 | PASS — 12 examples, 0 failures |
+| tool-overlap | AC3 | PASS — 4 examples, 0 failures |
+| batch-cancel | AC4 | PASS — 2 examples, 0 failures |
+| install-check | AC5 | PASS — INSTALL_CHECK_OK (build + scratch install + require + smoke through the new executor) |
+| docs-links | AC6 | PASS — 5 examples, 0 failures |
+| readme-fixture | AC6 | PASS — fixture byte-identical to `git show 4736ddc:…` |
+| scope | AC7 | PASS — SCOPE_OK 19 files (exactly the declared union) |
+
+Stability: 11 additional consecutive cold full-suite runs on the
+integrated tree, all 133/0. The known pre-existing flake (below) never
+surfaced.
+
+## AC scores
+
+- **AC1 PASS** — full suite green with the 11 pre-existing spec files
+  byte-UNMODIFIED (chat_spec's serial-order/unknown-tool/hooks pins and
+  stream_cancel's D8 self-cancel pin `ran == ["a"]` all hold under the
+  concurrent executor — the before-phase serializes hooks, results
+  append in call order, child2 dies at its opening latch); CHANGELOG
+  corrected.
+- **AC2 PASS** — wire neutrality is structural: tool results reach the
+  wire only via the next step's request build; index-keyed call-order
+  appends make history bytes identical to the serial executor's; the 11
+  fixtures + parity spec pass untouched.
+- **AC3 PASS** — overlap pin (`max(entries) < min(exits)`, span < 0.9 s),
+  call-order results under inverted completion, completion-order after
+  hooks (`%w[c2 c1]`), failure isolation (`"boom"` → that call's
+  `is_error` result, sibling clean, join completes). Designed-RED
+  reproduced cold at base by the judge (6/6 new-spec failures at BASE
+  chat.rb — the pins are non-vacuous, including the assertion INSIDE
+  `Async`).
+- **AC4 PASS** — cancel-during-join: both children provably entered,
+  `CancelledError` ≤ 0.2 s (immediate), zero tool-result Messages, zero
+  after-hook fires, events end at the stream's `:done`; hook-latched
+  cancel deterministic (`ran == []`, c2's before hooks never fire).
+- **AC5 PASS** — the .gem builds with lib/, installs into a scratch
+  GEM_HOME, requires outside the repo, smoke chat turn completes.
+- **AC6 PASS** — the four owner labels land at their ruled destinations;
+  every scoped link resolves; all four quadrants non-empty; the README
+  line-diff shows exactly the 4 link definitions + the one 3-line
+  Error-taxonomy pointer (≤ 6); fixture byte-exact.
+- **AC7 PASS** — 19 files exactly; nothing else in fast-llm (gemspec,
+  Gemfile*, .rspec, version.rb, install_check.sh, mock server, every
+  pre-existing spec/fixture untouched); no other repo touched; no
+  builder commits.
+
+**Verdict: CONTINUE — every AC PASS; both lanes integrated.**
+
+## Open questions adjudicated (Grounds §7)
+
+- **OQ-1 before-hook firing for unknown tools — ACCEPT the spec's
+  gem-continuity choice.** The gem's before hooks are observers with no
+  validation/block semantics (pi's hook can abort on validated args —
+  pi's look-up-first rationale does not transfer), and base behavior +
+  the frozen pins are preserved by firing hooks for every parsed
+  tool_call block; continuity wins.
+- **OQ-2 raised-StandardError → error-result conversion — RATIFIED WITH
+  ONE BOUNDARY (D-3).** Errors from the tool's own execution isolate
+  into that call's `{content: msg, is_error: true}` result (pi's
+  per-thunk try/catch; AC3 pins it). `ArgumentError` RE-RAISES: the
+  judge reproduced the builder's vacuity finding cold — the frozen
+  `{error:}` example's fixture (`define_method(:execute) { |_args| }`
+  invoked `execute(**{})`) raises `ArgumentError` at the DISPATCH
+  boundary at BASE, the example is vacuously green at base (async
+  swallows the raise before its assertions; warn log verified), and
+  pure-D4 isolation would surface the vacuous fixture's defect
+  (`expected "permission denied", got "wrong number of arguments"`) —
+  no implementation satisfies both AC1's frozen net and pure-D4. The
+  carve-out is the unique reconciliation and keeps today's raise-through
+  for declaration defects. Recorded consequence: the rescue cannot
+  distinguish dispatch-boundary from body-raised `ArgumentError` — body-
+  raised ArgumentError also re-raises; unpinned anywhere; commented in
+  chat.rb. Judge fix at integrate: tools.md gains the carve-out
+  sentence (docs said "any other StandardError isolates").
+- **OQ-3 docs not packaged in the .gem — ACCEPT (standing record for the
+  human).** The gemspec `spec.files` stays frozen as I51 cut it; docs
+  are repo/GitHub-facing; packaging them is a landing-time one-token
+  glob change, the human's call.
+- **OQ-4 after-hook completion-order observability — ACCEPT.** After
+  hooks fire inside each child as its call completes (pi's thunk-run
+  afterToolCall): completion order for multi-call batches, call order
+  for single calls (no consumer-visible change), pinned by
+  tool_concurrency example 2 and documented in tools.md. Scope note
+  ruled under OQ-1's umbrella: unknown-tool immediate outcomes fire NO
+  after hooks (the call never executed; pi's immediate arm) — base
+  fired them, unpinned at base, now pinned by tool_concurrency example 4
+  (`after_ids == %w[c1]`) and RATIFIED as the standing contract.
+
+## Lane `concurrency` deviations ruled
+
+- **D-1 `@in_flight = nil` moved after the batch — ACCEPT.** §1.3.1's
+  letter (≤ 0.2 s abort, zero after-hook fires) and Grounds D5's own
+  sentence ("cancel inside a tool cancels `@in_flight` (the step task,
+  not the child)") both presuppose `@in_flight` names the step task
+  DURING the batch; at base it was nil'd before the batch, making a
+  batch-time cancel latch-only and §1.3.1 unsatisfiable. The mechanic
+  is byte-unchanged; only the window extends. The frozen D8 self-cancel
+  pin still holds (child2's opening latch).
+- **D-2 join wrapped in `ensure { children.each(&:cancel) }` — ACCEPT.**
+  The letter's named mechanism ("async stop-children") provably cannot
+  fire under the frozen `#step` ladder (stop-children runs only when
+  `Async::Cancel` propagates OUT of the task block; the mandated
+  ladder converts it inside); the ensure is the faithful realization of
+  the letter's intent — abort in-flight children, never wait out
+  natural completion, no phantom terminals — and it preserves the
+  serial executor's raise-aborts-the-batch semantics for other unwinds
+  (e.g. a propagating after-hook exception).
+- **D-3 ArgumentError re-raise — ACCEPT (ratified, see OQ-2).**
+- **D-4 wall measured from just before `chat.cancel` — ACCEPT.** The
+  cancel call is synchronous in the same reactor tick; no other reading
+  of "wall from cancel to CancelledError" exists; the bound passed with
+  wide margin.
+- **D-5 `client.close` omitted in the cancelled-reactor helper —
+  ACCEPT.** §1.3 does not require it; the frozen stream_cancel_spec
+  helper idiom does the same (close may await inside a cancelled task);
+  teardown happens in `after`.
+
+## Lane `docs` deviations + concerns ruled
+
+- **D-D1 no blank separator before the trailing definitions — ACCEPT.**
+  Forced by §2.4-1's letter (every added line must be a definition or
+  part of the one pointer block — a bare blank line is neither);
+  CommonMark parses definitions anywhere; rendering unaffected.
+- **D-D2 directory targets resolve (`File.exist?`) — ACCEPT.** §2.3's
+  own example (root README links the `docs/` directory) demands it; the
+  only consistent reading.
+- **D-D3 ConnectionError documents the full NETWORK_ERRORS list —
+  ACCEPT.** "Cite what the code does today" governs; verified in
+  errors.md against client.rb.
+- **D-D4 StreamError's two raise paths — ACCEPT.** Same rule; both
+  paths present (terminal discipline emits `:error` first; malformed
+  chunk mid-stream).
+- **D-D5 `git diff --stat` shows 2 files not 15 — ACCEPT.** Untracked
+  new files under the never-commit rule; the full enumeration is in the
+  report; the judge's cold scope gate proves the 19-file union exact.
+- **D-D6 cwd mapping — ACCEPT.** Provisioned checkout root = repo root.
+- **C1 the cold-run flake — RECORDED, not scored against either lane.**
+  Same race the concurrency lane A/B-proved pre-existing at BASE
+  (mock server closes each connection after one request; async-http's
+  pool occasionally reuses the just-closed socket → `ConnectionError`
+  in chat_spec's full-tool-turn, ~1-in-8..14). Both lanes are forbidden
+  from touching `mock_llm_server.rb`/`chat_spec.rb`. The judge's 14
+  cold integrated runs: zero hits. STANDING RESIDUAL for the human
+  (landing-time: fix the mock's connection semantics or the client's
+  pool discard-on-close; never this frozen net).
+- **C2 README line-number drift in Grounds cites — ACCEPT, no action.**
+  The surgery is content-pinned (section headings + byte-exact
+  fixture); the readme-fixture gate held.
+
+## Residual risks
+
+1. The pre-existing mock-server connection-reuse flake (C1/R-1) rides
+   every future cold suite run until the human lands a mock/client fix.
+2. Body-raised `ArgumentError` from `execute` re-raises and aborts the
+   batch (the D-3 carve-out cannot distinguish it from a dispatch
+   arity defect); documented in chat.rb + tools.md (judge fix);
+   unpinned; reopen on consumer need.
+3. `docs_links_spec`'s prose-preservation check matches removed lines
+   by VALUE not index — a removed line identical to some Error-taxonomy
+   line would pass; the judge's direct diff read (exactly 2 hunks) is
+   the stronger check and held.
+4. Example 4 of tool_concurrency_spec is RED at base (the calibration
+   note said GREEN) because the builder strengthened it with
+   `after_ids == %w[c1]` — ratified (it pins the OQ-4/OQ-1 ruling);
+   strictly stronger than the letter, not weaker.
+5. Docs are not in the .gem (OQ-3) — the human's landing-time call.
