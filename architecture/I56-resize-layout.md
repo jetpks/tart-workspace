@@ -1013,11 +1013,309 @@ flip/compaction//new lifecycle interactions must stay byte-frozen.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I56-resize-layout-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence resize-layout --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# I56 resize-layout — lane `core` raw-results report
+
+Worktree: `build/I56-resize-layout-core/wt` (branch `lane/I56-resize-layout-core`, base
+`e099cf3`, working tree — **no commits**: `git log --oneline e099cf3..HEAD | wc -l` → `0`).
+Env note: every bundle/rig command in this worktree requires
+`FAST_COMPLETIONS_PATH=/Users/eric/architect/spaces/20261009-pi-port/repos/fast-llm/gems/completions`
+(I55 report precedent; without it the pane's bundler refuses at boot — frozen-mode path
+mismatch at worktree depth — and rig runs exit 2 "not all apps completed").
+
+## 1. Verification matrix
+
+| gate | command (verbatim unless noted) | exit | tail |
+|---|---|---|---|
+| suite | `bundle install --quiet && bundle exec rake` | 0 | `1103 runs, 5181 assertions, 0 failures, 0 errors, 1 skips` (skip = the pre-existing `TUI_SPLIT_RIG_LIVE`-gated live test) |
+| bench | `bundle exec ruby bench/seam_bench.rb 2>&1 \| tail -1` | 0 | `SEAM_BENCH_OK` |
+| s1 | `env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1_text_turn` (first pass) then `--out tmp/parity-gate-s1` (gate-exact dir) | 0 | — |
+| s2 | gate cmd, `tmp/parity-gate-s2` | 0 | — |
+| s3 | gate cmd, `tmp/parity-gate-s3` | 0 | (first pass with the longer dir `tmp/parity-gate-s3_tool_turn_files` exited 1 with ONE candidate: the truncated footer cwd line — see §7) |
+| s4 | gate cmd, `tmp/parity-gate-s4` | 0 | — |
+| s5 | gate cmd, `tmp/parity-gate-s5` | 0 | (same longer-dir artifact as s3 on first pass) |
+| s6 | gate cmd, `tmp/parity-gate-s6` | 0 | — |
+| s7 | gate cmd, `tmp/parity-gate-s7` | 0 | — |
+| s8 | gate cmd, `tmp/parity-gate-s8` | 0 | — |
+| s9 | gate cmd, `tmp/parity-gate-s9` | **1** | `rig_failure=nil`; candidates = `-.md` (1); style_unknown = 0. The KNOWN deep-path staged-path wrap artifact (prompt law: "s9 in your LANE WORKTREE may exit 1 … canonical-depth run is the truth"). Not chased in-lane. |
+| s10 | gate cmd, `tmp/parity-gate-s10` | 0 | — |
+| s1_tart | gate cmd + TART_MODE_OK check | 0 | `TART_MODE_OK` |
+| tool-pending-gate | `gems/tui-split-rig/bin/tool-pending-probe --gate --out tmp/i56-tp` | 0 | `TOOL_PENDING_GATE_OK` |
+| user-bash-stream-gate | `gems/tui-split-rig/bin/user-bash-stream-probe --gate --out tmp/i56-ubs` | 0 | `USER_BASH_STREAM_GATE_OK` |
+| resize-units | `bundle exec ruby -Ilib -Itest test/chat_test.rb -n "/sigwinch\|reflows_on_resize\|rebuilds_the_header_block\|flip_after_resize\|tart_hints_rewrap/"` | 0 | `5 runs, 33 assertions, 0 failures`; `/resize_repaints/` → 0 failures |
+| header-wrap-units | motd `-n "/pi_header_rows_wrap\|ladder/"` → 4 runs ec 0; text `-n "/wrap_spans/"` → 2 runs ec 0 | 0 | floors 3 / 1 met |
+| rebuild-units | transcript `-n "/rebuild_live/"` → `2 runs, 8 assertions, 0 failures` | 0 | floor 2 met |
+| rig-knobs-resize | scenario_test `-n "/resize_knob/"` → `3 runs … 0 failures`; full scenario_test → `43 runs, 223 assertions, 0 failures` | 0 | floors met |
+| thinking-pins | agent_loop filter → ec 0 (runs parse hits the minitest rate line, ≥11 satisfied); settings filter → ec 0 | 0 | — |
+| hermeticity | launcher_smoke ec 0; e2e_session ec 0 | 0 | — |
+| lock-deps | static legs: gemspec has no `ruby_llm` ✓; Gemfile pin lines ✓; `Gemfile.lock` has `fast-completions (0.1.0)` and none of ruby_llm/faraday* ✓; `GEM_LOAD_OK` ✓. The `env -u FAST_COMPLETIONS_PATH bundle install --quiet` leg exits 13 at worktree depth (bundler path error on the relative default) — the documented I55 worktree artifact; Gemfile/lock/gemspec byte-untouched (`git diff e099cf3 --stat` → 0 changed files among them) | 0* | `LOCK_DEPS_OK` + `GEM_LOAD_OK` |
+| zai-data | models_test `-n "/dialect/"` → `2 runs, 14 assertions, 0 failures`; the dialect values check → `ZAI_DATA_OK` | 0 | — |
+| threads-budget | `git diff e099cf3 -- lib \| grep "^\+[^+].*Thread.new"` → empty | 0 | `THREADS_BUDGET_OK` |
+| wire-delta | gate cmd at `tmp/i54-wire` name; **see §7: location-pinned sha** — tools sha = `7360fd1ec6419b5f9966c3067588314cdd0d29231a78346443a0002923c23707` ✓ frozen; `stream_options == {"include_usage" => true}` ✓; `store == false` ✓; key order ✓; user msg ✓; instruction sha differs ONLY by the embedded absolute sandbox cwd — proven identical to base modulo location (A/B below) | 0* | A/B: `base s1 ec=0` from `/tmp/i56-base-tree` (git archive e099cf3); instruction bytes EQUAL modulo the checkout path (sole diff line: the cwd prefix `/private/tmp/i56-base-tree/…` vs `/Users/…/wt/…`) |
+| session-golden | gate script verbatim | 0 | `SESSION_GOLDEN_OK` (3× stability reruns; one earlier manual run failed `fork_roles` — see §7 item 9) |
+| scope | `git diff --name-only e099cf3` + `git ls-files --others --exclude-standard` vs the frozen touch set | 0 | `SCOPE_OK 12 files` (11 modified + 1 new untracked YAML; builders never `git add`) |
+| s16-parity | gate cmd, `tmp/parity-gate-s16` | **1 in-lane** | exit_code=1, rig_failure=nil, both apps completed 1/1, candidates = 2 (both the deep-path footer cwd pair — canonical depth classifies them `parity-run-path`); style_unknown = 0; the gate's ruby tail passes: `S16_CONTENTS_OK` (both captures contain ` ctrl+o more` and ` extend Pi.`) |
+
+## 2. s16 — baseline vs final (calibration order: baseline BEFORE surface work)
+
+Baseline (instrument only, pre-surface-work): `tmp/i56-s16-base3` — exit 1, both apps
+completed 1/1, **10 candidates**:
+
+```
+- █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash ·
+- ctrl+o more
++ █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash · ctrl+o
+- Pi can explain its own features and look up its docs. Ask it how to use or
+- extend Pi.
++ Pi can explain its own features and look up its docs. Ask it how to use or exte
++
++
+-/Users/…/wt/tmp/i56-s16-base3/run-1/sandbox/…   (deep-path truncated footer cwd rows)
++/Users/…/wt/tmp/i56-s16-base3/run-1/sandbox/…
+```
+
+(8 header/alignment candidates — the pi-wrapped hints pair, the onboarding pair, 2 blank
+alignment rows, the tart clipped rows — plus the 2 footer cwd rows that Grounds §7
+classifies `parity-run-path` at canonical depth but truncate past the `run-\d+/` anchor at
+this worktree's depth.)
+
+Final (post-surface-work): `tmp/parity-gate-s16` — exit 1, both completed, **2 candidates**
+(only the deep-path footer cwd pair). All 8 header/alignment candidates eliminated. Both
+captures carry ` ctrl+o more` (line 4) and ` extend Pi.` (line 8); the pre-fix clipped rows
+(`…! bash · ctrl+o` 79-wide / `…or exte`) are gone.
+
+Two earlier baseline attempts (before the env discovery) exited 2 "not all apps completed":
+tart's bundler refused at boot (`The list of sources changed … frozen mode is set` — the
+missing `FAST_COMPLETIONS_PATH` in the pane env), requests=0, reply settle ms=nil. Raw
+capture of the boot failure (stderr trap, /tmp/i56_probe5.rb):
+
+```
+The list of sources changed, the gemspecs for path gems changed, but the lockfile can't be
+updated because frozen mode is set
+* fast-completions from `/Users/…/repos/fast-llm/gems/completions` to `../fast-llm/gems/completions`
+```
+
+## 3. The regenerated ladder table (`TUI.text_width` over every row)
+
+```
+coder-mini.txt     max_cell_width=23 rows= 8
+miniwi.txt         max_cell_width= 8 rows= 4
+mono-12.txt        max_cell_width=40 rows=10
+rebel.txt          max_cell_width=40 rows=11
+slant-relief.txt   max_cell_width=66 rows= 9
+small-slant.txt    max_cell_width=18 rows= 5
+small.txt          max_cell_width=19 rows= 5
+soft.txt           max_cell_width=32 rows= 7
+tmplr.txt          max_cell_width= 6 rows= 4
+twisted.txt        max_cell_width=42 rows= 8
+```
+
+Identical to `build/i56-spec/ladder.txt` (regeneration is a no-op; the file was not
+rewritten). Ladder picks verified: 120→slant-relief, 66→twisted, 50→twisted, 43→twisted
+(fits exactly), 42→mono-12 (name-asc tie over rebel), 41→mono-12, 40→soft, 35→soft,
+19→small-slant, 7→tmplr, ≤6→wordmark `tart`.
+
+## 4. pi-vs-port wrap comparison (plain + effective runs)
+
+Port vs the FROZEN artifact table (`tmp/resize-calib/stage3/pi-w{44,46,48,49,50,51,52,54,
+56,64,80}.txt`): **MATCH at all 11 widths**, byte-for-byte on every header row
+(mark+version, hints pair(s), notice pair(s), blank, onboarding pair(s)). Driver:
+`Motd.pi_header_lines(expanded: false, width: pane)` rows joined per span vs
+`artifact[1, port.size]`.
+
+Pinned widths, plain bytes (port == artifact == fresh):
+
+```
+pane 50:  " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit"
+          "  · / commands · ! bash · ctrl+o more"          ← whitespace-break class
+          " Press ctrl+o to show full startup help and"
+          " loaded resources."
+pane 52:  " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit ·"
+          " / commands · ! bash · ctrl+o more"             ← separator-carrying class
+pane 80:  " █▀ █ escape interrupt · ctrl+c/ctrl+d clear/exit · / commands · ! bash ·"
+          " ctrl+o more"                                   ← word-break class
+          " Press ctrl+o to show full startup help and loaded resources."
+          " Pi can explain its own features and look up its docs. Ask it how to use or"
+          " extend Pi."
+```
+
+Effective runs, pane-50 continuation (port spans vs `pi-w50.styled` row 3):
+
+```
+fresh styled row 3: "\e[39m \e[38;2;79;142;179m█▀\e[39m … \e[38;2;157;165;169m interrupt · \e[38;2;126;136;142mctrl+c/ctrl\d …"
+port 50 continuation spans: [" ", nil], [" · ", "#9da5a9"], ["/", "#7e888e"], [" commands", "#9da5a9"],
+  [" · ", "#9da5a9"], ["!", "#7e888e"], [" bash", "#9da5a9"], [" · ", "#9da5a9"], ["ctrl+o", "#7e888e"], [" more", "#9da5a9"]
+```
+
+— the pad renders unstyled, the muted run re-opens WITH its leading space at the separator,
+the keys re-open dim: the artifact's run structure exactly.
+
+pi's own tokenizer mechanism (instrumented deno run of `repos/pi/packages/tui/src/utils.ts`):
+the token `\e[38;2;157;165;169m ` (muted-code + space) has `ws=false` — pi's
+`token.trim() === ""` (utils.ts:941) sees the code — so the ` · ` separator's leading space
+survives the break and leads the continuation. The deno `wrapTextWithAnsi` replica over the
+reconstructed hint row (content widths 42/48/50/52/78 = panes 44/50/52/54/80):
+
+```
+content 48 (pane 50):  "▀▀ ▀ escape interrupt · ctrl+c/ctrl\d clear/exit"
+                       " · / commands · ! bash · ctrl+o more"
+content 50 (pane 52):  "▀▀ ▀ escape interrupt · ctrl+c/ctrl\d clear/exit ·"
+                       "/ commands · ! bash · ctrl+o more"
+content 78 (pane 80):  "▀▀ ▀ escape interrupt · ctrl+c/ctrl\d clear/exit · / commands · ! bash ·"
+                       "ctrl+o more"
+```
+
+— identical to the port at every width.
+
+FRESH live-pi captures (this session, the calib3 pattern through the rig primitives,
+env-stripped; `/tmp/i56-fresh-pi/pi-w{50,52,80}.txt` + `.styled`): reproduce the frozen
+artifact table exactly, and the port MATCHES all three fresh captures byte-for-byte
+(pane 50: MATCH; pane 52: MATCH; pane 80: MATCH).
+
+## 5. The latch pin's two renders (plus boot)
+
+Driver: `Render::Chat` headless 60×16, motd: false, text `aaaa bbbb cccc dddd` typed via
+key events; `RatatuiRuby::Event::Resize.new(width: 14, height: 16)` (gem forms verified
+live: `resize? == true`, `width/height` carried; `Key#respond_to?(:resize?) == true` with
+value `false` — the mouse-arm predicate form is correct for the resize arm):
+
+```
+RENDER 0 (boot, 60 cols):                       input row 12 = "aaaa bbbb cccc dddd"
+RENDER 1 (frame after the resize event):        rows 11-12 = "aaaa bbbb" / "cccc dddd"   ← event width, no key between
+RENDER 2 (latch cleared — session area):        rows 11-12 = "──────…" / "aaaa bbbb cccc dddd" ← 3-row box again
+```
+
+The same flow is pinned in `test_sigwinch_latches_the_event_dims_for_one_frame`.
+
+## 6. New-test inventory
+
+test/chat_test.rb (+5; gate filter /sigwinch|reflows_on_resize|rebuilds_the_header_block|flip_after_resize|tart_hints_rewrap/ → 5 runs):
+- `test_sigwinch_latches_the_event_dims_for_one_frame` — the resize event latches the compose dims for ONE frame (editor wraps at event width), frame 2 recomposes from the session area; motd:false arm no-ops safely.
+- `test_editor_input_reflows_on_resize_without_cursor_movement` — the editor input re-wraps at the event width with zero key events between; the box grows with the wrap.
+- `test_sigwinch_rebuilds_the_header_block_at_the_new_width` — the pi-family header re-wraps to the oracle bytes at the latched 50 IN PLACE; a second frame keeps the rebuilt rows.
+- `test_flip_after_resize_keeps_the_art_stable` — the ladder re-picks on resize (slant-relief@120 → twisted@50); the ctrl+o flip never re-picks; flip-back restores the post-resize collapsed bytes exactly (the I33 property over the rebuilt block, pinned at the resized width).
+- `test_tart_hints_rewrap_at_the_resized_width` — the tart HINTS_LINE wraps multi-row at the latched width, single-row at 120.
+
+test/render/motd_test.rb (+4; filter /pi_header_rows_wrap|ladder/ → 4 runs):
+- `test_pi_header_rows_wrap_to_the_live_oracle_bytes_at_pinned_widths` — plain bytes at 50/52/80 = the artifact rows exactly.
+- `test_pi_header_rows_wrap_keeps_the_continuation_style_runs` — the continuation's effective runs (pad unstyled, muted ` · ` re-opening with its leading space, dim keys re-opening); the 80 word-led continuation and the wrapped onboarding pair.
+- `test_ladder_picks_the_widest_fitting_piece_per_width` — 120→slant-relief, 43→twisted (exact fit), 42→mono-12 (name-asc tie), 35→soft.
+- `test_ladder_wordmark_floor_below_the_smallest_piece` — ≤6 → the identity-name row; 7 → tmplr.
+
+test/render/text_test.rb (+2; filter /wrap_spans/ → 2 runs):
+- `test_wrap_spans_reproduces_the_pi_artifact_rows` — the three continuation classes + fitting-row pass-through identity + the continuation run structure.
+- `test_wrap_spans_hard_breaks_over_long_words_and_never_leads_with_whitespace` — breakLongWord cells + plain-whitespace tokens never lead a continuation.
+
+test/render/transcript_test.rb (+2; filter /rebuild_live/ → 2 runs):
+- `test_rebuild_live_expandables_replaces_the_live_block_and_shifts_later_rows` — in-place splice at the current toggle state, the height delta shifts later content, non-live rows byte-identical (and later registrations SHIFT).
+- `test_rebuild_live_expandables_defaults_false_and_no_ops_without_live_blocks` — default false; no-op returns false with rows untouched.
+
+gems/tui-split-rig/test/scenario_test.rb (+3; filter /resize_knob/ → 3 runs):
+- `test_resize_knob_parses_a_positive_pair_and_defaults_to_nil`
+- `test_resize_knob_rejects_non_positive_and_non_pair_shapes` (7 rejection shapes)
+- `test_resize_knob_loads_the_shipped_s16_resize_wrap_scenario`
+
+Adapted (existing, in-file): `test_compaction_rebuilds_kept_entries_then_the_panel` — the
+notice/onboarding assertions now expect the wrapped pairs at content 58 (the header is
+width-aware at EVERY enqueue since I56; the test's intent — header survives above the kept
+entries — unchanged); `test_motd_renders_logo_version_hints_context_and_skills` — the "any
+piece" assertion UNTOUCHED, its random-sample comment corrected to the deterministic ladder
+(law 5).
+
+## 7. Deviations / items (every one itemized, none silent)
+
+1. **`Motd.pi_hint_spans` segment split** (motd.rb): the separator is now its OWN muted span
+   (`[dim key][muted " desc"][muted " · "]`) instead of `" desc · "` inside one span. This
+   is REQUIRED by the oracle: with no span boundary at the separator, its leading space is a
+   plain whitespace token and pi's `isWhitespace` drops it at the break — the w50
+   continuation loses its leading space (` · / commands…` vs the artifact's
+   `  · / commands…`). pi's real segment structure is exactly this split
+   (interactive-mode.ts:1049-1056 `compactInstructions` joins with `theme.fg("muted", " · ")`;
+   keybinding-hints.ts:42-44 `keyHint = fg("dim",key) + fg("muted"," desc")`), so the split is
+   fidelity, satisfying the spec's own "the separator are part of the token stream". The
+   120-col screen bytes are unchanged (rows single; adjacent same-style runs merge in the
+   rig's styled walk — differ.rb `walk`).
+2. **The spec/AC ladder example "50 → soft" is inconsistent with the normative formula.**
+   The letter (Grounds §4, Spec): "the piece with the greatest max-row cell-width among
+   those whose `max_cell_width + OUTPUT_PAD.length <= width`". The pin list says
+   "120 → slant-relief; 50 → soft (32); 43 → twisted (42); 42 → mono-12". twisted (42) fits
+   at 43, therefore it fits at 50, therefore widest-fitting at 50 is twisted — "50 → soft"
+   cannot hold under ANY rule that also yields "43 → twisted". Implemented the FORMULA
+   (4 of the 5 pin values hold: 120/43/42/≤6; the pick at 50 is twisted). CHECKPOINT
+   MATERIAL ONLY: the frozen gates filter test NAMES (/pi_header_rows_wrap|ladder/), never
+   piece values — no gate edited. Itemized for the owner's ruling (OQ-adjacent).
+3. **s16 exits 1 in-lane with exactly 2 candidates** — the deep-path footer cwd rows (this
+   worktree's absolute path is 27 chars deeper than canonical repos/tart; the 80-col
+   truncation cuts the `run-\d+/` anchor). Same class as the prompt's documented s9
+   artifact. Proven location-bound: s3/s5 exit 1 with a longer arbitrary out dir and 0 with
+   the gate's exact dirs. The gate at repos/tart classifies them. Not chased in-lane.
+4. **s9 exits 1 in-lane with 1 candidate (`-.md`)** — the explicitly documented deep-path
+   staged-path wrap artifact. Not chased.
+5. **wire-delta's instruction sha is location-pinned**: the system prompt embeds the
+   absolute sandbox cwd (`<cwd>/Users/…/run-1/sandbox/tart</cwd>`) and the gate's gsub
+   strips only the `tmp/i54-wire/run-1/sandbox` middle segment, so the digest can only match
+   at the canonical checkout. Proven byte-clean vs base: an A/B against
+   `git archive e099cf3` (booted in /tmp) shows the instructions IDENTICAL modulo the
+   checkout path; the tools sha (`7360fd1e…`), key order, stream_options, store, and user
+   message all match the frozen values exactly.
+6. **`FAST_COMPLETIONS_PATH` is required for every bundle/rig command at this depth**,
+   including the rig's pane env (without it tart's bundler refuses at boot → rig exit 2).
+   The frozen gate commands pass verbatim at canonical depth.
+7. **The dead I47 custom-block pins (pre-existing latent, discovered):** the last three
+   tests of `test/render/transcript_test.rb` (`test_custom_block_renders_the_label_and_the_
+   markdown_content`, `…_replay_renders_the_same_rows`, `…_replay_skips_undisplayed_entries`)
+   sit OUTSIDE the `TranscriptTest` class — a stray class-level `end` before the I47 comment
+   block — and have never run since I47 (verified: 17 `def test_` at base, 14 executed).
+   Reviving them (moving the `end`) was TRIED and REVERTED: they fail against 9 iterations
+   of drift (`replay_entry` is now private; the markdown wrap moved). NOT revived — out of
+   scope; the base structure is preserved byte-for-byte outside my two inserted tests (my
+   tests live INSIDE the class so the /rebuild_live/ gate filter finds them).
+8. **Minor**: `build_widget`'s direct `@session.viewport_area` read now routes through
+   `screen_height` (the spec's "route through the same latched values"). `menu_list_top`'s
+   direct read (chat.rb:1297 pre-change) was left untouched — the spec cites only
+   viewport_width/screen_height/build_widget.
+9. **For honesty**: my first manual session-golden run failed `fork_roles` with `[:user]`;
+   the verbatim gate script passes (3× reruns stable, base tree identical). The failed
+   transcription cannot be reproduced from the gate's bytes — treated as my transcription
+   slip, not a tree finding.
+
+## 8. Files changed (working tree vs e099cf3; builders never commit)
+
+```
+gems/tui-split-rig/lib/tui_split_rig/runner.rb   |  10 ++
+gems/tui-split-rig/lib/tui_split_rig/scenario.rb |  26 +++-
+gems/tui-split-rig/test/scenario_test.rb         |  40 ++++++
+lib/tart/render/chat.rb                          |  75 +++++++++--
+lib/tart/render/motd.rb                          |  87 +++++++++---
+lib/tart/render/text.rb                          | 118 +++++++++++++++
+lib/tart/render/transcript.rb                    |  46 ++++++-
+test/chat_test.rb                                | 163 +++++++++++++++++++++-
+test/render/motd_test.rb                         | 101 +++++++++++++-
+test/render/text_test.rb                         |  60 ++++++++
+test/render/transcript_test.rb                   |  87 +++++++++++-
+gems/tui-split-rig/scenarios/s16_resize_wrap.yml |  20 +   (NEW, untracked)
+11 files changed, 763 insertions(+), 50 deletions(-)
+```
+
+Goldens, fixtures, registry.yml, every pre-existing scenario YAML, editor.rb, and the probe
+scripts: untouched. No new `Thread.new` in lib. No new dependencies.
+
+## 9. Residuals
+
+- The two in-lane exit-1s (s9 `-.md`; s16's 2 footer rows) and the wire-delta sha are all
+  the checkout-location artifact — the canonical-depth runs at repos/tart are the truth
+  (12+ precedents). The integrator's gate runs land there.
+- The "50 → soft" ladder pin needs an owner ruling (formula says twisted); no gate
+  conflicts either way.
+- The dead I47 custom-block pins remain dead (pre-existing); reviving needs a dedicated
+  owner-sanctioned refresh against current code.
+- Mid-editor-text resize is not rig-captured (Grounds §6's recorded reduction); the editor
+  reflow is unit-pinned and the s16 SIGWINCH path is end-to-end.
+- Whole-transcript re-wrap stays PARKED (Grounds §6): the resource sections and tool blocks
+  keep boot-width rows on resize.
+
+STATUS: COMPLETE_WITH_CONCERNS — (1) spec/AC ladder example "50 → soft" contradicts the normative widest-fit formula implemented (with "43 → twisted"); (2) s16/s9 exit 1 in-lane solely from the documented deep-path worktree artifact (canonical depth classifies/truth); (3) wire-delta's frozen sha is location-pinned — proven byte-identical vs base modulo checkout path; (4) pre-existing dead I47 custom-block pins discovered in transcript_test (not revived, out of scope).
 
 ## Verdict
 
