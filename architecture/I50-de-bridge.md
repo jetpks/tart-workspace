@@ -351,7 +351,6 @@ end
       # Reader THREADS fire on_chunk — push-only onto the ::Queue (probe5:
       # cooperative pops here); render state is touched ONLY by the
       # drainer on this reactor task.
-      @slot_omitted
       @slot[:outcome] = tool.run_user(command, on_chunk: ->(text) { chunks << text })
     end
   ensure
@@ -368,8 +367,10 @@ end
   stream_end fires only after the queue is fully drained; (c) ONE finish
   path renders every terminal: outcome arm, cancelled outcome arm (the
   task.stop Cancel is rescued INSIDE run_user → cancelled partial
-  outcome), worker-error arm (rescue StandardError → stream_end +
-  line_sink "bash: <msg>" + request_draw); (d) cancel() becomes
+  outcome), worker-error arm (a StandardError that escapes run_user —
+  e.g. the ENOENT cwd raise — is caught in the task body, recorded, and rendered
+  by finish as the error line: stream_end + line_sink "bash: <msg>" +
+  request_draw); (d) cancel() becomes
   `@cancel_flag = true; @task.stop` and NOTHING else — no slot polling, no
   deadline loop, no render from cancel(): the stopped task's unwind
   produces the cancelled outcome and finish renders it. The bounded 2 s
