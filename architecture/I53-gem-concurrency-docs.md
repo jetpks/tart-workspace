@@ -770,19 +770,12 @@ in any other repo; builders made no commits. Pinned by `scope`.
   cwd: repos/fast-llm
   cmd: |-
     ruby -rjson -rdigest -e '
-      table = {
-        "fireworks_plain" => "0b9da927d3cab0b8b41ecb634fde099729e03f817ef6ba3aba26720df2130d93",
-        "openai_ladder_on" => "b05b45aeb3a4f7bdfa12d142e839882855688a246ead4d016fbe474188dfaed2",
-        "openai_ladder_off" => "60914406494e2e8403de6b932f01cd5d901c9ae4c4de75e283b25656fa6304b1",
-        "zai_on" => "9a23aee6b115cce0bd6a608465f2c56332123e4790f22c491793c0a4d0e45c13",
-        "zai_off" => "88dd5af69ceb68bbc41aad9ddfbc4dcb36e0dd66fec3563054d484cc0f727f7c",
-        "deepseek_on" => "ce98edaee2cb346dcd4461e3e56cfc4f973cd37026fc390b63ab7c2bdfbfec5f5",
-        "tool_roundtrip" => "940d8f5b262f59a3db7b27a70471ac96a40c170264edc83219bef83dce1e9038",
-        "thinking_replay" => "c9259d5da9ca8c63186522c24b9bdfd5fe81baa90318b0f50634b56eb3c9e6c",
-        "reasoning_details_replay" => "c21da08d520e246652b33bedf76d89db581692a7775de5181dc8c63013a0ae4",
-        "cross_model_thinking_replay" => "809a9b7ecc99399379031524ed5810677e31c22cac2f64eb6e728602ea5939fc",
-        "budget_field" => "fb29e70650e9708f394c319d3c8ecacb840c134d214f9ce2747151356b86d1b7"
-      }
+      # The digest table is DERIVED from the authoritative frozen table in
+      # wire_parity_spec.rb (itself pinned byte-unmodified by the
+      # existing-pins-unmodified gate) - zero hand-transcription.
+      src = File.read("gems/completions/spec/fast/completions/wire_parity_spec.rb")
+      table = src[/FROZEN_DIGESTS\s*=\s*\{(.*?)\}/m, 1].scan(/"([a-z_]+)"\s*=>\s*"([0-9a-f]{64})"/).to_h
+      abort "could not parse FROZEN_DIGESTS" unless table.size == 11
       table.each do |tag, want|
         path = "gems/completions/spec/fixtures/wire/#{tag}.json"
         abort "missing fixture #{tag}" unless File.file?(path)
