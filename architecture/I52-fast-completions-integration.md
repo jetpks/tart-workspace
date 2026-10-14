@@ -547,9 +547,35 @@ are chat-internal constants.
   find` pin (the only registry reference) re-pins the resolution chain
   without the registry premise (the known-tables outcome table is the
   pin). NO assertion-logic changes elsewhere; the I36/live-run pins and
-  the settings thinking tests are UNMODIFIED.
+  the settings thinking tests are UNMODIFIED. Comment-only rewords
+  where no code moves (chat_test, golden_parity_test,
+  render/transcript_test, print.rb, hooks.rb, tools.rb, schemas/
+  tools.rb, transcript.rb, session.rb).
 
-## 8. Dependencies
+## 8. Named test additions (the pins the AC gates match)
+
+- `test/agent_loop_test.rb`:
+  `test_cancel_during_tool_batch_aborts_fast` — a scripted two-call
+  batch of 0.5 s sleep-tools; a kernel-style interrupt ~0.1 s into the
+  batch; assert the run surfaces (interrupted agent_end) in ≤0.2 s
+  (wall-clock, generous CI margin) — the probe6 ARM A residual CLOSED.
+  `test_recorded_message_shape_matches_the_frozen_bytes` — one scripted
+  mock turn (content + usage {prompt_tokens: 10, completion_tokens:
+  5}); assert the recorded assistant entry's `message` hash EQUALS
+  `{{"role"=>"assistant", "content"=><the scripted text>,
+  "tool_calls"=>{{}}, "finish_reason"=>"stop",
+  "input_tokens"=>10, "output_tokens"=>5,
+  "cache_write_tokens"=>0}}` (exact keys, the nil/0 conventions
+  included — ruby_llm's empirical bytes, Grounds D5) and a tool-call
+  turn records `{{"role"=>"tool", "tool_call_id"=>…, "content"=>…}}`.
+- `test/models_test.rb`: `test_dialect_for_translates_the_zai_compat`
+  (the five-key subset + supports_store false, value-by-value) and
+  `test_dialect_for_nil_and_non_zai_compat_yield_the_default_dialect`
+  (today's only-zai arms).
+- The remaining coverage rides the EXISTING pins unmodified (the AC's
+  run-count floors are the calibration).
+
+## 9. Dependencies
 
 - tart.gemspec: `spec.add_dependency "ruby_llm", "~> 2.1"` DELETED.
 - Gemfile (after `gemspec`): `gem "fast-completions", "0.1.0",
@@ -571,10 +597,10 @@ are chat-internal constants.
   (`lock-deps`, AC4) runs from repos/tart with NO env override — the
   frozen, landing-relevant form is the relative default.
 
-## 9. Boundaries
+## 10. Boundaries
 
-May touch: EXACTLY the 44 files of the ```lanes``` block (42 existing +
-2 new). Must NOT touch:
+May touch: EXACTLY the 48 files of the ```lanes``` block (45 existing +
+2 new + Gemfile.lock). Must NOT touch:
 
 - repos/fast-llm (READ-ONLY — I51's closed artifact), repos/pi, every
   other repos/* path, the space outside build/ + tmp/.
@@ -598,7 +624,7 @@ gem's native replay (the I51 surface); a tart-side ToolCall->`provider_
 options` surface (never used); the released-gem pin swap (the human's at
 landing).
 
-## 10. Lane plan
+## 11. Lane plan
 
 ONE lane (`core`) — the swap is ATOMIC by construction (any residual
 `RubyLLM` reference fails the bundle boot; the loop/chat/message/tools/
@@ -662,13 +688,16 @@ on the integrated tree.
     - test/compaction_test.rb
     - test/mcp_test.rb
     - test/models_test.rb
+    - test/golden_parity_test.rb
+    - test/render/transcript_test.rb
+    - README.md
 ```
 
-(45 entries: 42 existing files + `lib/tart/agent/chat.rb` +
-`lib/tart/agent/message.rb` NEW. `Gemfile.lock` regenerates via bundle
-install. Additive NEW test files are NOT sanctioned — new pins land in
-the declared test files; if a pin's natural home is outside the set, the
-builder reports it and the coordinator amends, never silently.)
+(48 entries: `lib/tart/agent/chat.rb` + `lib/tart/agent/message.rb`
+NEW; Gemfile.lock regenerates via bundle install. Additive NEW test
+files are NOT sanctioned — new pins land in the declared test files; if
+a pin's natural home is outside the set, the builder reports it and the
+coordinator amends, never silently.)
 
 ## Acceptance Criteria
 
