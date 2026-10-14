@@ -221,34 +221,225 @@ repos/pi f1b2e77f:
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section edit-tool-bg specification --from <file>`. -->
+### Objective
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+Close live-run rev3 ENTRY D (problems.md item 6): edit tool calls render
+without the background. The live repro (Grounds §1) located the divergence:
+the generic family's LIVE settle arm composes bg-less rows (Grounds §2) while
+the replay arm paints; and pi's edit tool is not the generic family at all —
+it registers the diff-display renderer family (Grounds §3). The deliverable:
+(1) the generic-family live-settle bg cure, (2) the pi edit-block family
+(header + diff + bg) live/pending/error/replay, (3) the per-call details
+channel that feeds it (wire-inert), (4) the rig `replay:` knob + the s17
+scenario pinning the bg'd rows live AND on replay.
+
+### The deliverables
+
+**P1 — the generic-family live-settle bg cure (the root cause).**
+`Transcript#generic_tool_rows` (transcript.rb:774-777) forwards an explicit
+`bg: nil` into `generic_panel_rows`, suppressing its
+`bg: Panel.tool_panel_bg(result)` keyword default. Cure: the default becomes
+the result-derived bg (`bg: Panel.tool_panel_bg(result)` — the nil-key
+forwarding stops), so `finalize_tool_block`'s generic arm (transcript.rb:267)
+composes bg'd rows exactly like the replay arm already does. The pending arm
+(explicit `Theme[:tool_pending_bg]`) and the replay arm (positional call,
+default fires) are byte-unchanged. This cures the live bg for EVERY
+generic-family tool (grep/ls/find/memory/subagent/…), not just edit.
+
+**P2 — `Tart::Render::EditBlock` (NEW lib/tart/render/edit_block.rb) — pi's
+edit renderer family** (renderers/edit.ts + tool-execution.ts; the mechanical
+row oracle: build/i57-spec/pi-edit-block-oracle.txt — pi's own component
+rendered at width 120 via deno, build/i57-spec/deno/ holds the probes):
+
+- `edit_block_rows(args, result, details, width)` — the SETTLED block:
+  - bg = `Panel.tool_panel_bg(result)` (success #254131 / error #5b282a).
+  - Row skeleton (the oracle dump, rows 0-10): `[Panel.blank_line]` (the
+    component's plain Spacer), `panel_blank_line(bg)` (contentBox padY),
+    `panel_blank_line(bg)` (the call component Box(1,1) padY), the HEADER
+    rows, `panel_blank_line(bg)` (the call component's Spacer(1) — only when
+    body rows exist), the BODY rows, `panel_blank_line(bg)` (call padY
+    bottom), `panel_blank_line(bg)` (contentBox padY bottom).
+  - HEADER: the `write` family exactly (file_blocks.rb write_call_rows /
+    wrapped_call_rows / tool_title_span / tool_path_display): bold toolTitle
+    `edit` (#dee0e1) + space + the tool-path display (#a798d7, the ~
+    contraction; `"..."` when the path is absent/empty), wrapped through
+    `Text.wrap_row` at `width - 2*OUTPUT_PAD`, every row bg-padded to width.
+    pi's OSC8 hyperlink on the path stays CUT (the recorded I18 cut — the
+    TUI carries no link capability; the rig's tmux writer strips them from
+    pi's live bytes anyway — Grounds §1 captures show none).
+  - BODY on success with details: the recorded `details[:diff]` rendered per
+    pi's `renderDiff` (components/diff.ts): parse each diff line with
+    `/^([+-\s])(\s*\d*)\s(.*)$/`; non-parsing rows and context rows render
+    verbatim in `Theme[:tool_diff_context]` (#9da5a9); consecutive
+    removed-then-added runs render per-row in `Theme[:tool_diff_removed]`
+    (#ea7f81) / `Theme[:tool_diff_added]` (#68b78d); a run with EXACTLY one
+    removed + one added line renders the intra-line word diff — pi's
+    `renderIntraLineDiff`: jsdiff 8.0.4 `diffWords` partition (word.js
+    tokenizer: extended-word-chars runs / whitespace runs / single non-word
+    chars, whitespace runs STITCHED onto the preceding token; `equals` on
+    TRIMMED tokens; base.js Myers with part coalescing — Grounds §4), then
+    `:reversed` modifiers (TUI.span modifiers `[:reversed]` — ratatui_ruby
+    supports it, editor.rb's fake cursor uses it) on changed parts, the
+    leading-whitespace strip on the first changed part per side, tabs →
+    3 spaces on intra rows only. The ground-truth partitions are frozen in
+    Grounds §4 (the deno jsdiff runs) + the oracle dump's styled rows.
+  - BODY on error: the error text rows (`result[:error]`) in
+    `Theme[:error]` after the call component's spacer — the captured
+    no-preview error shape (oracle dump "SETTLED error": call component
+    closed, then the renderResult row `boxPad + textPad + fg(error) text`,
+    then the contentBox bottom pad). Unit-pinned to the oracle rows.
+  - BODY absent (success, no details — pre-change sessions): header-only
+    block (no spacer, no body rows).
+  - The block is NOT expandable: a CONSTANT builder (ignores `expanded`)
+    — pi's edit renderers ignore setExpanded; the registry rebuild is
+    byte-identical (the I34 constant-builder contract).
+- `pending_edit_block_rows(args, width)` — the PENDING block: the
+  `pending_block_rows` skeleton (file_blocks.rb) over the header rows with
+  bg = `Theme[:tool_pending_bg]`: `[Panel.blank_line, panel_blank_line(bg),
+  *call-pad, header, call-pad, panel_blank_line(bg)]` (the oracle dump's
+  PENDING frame: 6 rows, no spacer/body — the preview cut, Grounds §6).
+- No file reads anywhere in the render layer (the preview is cut; the diff
+  comes from the details channel P3).
+
+**P3 — the per-call details channel (wire-inert).**
+
+- `Tart::Agent::Message::ToolCall` (message.rb:9) gains a `details` member
+  (nil default).
+- `Tart::Tools::Edit` sets `tool_call.details = {diff:, patch:,
+  firstChangedLine:}` (camelCase, pi's EditToolDetails names, edit.ts:210)
+  at execute — from the values it already computes (edit.rb:139-142). The
+  returned String (the wire content) is BYTE-UNCHANGED.
+- `Tart::Agent::Chat#execute_tool_call` (agent/chat.rb:247-268) constructs
+  `Message.tool(tool_call_id:, content: result_content(result), details:
+  tool_call.details)`.
+- `Message.tool` gains the `details:` kwarg; `#to_h` for role :tool emits
+  `"details"` ONLY when non-nil (the recorded byte-shape is otherwise
+  frozen — the session-golden digests must hold EXACT).
+- `Tart::Agent::Session.entry_to_context_message` (session.rb:187-205):
+  for tool-role messages the `details` key DROPS from the context
+  projection (pi session-manager.ts:153 "not sent to LLM") — a
+  defense-in-depth strip on top of from_seed_hash's declared-fields read.
+- render/chat.rb :538-547: the `:tool_execution_end` arm passes
+  `call.details` through `finalize_tool_block`.
+- transcript.rb: `finalize_tool_block`/`enqueue_tool_block`/`tool_block_builder`
+  gain the details param; the EDIT arm dispatches to EditBlock (pending +
+  settled + replay); `replay_entries`' results collection also collects the
+  recorded `message["details"]`; the replay dispatch threads it. Sessions
+  recorded before this change (no details) replay header-only.
+
+**P4 — theme tokens (additive).** `tool_diff_added: "#68b78d"`,
+`tool_diff_removed: "#ea7f81"`, `tool_diff_context: "#9da5a9"` (dark.json
+green/red/muted vars; all three confirmed against the live-pi styled
+capture — Grounds §3).
+
+**P5 — the rig `replay:` knob + the s17 scenario.**
+
+- scenario.rb: `replay` (boolean, default false; rejects non-boolean) — the
+  I55 knob discipline.
+- runner.rb run_app: when `replay`, AFTER the completed computation and the
+  primary teardown, re-boot the app on its recorded session and capture the
+  replay screen: pi = `pi_command(...) + " --continue"`; tart =
+  `tart_command(...) + " -r"` (the flag APPENDED AFTER the workdir
+  positional — OptionParser's optional `[ID]` placeholder greedily eats a
+  following token; `bin/tart -r <workdir>` mis-parses, probed live);
+  same staged home/sandbox, token-scoped session name, settle("replay"),
+  write `<app>.replay.capture` + `<app>.replay.capture.styled`, teardown.
+  NO prompt sent; no requests expected; `completed` untouched. The no-knob
+  path is byte-frozen (every pre-s17 scenario's flow identical).
+- `scenarios/s17_edit_tool_bg.yml` (NEW): prompt "write then edit the
+  file", `expected_requests: 4`, `replay: true`, responses: (1) `write`
+  edit-bg.txt (the calib-1 8-line content), (2) `edit` the single-line
+  bravo→charlie replacement, (3) `edit` with oldText "NO SUCH LINE
+  ANYWHERE" (the error arm), (4) the fixed final reply. The write stage
+  creates the target file with the existing mock vocabulary — no staging
+  knob. Old scenarios/goldens untouched; NO MockLLMServer change.
+
+### Boundaries
+
+May-touch (exactly): lib/tart/render/edit_block.rb (NEW),
+lib/tart/render/transcript.rb, lib/tart/render/chat.rb,
+lib/tart/agent/chat.rb, lib/tart/agent/message.rb,
+lib/tart/agent/session.rb, lib/tart/tools/edit.rb, lib/tart/theme.rb,
+test/render/edit_block_test.rb (NEW), test/render/transcript_test.rb,
+test/edit_details_test.rb (NEW),
+gems/tui-split-rig/lib/tui_split_rig/runner.rb,
+gems/tui-split-rig/lib/tui_split_rig/scenario.rb,
+gems/tui-split-rig/scenarios/s17_edit_tool_bg.yml (NEW),
+gems/tui-split-rig/test/scenario_test.rb.
+
+Must-not-touch: lib/tart/agent/loop.rb (the :tool_execution_end event
+already carries the ToolCall — zero loop changes), lib/tart/render/panel.rb,
+lib/tart/render/tool_block.rb (generic_panel_rows is correct as-is),
+lib/tart/render/file_blocks.rb, lib/tart/render/bash_block.rb,
+test/support/mock_llm_server.rb, every EXISTING scenario YAML +
+registry.yml (no new classes needed — parity, not sanction),
+Gemfile/Gemfile.lock/tart.gemspec, bin/tart. The wire bytes of the tool
+result (the returned String) and every existing session/wire golden.
+
+Out-of-scope: pi's mid-call async preview diff (recorded reduction, Grounds
+§6); OSC8 path links (standing cut); renderShell:"self" families; whole-
+transcript re-wrap (I56 parked); render-perf (ENTRY E).
+
+### Lane plan
+
+ONE lane `core` — chat.rb/transcript.rb single-writer + the rig scenario
+co-designed with the surface (the I54/I55/I56 single-lane precedent; no
+disjoint file sets are provable: the render changes and their pinning
+scenario share every seam).
+
+- Repo: repos/tart; base `908be5a` (project/pi-port, clean).
+- Objective: P1-P5 above, green on every gate below.
+- Output: the lane commit (builder never commits — the worktree diff), the
+  report at build/I57-edit-tool-bg-core/report.md, kept artifacts under
+  tmp/parity-gate-s17 (live + replay captures).
+- Boundaries: the may-touch list exactly; the standing battery must hold
+  cold; s1_tart exits 1 by design; s9 in the LANE WORKTREE may show the
+  KNOWN deep-path artifact — report, don't chase (12+ precedents).
+
+### Tool guidance (exact verification)
+
+- The standing battery + new gates: the frozen ```gates block (AC section)
+  — every command there was run at base this session or is declared-new
+  with its RED-at-base reason.
+- The oracles: build/i57-spec/pi-edit-block-oracle.txt (pi's component
+  rows, styled, incl. the inverse runs) + the live captures under
+  repos/tart/tmp/edit-bg-calib/{stage,stage2,stage3,stage4}/run-1/ (base
+  state: tart's defect + pi's family, live + replay). The deno probes
+  (build/i57-spec/deno/) re-render pi's component directly (run from
+  repos/pi with `FORCE_COLOR=3 deno run --import-map importmap-scratch.json
+  --allow-read --allow-env --allow-sys --node-modules-dir=auto
+  editcomp-scratch.ts`; repos/pi stays READ-ONLY — copy the probes in/out,
+  leave the tree clean).
+- Calibration probe rerun: repos/tart `env -u HERDR_ENV -u HERDR_TAB_ID -u
+  HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID
+  bundle exec ruby -Igems/tui-split-rig/lib tmp/edit-bg-calib/calib.rb`
+  (the HERDR strip is load-bearing).
+
+### Effort
+
+`core`: high (architect dispatch `--effort high` — the word-diff port +
+row-exact block family demand it; glm-5.3-flash per architect.yaml).
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision edit-tool-bg`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/render/edit_block.rb
+    - lib/tart/render/transcript.rb
+    - lib/tart/render/chat.rb
+    - lib/tart/agent/chat.rb
+    - lib/tart/agent/message.rb
+    - lib/tart/agent/session.rb
+    - lib/tart/tools/edit.rb
+    - lib/tart/theme.rb
+    - test/render/edit_block_test.rb
+    - test/render/transcript_test.rb
+    - test/edit_details_test.rb
+    - gems/tui-split-rig/lib/tui_split_rig/runner.rb
+    - gems/tui-split-rig/lib/tui_split_rig/scenario.rb
+    - gems/tui-split-rig/scenarios/s17_edit_tool_bg.yml
+    - gems/tui-split-rig/test/scenario_test.rb
+  effort: high
 ```
 
 ## Acceptance Criteria
