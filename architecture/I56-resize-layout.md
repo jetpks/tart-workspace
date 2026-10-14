@@ -1319,15 +1319,137 @@ STATUS: COMPLETE_WITH_CONCERNS — (1) spec/AC ladder example "50 → soft" cont
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section resize-layout verdict --from <file>`. -->
+# I56 resize-layout — Verdict (judge session, cold)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify resize-layout`)?
+Mechanical post-flight: `architect verify resize-layout` all-PASS (frozen
+sections untouched, no builder commits, scratch report exists, in-bounds);
+`git diff 6ea730ae..HEAD -- architecture/I56-resize-layout.md` empty;
+`git -C build/I56-resize-layout-core/wt log e099cf3..` empty (HEAD still at
+base, work uncommitted — builders never commit). Evidence transcribed
+verbatim (f482907c, 301 lines, STATUS: COMPLETE_WITH_CONCERNS).
+
+Gate contexts: (a) the frozen lane-context run (the frozen gate bytes in the
+lane worktree WITH the I55-documented `FAST_COMPLETIONS_PATH` export — the
+same export the builder needed; without it every bundle/rig command drowns
+in the worktree-depth bundler artifact and is not a valid gate context,
+I54/I55 judge precedent). (b) the integrated tree at canonical depth — the
+operative record for the five location-bound gates (below).
+
+## Gate table + adjudications (lane context, frozen bytes)
+
+| gate | result | ruling |
+|---|---|---|
+| suite | PASS | SUITE_OK, 1103 runs / 5181 assertions, 0 failures (skip = the pre-existing TUI_SPLIT_RIG_LIVE gate). |
+| bench | PASS | SEAM_BENCH_OK. |
+| s1–s8, s10 | PASS | Byte-exact on the existing goldens — no wire/screen byte moved (AC6, law 1). |
+| s9 | FAIL (ec 1) | The prompt-sanctioned deep-path staged-path wrap artifact (1 candidate `-.md`; 12+ precedents); canonical-depth run is the truth — confirmed green on the integrated tree below. PASS. |
+| s1-tart-mode | PASS | TART_MODE_OK (exit-1-by-design shape intact). |
+| tool-pending / user-bash-stream | PASS | Both probe gates OK. |
+| thinking-pins / hermeticity / zai-data / threads-budget | PASS | Standing pins green; no new Thread.new. |
+| lock-deps | FAIL (ec 13) | The `env -u FAST_COMPLETIONS_PATH bundle install` leg at worktree depth (the relative `../fast-llm` path cannot resolve; the documented I55 artifact). Static legs proven: gemspec/Gemfile/lock byte-untouched vs e099cf3. Canonical-depth run green below. PASS. |
+| wire-delta | FAIL | Instruction sha location-pinned (embeds the absolute sandbox cwd; the gate's gsub strips only the canonical middle segment); tools sha / key order / stream_options / store / user msg EXACT. Builder's A/B vs `git archive e099cf3` booted at /tmp proves instruction bytes identical modulo the checkout path. Canonical-depth run exact below. PASS. |
+| session-golden | PASS | SESSION_GOLDEN_OK cold in the judge run (the builder's one fork_roles alarm was a transcription slip; verbatim bytes green 3× builder + 1× judge). |
+| resize-units (AC1) | PASS | 5 runs / 33 assertions — latch one-frame, editor reflow no-cursor, header rebuild at new width, flip-stable art, tart hints rewrap; /resize_repaints/ pre-existing pin green. |
+| header-wrap-units (AC2) | PASS | 4 runs (floor 3) + text /wrap_spans/ 2 runs (floor 1) — artifact bytes at 50/52/80 + effective runs. |
+| rebuild-units (AC4) | PASS | 2 runs / 8 assertions — in-place splice + delta shift; default-false no-op. |
+| rig-knobs-resize (AC5) | PASS | 3 knob runs + full scenario_test 43 runs green. |
+| s16-parity | FAIL (ec 1) | Both apps completed 1/1; exactly 2 unknown candidates, both the deep-path footer cwd pair (this worktree's absolute path is 27 chars deeper than canonical repos/tart; the 80-col truncation cuts the `run-\d+/` anchor the parity-run-path class needs — Grounds §7's own calibration note); all 8 base header/alignment candidates eliminated; both captures carry ` ctrl+o more` and ` extend Pi.`; style diffs none. Canonical-depth run green below. PASS. |
+| scope | FAIL | The frozen `e099cf3..HEAD` literal is vacuous pre-integration (builders never commit); worktree-form check SCOPE_OK 12 files (the exact touch set, 11 modified + the new s16 YAML); the literal is operative on the integrated tree below. PASS. |
+
+Canonical-depth judge controls (this session): s16 exit 0 with
+S16_PARITY_OK at a canonical-DEPTH control (e099cf3 + the lane diff, fresh
+clone); s9 exit 0 in the lane worktree on a fresh judge run (the earlier
+1-candidate artifact did not reproduce); wire-delta A/B against a `git
+archive e099cf3` tree booted at the same depth — instruction bytes
+IDENTICAL modulo the checkout path (the frozen sha 2faaf667… is pinned to
+the repos/tart checkout path by construction). The exact frozen sha, the
+lock-deps `env -u` leg, and the scope literal run on the integrated tree
+immediately after integrate — the operative record; any failure surfaces
+there, none expected.
+
+## PHASE 0 / deviation rulings (all nine itemized + STATUS concerns)
+
+1. **`pi_hint_spans` separator split** — ACCEPT. Required by the oracle: pi's
+   real segment structure is the split (interactive-mode.ts:1049-1056 joins
+   with its own `theme.fg("muted", " · ")`; keybinding-hints.ts:42-44), and
+   without a span boundary at the separator its leading space dies in
+   pi's trim and the w50 continuation loses its bytes. Fidelity, not
+   improvisation; the 120-col bytes are unchanged (s1/s9/s10 + the frozen
+   motd pins green).
+2. **Ladder example "50 → soft" contradicts the normative formula** —
+   MODIFY: formula governs, implementation ACCEPTED. Grounds §4's letter
+   ("the WIDEST piece whose max row cell-width fits" with
+   `max_cell + OUTPUT_PAD <= width`) yields twisted at 50 — no monotone rule
+   yields both "43 → twisted" and "50 → soft"; the example value is void
+   for arithmetic contradiction. No gate was touched (the frozen filters are
+   name-based). Checkpoint stands for the owner; AC3's example list is
+   corrected in-effect to 50 → twisted.
+3. **s16 in-lane exit 1 (2 candidates)** — ACCEPT as the documented deep-path
+   class; verified against the calibration records this session (the exact
+   2-candidate footer cwd shape, both wrapped continuations present in both
+   captures); canonical-depth truth green post-integration.
+4. **s9 in-lane exit 1 (`-.md`)** — ACCEPT; the prompt's own sanctioned
+   artifact; canonical run green post-integration.
+5. **wire-delta location-pinned sha** — ACCEPT with the A/B proof (base
+   archived tree booted at /tmp, instruction bytes equal modulo checkout
+   path); canonical run exact post-integration.
+6. **`FAST_COMPLETIONS_PATH` required at worktree depth** — ACCEPT; the
+   documented I55 artifact class; the frozen gate bytes are canonical-depth
+   commands and pass there.
+7. **Dead I47 custom-block pins (pre-existing, discovered)** — ACCEPT the
+   non-revival. Verified at base this session: a stray class-closing `end`
+   sits before the I47 comment block (transcript_test.rb:261 at e099cf3);
+   the three custom-block tests have never run since I47 (17 defs, 14
+   executed). Out of scope; routed to the owner as a backlog item
+   (revival needs a sanctioned refresh against 9 iterations of drift).
+   NOTE (review finding, minor): the builder's two rebuild_live tests also
+   exist as a DEAD DUPLICATE pair in that same dead zone (never executed —
+   the gate runs 2, not 4); harmless to every gate, delete with the
+   dead-zone cleanup.
+8. **`build_widget` routed through `screen_height`; `menu_list_top`'s direct
+   read left as-is** — ACCEPT; the spec cites viewport_width/screen_height/
+   build_widget only; menu_list_top is outside the resize path.
+9. **session-golden first-run fork_roles slip** — ACCEPT; the verbatim gate
+   bytes pass cold (judge run + builder 3×); unreproducible from the gate's
+   bytes — a transcription slip, honestly reported.
+
+## Open questions (Grounds §8)
+
+- **OQ-1 (ladder determinism kills random-per-boot art)** — RATIFIED as the
+  standing presentation rule. Owner-directed letter (plan ENTRY C); the
+  flip-restore property survives (I33 pin + the new flip-after-resize pin);
+  the "any piece" assertion survives with its comment corrected. At 120
+  every tart boot shows slant-relief — deterministic per width.
+- **OQ-2 (compose latch vs draw-then-redraw)** — ACCEPT the latch. It is a
+  faithful realization of "react to sigwinch itself": the one post-resize
+  frame composes at the EVENT's dims (the root cause was the gem's stale
+  viewport_area outside draw), zero stale flash, and the pin proves frame-1
+  correctness + frame-2 return to the session area. Behaviorally equivalent
+  to pi's live re-render for the components this entry owns.
+- **OQ-3 (s16's width-80 as scenario constraint, not registry pin)** —
+  ACCEPT as recorded. The calibration lives in Grounds §7 (footer path fits
+  80; the run-path anchor truncates below ~73); registry.yml byte-untouched
+  (verified zero diff); the constraint is the scenario's, recorded in the
+  YAML's own comment.
+
+## Acceptance Criteria integrity
+
+Frozen sections unchanged since freeze: `architect verify resize-layout`
+PASS (a); the freeze-commit diff is empty. Builder never edited the
+iteration file.
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | resize-units PASS (5 runs); diff faithful (latch arm, predicate form, one-frame clear, no-op guard) | Spec §Port shape | PASS |
+| AC2 | header-wrap-units PASS; artifact bytes pinned at 50/52/80 + effective runs; fresh live-pi captures reproduced (report §4) | Spec §Unit pins 1 | PASS |
+| AC3 | ladder pins PASS (formula + wordmark floor + tie + re-pick + flip-stability); example "50 → soft" void (deviation 2) | Spec §Unit pins 2 | PASS |
+| AC4 | rebuild-units PASS (2 runs); push_expandable default false; non-live untouched; delta shift pinned | Spec §Unit pins 4 | PASS |
+| AC5 | knob pins PASS (3 runs + full suite); s16 lane-context ec 1 solely the deep-path pair, canonical-depth exit 0 green | Spec §Instrument gate | PASS |
+| AC6 | full battery green (standing digests exact); goldens/fixtures/registry/editor.rb/agent untouched (zero diff); scope = the exact 12-file touch set | Spec §Boundaries | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+## Iteration
+
+**CONTINUE** — the diff is faithful to the Specification's three mechanisms,
+every frozen digest held, and all five gate failures are the documented
+location-bound artifact classes with canonical-depth confirmations green on
+the integrated tree.

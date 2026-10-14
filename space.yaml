@@ -2261,7 +2261,7 @@ project:
     ordinal: 56
     file: architecture/I56-resize-layout.md
     freeze_sha: 6ea730ae50ebdb2377a0ded7b56f107481c1a1f7
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
@@ -2278,6 +2278,13 @@ project:
       - gems/tui-split-rig/lib/tui_split_rig/scenario.rb
       - gems/tui-split-rig/scenarios/s16_resize_wrap.yml
       - gems/tui-split-rig/test/scenario_test.rb
+      base_sha: e099cf3b291e5e95d937a5a932b0b02be396f93f
+      worktree: build/I56-resize-layout-core/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: 9b1d2350b3cb32c9d32779c2b5564ef8e7579778fc03bf125e4223cfe1072455
       at: '2026-10-14T11:27:19-06:00'
