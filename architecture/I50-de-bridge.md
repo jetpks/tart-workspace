@@ -1003,11 +1003,205 @@ letter and itemize. The frozen iteration file is read-only contract.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I50-de-bridge-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence de-bridge --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# I50 de-bridge — lane `core` — Builder Report
+
+Worktree: `build/I50-de-bridge-core/wt` (branch `lane/I50-de-bridge-core`, frozen base
+`2943ef0d1baa67453e49605486ce584806249bc4`). Nothing committed; tree left for judgment.
+
+## File-by-file table
+
+| File | Lines before → after | Δ | Direction |
+|---|---|---|---|
+| lib/tart/agent/bridge.rb | 87 → DELETED | −87 | deleted (the Bridge worker) |
+| lib/tart/agent/loop.rb | 1010 → 1009 | −1 | step_via_bridge+work_callable → step_on_reactor (frozen ladder incl. belt residue-consumption); @sink dies; summarize inline ladder; `:fibers` armed at the with_tools seam; callback keying unchanged, comment cites probe4; bridge-era doc-comments updated; `require "bridge"` + `require "dry/monads"` + `include Dry::Monads::Result::Mixin` die (dead with the Result terminal) |
+| lib/tart/agent/status.rb | 56 → 52 | −4 | mutex + five synchronize blocks die; class comment = reactor-fiber truth |
+| lib/tart/tools/bash.rb | 364 → 401 | +37 | reaper → `Async::Task.current?&.async` (scheduler process_wait); rescue's `reaper&.join` → bounded ECHILD-tolerant self-reap (WNOHANG, ~10 ms, ≤ TERM_GRACE_SECONDS); off-reactor caller arm (PHASE 0 #3); pop-loop + readers.join UNCHANGED |
+| lib/tart/render/user_bash.rb | 219 → 226 | +7 | Bridge block → frozen inline shape (::Queue + drainer task + inline run_user + ONE finish); cancel() = flag + `@task.stop` NOTHING else; finish(terminal) → finish(); drainer-wait Cancel guard (PHASE 0 #4); doc-comment family swept |
+| lib/tart/render/chat.rb | 2001 → 2003 | +2 | comments ONLY (:214 region, :1676) — drainer/inline truth; zero behavior change |
+| test/flow_test.rb | 334 → 297 | −37 | 4 Bridge-terminal tests deleted; classification table + no-silent-swallow golden UNMODIFIED and green; header comment updated |
+| test/agent_loop_test.rb | 1365 → 1533 | +168 | +4 pins (names are the gate anchors, EXACT): test_fibers_tool_concurrency_overlaps_two_interleaved_tools, test_tool_event_attribution_under_interleaved_fibers_tools, test_interrupt_mid_stream_aborts_request_no_error_terminal, test_run_after_an_interrupt_makes_a_fresh_request (PHASE 0 #6 — the 5th AC5 pin); SleepTool top-level (the gem derives the wire name from the class name; a nested class carries a tart-- prefix) |
+| test/bash_tool_test.rb | 371 → 426 | +55 | +test_cancelled_bash_run_leaves_no_zombie; bare `tool.execute`/`run_user` drives wrapped on a reactor (PHASE 0 #2); cancellation pin's watch moved INSIDE the reactor (the checkpoint is fiber-local); assertions unmodified |
+| test/chat_test.rb | 5294 → 5305 | +11 | TWO escape pins' DRIVE re-pinned to the main-thread reactor (PHASE 0 #5); every assertion byte-identical |
+| test/launcher_smoke_test.rb | 274 → 275 | +1 | :38-40 comment only |
+
+`git status --porcelain` = exactly the 11-file set (1 D + 10 M, 0 untracked; worktree tmp/ is
+gitignored).
+
+## Verification transcript tails (all run in THIS worktree)
+
+```
+gate suite:      1040 runs, 4866 assertions, 0 failures, 0 errors, 1 skips
+                 (base 1039 runs / 1 skip; −4 deleted bridge-terminal + 5 new pins; the one
+                 base skip unchanged)
+gate bench:      SEAM_BENCH_OK
+gate bridge-absent:
+                 BRIDGE_ABSENT_OK
+gate debridge-units:
+                 agent_loop -n filter → 3 runs, 17 assertions, 0 failures, 0 errors, 0 skips
+                 bash -n zombie filter → 1 runs, 2 assertions, 0 failures, 0 errors, 0 skips
+                 DEBRIDGE_UNITS_OK
+gate threads-budget:
+                 THREADS_BUDGET_OK  (no +Thread.new lines in the lib diff; no `reaper = Thread.new`)
+gate wire-bodies (verbatim in worktree):
+                 RED — digest 8c3f8a04ce3dac43b1ed7d085a7e63c86bf53bc2ffcc288094c4ce7eb21a0926
+                 ≠ 2ece7d4b875c98590b2f839814a0d3444fbfe1a8514b09c17d000663466c25d2
+                 (KNOWN absolute-path artifact — the sole path in the body is the tree root
+                 inside the system prompt's <cwd>)
+                 control 1 (base tree 2943ef0 copied to build/i50-ctrl-base, equal depth,
+                 same command; base body prefix-swapped to the worktree root):
+                   8c3f8a04… — IDENTICAL to this worktree's digest (byte-equal modulo root)
+                 control 2 (this tree's captured body prefix-swapped to repos/tart):
+                   2ece7d4b875c98590b2f839814a0d3444fbfe1a8514b09c17d000663466c25d2 — EXACT
+                 tools digest: 7360fd1ec6419b5f9966c3067588314cdd0d29231a78346443a0002923c23707
+                   EXACT everywhere
+gate session-golden:
+                 SESSION_GOLDEN_OK
+s-gates (canonical tmp/parity-gate-* out dirs, six HERDR_* vars scrubbed):
+                 s1=0 s2=0 s3=0 s4=0 s5=0 s6=0 s7=0 s8=0 s9=1 (KNOWN deep-path artifact)
+                 s10=0
+                 s9 control: full tree copy at /tmp/i50-eqdepth → s9 exit 0
+s1-tart-mode:    TART_MODE_OK
+tool-pending:    TOOL_PENDING_GATE_OK
+user-bash-stream:USER_BASH_STREAM_GATE_OK
+scope:           git diff --name-only 2943ef0d + untracked = the 11-file set EXACTLY
+```
+
+## Probes (mechanism record)
+
+- probe3/probe5 RERUN LIVE from this worktree against this tree's bundle — outputs byte-match
+  the archived records (ARM1 Async::Cancel, server EPIPE +0.15 s; the flag interrupts at the
+  chunk boundary; Queue#pop(timeout:)/Thread#join/Mutex#synchronize all COOPERATIVE).
+- probe4 NOT rerun: ARM C drives Agent::Loop through Agent::Bridge — impossible post-deletion
+  (by design). Its ARM B facts are proven live by the new suite pins (overlap < 0.9 s,
+  attribution ids/durations) and probe6.
+- NEW probe6_unwind_cancel.rb (+ probe6-output-20261013.txt) under tmp/probe-bridge/:
+  - ARM A: interrupt during a `:fibers` tool batch — `cancel→surfaced = 1.7 s` == the tools'
+    remaining runtime; the unwind waits for NATURAL tool completion (`ensure tasks&.each(&:wait)`,
+    tool_concurrency.rb:79); no Cancel reaches the tool fibers during the unwind.
+  - ARM B: plain `::Queue#pop` (no timeout) on a reactor fiber — COOPERATIVE, cross-thread push
+    wakes it (the user_bash drainer's primitive).
+  - ARM C: a task whose block rescues Cancel internally (run_user's shape) completes; its
+    ensure's child `wait` works and finish runs.
+  - ARM D: cancelled-parent + infinite-child wait hangs (no stop_children until fiber end) —
+    the factual basis for the drainer-wait guard.
+
+## PHASE 0 — disagreements, researched and itemized
+
+1. **Spec §2 vs its own gem premise: the belt's flag has NO consumer left (spec tension —
+   implemented to the letter, residue consumed in the same arm).** The frozen step_on_reactor
+   keeps `@chat.cancel` "belt-and-braces (probe3 ARM2): the flag stops any surviving stream at
+   its next chunk boundary". That consumer was the BRIDGE WORKER's stream callback — deleted by
+   this very iteration. Gem facts (verified in ruby_llm 2.1.0): `cancel` only sets `@cancelled`
+   (chat.rb:418-421); the ONLY consumer is `raise_if_cancelled!`, which clears the flag as it
+   raises (chat.rb:1193-1199) and fires at the NEXT operation's first checkpoint. De-bridged,
+   the cancelled step's stream unwinds with the turn fiber — nothing consumes the flag — so the
+   esc-interrupt-then-resubmit flow broke: the next run's first step raised the residue
+   CancelledError, the cancelled arm broke the loop, and NO request was made (observed:
+   chat_test test_escape_interrupts_a_streaming_run_through_the_kernel_path hung at its
+   "still there" wait until the fix). At base this never happened because the worker consumed
+   the flag mid-interrupt. RESOLUTION: keep the frozen call, and in the SAME arm consume the
+   flag via the gem's own checkpoint (`@chat.send(:raise_if_cancelled!)` rescued) — the gem's
+   documented reuse contract ("the next cancellation checkpoint … clears the flag so the chat
+   can be reused"). Judge: affirm, or order the belt dropped entirely (de-bridged it has no
+   surviving stream to stop; summarize's summary_chat is rebuilt per compaction, so its arm is
+   residue-free).
+
+2. **Spec §4 forces a context-split reaper, and Spec §7's "ADDITIVE only" for bash_tool_test.rb
+   was unsatisfiable (forced re-pin, itemized).** The frozen reaper
+   `Async::Task.current.async` raises `NoAsyncTaskError` off-reactor. Two frozen constraints
+   collide: test/subagents_test.rb:554 (`test_tool_timeout_rides_the_bash_default`, FROZEN
+   file) drives `Tools::Bash#execute` bare; AC4/threads-budget forbid any added Thread.new
+   line. RESOLUTION: `reaper = Async::Task.current?&.async { … }` — the reactor path is the
+   frozen shape verbatim; off-reactor (bare-thread callers only; NO production path — subagents
+   children run the tool through their own reactor loop) the pop-loop polls
+   `waitpid2(pid, WNOHANG)` itself (the base plain-thread behavior; no new thread). Live
+   gem-level verification: WNOHANG under the scheduler returns immediately without parking
+   (selector KQueue#process_wait), ECHILD raises through it (handled). bash_tool_test.rb's ~20
+   bare drives got a mechanical `on_reactor {}` wrap (assertions unmodified) and the
+   cancellation pin's `Cancellation.watch` moved INSIDE the reactor — the checkpoint is
+   fiber-local (probe4), so a watch on a bare thread is invisible to a tool running on that
+   thread's reactor fiber.
+
+3. **(folded into #2)** the same tension's test-side half, listed separately only for
+   traceability: bash_tool_test.rb was declared "ADDITIVE pin" in Spec §7 but its existing
+   bare-thread drives cannot survive the frozen reaper shape. The wrap is the forced re-pin;
+   zero assertions changed.
+
+4. **Spec §3's frozen user_bash ensure has a finish-skipping window (guard added within
+   "exact locals at the builder's discretion").** Invariant (c): ONE finish path renders every
+   terminal. The frozen ensure (`chunks << :done; drainer.wait; finish`) skips finish if the
+   Cancel lands AT `drainer.wait` (the command finishing inside the cancel's shadow — probe6
+   ARM D: no stop_children until fiber end, so the raise is deliverable at that wait). Guard:
+   `rescue Async::Cancel` → drain the queue inline → finish → re-raise. Invariants (a)/(b)/(d)
+   untouched; every frozen literal (the ::Queue, the drainer loop, the watch, `:done`, ONE
+   finish, cancel = flag+stop) is verbatim.
+
+5. **Spec §7's "chat_test.rb … must stay GREEN UNMODIFIED" is unsatisfiable for the two
+   escape-cancel pins under the frozen shape (forced re-pin; drive only).** The de-bridged
+   terminal renders from the kernel task's fiber; the pins' harness (`run_user_bash_task`)
+   drives that task on a SIDE THREAD, where `RatatuiRuby.viewport_area` raises
+   `RatatuiRuby::Error::Terminal: Terminal is not initialized` (thread-local terminal —
+   captured live via a hooked UserBash#finish; chat_test:3240's own comment names this "known
+   artifact": at base the task-side finish ALWAYS died there, and the escape pins passed only
+   because OLD cancel() rendered on the main thread — an arm the frozen shape DELETES).
+   Production is unaffected: the kernel task runs on the TUI's thread. RESOLUTION: the two
+   pins' DRIVE moved to the main-thread reactor (`Async { root.async { block.call } …; esc }`);
+   IdleKernel#stop no-ops so the tool's checkpoint flag does the cancel (pi abortBash);
+   EVERY assertion byte-identical; the other 232 chat tests unmodified.
+
+6. **AC5's run-count arithmetic (≥1040) needs 5 new pins; Spec §7 names exactly 4 (5th pin
+   added, in-scope).** The 5th is `test_run_after_an_interrupt_makes_a_fresh_request` — the
+   loop-level pin of PHASE 0 #1's residue contract (interrupt → next run on the SAME chat
+   makes a fresh request and completes): the exact observable the de-bridge nearly broke, and
+   the contract "interrupt behavior is observably unchanged" (AC2) has no other loop-level
+   guard. Not a silent scope addition — it is the arithmetic the spec itself demands.
+
+7. **Dead-code sweep within mandate (D-4):** loop.rb's `require "dry/monads"` +
+   `include Dry::Monads::Result::Mixin` died with the Result terminal (their only uses were
+   step_via_bridge/summarize's `case … in Success/Failure` matching). lib-wide grep: mcp* has
+   its own requires; nothing else referenced them.
+
+8. **probe4 not rerun from this tree** — ARM C requires Agent::Bridge (deleted). Its
+   post-de-bridge facts (ARM B: Sync INLINE, 0 new threads, overlap, fiber-local pairing) are
+   re-proven live by the new suite pins and probe6. probe3/probe5 rerun clean (above).
+
+## OQ notes (Grounds §6)
+
+- **OQ-1 (re-key vs probe4):** evidence FOR the spec's resolution — the new attribution pin
+  passes with the UNCHANGED Thread.current keying under :fibers (interleaved fibers, ids
+  `call_a`/`call_b` distinct, each duration its own 0.4–0.75 s). No stomp. The plan's stomp
+  premise stays disproven.
+- **OQ-2 (comment-sweep correction):** honored — herdr.rb / models.rb / registry.rb untouched
+  (their "bridge" mentions are pi's extension API / the Shapes seam metaphor / prose; the
+  bridge-absent gate passes with them intact).
+- **OQ-3 (belt-and-braces `@chat.cancel`):** retained per the letter, WITH the residue
+  consumption (PHASE 0 #1) — the flag is set and consumed inside the same unwind. The judge
+  should rule on the consumption mechanism (`send(:raise_if_cancelled!)` vs dropping the belt);
+  the residue itself is not optional — without it the esc→resubmit flow regresses (evidence in
+  #1).
+- **NEW evidence for the judge (beyond the OQs) — interrupt-during-TOOL-BATCH latency (probe6
+  ARM A):** de-bridged, the unwind waits for the batch's NATURAL completion
+  (`ensure tasks&.each(&:wait)`, tool_concurrency.rb:79) — the gem's `ensure` runs BEFORE the
+  fiber ends with Cancel, and stop_children only fires at fiber end, so no Cancel reaches the
+  tool fibers during the unwind; and step_on_reactor's `@chat.cancel` runs only AFTER the
+  unwind. Measured: cancel at 0.35 s → surfaced 2.05 s with 2 s sleep tools (== remaining
+  runtime). At base the same interrupt surfaced ≤ JOIN_TIMEOUT (5 s) because the bridge set the
+  flag at Cancel time and the worker's checkpoints aborted the tools (~50 ms for bash). No
+  existing or newly-required pin covers interrupt-during-batch (all interrupt pins are
+  mid-stream or at-boundary; they stay green). Real-world exposure: interrupt while a LONG bash
+  command runs in a tool batch now waits out the command. Fixes would touch the gem's ensure or
+  add machinery outside the frozen shape — itemized, not implemented. Judge: accept as the
+  de-bridge's documented latency shape, or order a follow-up.
+
+## STATUS
+
+STATUS: COMPLETE_WITH_CONCERNS — implemented to the frozen letter with two forced re-pins
+(escape-pin drive, bash_tool reactor wrap), the belt's residue consumption (spec-tension fix,
+evidence in PHASE 0 #1), and one documented latency shape (interrupt-during-tool-batch,
+probe6); every frozen gate green or control-proven (wire-bodies EXACT modulo the known
+absolute-path artifact, s9 = the known deep-path artifact with exit-0 equal-depth control).
 
 ## Verdict
 
