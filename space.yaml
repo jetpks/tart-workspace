@@ -67,7 +67,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: de-bridge
+  current_iteration: fast-completions-gem
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1970,6 +1970,12 @@ project:
   - name: de-bridge
     ordinal: 50
     file: architecture/I50-de-bridge.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
+  - name: fast-completions-gem
+    ordinal: 51
+    file: architecture/I51-fast-completions-gem.md
     freeze_sha:
     verdict: pending
     lanes: []
