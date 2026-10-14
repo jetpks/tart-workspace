@@ -10,10 +10,14 @@
 #   bin/looplog --space PATH # default: nearest ancestor with space.yaml
 #
 # Forked from ~/bin/runlog (2026-10-12) for the subagents fan-out. The source
-# is pi-subagents' artifact transcripts — ~/.pi/agent/sessions/--<space>--/**/
-# subagent-artifacts/<runid>_<agent>_transcript.jsonl, nested session dirs
-# included, so the coordinator, its spec/builder/judge children, and deeper
-# descendants all appear. Records are message-granularity (no stream deltas):
+# is pi-subagents' artifact transcripts — <session-dir>/**/subagent-artifacts/
+# <runid>_<agent>_transcript.jsonl, nested session dirs included — from TWO
+# roots: pi's default sessions dir for the space slug (~/.pi/agent/sessions/
+# --<space>--/, agents spawned with cwd = the space) AND the space's build/
+# tree (the loop launches coordinators from headless `pi -p --session-dir
+# build/loop/<launch>/` bootstraps, so the coordinator, its spec/builder/judge
+# children, and deeper descendants all live inside the space — lane worktrees
+# are pruned). Records are message-granularity (no stream deltas):
 # assistant rounds arrive whole with thinking/text blocks, usage, and a stop
 # reason; tool args ride tool_start records; results arrive as toolResult
 # messages. runlog's display discipline carries over: thinking dim, assistant
@@ -82,12 +86,23 @@ end
 
 Transcript = Struct.new(:path, :run_id, :agent, :mtime, :size, :cwd, :task)
 
+# Two roots, deduped by path: pi's default sessions dir for the space slug
+# (agents spawned with cwd = the space) and the space's build/ tree (the
+# loop's headless --session-dir bootstraps root their whole transcript trees
+# there). Lane worktrees are the only huge subtrees under build/ — pruned.
 def discover(space)
-  root = File.join(sessions_root, session_slug(space))
-  return [] unless File.directory?(root)
+  [File.join(sessions_root, session_slug(space)), File.join(space, "build")]
+    .select { |root| File.directory?(root) }
+    .flat_map { |root| scan_root(root) }
+end
 
+def scan_root(root)
   Find.find(root).filter_map do |p|
-    next unless p.end_with?("_transcript.jsonl") && File.file?(p)
+    if File.directory?(p)
+      Find.prune if File.basename(p) == "wt"
+      next
+    end
+    next unless p.end_with?("_transcript.jsonl")
 
     base = File.basename(p, ".jsonl").delete_suffix("_transcript")
     run_id, agent = base.split("_", 2)
