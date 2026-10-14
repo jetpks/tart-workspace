@@ -2247,12 +2247,13 @@ project:
       - test/render/editor_undo_test.rb
       - test/chat_test.rb
       base_sha: e61cb78669d7071b11c0d6c7170e3467210f1399
-      worktree: build/I55-paste-markers-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 8849ae807b8736e58700bba8c61344b7621ae264
     rehearsal:
       gates_digest: 855a58461235c9b244abc7b14b6738153947b79f368107382d4f5aa2a68754ad
       at: '2026-10-14T09:20:29-06:00'
