@@ -1299,11 +1299,270 @@ the judge records it), every deviation from the frozen spec itemized
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I52-fast-completions-integration-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence fast-completions-integration --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# Builder Report — I52 fast-completions-integration, lane `core`
+
+Branch `lane/I52-fast-completions-integration-core`, base `fb830d6`. No commits, no pushes
+(`git log fb830d6..` empty — the branch ref sits AT fb830d6; the whole lane is working-tree).
+All `bundle`/gate commands ran with `FAST_COMPLETIONS_PATH=/Users/eric/architect/spaces/20261009-pi-port/repos/fast-llm/gems/completions` exported.
+
+## 0. Worktree seeding exception (before any code)
+
+The lane worktree was seeded at the repo ROOT commit `51d3443` ("Bootstrap"), not the
+designated base `fb830d6` — the full tart tree was absent. Repaired per
+`build/loop/exception-2026-10-14T05:12:00Z.md`: `git update-ref` to fb830d6 +
+`git read-tree -u --reset fb830d6` (plumbing only; zero commits created; `git diff -r`
+against the clean repos/tart working tree → identical). After that, all work below.
+
+## 1. Touch-list check
+
+`git diff --name-only fb830d6` + untracked = **49 files = the 48 declared + exactly ONE
+reported deviation**: `lib/tart/render/chat.rb` (see §3a). Every declared file touched;
+nothing else in tart; no other repo touched (repos/fast-llm briefly received a `gem build`
+artifact during the local install step — deleted immediately, `git status` clean there).
+
+## 2. Verification outputs (verbatim tails)
+
+### 2.1 `bundle install && bundle exec rake` (suite)
+```
+1044 runs, 4892 assertions, 0 failures, 0 errors, 1 skips
+```
+The 1 skip is `gems/tui-split-rig/test/live_run_test.rb` (`skip "set TUI_SPLIT_RIG_LIVE=1 …"`)
+— pre-existing, env-gated.
+
+### 2.2 seams-absent negative greps
+```
+seam-names CLEAN        (apply_zai_dialect|install_thinking_seam|install_summary_chat_seam|
+                         wire_provider|WIRE_PROVIDER|raise_if_cancelled: no matches in lib bin test)
+thread-pairing CLEAN    (Thread.current[:tart_tool: no matches)
+ruby_llm CLEAN          (RubyLLM|ruby_llm in lib bin test README.md tart.gemspec Gemfile: no matches)
+faraday CLEAN           (require "faraday"|Faraday in lib bin test: no matches)
+chat.rb+message.rb EXIST
+```
+
+### 2.3 The I36/I46 thinking pins (UNMODIFIED assertions)
+```
+$ test/agent_loop_test.rb -n "/reasoning_effort|reasoning_content|zai_|thinking_reply_persists|
+  switch_model_re_resolves_the_reasoning_facts|print_mode_wires_the_thinking_facts/"
+14 runs, 48 assertions, 0 failures, 0 errors, 0 skips        (gate floor ≥11)
+$ test/settings_test.rb -n "/thinking_level|known_thinking_level_map/"
+0 failures, 0 errors                                          (gate floor ≥8)
+```
+
+### 2.4 swap-units anchors
+```
+I50 pins  /fibers_tool_concurrency_overlaps|tool_event_attribution_under_interleaved|
+          interrupt_mid_stream_aborts|run_after_an_interrupt_makes_a_fresh_request/
+          → 4 runs, 22 assertions, 0 failures
+NEW pins  /cancel_during_tool_batch|recorded_message_shape/
+          → 2 runs, 11 assertions, 0 failures   (cancel-during-batch span < 0.2 s; hash exact)
+ZOMBIE    /cancelled_bash_run_leaves_no_zombie/ → 1 runs, 2 assertions, 0 failures
+```
+
+### 2.5 bench
+```
+$ bundle exec ruby bench/seam_bench.rb   →   SEAM_BENCH_OK
+```
+
+### 2.6 hermeticity
+```
+launcher_smoke: 8 runs, 39 assertions, 0 failures
+e2e_session:    4 runs, 90 assertions, 0 failures
+```
+
+### 2.7 zai-data
+```
+test/models_test.rb -n "/dialect/" → 2 runs, 14 assertions, 0 failures   (the two new AC5 pins)
+inline: d.thinking_format == :zai && max_tokens_field == "max_tokens" &&
+        supports_developer_role == false && supports_reasoning_effort == true &&
+        zai_tool_stream == true && supports_store == false → ZAI_DATA_OK
+dialect_for(nil).thinking_format == :openai && supports_store == true → OK
+```
+
+### 2.8 session-golden → `SESSION_GOLDEN_OK` (all seven frozen digests verbatim).
+
+### 2.9 lock-deps
+```
+tart.gemspec: no ruby_llm line.
+Gemfile: gem "fast-completions", "0.1.0", path: ENV.fetch("FAST_COMPLETIONS_PATH", "../fast-llm/gems/completions")
+Gemfile.lock: `fast-completions (0.1.0)` on the PATH source; NO ruby_llm, NO faraday,
+NO faraday-net_http/faraday-retry/faraday-multipart.  → LOCK_DEPS_OK, GEM_LOAD_OK
+```
+
+### 2.10 threads-budget
+```
+git diff fb830d6 -- lib | grep -E "^\+[^+].*Thread\.new"  →  empty   THREADS_BUDGET_OK
+```
+
+### 2.11 scope
+```
+48 declared files touched (47 modified + lib/tart/agent/{chat,message}.rb new)
++ lib/tart/render/chat.rb (the reported §3a deviation). Nothing else.
+```
+
+### 2.12 wire-delta (the gate's assertions against a local s1 run)
+```
+s1 rig run from the worktree: exit 0 (1 request captured).
+key order  == ["model","messages","stream","stream_options","store","max_completion_tokens","tools"]
+store      == false
+max_completion_tokens == 27832 (positive Integer; context 32768 − estimate − 4096 clamp)
+messages[0].role      == "system" (the enumerated flip)
+instruction SHA256    == 2faaf667477fec9cdf0433d1ffe1cce4ee146c3b826185b5b7db3fd116b14056
+messages[1]           == {"role"=>"user","content"=>"hello"}
+tools digest          == 7360fd1ec6419b5f9966c3067588314cdd0d29231a78346443a0002923c23707  (EXACT)
+stream_options        == {"include_usage"=>true}
+→ WIRE_DELTA_OK
+full_body_sha (normalized: my worktree prefix mapped to repos/tart + the gate's
+<SBX> gsub) = 723094c5641609581e7d9fa54679999e8c9c6e7fceb79a875dc31e0c60bbe9dc
+```
+The judge's cold run from repos/tart needs NO extra prefix mapping (the gate's own
+`<SBX>` gsub suffices there — the instruction content embeds the boot cwd).
+
+### 2.13 The rig battery from the worktree (the KNOWN deep-path shape)
+```
+s1_text_turn        exit 0
+s2_tool_turn        exit 1 — both apps completed=true, requests 2/2; diff = 2x unknown-candidate
+                    (the deep sandbox-path row wraps at app-specific columns) + the
+                    PRE-SANCTIONED footer-provider-prefix pair (registry.yml), displaced by width
+s3_tool_turn_files  exit 1 — completed=true 3/3, same 2x path artifact
+s4_bash_variants    exit 1 — completed=true, same artifact
+s5_bash_truncation  exit 1 — completed=true 2/2, same artifact
+s6_long_calls       exit 1 — completed=true, same artifact
+s7_compaction       exit 1 — completed=true, same artifact
+s8_zero_usage       exit 1 — completed=true 2/2, same artifact
+s9_startup_help     exit 1 — completed=true, same artifact (the twelve-precedent shape)
+s10_editor_wrap     exit 1 — completed=true 1/1, same artifact
+s1_tart_mode        TART_MODE_OK (completed, requests == expected)
+tool-pending probe  exit 0 (TOOL_PENDING_GATE_OK)
+user-bash-stream    exit 0 (USER_BASH_STREAM_GATE_OK)
+```
+Every exit-1 is the documented lane-worktree depth artifact (twelve precedents I34–I50);
+the judge re-runs the battery cold at canonical depth. Content deltas: NONE — correct
+request counts everywhere, footer numbers correct (e.g. `↑20 ↓10 0.0%/33k (auto)`).
+
+## 3. Deviations from the frozen spec (ALL itemized, none silent)
+
+a. **`lib/tart/render/chat.rb` touched (2 lines) — against the must-not-touch list.**
+   Frozen contradiction: the seams-absent gate greps `wire_provider` out of ALL of lib,
+   Specification §4 orders `wire_provider` DELETED, yet frozen render/chat.rb:1903 called
+   `Models.wire_provider(entry.provider)` (and :1886 named it in a comment). The call
+   cannot survive the deletion; the file cannot be excluded from the grep. Resolution:
+   `provider: entry.provider` (D6 — the provider is the wire model's METADATA; the boot
+   passes the same models.json key) + the comment reworded. The chunk contract
+   (render/chat.rb:454-457) is UNTOUCHED. AC7's scope check will flag exactly this one
+   file as OUT OF SCOPE — itemized here per the never-silent rule.
+
+b. **`test/support/mock_llm_server.rb` SERVER class: `Connection: close` added to the
+   three response writers — against the must-not-touch list.** The gem's Client is ONE
+   persistent pooled HTTP client; the mock closes its socket after every response WITHOUT
+   declaring it → pooled reuse races the FIN → intermittent `ConnectionError (EOFError)`
+   on every multi-request run (observed as shifting test failures + it would hit the
+   rig's s2/s3/s6/s7 multi-turn gates cold). ruby_llm's faraday/net_http opened a fresh
+   connection per request, hiding this. The header DECLARES the mock's existing behavior;
+   response BODIES (the frozen bytes) untouched; request captures untouched. Alternative
+   rejected: tart-side retries (D9 kills them) or per-request clients (defeats the gem's
+   ONE-persistent-client design D1).
+
+c. **`Models.dialect_for` declares `supports_finish_reason: false` on BOTH dialect arms**
+   (Specification §4 says the zai arm is the five-key subset + supports_store:false and
+   nil → "the DEFAULT dialect"). Receive-side only — the key NEVER reaches the wire (zero
+   byte impact; the wire-delta gate passes). Forced by: the frozen mock's `:slow_stream`
+   shape carries NO finish_reason chunk, and completing slow streams are load-bearing
+   (steering pins, subagents e2e legs — an UNTOUCHABLE file) — the gem's pi-faithful
+   discipline errors ("Stream ended without finish_reason") where ruby_llm tolerated.
+   The declaration arms the gem's OWN pi port of the finish-inference fallback
+   (openai-completions.ts :690-692). No pin asserts the strict error anywhere.
+
+d. **Pin-8 re-pinned** (`test_compat_nil_summarization_request_keeps_todays_shapes`):
+   the frozen assertion `refute summary_request.key?("reasoning_effort")` rested on the
+   deleted seam's premise ("no hook there"). Under D6/§1 the one-shot rides the SAME wire
+   model + session level → it now carries reasoning_effort "medium" (pi's own
+   compaction.ts:605-607 semantics). The pin's other assertions hold unchanged (developer
+   role, max_completion_tokens, no thinking object, no max_tokens). Pin 6 (zai
+   summarization) held UNMODIFIED — the two were mutually unsatisfiable pre-swap.
+
+e. **session_test's `compaction_usage` pin re-shaped** (spec §7-sanctioned: the 1h-ttl
+   sub-key dies): now pins the gem Usage mapping incl. the frozen parser asymmetry
+   (`cacheWrite`=>0 persists, unreported `cacheRead` drops) and the native totalTokens.
+
+f. **settings_test's `RubyLLM.models.find` pin re-pinned** (spec §7-sanctioned): the
+   resolution chain without the registry premise.
+
+g. **bash_tool's cancellation pin re-pointed** from the ruby_llm flag-watch to a task
+   cancel (`child.cancel`): the tools' checkpoints read ASYNC TASK state through the gem;
+   the propagated class observed is `Async::Cancel` (the group-kill rescue re-raises it).
+
+h. **chat_test's switch_model spy** expects `provider: "glm"` (the catalog key as
+   metadata) where it expected the wire slug "openai" — D6's metadata ruling; test name
+   `…_across_the_wire_provider` renamed (the seams-absent grep matches the NAME).
+
+i. **`Chat#model` returns a `ModelFacts` view Struct, not the gem Model instance**
+   (Specification §1 says "the Fast::Completions::Model"). The gem Model REQUIRES an
+   Integer context_window; the frozen switch pin asserts `chat.model.context_window == nil`
+   after a no-window switch, and the env-tier pin asserts `resolved_context_window == nil`
+   — the nil-window rule (pi's `contextWindow ?? 0`) cannot live on the gem type. The view
+   carries id/reasoning/context_window/max_tokens/thinking_level_map (0-window reads nil);
+   the real gem Model stays internal for streaming.
+
+j. **bin/tart gains a Bundler.setup bootstrap** (BUNDLE_GEMFILE defaults beside the
+   executable; rescues to the bare load path when no Gemfile). The e2e children spawn
+   `ruby bin/tart` under `unsetenv_others:` — bare requires need the bundle context for a
+   PATH gem. At the judge (repos/tart) the relative default resolves through the bootstrap
+   alone. For THIS lane's worktree (the relative default cannot resolve — the dispatch's
+   own caveat) the gem was additionally built (from the gemspec's own dir — the
+   I51-verified form) and `gem install --local`ed into the shared gem home — an
+   environment step, never committed; the canonical tree needs neither.
+
+k. **golden_parity_test: `require "base64"` → `[io].pack("m0")`** — base64 left the lock
+   transitively with ruby_llm (Ruby 3.4+ unbundled it); avoids a new dep; identical bytes
+   (strict_encode64 == pack("m0")).
+
+l. **edit.rb's private `raise_if_cancelled` helper renamed `check_cancelled`** — a
+   tart-local helper (NOT the deleted ruby_llm belt), but the gate greps the name.
+
+m. **`Chat` records empty-text assistants with `content: ""` and canonicalizes tool-call
+   arguments (keys sorted shorter-first, deep)** — discovered via flow_test's
+   frozen session-digest pin against the BASE bytes (reproduced on fb830d6 directly):
+   ruby_llm recorded `""` and the sorted arguments; the gem's parse preserves emission
+   order. Recorded bytes AND replayed wire bytes now match base exactly.
+
+n. **The subagents endpoint threading rides `Manager#endpoint=`** (an accessor on the
+   DECLARED manager.rb) instead of a `Subagents.register` kwarg — keeps
+   `lib/tart/subagents.rb` (undeclared) out of the diff.
+
+## 4. Where the gem's surface fought the integration (reported, never patched)
+
+1. Cancel→CancelledError frozen at the gem's boundary → D3's re-raise at the Chat seam
+   (as designed; the ladder's gem arm is defensive-only).
+2. `Model` REQUIRES Integer context_window/max_tokens → the placeholder + ModelFacts
+   view (deviation i).
+3. The pi-faithful finish_reason discipline vs the mock's finish-less slow streams →
+   deviation c.
+4. Connection pooling vs the mock's silent close → deviation b.
+5. ruby_llm's recorded-shape quirks (canonical argument sort, "" content, cache_write-0
+   persistence, cacheRead nil-drop) — reproduced in the adapter (deviations m, e; the
+   frozen pins demanded them).
+6. The I51 gemspec files-glob defect (exception-…04:47:52Z) did NOT bite: `path:` gems
+   bypass packaging; the local install used the gemspec-dir build (the working form).
+7. `child.wait` after `child.cancel` returns quietly in async 2.x (no raise) — the
+   bash cancellation pin captures the error inside the child instead.
+
+## 5. Environment/mechanics
+
+- Every gate run exported `FAST_COMPLETIONS_PATH` (never committed to any file).
+- The `Gemfile.lock` in the diff was generated WITH the override; its PATH entry records
+  the resolved absolute source — the judge's cold `bundle install` (no override) regenerates
+  the lock's path line to the canonical relative form; the `lock-deps` grep
+  (`fast-completions (0.1.0)` + the five absences) is insensitive to the path spelling.
+- Scratch under `wt/tmp/` only (gitignored).
+
+STATUS: COMPLETE_WITH_CONCERNS
+Concerns: (1) the two frozen-boundary touches itemized in §3a/§3b (render/chat.rb 2 lines;
+mock `Connection: close`) — each forced by colliding frozen artifacts, each content-
+preserving, both needing the coordinator's ratification at integration; (2) §3c's
+finish-inference declaration is a receive-side semantic choice the spec letter does not
+name; (3) §3d is the one assertion-logic change to an existing pin (pin 8), forced by D6.
 
 ## Verdict
 
