@@ -1144,10 +1144,12 @@ coupled change; the frozen-net re-pins need care).
 
 ## Pre-freeze calibration (this session's own check)
 
-Designed-RED at base (the iteration's deliverables): `steering-units`
-(no such pins; the drain rework absent), `surface-units` (no such pins),
-`s12-parity`/`s13-parity` (the `mid_run_keys` knob does not exist — the
-scenario loader errors), `scope` (empty diff = vacuous). Designed-GREEN
+Designed-RED at base (the iteration's deliverables, reasons as
+OBSERVED in this session's rehearsals): `steering-units` and
+`surface-units` (0 runs match — the pins do not exist),
+`s12-parity`/`s13-parity` (exit 2: `no such scenario file` — the
+scenario YAMLs are declared-new; the `mid_run_keys` knob is the second
+designed absence behind them), `scope` (empty diff = vacuous). Designed-GREEN
 at base (the standing battery — I52's cold-verified set, unchanged
 surfaces): `suite`, `bench`, `s1`–`s10`, `s1-tart-mode`, both probes,
 `thinking-pins`, `hermeticity`, `lock-deps`, `zai-data`,
