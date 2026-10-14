@@ -1566,15 +1566,150 @@ name; (3) §3d is the one assertion-logic change to an existing pin (pin 8), for
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section fast-completions-integration verdict --from <file>`. -->
+# Verdict — I52 fast-completions-integration (judged in fresh session 2026-10-14)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify fast-completions-integration`)?
+Judge: never built nor graded this work; every gate re-run COLD on the
+integrated-equivalent canonical tree (repos/tart @ fb830d6 + the 49-file lane
+overlay, canonical path, NO `FAST_COMPLETIONS_PATH` override). Frozen regions
+untouched (criteria-freeze 86d8b28 → HEAD: append-only, the 4 deleted lines
+are the Builder Prompt template placeholder). Lane: zero commits
+(`log fb830d6..` empty), 49-file working diff = 48 declared + exactly the one
+itemized deviation.
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+## Mechanical corrections (judge, space metadata — honest history)
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+1. **space.yaml lane `base_sha` mis-recorded as `51d3443` (repo-root Bootstrap)
+   instead of the designated `fb830d6`** — the cause of the worktree mis-seed
+   (exception-2026-10-14T05:12:00Z, builder-repaired with plumbing only,
+   zero commits, judge-verified `diff -r` identical) and of verify's spurious
+   (b) FAIL. Corrected to `fb830d6`; verify (b) now PASS.
+2. **space.yaml `integration_branch` was `main`/empty at lane + iteration
+   level** — the exact I50 mis-target class (tart `main` is the upstream
+   mirror at 51d3443). Corrected to `project/pi-port` both levels.
+
+## Adjudication (every PHASE 0 item ruled)
+
+- **D4 — ACCEPT + RATIFIED as the standing wire discipline.** The plan letter
+  ("digests EXACT byte-identical") is mechanically infeasible against the
+  frozen gem (Model REQUIRES Integer max_tokens → the max key always emits;
+  pi's buildParams key order; `store:false`; pi's developer-role rule) AND its
+  premise was false: judge-verified against the base capture
+  (base_s1_body.json, fb830d6): role `developer`, no `store`, no max key, old
+  key order — a standing tart-vs-pi divergence since at least I38 that the
+  parity program never cross-pinned. The four renderer-level deltas are
+  enumerated + delta-audited (WIRE_DELTA_OK cold); instruction SHA
+  `2faaf667…` and tools digest `7360fd1e…` held EXACT — the deltas are
+  precisely the four claimed and nothing else. The program's actual goal (own
+  the wire ON PI'S PROTOCOL) is served; the "never THE bytes" preamble
+  protected pi-faithful bytes during ruby_llm's tenancy.
+- **D8 — ACCEPT.** `gem "fast-completions", "0.1.0", path: ENV.fetch(
+  "FAST_COMPLETIONS_PATH", "../fast-llm/gems/completions")` verified verbatim;
+  LOCK_DEPS_OK + GEM_LOAD_OK cold with `env -u` (canonical relative default);
+  the bump-without-pin loud-failure property holds.
+- **D9 — ACCEPT.** No retries anywhere; the itemized behavior change (a
+  transient 5xx/429 surfaces immediately as the error terminal) stands as
+  ruled. render/chat.rb:454-457 verified UNTOUCHED (the loop-boundary chunk
+  adapter maps only text/thinking deltas — every other event stream-internal).
+  `max_tokens || context_window` verified in wire_model; canonical
+  max_completion_tokens 27842 (builder's 27832 = the worktree-path estimate
+  drift — longer prefix, smaller clamp; consistent, not a defect).
+- **Deviation (a) render/chat.rb (2 lines) — ACCEPT, RATIFIED.** The three
+  frozen texts cannot coexist (§10 must-not-touch vs §4's ordered deletion vs
+  the seams-absent grep over all of lib); the deletion + grep are normative.
+  Content-preserving: `provider: entry.provider` (D6 metadata; the boot passes
+  the same models.json key). Lane touch_set amended to the ratified 49 in
+  space.yaml; the frozen scope letter flags this one file — adjudicated here.
+- **Deviation (b) mock `Connection: close` (3 writers) — ACCEPT, RATIFIED.**
+  Declares the mock's pre-existing close behavior; response bodies untouched
+  (diff-verified). Forced by the gem's ONE persistent pooled client vs the
+  silently-closing mock (real EOFError class); the alternative (tart-side
+  retries) is banned by D9.
+- **Deviation (c) `supports_finish_reason: false` both dialect arms —
+  ACCEPT.** Judge-verified receive-side only in the frozen gem
+  (protocol.rb:342/:349 — never serialized; the codec never reads it); arms
+  pi's own finish-inference fallback (openai-completions.ts :690-692) for the
+  mock's finish-less `:slow_stream` that untouchable load-bearing pins
+  depend on. WIRE_DELTA_OK cold proves zero wire bytes.
+- **Deviation (d) pin-8 re-pin — ACCEPT.** The frozen assertion's premise
+  ("no hook there") WAS the deleted seam; D6 rides the same wire model +
+  session level → `reasoning_effort "medium"` (pi compaction.ts:605-607). Pin
+  6 (zai summarization) held UNMODIFIED (diff-verified). The one
+  assertion-logic change in the lane.
+- **Deviations (e,f) — ACCEPT.** Explicitly sanctioned by frozen Spec §7
+  (compaction_usage gem-Usage re-shape incl. the parser asymmetry; the
+  registry-free resolution chain).
+- **Deviation (g) bash cancel pin re-point — ACCEPT.** The flag-watch
+  mechanism is deleted by the frozen sweep; name + observable preserved
+  (process-group kill, no zombie); the observed class `Async::Cancel` is the
+  task-keyed checkpoint propagation.
+- **Deviations (h,i) — ACCEPT.** D6's metadata ruling (catalog key, not wire
+  slug; rename forced by the name grep); the ModelFacts view carries the
+  nil-window rule the frozen switch/env pins assert (the gem Model's Integer
+  contract cannot).
+- **Deviations (j,k,l) — ACCEPT.** The Bundler.setup bootstrap is minimal and
+  rescuing (verified); the one-time local `gem install` was an
+  environment-only step in a scrubbed-env child, never committed (canonical
+  tree needs neither); base64→pack("m0") identical bytes after the
+  transitive unbundling; edit.rb's helper rename is a grep-name collision.
+- **Deviations (m,n) — ACCEPT.** `""`-content + canonical argument sort are
+  the recorded serializer's empirical bytes the frozen flow_test digest pin
+  demanded (reproduced against BASE bytes); Manager#endpoint= keeps the
+  undeclared subagents.rb out of the diff.
+- **Both exception checkpoints — ratified** (the worktree-seed repair correct
+  per protocol; the frozen-boundary itemization complete: nothing silent).
+
+## Acceptance Criteria
+
+| AC | Raw result (judge, cold, canonical tree) | Verdict |
+|----|------------------------------------------|---------|
+| AC1 | SWAP_UNITS_OK (I50 4/22 + new 2/11 + zombie 1/2); SEAMS_ABSENT_OK | PASS |
+| AC2 | WIRE_DELTA_OK cold; SESSION_GOLDEN_OK (7/7 verbatim) | PASS |
+| AC3 | SUITE_OK 1044/4892/0F/0E/1skip; SEAM_BENCH_OK; s1–s10 + s1-tart-mode + both probes green cold; THINKING_PINS_OK (14≥11, ≥8); HERMETICITY_OK | PASS |
+| AC4 | LOCK_DEPS_OK + GEM_LOAD_OK (env -u, canonical path form) | PASS |
+| AC5 | ZAI_DATA_OK (2/14 + inline both arms) | PASS |
+| AC6 | THREADS_BUDGET_OK | PASS |
+| AC7 | scope FAIL ×2 both mechanical: pre-integrate the frozen `fb830d6..HEAD` commit-range is vacuously empty; post-integrate it flags exactly `lib/tart/render/chat.rb` = deviation (a), RATIFIED above. Working-tree diff = exactly 48 declared + 1 ratified, nothing else; no other repo touched | PASS (with the ratified deviation) |
+
+21/22 gates PASS cold raw; the 22nd adjudicated as above.
+
+## Wire-baseline succession (the program-close record)
+
+- RETIRED with ruby_llm: full-body `2ece7d4b…` (the I48-era self-regression
+  digest; developer role / no store / no max / old key order).
+- HOLD EXACT (path-independent anchors): tools declarations
+  `7360fd1ec6419b5f9966c3067588314cdd0d29231a78346443a0002923c23707`;
+  instruction content `2faaf667477fec9cdf0433d1ffe1cce4ee146c3b826185b5b7db3fd116b14056`
+  (role flips developer→system — the enumerated delta); the seven session
+  golden digests verbatim.
+- NEW standing full-body baseline (s1, canonical repos/tart checkout):
+  `4aa136a971af1eb024518c6edec4a02b80e31a9776186e6a1946790fcb5571bf`
+  — judge-derived, twice-stable across independent runs. The builder's
+  `723094c5…60bbe9dc` is the lane-worktree absolute-path artifact (the body
+  embeds the boot cwd prefix that survives the gate's `<SBX>` gsub; same
+  instrument class as I48's `41fa1ab0`) — recorded, superseded. The
+  full-body digest remains checkout-path-dependent by construction; the
+  anchors above are the portable truth.
+
+## Suite arithmetic
+
+1044 runs / 4892 assertions / 0 failures / 0 errors / 1 skip (the env-gated
+live-rig skip, pre-existing). I50 → I52: +4 runs (cancel-during-batch,
+recorded-message-shape, 2× dialect), +26 assertions.
+
+## Residuals
+
+1. Landing is the human's: rubygems publish of fast-completions, the
+   `path:` pin → released-gem swap in tart, the tart PR. Never pushed here.
+2. `supports_finish_reason: false` is receive-side leniency vs pi's strict
+   default — named backlog candidate should a provider need hard errors on
+   finish-less streams.
+3. The gem's standalone Chat stays unused by tart (D1 — tart owns its
+   concurrency); no consumer change.
+4. Retries dead (D9): transient 5xx/429 now surfaces immediately — the one
+   observable UX behavior change, itemized and ruled.
+5. Live Z.AI/GLM wire remains statically pinned (hermetic) — same live-verify
+   residual class I46 recorded for the human's first daily-driver use.
+
+DECISION: CONTINUE. ENTRY 3 of the successor program (fiber-native &
+own-the-wire) COMPLETE — all three entries (I50, I51, I52) judged CONTINUE
+and integrated. The integrated tart SHA is recorded below at integrate.
