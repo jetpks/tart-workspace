@@ -1106,52 +1106,386 @@ core-then-e2e pattern). The AC's integrated-tree gates run after both.
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse fast-completions-gem` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze fast-completions-gem` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria — I51 fast-completions-gem
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+Gate calibration (pre-declared): **EVERY capability gate is RED at base
+BY DESIGN** — repos/fast-llm at base `b6ffad1` contains only the
+placeholder README; nothing named by these gates exists there. All gates
+run on the INTEGRATED tree (after lanes `core` then `harness` merge, in
+that order — Specification §15). `wire-fixtures-digests` is a pure-data
+gate (green in any worktree that carries the correct fixture bytes).
+The judge re-runs every gate cold from `repos/fast-llm`. Scope is
+vacuously OK at base (empty diff vs `b6ffad1`) and MUST be non-vacuous
+on the integrated run. This entry's repo is fast-llm ALONE — repos/tart
+is read-only grounding (the provision/verify machinery enforces the
+repo boundary; no tart gate is this entry's to run).
 
-**AC1.** ...
+**AC1 (the gem + its suite).** The monorepo scaffold exists exactly
+(Specification §1): root Gemfile (dev deps only, `gemspec path:`), the
+gem tree under `gems/completions/` with its own gemspec (§2), and
+`bundle exec rspec` from the repo root exits 0 with **0 failures** over
+the full suite — the nine unit spec files (sse/protocol/codec/dialects/
+errors/client/chat/tool/cancellation), `stream_cancel_spec.rb`, and the
+harness lane's `wire_parity_spec.rb`, wired through the root `.rspec`
+(`-I gems/completions/lib`, `--require` the spec_helper, `--pattern
+gems/completions/spec/fast/**/*_spec.rb`). The unit pins cover, with pi
+citations in spec comments: the SSE parser (chunk-split framing,
+comments, `[DONE]`), the request build (key order, every §9 arm, the
+off-floor, budget clamp), replay normalization (same/cross-model
+thinking, reasoning_details, orphan synthetics, empty-assistant skip,
+deepseek `reasoning_content:""`), the delta parse (first-field-wins
+reasoning order, tool-call accumulation by index-then-id, usage
+variants incl. `prompt_cache_hit_tokens` + reasoning, stop-reason map,
+no-finish-reason inference), errors (status map + at least three
+overflow patterns → ContextLengthExceededError), dialects (defaults,
+trio declarations, unknown-key/format ArgumentError), and the Chat loop
+(tool execution, hooks keyed by tool_call id, complete?). Pinned by
+`spec-structure` + `gem-suite`.
+
+**AC2 (BYTE-PARITY — the frozen bar).** For each of the 11 canonical
+scenarios (Grounds §3, Specification §12.3): the fixture file
+`spec/fixtures/wire/<tag>.json` carries a `request_body` whose SHA256
+is EXACTLY the frozen digest, and the parity spec drives the SAME
+scenario through `Fast::Completions` against the gem's MockLLMServer
+and asserts the captured request body is BYTE-IDENTICAL to the fixture
+(SHA256 + string equality; failure output is a parsed-body key-order
+diff). No `prompt_cache_*`, no `store` on zai/deepseek, `store:false`
+on the plain arm, `max_tokens` vs `max_completion_tokens` per dialect,
+the zai `thinking`/`tool_stream` shapes, the deepseek `thinking` shape,
+the ladder on/off `reasoning_effort` values, tool round-trip replay
+(`content:null` + `tool_calls`, the tool role message), same-model
+`reasoning_content` replay, `reasoning_details` replay, cross-model
+thinking folded to text, and `thinking_token_budget:3072` — all by
+BYTES. Pinned by `wire-fixtures-digests` + `wire-parity`.
+
+**AC3 (streaming cancel — the ENTRY 1 discipline, gem-native).**
+Cancelled mid-stream, a request ABORTS (the mock connection is torn
+down), `Fast::Completions::CancelledError` surfaces to the caller, NO
+`:error`/`:done` event is emitted after the cancel (the observed event
+sequence ends at the last delta), a cancelled connection is never
+reused (the next request succeeds), and tool execution observes
+`Cancellation.check` checkpoints. Pinned by `stream-cancel` (a
+dedicated spec: `:slow_stream` script, cancel from a sibling fiber
+after the first delta).
+
+**AC4 (deps + negative pins).** The gemspec declares EXACTLY ONE
+runtime dependency, `async-http` (`~> 0.95`); `async`/`io-event`
+arrive transitively only. NO faraday anywhere in the repo (source,
+Gemfile.lock included). NO model catalog / pricing / provider registry
+anywhere under `lib/`: no models.json loader, no pricing tables, no
+enumerated model-id literals of any provider family, no base-URL
+constants. Pinned by `dep-pin` + `no-catalog`.
+
+**AC5 (README discipline).** `gems/completions/README.md` states the
+exact phrase **"the OpenAI-compatible chat-completions wire"**,
+mentions **"/v1/completions"** together with the word **"legacy"**
+(the disambiguation), documents the dialect DSL (with the zai example)
+and the deps statement; the root README describes the monorepo and
+points at the gem. Pinned by `readme-pin`.
+
+**AC6 (builds + installs locally).** From the repo: `gem build
+gems/completions/fast-completions.gemspec` produces
+`fast-completions-0.1.0.gem`; installing it into a SCRATCH `GEM_HOME`
+(with the repo absent from the load path) and `require
+"fast/completions"` succeeds with async-http as the only runtime load;
+a smoke chat (instructions + one tool + one user message) runs against
+a started MockLLMServer through the installed gem and completes. The
+script `script/install_check.sh` performs all of it and prints
+`INSTALL_CHECK_OK`. Pinned by `install-check`.
+
+**AC7 (scope).** The integrated diff vs base `b6ffad1` touches EXACTLY
+the two lanes' declared file set (below) — nothing else in fast-llm,
+nothing in any other repo; builders made no commits (the verify step's
+own check); the placeholder README is replaced by the real root README
+(the one sanctioned deletion/rewrite of a base file). Pinned by
+`scope`.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse fast-completions-gem` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: spec-structure
+  ac: AC1
+  cwd: repos/fast-llm
+  cmd: |-
+    for f in .gitignore .rspec Gemfile README.md \
+      gems/completions/fast-completions.gemspec \
+      gems/completions/README.md gems/completions/CHANGELOG.md \
+      gems/completions/lib/fast/completions.rb \
+      gems/completions/lib/fast/completions/version.rb \
+      gems/completions/lib/fast/completions/types.rb \
+      gems/completions/lib/fast/completions/dialects.rb \
+      gems/completions/lib/fast/completions/errors.rb \
+      gems/completions/lib/fast/completions/sse.rb \
+      gems/completions/lib/fast/completions/client.rb \
+      gems/completions/lib/fast/completions/protocol.rb \
+      gems/completions/lib/fast/completions/codec.rb \
+      gems/completions/lib/fast/completions/tool.rb \
+      gems/completions/lib/fast/completions/cancellation.rb \
+      gems/completions/lib/fast/completions/chat.rb \
+      gems/completions/spec/spec_helper.rb \
+      gems/completions/spec/support/mock_llm_server.rb \
+      gems/completions/spec/fast/completions/sse_spec.rb \
+      gems/completions/spec/fast/completions/protocol_spec.rb \
+      gems/completions/spec/fast/completions/codec_spec.rb \
+      gems/completions/spec/fast/completions/dialects_spec.rb \
+      gems/completions/spec/fast/completions/errors_spec.rb \
+      gems/completions/spec/fast/completions/client_spec.rb \
+      gems/completions/spec/fast/completions/chat_spec.rb \
+      gems/completions/spec/fast/completions/tool_spec.rb \
+      gems/completions/spec/fast/completions/cancellation_spec.rb \
+      gems/completions/spec/fast/completions/stream_cancel_spec.rb \
+      gems/completions/spec/fast/completions/wire_parity_spec.rb \
+      gems/completions/spec/fixtures/wire/CAPTURE.mjs \
+      gems/completions/script/install_check.sh; do
+      [ -f "$f" ] || { echo "MISSING: $f"; exit 1; }
+    done
+    for t in fireworks_plain openai_ladder_on openai_ladder_off zai_on zai_off deepseek_on tool_roundtrip thinking_replay reasoning_details_replay cross_model_thinking_replay budget_field; do
+      [ -f "gems/completions/spec/fixtures/wire/$t.json" ] || { echo "MISSING fixture: $t"; exit 1; }
+    done
+    echo SPEC_STRUCTURE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SPEC_STRUCTURE_OK
+
+- id: gem-suite
+  ac: AC1
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle install --quiet && bundle exec rspec 2>&1 | tail -3
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: wire-fixtures-digests
+  ac: AC2
+  cwd: repos/fast-llm
+  cmd: |-
+    ruby -rjson -rdigest -e '
+      table = {
+        "fireworks_plain" => "0b9da927d3cab0b8b41ecb634fde099729e03f817ef6ba3aba26720df2130d93",
+        "openai_ladder_on" => "b05b45aeb3a4f7bdfa12d142e839882855688a246ead4d016fbe474188dfaed2",
+        "openai_ladder_off" => "60914406494e2e8403de6b932f01cd5d901c9ae4c4de75e283b25656fa6304b1",
+        "zai_on" => "9a23aee6b115cce0bd6a608465f2c56332123e47a0f22c491793c0a4d0e45c13",
+        "zai_off" => "88dd5af69ceb68bbc41aad9ddfbc4dcb36e0dd66fec3563054d484cc0f727f7c",
+        "deepseek_on" => "ce98edaee2ecb634dcd4461e3e56cfc4f973cd37026fc390b63ac2bdfbfec5f5",
+        "tool_roundtrip" => "940d8f5b262f59a3db7b27a70471ac96a40c170264edc83219bef83dce1e9038",
+        "thinking_replay" => "c9259d5da9ca8c63186522c24b9bdfd1fe81aa0903187b0f50634b56eb3c7e6c",
+        "reasoning_details_replay" => "c21da08d520e246652b33bedf76d89db581692a7775de5181dc8c63013a0ae4e",
+        "cross_model_thinking_replay" => "809a9b7ecc99399379031524ed5810677e31c22cac2f64eb6e728602ea5939fc",
+        "budget_field" => "fb29e70650e9708f394c319d3c8ecacb840c134d214f9ce2747151356b86d1b7"
+      }
+      table.each do |tag, want|
+        path = "gems/completions/spec/fixtures/wire/#{tag}.json"
+        abort "missing fixture #{tag}" unless File.file?(path)
+        body = JSON.parse(File.read(path))["request_body"]
+        got = Digest::SHA256.hexdigest(body)
+        abort "fixture digest drift #{tag}: #{got} != #{want}" unless got == want
+      end
+      puts "WIRE_FIXTURES_OK #{table.size}"
+    '
+  expect:
+    exit_code: 0
+    stdout_match: WIRE_FIXTURES_OK
+
+- id: wire-parity
+  ac: AC2
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec gems/completions/spec/fast/completions/wire_parity_spec.rb 2>&1 | tail -3
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: stream-cancel
+  ac: AC3
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec gems/completions/spec/fast/completions/stream_cancel_spec.rb 2>&1 | tail -3
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: dep-pin
+  ac: AC4
+  cwd: repos/fast-llm
+  cmd: |-
+    ruby -e '
+      spec = Gem::Specification.load("gems/completions/fast-completions.gemspec")
+      abort "gemspec failed to load" unless spec
+      deps = spec.runtime_dependencies.map { |d| [d.name, d.requirement.to_s] }
+      abort "runtime deps must be exactly [async-http ~> 0.95], got #{deps.inspect}" unless deps == [["async-http", "~> 0.95"]]
+      puts "DEP_PIN_OK"
+    '
+    ! grep -ri faraday --exclude-dir=.git . | grep -q . || { echo "FARADAY PRESENT"; exit 1; }
+    echo NO_FARADAY_OK
+  expect:
+    exit_code: 0
+    stdout_match: NO_FARADAY_OK
+
+- id: no-catalog
+  ac: AC4
+  cwd: repos/fast-llm
+  cmd: |-
+    if grep -rniE 'models\.json|pricing|price_per_million|per_million_tokens' gems/completions/lib/ | grep -q .; then
+      echo "CATALOG/PRICING TOKEN PRESENT"; grep -rniE 'models\.json|pricing|price_per_million|per_million_tokens' gems/completions/lib/; exit 1
+    fi
+    if grep -rEn '"(glm|gpt|claude|kimi|grok|gemini|o[13]-|dsr|deepseek-chat|llama)[-_][a-z0-9]' gems/completions/lib/ | grep -q .; then
+      echo "MODEL-ID LITERAL PRESENT"; grep -rEn '"(glm|gpt|claude|kimi|grok|gemini|o[13]-|dsr|deepseek-chat|llama)[-_][a-z0-9]' gems/completions/lib/; exit 1
+    fi
+    if grep -rnE 'https?://[a-z0-9.-]+\.(ai|com|cn)/' gems/completions/lib/ | grep -q .; then
+      echo "PROVIDER BASE-URL CONSTANT PRESENT"; exit 1
+    fi
+    echo NO_CATALOG_OK
+  expect:
+    exit_code: 0
+    stdout_match: NO_CATALOG_OK
+
+- id: readme-pin
+  ac: AC5
+  cwd: repos/fast-llm
+  cmd: |-
+    grep -qF "the OpenAI-compatible chat-completions wire" gems/completions/README.md || { echo "PHRASE MISSING"; exit 1; }
+    grep -qF "/v1/completions" gems/completions/README.md || { echo "LEGACY ENDPOINT MISSING"; exit 1; }
+    grep -qi "legacy" gems/completions/README.md || { echo "LEGACY WORD MISSING"; exit 1; }
+    grep -q "dialect" gems/completions/README.md || { echo "DIALECT DOC MISSING"; exit 1; }
+    grep -q "async-http" gems/completions/README.md || { echo "DEPS STATEMENT MISSING"; exit 1; }
+    grep -qF "fast-completions" README.md || { echo "ROOT README MISSING GEM"; exit 1; }
+    echo README_PIN_OK
+  expect:
+    exit_code: 0
+    stdout_match: README_PIN_OK
+
+- id: install-check
+  ac: AC6
+  cwd: repos/fast-llm
+  cmd: |-
+    bash gems/completions/script/install_check.sh
+  expect:
+    exit_code: 0
+    stdout_match: INSTALL_CHECK_OK
+
+- id: scope
+  ac: AC7
+  cwd: repos/fast-llm
+  cmd: |-
+    ruby -e '
+      expected = %w[
+        .gitignore .rspec Gemfile Gemfile.lock README.md
+        gems/completions/fast-completions.gemspec
+        gems/completions/README.md gems/completions/CHANGELOG.md
+        gems/completions/lib/fast/completions.rb
+        gems/completions/lib/fast/completions/version.rb
+        gems/completions/lib/fast/completions/types.rb
+        gems/completions/lib/fast/completions/dialects.rb
+        gems/completions/lib/fast/completions/errors.rb
+        gems/completions/lib/fast/completions/sse.rb
+        gems/completions/lib/fast/completions/client.rb
+        gems/completions/lib/fast/completions/protocol.rb
+        gems/completions/lib/fast/completions/codec.rb
+        gems/completions/lib/fast/completions/tool.rb
+        gems/completions/lib/fast/completions/cancellation.rb
+        gems/completions/lib/fast/completions/chat.rb
+        gems/completions/spec/spec_helper.rb
+        gems/completions/spec/support/mock_llm_server.rb
+        gems/completions/spec/fast/completions/sse_spec.rb
+        gems/completions/spec/fast/completions/protocol_spec.rb
+        gems/completions/spec/fast/completions/codec_spec.rb
+        gems/completions/spec/fast/completions/dialects_spec.rb
+        gems/completions/spec/fast/completions/errors_spec.rb
+        gems/completions/spec/fast/completions/client_spec.rb
+        gems/completions/spec/fast/completions/chat_spec.rb
+        gems/completions/spec/fast/completions/tool_spec.rb
+        gems/completions/spec/fast/completions/cancellation_spec.rb
+        gems/completions/spec/fast/completions/stream_cancel_spec.rb
+        gems/completions/spec/fast/completions/wire_parity_spec.rb
+        gems/completions/spec/fixtures/wire/CAPTURE.mjs
+        gems/completions/spec/fixtures/wire/fireworks_plain.json
+        gems/completions/spec/fixtures/wire/openai_ladder_on.json
+        gems/completions/spec/fixtures/wire/openai_ladder_off.json
+        gems/completions/spec/fixtures/wire/zai_on.json
+        gems/completions/spec/fixtures/wire/zai_off.json
+        gems/completions/spec/fixtures/wire/deepseek_on.json
+        gems/completions/spec/fixtures/wire/tool_roundtrip.json
+        gems/completions/spec/fixtures/wire/thinking_replay.json
+        gems/completions/spec/fixtures/wire/reasoning_details_replay.json
+        gems/completions/spec/fixtures/wire/cross_model_thinking_replay.json
+        gems/completions/spec/fixtures/wire/budget_field.json
+        gems/completions/script/install_check.sh
+      ].sort
+      actual = `git diff --name-only b6ffad1..HEAD`.split("\n").map(&:strip).reject(&:empty?).sort
+      extra = actual - expected
+      missing = expected - actual
+      abort "OUT OF SCOPE: #{extra.inspect}" unless extra.empty?
+      abort "DECLARED BUT ABSENT: #{missing.inspect}" unless missing.empty?
+      abort "VACUOUS: empty diff" if actual.empty?
+      puts "SCOPE_OK #{actual.size} files"
+    '
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
+
+```lanes
+- name: core
+  repo: fast-llm
+  touch:
+    - .gitignore
+    - .rspec
+    - Gemfile
+    - Gemfile.lock
+    - README.md
+    - gems/completions/fast-completions.gemspec
+    - gems/completions/README.md
+    - gems/completions/CHANGELOG.md
+    - gems/completions/lib/fast/completions.rb
+    - gems/completions/lib/fast/completions/version.rb
+    - gems/completions/lib/fast/completions/types.rb
+    - gems/completions/lib/fast/completions/dialects.rb
+    - gems/completions/lib/fast/completions/errors.rb
+    - gems/completions/lib/fast/completions/sse.rb
+    - gems/completions/lib/fast/completions/client.rb
+    - gems/completions/lib/fast/completions/protocol.rb
+    - gems/completions/lib/fast/completions/codec.rb
+    - gems/completions/lib/fast/completions/tool.rb
+    - gems/completions/lib/fast/completions/cancellation.rb
+    - gems/completions/lib/fast/completions/chat.rb
+    - gems/completions/spec/spec_helper.rb
+    - gems/completions/spec/support/mock_llm_server.rb
+    - gems/completions/spec/fast/completions/sse_spec.rb
+    - gems/completions/spec/fast/completions/protocol_spec.rb
+    - gems/completions/spec/fast/completions/codec_spec.rb
+    - gems/completions/spec/fast/completions/dialects_spec.rb
+    - gems/completions/spec/fast/completions/errors_spec.rb
+    - gems/completions/spec/fast/completions/client_spec.rb
+    - gems/completions/spec/fast/completions/chat_spec.rb
+    - gems/completions/spec/fast/completions/tool_spec.rb
+    - gems/completions/spec/fast/completions/cancellation_spec.rb
+    - gems/completions/spec/fast/completions/stream_cancel_spec.rb
+- name: harness
+  repo: fast-llm
+  touch:
+    - gems/completions/spec/fixtures/wire/CAPTURE.mjs
+    - gems/completions/spec/fixtures/wire/fireworks_plain.json
+    - gems/completions/spec/fixtures/wire/openai_ladder_on.json
+    - gems/completions/spec/fixtures/wire/openai_ladder_off.json
+    - gems/completions/spec/fixtures/wire/zai_on.json
+    - gems/completions/spec/fixtures/wire/zai_off.json
+    - gems/completions/spec/fixtures/wire/deepseek_on.json
+    - gems/completions/spec/fixtures/wire/tool_roundtrip.json
+    - gems/completions/spec/fixtures/wire/thinking_replay.json
+    - gems/completions/spec/fixtures/wire/reasoning_details_replay.json
+    - gems/completions/spec/fixtures/wire/cross_model_thinking_replay.json
+    - gems/completions/spec/fixtures/wire/budget_field.json
+    - gems/completions/spec/fast/completions/wire_parity_spec.rb
+    - gems/completions/script/install_check.sh
+```
+
+Two lanes, one repo, DISJOINT by construction: `core` owns the gem and
+its unit suite; `harness` owns the recorded-wire fixtures, the parity
+spec, and the release check. `harness`'s parity spec is RED at base BY
+DESIGN (the gem does not exist in its worktree — Specification §15's
+mount-on-integration shape; the I48/I49 core-then-e2e precedent) and
+MUST be green on the integrated tree; `wire-fixtures-digests` is
+green in any tree carrying the correct bytes (the fixture table is
+frozen data, judgeable without executing anything).
 
 ## Builder Prompt
 
