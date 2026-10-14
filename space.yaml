@@ -67,7 +67,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: steering-queue
+  current_iteration: paste-markers
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -2227,4 +2227,10 @@ project:
     rehearsal:
       gates_digest: 1f653eeb2d22b27b39112050b9aaa1d483de9467e07107c4f609eb3164f2ac48
       at: '2026-10-14T06:18:35-06:00'
+  - name: paste-markers
+    ordinal: 55
+    file: architecture/I55-paste-markers.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
