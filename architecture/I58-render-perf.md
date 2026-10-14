@@ -318,6 +318,17 @@ assertion logic has ALREADY RUN against live base-state artifacts (the
 spec-time calibration runs, Grounds §2 — the I54 s12/s13 letter-defect
 class pre-empted: the frozen thresholds were measured, not invented).
 
+**Declared mechanical correction to two STANDING gates (thinking-pins,
+hermeticity):** the I36-inherited runs-count extractor `[0-9]+ runs`
+also matches minitest's throughput line ("1529.0007 runs/s" → "0007
+runs"), making the floor checks luck-dependent — I58's first rehearsal
+caught it live (runs=0007 < 8 on a fully green tree; every prior
+iteration passed it by throughput-digit luck). The assembled block
+anchors the extraction to the summary line ("runs, " with the trailing
+comma). Assertion SEMANTICS unchanged (same floors, same files); the
+correction is itemized here and in the digest, per the I54 mechanical-
+correction precedent.
+
 **AC1 — the burn is gone (D1).** While the agent is busy or a user-bash
 run streams, frames compose only when dirty: streaming deltas,
 tool/compaction events, user input, and the ~80 ms spinner tick each
@@ -361,9 +372,9 @@ marker observed; requests == expected):
   pi's measured 10.1 ms + the 16.7 ms frame bound).
 
 Judge: render-perf-probe exits 0 with RENDER_PERF_OK (RED at base: the
-bin is declared-new — exit 127 — while its assertion logic is
-calibrated against the spec-time base runs in
-repos/tart/tmp/render-perf-calib/stage-gate/).
+bin is declared-new — the gate tail reports the missing bin and exits 1
+— while its assertion logic is calibrated against the spec-time base
+runs in repos/tart/tmp/render-perf-calib/stage-gate/).
 
 **AC4 — the unit discipline (D4).** render-perf-units green: the tick
 arms at agent_start/user-bash start and cancels at agent_end/stream
@@ -382,11 +393,12 @@ declared files change. Judge: the battery + scope (non-vacuous at the
 lane's 7-file diff, base 41f0a5f).
 
 RED-at-freeze register: render-perf-units = LoadError (file declared-new;
-filter verified EMPTY at base); render-perf-probe = exit 127 (bin
-declared-new; budget logic calibrated live at base via the scratch
-instrument — Grounds §2); scope = vacuous empty diff at base + the
-grep arms fail. All 23 standing gates green in I57's post-integrate
-canonical run and re-verified by the rehearsal at this tree.
+filter verified EMPTY at base); render-perf-probe = exit 1 with the
+declared-new bin message (budget logic calibrated live at base via the
+scratch instrument — Grounds §2); scope = vacuous empty diff at base +
+the grep arms fail. All 23 standing gates green in I57's post-integrate
+canonical run and re-verified by the rehearsal at this tree (thinking-
+pins + hermeticity via the corrected extractor above).
 
 ```gates
 - id: suite
@@ -520,11 +532,11 @@ canonical run and re-verified by the rehearsal at this tree.
   cmd: |-
     bundle install --quiet
     out1=$(bundle exec ruby -Ilib -Itest test/agent_loop_test.rb -n "/reasoning_effort|reasoning_content|zai_|thinking_reply_persists|switch_model_re_resolves_the_reasoning_facts|print_mode_wires_the_thinking_facts/" 2>&1); ec=$?
-    runs1=$(echo "$out1" | grep -oE "[0-9]+ runs" | head -1 | cut -d" " -f1)
+    runs1=$(echo "$out1" | grep -oE "[0-9]+ runs, " | head -1 | cut -d" " -f1)
     [ "$ec" -eq 0 ] || { echo "FAIL thinking wire pins ec=$ec"; exit 1; }
     [ "${runs1:-0}" -ge 11 ] || { echo "FAIL thinking wire pins runs=${runs1:-0} (want >=11)"; exit 1; }
     out2=$(bundle exec ruby -Ilib -Itest test/settings_test.rb -n "/thinking_level|known_thinking_level_map/" 2>&1); ec=$?
-    runs2=$(echo "$out2" | grep -oE "[0-9]+ runs" | head -1 | cut -d" " -f1)
+    runs2=$(echo "$out2" | grep -oE "[0-9]+ runs, " | head -1 | cut -d" " -f1)
     [ "$ec" -eq 0 ] || { echo "FAIL settings thinking pins ec=$ec"; exit 1; }
     [ "${runs2:-0}" -ge 8 ] || { echo "FAIL settings thinking pins runs=${runs2:-0} (want >=8)"; exit 1; }
     echo THINKING_PINS_OK
@@ -538,11 +550,11 @@ canonical run and re-verified by the rehearsal at this tree.
   cmd: |-
     bundle install --quiet
     out1=$(bundle exec ruby -Ilib -Itest test/launcher_smoke_test.rb 2>&1); ec=$?
-    runs1=$(echo "$out1" | grep -oE "[0-9]+ runs" | head -1 | cut -d" " -f1)
+    runs1=$(echo "$out1" | grep -oE "[0-9]+ runs, " | head -1 | cut -d" " -f1)
     [ "$ec" -eq 0 ] || { echo "FAIL launcher smoke ec=$ec"; exit 1; }
     [ "${runs1:-0}" -ge 8 ] || { echo "FAIL launcher smoke runs=${runs1:-0} (want >=8)"; exit 1; }
     out2=$(bundle exec ruby -Ilib -Itest test/e2e_session_test.rb 2>&1); ec=$?
-    runs2=$(echo "$out2" | grep -oE "[0-9]+ runs" | head -1 | cut -d" " -f1)
+    runs2=$(echo "$out2" | grep -oE "[0-9]+ runs, " | head -1 | cut -d" " -f1)
     [ "$ec" -eq 0 ] || { echo "FAIL e2e session ec=$ec"; exit 1; }
     [ "${runs2:-0}" -ge 4 ] || { echo "FAIL e2e session runs=${runs2:-0} (want >=4)"; exit 1; }
     echo HERMETICITY_OK
@@ -572,7 +584,7 @@ canonical run and re-verified by the rehearsal at this tree.
     bundle install --quiet
     grep -q "Fast::Completions::Dialect" lib/tart/models.rb || { echo "FAIL: no Dialect construction in models.rb"; exit 1; }
     out=$(bundle exec ruby -Ilib -Itest test/models_test.rb -n "/dialect/" 2>&1); ec=$?
-    runs=$(echo "$out" | grep -oE "[0-9]+ runs" | head -1 | cut -d" " -f1)
+    runs=$(echo "$out" | grep -oE "[0-9]+ runs, " | head -1 | cut -d" " -f1)
     [ "$ec" -eq 0 ] || { echo "FAIL dialect pins ec=$ec"; exit 1; }
     [ "${runs:-0}" -ge 2 ] || { echo "FAIL dialect pins runs=${runs:-0} (want >=2)"; exit 1; }
     bundle exec ruby -Ilib -e 'require "tart"; compat = Tart::Shapes::ModelCompat.new(thinking_format: "zai", max_tokens_field: "max_tokens", supports_developer_role: false, supports_reasoning_effort: true, zai_tool_stream: true); d = Tart::Models.dialect_for(compat); abort "zai dialect values moved" unless d.thinking_format == :zai && d.max_tokens_field == "max_tokens" && d.supports_developer_role == false && d.supports_reasoning_effort == true && d.zai_tool_stream == true && d.supports_store == false; plain = Tart::Models.dialect_for(nil); abort "nil compat must yield the default dialect" unless plain.thinking_format == :openai && plain.supports_store == true; puts "ZAI_DATA_OK"'
@@ -633,6 +645,7 @@ canonical run and re-verified by the rehearsal at this tree.
   ac: AC3
   cwd: repos/tart
   cmd: |-
+    if [ ! -x gems/tui-split-rig/bin/render-perf-probe ]; then echo "FAIL render-perf-probe: bin missing (declared-new)"; exit 1; fi
     env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/render-perf-probe --app tart --shape gate --out tmp/render-perf-gate
   expect:
     exit_code: 0
