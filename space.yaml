@@ -2050,8 +2050,8 @@ project:
     - name: harness
       repo: fast-llm
       base_sha: 7a665d42503b8ecae81919649fe26098894663ad
-      worktree: build/I51-fast-completions-gem-harness/wt
-      integration_branch:
+      worktree:
+      integration_branch: main
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
@@ -2071,6 +2071,7 @@ project:
       - gems/completions/spec/fixtures/wire/budget_field.json
       - gems/completions/spec/fast/completions/wire_parity_spec.rb
       - gems/completions/script/install_check.sh
+      integrate_sha: 844ae0367d7edfc1b1689235f9db6da0bb3eeea8
     rehearsal:
       gates_digest: 26b0f7b47113237e3034d5043bcd708eb6f431088eb46888c65dd88df142acdf
       at: '2026-10-13T20:25:49-06:00'
