@@ -644,52 +644,272 @@ judge runs the full gate battery cold on the integrated tree.
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse gem-concurrency-docs` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze gem-concurrency-docs` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria — I53 gem-concurrency-docs
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+Gate calibration (pre-declared; all gates `cwd: repos/fast-llm`, run
+cold by the judge on the INTEGRATED tree — both lanes merged; base =
+`4736ddc`):
 
-**AC1.** ...
+- GREEN at base: `gem-suite` (122/0), `wire-fixtures-digests`,
+  `wire-parity`, `install-check` — the I51 deliverable is green going
+  in; this entry must not regress them.
+- RED at base BY DESIGN: `tool-overlap` (serial executor: no overlap,
+  span ≈ 1.0 s, raise propagates), `batch-cancel` (at base the second
+  tool never enters before the cancel; a hook-cancel still executes
+  its own call), `docs-links` (no docs tree; four dangling links),
+  `readme-fixture` (fixture does not exist at base),
+  `changelog-concurrency` (0.1.0 claims serial execution). Each is the
+  designed red proving its gate is non-vacuous; the builder's work
+  turns each green.
+- `scope` is RED at base (vacuous diff) and must be EXACT + non-vacuous
+  on the integrated run: exactly the 19 declared files.
+- `existing-pins-unmodified` GREEN at base (trivially — nothing
+  changed); non-vacuous on the integrated tree.
+
+**AC1 (suite + frozen pins + changelog).** `bundle exec rspec` from the
+repo root exits 0 with 0 failures over the FULL suite — the 11
+pre-existing spec files byte-UNMODIFIED from `4736ddc` (the frozen
+regression net: chat_spec's serial-order/unknown-tool/hooks pins and
+stream_cancel's D8 self-cancel pin `ran == ["a"]` all pass UNMODIFIED
+under the concurrent executor) plus the three NEW spec files green.
+`CHANGELOG.md` 0.1.0 no longer claims serial tool execution and
+describes the concurrent batch. Pinned by `gem-suite` +
+`existing-pins-unmodified` + `changelog-concurrency`.
+
+**AC2 (wire parity EXACT — untouched).** The 11 wire fixtures' bytes
+and SHA256s are untouched (the frozen pi capture table), and the
+wire-parity spec passes: every canonical request body byte-identical.
+Concurrency moved WHO runs tools, never a request/response byte (the
+call-order append is the proof mechanism; Specification §1.1/Grounds
+D7). Pinned by `wire-fixtures-digests` + `wire-parity`.
+
+**AC3 (overlap + call order + failure isolation).**
+`tool_concurrency_spec.rb` green: two sleep-tools in one batch
+OVERLAP (windows intersect; span < 0.9 s vs serial ≈ 1.0 s — the I50
+bound), tool-result Messages append in CALL order under inverted
+completion (c2 finishes first), before hooks fire in call order, after
+hooks fire in completion order (per-child, id-keyed), and one tool's
+raised `StandardError` isolates into its own `is_error` result while
+the sibling completes and both land in call order. Pinned by
+`tool-overlap`.
+
+**AC4 (cancel during the batch).** `batch_cancel_spec.rb` green: a
+sibling cancel ~0.1 s into a two-call 0.5 s batch aborts BOTH in-flight
+children (both provably entered), `CancelledError` surfaces ≤ 0.2 s
+after the cancel (natural completion ≈ 0.4 s away — the I52 bound),
+ZERO tool-result Messages, ZERO after-hook fires, no `:error`/`:done`
+after the cancel (no phantom terminals); a cancel latched by a before
+hook stops the batch at the next phase checkpoint with NO tool
+executing. Pinned by `batch-cancel`.
+
+**AC5 (builds + installs + smokes through the new executor).**
+`script/install_check.sh` passes strict: the .gem builds (with lib/),
+installs into a scratch GEM_HOME, requires outside the repo, and the
+smoke chat turn — a full tool batch through the Chat — completes.
+Prints `INSTALL_CHECK_OK`. Pinned by `install-check`.
+
+**AC6 (docs: links land, quadrants, owner prose preserved).**
+`docs_links_spec.rb` green: every reference/inline link in the scoped
+markdown resolves (the four owner links land at their ruled
+destinations — tools.md, dialects.md ×2, the async-http GitHub URL);
+each diataxis quadrant non-empty; the README line-diff vs the
+byte-frozen `4736ddc` fixture copy shows ONLY added link definitions +
+the one moved Error-taxonomy section (pointer ≤ 6 lines linking
+errors.md). The fixture itself is byte-identical to
+`git show 4736ddc:gems/completions/README.md`. Pinned by `docs-links`
++ `readme-fixture`.
+
+**AC7 (scope).** The integrated diff vs base `4736ddc` touches EXACTLY
+the two lanes' declared 19-file union — nothing else in fast-llm
+(gemspec, Gemfile, Gemfile.lock, .rspec, version.rb, install_check.sh,
+mock server, every pre-existing spec/fixture all untouched), nothing
+in any other repo; builders made no commits. Pinned by `scope`.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse gem-concurrency-docs` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: gem-suite
+  ac: AC1
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle install --quiet
+    out=$(bundle exec rspec 2>&1); ec=$?
+    printf "%s\n" "$out" | tail -3
+    exit $ec
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: existing-pins-unmodified
+  ac: AC1
+  cwd: repos/fast-llm
+  cmd: |-
+    pre=$(git ls-tree -r --name-only 4736ddc -- gems/completions/spec/)
+    changed=$(git diff --name-only 4736ddc -- gems/completions/spec/)
+    viol=$(comm -12 <(printf '%s\n' "$pre" | sort -u) <(printf '%s\n' "$changed" | grep -v '^$' | sort -u))
+    if [ -n "$viol" ]; then echo "MODIFIED PRE-EXISTING SPEC FILES:"; printf '%s\n' "$viol"; exit 1; fi
+    echo EXISTING_PINS_UNMODIFIED_OK
+  expect:
+    exit_code: 0
+    stdout_match: EXISTING_PINS_UNMODIFIED_OK
+
+- id: changelog-concurrency
+  ac: AC1
+  cwd: repos/fast-llm
+  cmd: |-
+    if grep -qF "execute tool calls serially" gems/completions/CHANGELOG.md; then
+      echo "STALE SERIAL CLAIM in CHANGELOG"; exit 1
+    fi
+    grep -qi "concurrent" gems/completions/CHANGELOG.md || { echo "CHANGELOG lacks the concurrent-batch description"; exit 1; }
+    echo CHANGELOG_CONCURRENCY_OK
+  expect:
+    exit_code: 0
+    stdout_match: CHANGELOG_CONCURRENCY_OK
+
+- id: wire-fixtures-digests
+  ac: AC2
+  cwd: repos/fast-llm
+  cmd: |-
+    ruby -rjson -rdigest -e '
+      table = {
+        "fireworks_plain" => "0b9da927d3cab0b8b41ecb634fde099729e03f817ef6ba3aba26720df2130d93",
+        "openai_ladder_on" => "b05b45aeb3a4f7bdfa12d142e839882855688a246ead4d016fbe474188dfaed2",
+        "openai_ladder_off" => "60914406494e2e8403de6de932f01cd5d9019c9ae4c4de75e283b25656fa6304b1",
+        "zai_on" => "9a23aee6b115cce0bd6a608465f2c56332123e4790f22c491793c0a4d0e45c13",
+        "zai_off" => "88dd5af69ceb68bbc41aad9ddfbc4dcb36e0dd66fec3563054d484cc0f727f7c",
+        "deepseek_on" => "ce98edaee2cb346dcd4461e3e56cfc4f973cd37026fc390b63ab7c2bdfbfec5f5",
+        "tool_roundtrip" => "940d8f5b262f59a3db7b27a70471ac96a40c170264edc83219bef83dce1e9038",
+        "thinking_replay" => "c9259d5da9ca8c63186522c24b9bdfd5fe81baa90318b0f50634b56eb3c9e6c",
+        "reasoning_details_replay" => "c21da08d520e246652b33bedf76d89db581692a7775de5181dc8c63013a0ae4",
+        "cross_model_thinking_replay" => "809a9b7ecc99399379031524ed5810677e31c22cac2f64eb6e728602ea5939fc",
+        "budget_field" => "fb29e70650e9708f394c319d3c8ecacb840c134d214f9ce2747151356b86d1b7"
+      }
+      table.each do |tag, want|
+        path = "gems/completions/spec/fixtures/wire/#{tag}.json"
+        abort "missing fixture #{tag}" unless File.file?(path)
+        body = JSON.parse(File.read(path))["request_body"]
+        got = Digest::SHA256.hexdigest(body)
+        abort "fixture digest drift #{tag}: #{got} != #{want}" unless got == want
+      end
+      puts "WIRE_FIXTURES_OK #{table.size}"
+    '
+  expect:
+    exit_code: 0
+    stdout_match: WIRE_FIXTURES_OK
+
+- id: wire-parity
+  ac: AC2
+  cwd: repos/fast-llm
+  cmd: |-
+    out=$(bundle exec rspec gems/completions/spec/fast/completions/wire_parity_spec.rb 2>&1); ec=$?
+    printf "%s\n" "$out" | tail -3
+    exit $ec
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: tool-overlap
+  ac: AC3
+  cwd: repos/fast-llm
+  cmd: |-
+    out=$(bundle exec rspec gems/completions/spec/fast/completions/tool_concurrency_spec.rb 2>&1); ec=$?
+    printf "%s\n" "$out" | tail -3
+    exit $ec
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: batch-cancel
+  ac: AC4
+  cwd: repos/fast-llm
+  cmd: |-
+    out=$(bundle exec rspec gems/completions/spec/fast/completions/batch_cancel_spec.rb 2>&1); ec=$?
+    printf "%s\n" "$out" | tail -3
+    exit $ec
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: install-check
+  ac: AC5
+  cwd: repos/fast-llm
+  cmd: |-
+    if [ ! -f gems/completions/script/install_check.sh ]; then echo "install_check.sh missing"; exit 1; fi
+    bash gems/completions/script/install_check.sh
+  expect:
+    exit_code: 0
+    stdout_match: INSTALL_CHECK_OK
+
+- id: docs-links
+  ac: AC6
+  cwd: repos/fast-llm
+  cmd: |-
+    out=$(bundle exec rspec gems/completions/spec/fast/completions/docs_links_spec.rb 2>&1); ec=$?
+    printf "%s\n" "$out" | tail -3
+    exit $ec
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: readme-fixture
+  ac: AC6
+  cwd: repos/fast-llm
+  cmd: |-
+    git show 4736ddc:gems/completions/README.md | diff -q - gems/completions/spec/fixtures/readme/owner-4736ddc.md \
+      || { echo "FIXTURE IS NOT THE 4736ddc README"; exit 1; }
+    echo README_FIXTURE_OK
+  expect:
+    exit_code: 0
+    stdout_match: README_FIXTURE_OK
+
+- id: scope
+  ac: AC7
+  cwd: repos/fast-llm
+  cmd: |-
+    ruby -e '
+      expected = %w[
+        README.md
+        gems/completions/CHANGELOG.md
+        gems/completions/README.md
+        gems/completions/docs/explanation/fiber-native-design.md
+        gems/completions/docs/explanation/why-dialects-as-data.md
+        gems/completions/docs/explanation/why-streaming-only.md
+        gems/completions/docs/how-to/add-a-tool.md
+        gems/completions/docs/how-to/cancel-a-running-chat.md
+        gems/completions/docs/how-to/declare-a-custom-dialect.md
+        gems/completions/docs/reference/dialects.md
+        gems/completions/docs/reference/errors.md
+        gems/completions/docs/reference/stream-events.md
+        gems/completions/docs/reference/tools.md
+        gems/completions/docs/tutorials/first-run.md
+        gems/completions/lib/fast/completions/chat.rb
+        gems/completions/spec/fast/completions/batch_cancel_spec.rb
+        gems/completions/spec/fast/completions/docs_links_spec.rb
+        gems/completions/spec/fast/completions/tool_concurrency_spec.rb
+        gems/completions/spec/fixtures/readme/owner-4736ddc.md
+      ].sort
+      actual = `git diff --name-only 4736ddc..HEAD`.split("\n").map(&:strip).reject(&:empty?).sort
+      extra = actual - expected
+      missing = expected - actual
+      abort "OUT OF SCOPE: #{extra.inspect}" unless extra.empty?
+      abort "DECLARED BUT ABSENT: #{missing.inspect}" unless missing.empty?
+      abort "VACUOUS: empty diff" if actual.empty?
+      puts "SCOPE_OK #{actual.size} files"
+    '
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
+
+## May touch (EXACTLY these 19; the ```lanes``` block is the frozen truth)
+
+- `concurrency` (4): `gems/completions/lib/fast/completions/chat.rb`,
+  `gems/completions/CHANGELOG.md`,
+  `gems/completions/spec/fast/completions/tool_concurrency_spec.rb` (new),
+  `gems/completions/spec/fast/completions/batch_cancel_spec.rb` (new).
+- `docs` (15): `README.md` (root), `gems/completions/README.md`, the
+  11 new `gems/completions/docs/**` pages (Specification §2.1 exact
+  paths),
+  `gems/completions/spec/fixtures/readme/owner-4736ddc.md` (new),
+  `gems/completions/spec/fast/completions/docs_links_spec.rb` (new).
 
 ## Builder Prompt
 
