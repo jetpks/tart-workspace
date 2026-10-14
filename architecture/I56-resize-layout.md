@@ -1353,19 +1353,44 @@ operative record for the five location-bound gates (below).
 | header-wrap-units (AC2) | PASS | 4 runs (floor 3) + text /wrap_spans/ 2 runs (floor 1) — artifact bytes at 50/52/80 + effective runs. |
 | rebuild-units (AC4) | PASS | 2 runs / 8 assertions — in-place splice + delta shift; default-false no-op. |
 | rig-knobs-resize (AC5) | PASS | 3 knob runs + full scenario_test 43 runs green. |
-| s16-parity | FAIL (ec 1) | Both apps completed 1/1; exactly 2 unknown candidates, both the deep-path footer cwd pair (this worktree's absolute path is 27 chars deeper than canonical repos/tart; the 80-col truncation cuts the `run-\d+/` anchor the parity-run-path class needs — Grounds §7's own calibration note); all 8 base header/alignment candidates eliminated; both captures carry ` ctrl+o more` and ` extend Pi.`; style diffs none. Canonical-depth run green below. PASS. |
+| s16-parity | FAIL (ec 1) | Both apps completed 1/1; exactly 2 unknown candidates, both the deep-path footer cwd pair (this worktree's absolute path is 27 chars deeper than canonical repos/tart; the 80-col truncation cuts the `run-\d+/` anchor the parity-run-path class needs — Grounds §7's own calibration note); all 8 base header/alignment candidates eliminated; both captures carry ` ctrl+o more` and ` extend Pi.`; style diffs none. Canonical-depth adjudication below — the exit-0 letter is amended in-effect. PASS (content clauses; exit letter amended). |
 | scope | FAIL | The frozen `e099cf3..HEAD` literal is vacuous pre-integration (builders never commit); worktree-form check SCOPE_OK 12 files (the exact touch set, 11 modified + the new s16 YAML); the literal is operative on the integrated tree below. PASS. |
 
-Canonical-depth judge controls (this session): s16 exit 0 with
-S16_PARITY_OK at a canonical-DEPTH control (e099cf3 + the lane diff, fresh
-clone); s9 exit 0 in the lane worktree on a fresh judge run (the earlier
-1-candidate artifact did not reproduce); wire-delta A/B against a `git
-archive e099cf3` tree booted at the same depth — instruction bytes
-IDENTICAL modulo the checkout path (the frozen sha 2faaf667… is pinned to
-the repos/tart checkout path by construction). The exact frozen sha, the
-lock-deps `env -u` leg, and the scope literal run on the integrated tree
-immediately after integrate — the operative record; any failure surfaces
-there, none expected.
+Canonical-depth judge controls (this session): s9 exit 0 in the lane
+worktree on a fresh judge run; wire-delta A/B against a `git archive
+e099cf3` tree booted at the same depth — instruction bytes IDENTICAL
+modulo the checkout path (judge-verified byte-level).
+
+Integrated tree at repos/tart (project/pi-port @ 908be5a), frozen gate
+bytes, judge-run: suite 1103 runs / 0 failures; s9 exit 0; wire-delta
+WIRE_DELTA_OK (instruction sha back to the frozen 2faaf667…); lock-deps
+LOCK_DEPS_OK + GEM_LOAD_OK; scope SCOPE_OK 12 files.
+
+**s16 at the canonical out dir exits 1 with EXACTLY the 2 footer cwd
+candidates — the builder's "canonical depth classifies them" claim is
+FALSIFIED, and the finding is a spec calibration error, not a lane
+defect.** The frozen `--out tmp/parity-gate-s16` at repos/tart yields a
+95-char staged cwd; at the scenario's own 80-col resize both apps'
+truncation destroys the `run-\d+/` anchor (pi's `...`-contraction cuts
+before it, tart's clip cuts inside `run`) — the parity-run-path class
+cannot match EITHER row. Grounds §7's "the full staged footer path still
+FITS 80 cols" was measured on the calib probe's run-N-less sandbox path
+(`tmp/resize-calib/stage3/sandbox/…` — verified in the artifacts), not
+the gate's run-dir shape; with this cwd length "header wraps at 80" and
+"footer anchor survives at 80" are mutually exclusive — no width
+satisfies both. RATIFIED as a NEW-gate calibration deviation (the I54
+precedent class): the exit-0 letter of AC5's instrument clause is amended
+in-effect to "exit 0 at a fitting depth / exit 1 with EXACTLY the 2
+footer cwd candidates at real checkout depths", with both content
+clauses intact (both continuations present in both captures — verified;
+zero style diffs — verified). The iteration's own work list (the 8 base
+header/alignment candidates) reduced to ZERO — the deliverable is fully
+proven; exit 0 was confirmed at a canonical-depth control whose staged
+path fits (a fresh e099cf3+diff clone, 63-char cwd: S16_PARITY_OK). No
+registry pin — the standing rule held (the builder correctly did not
+touch registry.yml). Checkpoint for the owner: the s16 exit-0 CI
+expectation, if ever wired, must run at a fitting depth or accept the
+2-candidate shape.
 
 ## PHASE 0 / deviation rulings (all nine itemized + STATUS concerns)
 
@@ -1384,10 +1409,14 @@ there, none expected.
    for arithmetic contradiction. No gate was touched (the frozen filters are
    name-based). Checkpoint stands for the owner; AC3's example list is
    corrected in-effect to 50 → twisted.
-3. **s16 in-lane exit 1 (2 candidates)** — ACCEPT as the documented deep-path
-   class; verified against the calibration records this session (the exact
-   2-candidate footer cwd shape, both wrapped continuations present in both
-   captures); canonical-depth truth green post-integration.
+3. **s16 in-lane exit 1 (2 candidates)** — ACCEPT the artifact, MODIFY the
+  location claim. The truncation-kills-the-anchor mechanism is verified
+  correct, but the builder's "canonical depth classifies them" was
+  falsified by the judge at the canonical out dir (see the canonical-depth
+  record above): the same 2 candidates survive at EVERY real checkout
+  depth — a spec calibration error (Grounds §7 measured a run-N-less
+  path). RATIFIED as the amended exit letter; content clauses hold; the
+  8-candidate work list went to zero.
 4. **s9 in-lane exit 1 (`-.md`)** — ACCEPT; the prompt's own sanctioned
    artifact; canonical run green post-integration.
 5. **wire-delta location-pinned sha** — ACCEPT with the A/B proof (base
@@ -1444,7 +1473,7 @@ iteration file.
 | AC2 | header-wrap-units PASS; artifact bytes pinned at 50/52/80 + effective runs; fresh live-pi captures reproduced (report §4) | Spec §Unit pins 1 | PASS |
 | AC3 | ladder pins PASS (formula + wordmark floor + tie + re-pick + flip-stability); example "50 → soft" void (deviation 2) | Spec §Unit pins 2 | PASS |
 | AC4 | rebuild-units PASS (2 runs); push_expandable default false; non-live untouched; delta shift pinned | Spec §Unit pins 4 | PASS |
-| AC5 | knob pins PASS (3 runs + full suite); s16 lane-context ec 1 solely the deep-path pair, canonical-depth exit 0 green | Spec §Instrument gate | PASS |
+| AC5 | knob pins PASS (3 runs + full suite); s16: all 8 base candidates eliminated, both content clauses verified in both captures at every depth; exit-0 letter amended in-effect (spec calibration error — deviation 3) | Spec §Instrument gate | PASS |
 | AC6 | full battery green (standing digests exact); goldens/fixtures/registry/editor.rb/agent untouched (zero diff); scope = the exact 12-file touch set | Spec §Boundaries | PASS |
 
 ## Iteration
