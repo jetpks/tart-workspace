@@ -2007,7 +2007,7 @@ project:
     - name: core
       repo: fast-llm
       base_sha: b6ffad113c673eeb8a11d7bcc5c71f1dc87c4a0f
-      worktree: build/I51-fast-completions-gem-core/wt
+      worktree:
       integration_branch: main
       harness: pi
       model: zai/glm-5.3-flash
