@@ -1160,11 +1160,253 @@ under a heavy frozen net; precision beats speed.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I55-paste-markers-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence paste-markers --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# Builder Report — I55 paste-markers, lane `core` (repo tart, worktree branch lane/I55-paste-markers-core, base e61cb78)
+
+Builder: architect-builder child. No commits (`git log e61cb78..` = 0 entries; `git stash list` empty — the
+worktree carries the work; the integrator commits). Every long command ran with an explicit timeout;
+nothing ran in the background. No contact_supervisor blocking; no exception file needed (no frozen-contract
+contradiction found).
+
+## 0. Environment facts (raw)
+
+- All `bundle`/unit/rig commands ran with
+  `FAST_COMPLETIONS_PATH=/Users/eric/architect/spaces/20261009-pi-port/repos/fast-llm/gems/completions`
+  exported (the worktree cannot resolve the Gemfile's relative `../fast-llm/gems/completions`; I54 lane
+  report line 10 precedent).
+- `git status --porcelain` (final): exactly the 10 declared files — 8 modified + 2 new scenarios.
+  Gemfile.lock, `lib/tart/agent/**`, session recording, bench/, mock_llm_server.rb, registry.yml, every
+  existing scenario/golden/fixture/probe, README, transcript.rb, motd.rb, repos/fast-llm, repos/pi: untouched.
+- Frozen gate bytes were extracted programmatically from the staged
+  `build/I55-paste-markers-core/acceptance-criteria.md` gates block (`/tmp/i55-extract-gate.rb`) and run
+  verbatim — no hand-transcribed literals (the I54 session's first-rehearsal lesson; see §4 deviation 6 for
+  the one time I ignored it and what it cost).
+- pi oracle: repos/pi @ f1b2e77f, read-only; all cited editor.ts line numbers re-verified against it this
+  session before coding.
+
+## PHASE 0 — plan + spec check (no blocking disagreements)
+
+I verified the spec's letter against real files before writing code: pi's `handlePaste` :1259-1325
+(path-prefix :1290-1299, large-check :1300-1317), `expandPasteMarkers` :1090-1097 (per-id regex +
+replacer FUNCTION), `getExpandedText` :1100-1103, `setText` :1115-1127 (`pastes.clear()` AFTER the
+push-if-differs), `submitValue` :1364-1377, `handleBackspace` :1383-1428 (drop → shift ascending →
+renumber → RE-READ line :1419 → delete by `cursorCol − graphemeLength`), `handleForwardDelete`
+:1781-1815 (span delete, registry untouched), `pushUndoSnapshot`/`undo` :2116-2134 — the spec's D1–D5
+match the oracle. Port base cites check out (`insert_paste` editor.rb:167, `Snapshot` :55, `set_text`
+:519, chat.rb submit :994 / follow_up :1052 / dequeue :1122). `UndoStack#deep_copy` already covers
+Hash+Struct, so the Snapshot extension was drop-in; `test/render/undo_stack_test.rb`'s 3-kwarg
+`Snapshot.new` stays source-compatible under the 5-member keyword_init struct. Rig cites check out
+(positive-`expected_requests` validation; the single `send-keys` at runner.rb:124). No spec premise
+invalidated; no disagreement to file. Observations carried to §4 (deviations/calibration), none silent.
+
+## 1. Per-AC results (commands verbatim; outputs are tails)
+
+### AC1 — the editor paste registry and its marker ops
+
+- Frozen gate `paste-units` (bytes extracted from the AC block, run verbatim):
+  `-n "/paste_marker|expanded_text|paste_over|path_prefix/"` → `18 runs, 60 assertions, 0 failures,
+  0 errors, 0 skips` (floor 12) + the pre-existing `/insert_paste/` re-run → `2 runs, 7 assertions,
+  0 failures` → `PASTE_UNITS_OK`.
+- Frozen gate `paste-undo-units`: `-n "/marker/"` → `4 runs, 22 assertions, 0 failures, 0 errors,
+  0 skips` (floor 3) + `/paste/` re-run → `4 runs, 16 assertions, 0 failures` → `PASTE_UNDO_UNITS_OK`.
+- Pinned behavior (test list in §3): both marker forms byte-exact (`[paste #1 +11 lines]`,
+  `[paste #1 1001 chars]`); both boundaries strictly-greater (10 lines / 1000 chars inline); filtered-text
+  counting (normalize before the count; control bytes dropped from the STORED content); path-prefix space
+  (`/ ~ .` after ASCII `\w` → one space; line-start / after-space / after-`é` → none); `expanded_text`
+  id-driven, suffix-agnostic, regex-danger bytes verbatim (block-form gsub only); paste-over arms
+  (large-then-large: old content inline + new marker, ids contiguous 1..1; large-then-small: expanded +
+  inline splice; cursor-not-adjacent → second marker; single-undo round-trip); backspace renumber across
+  lines AND on the same line (pi's post-renumber re-read, :1419); hand-typed marker backspace char-wise;
+  forward-delete span WITHOUT registry cleanup (the stale entry inert); `set_text`/`clear` registry clears
+  with undo restoring the OLD registry.
+- AC1: PASS.
+
+### AC2 — the submit surface delivers the EXPANDED text everywhere downstream
+
+- Frozen gate `submit-units`: `-n "/paste_marker/"` → `4 runs, 16 assertions, 0 failures, 0 errors,
+  0 skips` (floor 4) + `/multi_line_paste/` re-run → `1 runs, 2 assertions, 0 failures` → `SUBMIT_UNITS_OK`.
+- Pins: idle submit → the agent-run block receives the expanded text, history holds it, the editor clears,
+  the echo is the expanded text with no marker bytes; busy enter → the steer queue gets the expanded text;
+  busy alt+enter → the follow-up queue gets it; dequeue-restore joins the RAW marker text with the
+  registry emptied (`pi restoreQueuedMessagesToEditor :4753` parity — `expanded_text == input` after).
+- The seam change is exactly two read lines (`@editor.expanded_text.dup.strip` in `submit` and
+  `submit_follow_up`); `Chat#input`, autocomplete, bash-mode, backslash checks, and
+  `dequeue_queued_messages` untouched (raw readers, pi parity).
+- AC2: PASS (live-pinned by s15 below).
+
+### AC3 — the rig instrument gains the knobs without moving the no-knob path
+
+- Frozen gate `rig-knobs`: `-n "/paste_knob|submit_knob|expected_requests_zero/"` → `5 runs, 20
+  assertions, 0 failures, 0 errors, 0 skips` (floor 3) + the full scenario_test → `40 runs, 196
+  assertions, 0 failures` → `RIG_KNOBS_OK`.
+- Knobs: `paste:` (String, validated; nil default) / `submit:` (boolean, TRUE default) /
+  `expected_requests` relaxed to non-negative (0 accepted; −1 rejected with
+  "expected_requests must be a non-negative integer"). The runner's knob path: write the text under the
+  stage dir → `tmux load-buffer -b tui-split-rig-<token>-paste` → `tmux paste-buffer -b … -p -t <session>`
+  → `delete-buffer`; prompt only when non-empty; Enter only when `submit`. The no-knob branch is the
+  IDENTICAL single `tmux("send-keys", "-t", session, @scenario.prompt, "Enter")` call (diff-verified
+  byte-identical) — proven by the s1–s10 battery (§AC5) and WIRE_DELTA_OK (the lane runner drove those
+  bytes).
+- AC3: PASS.
+
+### AC4 — the two NEW scenarios
+
+- Frozen gate `s14-display` (out dir `tmp/parity-gate-s14`): rig exit 0; post-assertion
+  `S14_DISPLAY_OK` — `[paste #1 +12 lines]` in BOTH captures, zero `line alpha one` rows, both apps
+  `completed=true requests=0`, 0 diff candidates, 0 style unknowns.
+- Frozen gate `s15-wire-session` (out dir `tmp/parity-gate-s15`): rig exit 0; post-assertion
+  `S15_WIRE_SESSION_OK` — 1 request per app; request 1's user content == the YAML paste bytes in BOTH
+  apps (pi's parts array extracted shape-normally); zero `[paste #` bytes on either wire; the settled
+  screens show the expanded user echo and no marker row; tart's session JSONL records the expanded text
+  with zero marker bytes anywhere.
+- Baseline narrative (candidates seen → resolution):
+  - s14 at base is RED **by design** (Grounds §4.3) — proven, not assumed: the lane's rig driving the
+    BASE tart (`--app tart --tart-dir repos/tart`, out `tmp/base-red-s14`) captures the RAW 12 lines
+    (`line alpha one` present, zero `paste #` bytes) — exactly the discriminating delta the gate exists
+    to punish; after the editor work both apps show only the marker row and the differ reports zero
+    candidates (the screens are byte-identical modulo the sanctioned registry classes).
+  - s15 is green-at-base-class (Grounds §4.6) — proven: base tart (same single-app shape, out
+    `tmp/base-s15`) puts the EXACT 12-line text on the wire with zero marker bytes in 1 request; the
+    scenario is regression cover for "the wire keeps the full content; the marker is display-only", and
+    its first green capture under the lane is the golden.
+- AC4: PASS.
+
+### AC5 — the full no-regression battery, cold
+
+| gate | command (abridged) | result |
+|---|---|---|
+| suite | `bundle install --quiet && bundle exec rake` | `1087 runs, 5078 assertions, 0 failures, 0 errors, 1 skips` (base 1056 + exactly the 31 new pins; the 1 skip is pre-existing at base) |
+| bench | `bundle exec ruby bench/seam_bench.rb 2>&1 \| tail -1` | `SEAM_BENCH_OK` |
+| s1–s10 | per-scenario rig runs, `env -u HERDR_* … --out tmp/parity-gate-sN` | s1 exit 0 (re-run post-final-fix), s2–s8 exit 0, s10 exit 0 (re-run post-final-fix) |
+| s9 | same, in-lane | exit **1** with exactly 1 candidate `-.md` — the KNOWN deep-path staged-path wrap artifact (12+ precedents). Canonical-depth proof: the LANE's rig + LANE's tart run from repos/tart (`--out tmp/i55-lane-s9 --tart-dir <worktree>`) → exit **0**. Not chased in-lane per the brief; reported. |
+| s1-tart-mode | rig run `--out tmp/parity-gate-s1tart` | rig exit 1 (by design) + `TART_MODE_OK` |
+| tool-pending | `gems/tui-split-rig/bin/tool-pending-probe --gate --out tmp/i55-tp` | `TOOL_PENDING_GATE_OK` |
+| user-bash | `gems/tui-split-rig/bin/user-bash-stream-probe --gate --out tmp/i55-ubs` | `USER_BASH_STREAM_GATE_OK` |
+| thinking-pins | frozen -n shapes | `14 runs, 48 assertions, 0 failures` (≥11) + `9 runs, 22 assertions, 0 failures` (≥8) → `THINKING_PINS_OK` |
+| hermeticity | launcher_smoke + e2e_session | `8 runs, 39 assertions, 0 failures` (≥8) + `4 runs, 90 assertions, 0 failures` (≥4) → `HERMETICITY_OK` |
+| lock-deps | frozen gate bytes, run verbatim at repos/tart | `LOCK_DEPS_OK` + `GEM_LOAD_OK` (the `env -u FAST_COMPLETIONS_PATH bundle install --quiet` leg exits **13** at worktree depth — bundler's path error on the relative default; worktree artifact, the lane leaves Gemfile/lock byte-identical, `LOCK_OK` re-verified in-worktree) |
+| zai-data | frozen shape | dialect pins `2 runs, 0 failures` + `ZAI_DATA_OK` |
+| threads-budget | `git diff e61cb78 -- lib \| grep -E "^\+[^+].*Thread\.new"` | empty → `THREADS_BUDGET_OK` |
+| wire-delta | frozen gate, cwd repos/tart | `WIRE_DELTA_OK` (instruction sha `2faaf667…`, tools `7360fd1e…`, key order/store/max/stream_options/messages EXACT). LANE proof: same gate shape with the lane's rig/scenario/tart via `--tart-dir <worktree>` at canonical out depth → `WIRE_DELTA_OK` (the lane moves no wire byte; the no-knob runner path is byte-frozen) |
+| session-golden | frozen gate bytes (extracted, run verbatim) | `SESSION_GOLDEN_OK` (7/7 digests EXACT) — see §4 deviation 6 for my one hand-retyped false alarm |
+| s14/s15 | frozen gate bytes | `S14_DISPLAY_OK` / `S15_WIRE_SESSION_OK` (re-run post-final-fix) |
+| unit gates | frozen gate bytes | `PASTE_UNITS_OK` / `PASTE_UNDO_UNITS_OK` / `SUBMIT_UNITS_OK` / `RIG_KNOBS_OK` (re-run post-final-fix) |
+
+AC5: PASS on every standing gate; s9's in-lane exit 1 is the documented worktree artifact with the
+canonical-depth control green.
+
+### AC6 — scope and frozen bytes
+
+- `git status --porcelain` = exactly the 10 declared files (8 M + 2 new).
+- Scope check (worktree form — the frozen `e61cb78..HEAD` literal is vacuous pre-integration since
+  builders never commit; I54 precedent): `git diff --name-only e61cb78` + `git ls-files --others
+  --exclude-standard` vs the declared set → `SCOPE_OK 10 files` (no extra, none absent, non-vacuous).
+- Presence greps: `PASTE_MARKER_REGEX` in editor.rb ✓; `expanded_text` in chat.rb ✓; `paste-buffer` in
+  runner.rb ✓.
+- No existing scenario/golden/fixture/registry/differ/probe file touched; README untouched (no
+  keybinding change this entry); `git log e61cb78..` empty.
+- AC6: PASS.
+
+## 2. The s14/s15 out dirs (kept in the worktree)
+
+- `tmp/parity-gate-s14/` — final green run: `run-1/{pi,tart}{,.capture,.capture.styled,-requests.jsonl}`,
+  `summary.json` (0 candidates, 0 style unknowns, both `completed`, 0 requests).
+- `tmp/parity-gate-s15/` — final green run: same artifact set; both request logs carry the exact 12-line
+  user content; `run-1/home/tart/.tart/sessions/…/*.jsonl` records the expanded text.
+- Baseline controls: `tmp/base-red-s14/` (base tart shows the raw 12 lines — the RED-at-base proof),
+  `tmp/base-s15/` (base tart wire already exact — the green-at-base-class proof), `tmp/i55-lane-s9/`
+  (at repos/tart — canonical-depth s9 control).
+
+## 3. New-test inventory (31 tests; file, name, one line)
+
+`test/render/editor_multiline_test.rb` — 18 matching `/paste_marker|expanded_text|paste_over|path_prefix/`:
+1. `test_paste_marker_line_form_stores_the_registry_and_inserts_only_the_marker` — 11 lines → `[paste #1 +11 lines]` only; registry stores the full text; cursor right after the marker.
+2. `test_paste_marker_char_form_over_thousand_chars_on_one_line` — 1001 chars → `[paste #1 1001 chars]`.
+3. `test_paste_marker_char_form_when_only_the_char_bar_crosses` — 1003 chars over 2 lines → char form (no line form).
+4. `test_paste_marker_boundaries_stay_inline_at_ten_lines_and_thousand_chars` — 10 lines and 1000 chars splice inline (strictly greater crosses).
+5. `test_paste_marker_counts_the_filtered_text_after_normalize_and_printable_filter` — `\r\n`/tabs normalize before the count; the registry stores the FILTERED text.
+6. `test_path_prefix_space_prepends_one_space_after_an_ascii_word_char` — `/`, `~`, `.` each get one space after a word char.
+7. `test_path_prefix_no_space_at_line_start_after_a_space_or_after_unicode` — col 0 / space / `é` before the cursor → no space (ASCII `\w`).
+8. `test_expanded_text_expands_every_marker_id_driven` — multi-marker expansion; no marker bytes survive.
+9. `test_expanded_text_keeps_regex_danger_bytes_verbatim` — `\1`/`\\`-shaped content expands byte-exact (block-form gsub).
+10. `test_expanded_text_expands_a_hand_typed_marker_with_a_valid_id_and_any_suffix` — hand-typed `[paste #1]` and a wrong-suffix marker both expand (pi quirk).
+11. `test_paste_over_marker_large_then_large_expands_inline_and_renumbers` — old content inline + new marker at the expanded tail; ids contiguous 1..1.
+12. `test_paste_over_marker_large_then_small_splices_expanded_plus_inline` — registry empties; expanded + inline splice.
+13. `test_paste_over_marker_needs_a_valid_marker_ending_at_the_cursor` — cursor elsewhere → the normal path creates marker #2.
+14. `test_paste_over_marker_is_one_undo_round_trip` — the owner arm + new paste is ONE undo unit.
+15. `test_paste_marker_backspace_renumbers_the_registry_and_every_text_marker` — delete #1 across lines → the survivor renumbers with its suffix VERBATIM (char form intact).
+16. `test_paste_marker_backspace_over_a_hand_typed_id_deletes_char_wise` — an invalid-id marker deletes one char.
+17. `test_paste_marker_backspace_renumbers_markers_on_the_same_line_too` — pi's post-renumber line re-read (:1419); same-line renumber + cursor at the span start.
+18. `test_paste_marker_forward_delete_removes_the_span_without_registry_cleanup` — whole span; registry untouched; the stale entry inert.
+
+`test/render/editor_undo_test.rb` — 4 matching `/marker/`:
+19. `test_marker_delete_then_undo_restores_text_and_registry` — backspace-delete → undo restores marker text + registry + counter; `expanded_text` round-trips.
+20. `test_paste_over_marker_is_one_undo_unit` — the paste-over arm rides the single insert_paste push.
+21. `test_set_text_clears_the_marker_registry_and_undo_restores_it` — the clear comes AFTER the push (pi :1124-1125 order).
+22. `test_paste_marker_clear_also_clears_the_registry_and_undo_restores` — the clearEditor realization behaves identically.
+
+`test/chat_test.rb` — 4 matching `/paste_marker/`:
+23. `test_paste_marker_idle_submit_delivers_the_expanded_text_everywhere` — run + history + echo all expanded; editor cleared; no marker bytes anywhere.
+24. `test_paste_marker_busy_enter_steers_the_expanded_text` — the steer queue gets the expanded text.
+25. `test_paste_marker_busy_alt_enter_queues_the_expanded_follow_up` — the follow-up queue gets it (pi :4476).
+26. `test_paste_marker_dequeue_restore_joins_the_raw_marker_text_with_the_registry_cleared` — raw join through set_text; the marker dies as literal text (pi :4753).
+
+`gems/tui-split-rig/test/scenario_test.rb` — 5 matching `/paste_knob|submit_knob|expected_requests_zero/`:
+27. `test_paste_knob_defaults_to_nil_and_loads_from_the_shipped_s14` — nil default; s14 loads the byte-exact 12-line block, `submit: false`, 0 requests.
+28. `test_paste_knob_non_string_is_a_rig_error` — load-time validation.
+29. `test_submit_knob_defaults_to_true_and_loads_from_the_shipped_s15` — TRUE default; s15's bytes + 1 request.
+30. `test_submit_knob_non_boolean_is_a_rig_error` — load-time validation.
+31. `test_expected_requests_zero_is_accepted_and_negative_rejected` — the non-negative relaxation.
+
+## 4. Deviations, itemized (none silent; pi cites)
+
+1. **Suffix-less renumber renders empty, not "undefined" (pi-bug-not-cloned, spec-governed).** pi's
+   renumber emits `` `[paste #${x-1}${suffixGroup}]` `` (editor.ts:1417) — with no suffix group matched,
+   JS stringifies `undefined` into the marker bytes. Spec D3 freezes "each marker's suffix preserved
+   verbatim"; the port's block-form gsub interpolates nil → empty. The spec letter governs; flagged so
+   the judge sees the deliberate non-clone.
+2. **`PASTE_MARKER_SINGLE` is byte-frozen but has no runtime caller.** pi uses it via
+   `isPasteMarker`/`segmentWithMarkers` (:38-40, :43-105); the port's recorded char-unit reduction
+   (Grounds §5) realizes the deletion arms offset-based (`valid_marker_ending_at`/`valid_marker_starting_at`),
+   so the constant exists per Spec D1 as the shape pin. Spec-required; unused-by-design.
+3. **The paste-over arm's renumber runs AFTER the content splice (spec-literal order).** Spec D2 step 2
+   orders splice → drop → renumber; marker-shaped bytes inside freshly expanded content would renumber
+   with the text (pi has no analog to diff against; unpinned edge — my pins use marker-free content).
+   pi-literal would be impossible anyway: pi HAS no paste-over arm (grep over editor.ts confirms).
+4. **Scope gate's frozen `e61cb78..HEAD` diff is vacuous pre-integration** (builders never commit) —
+   run in the I54-precedent worktree form (`git diff --name-only e61cb78` + untracked) alongside the
+   frozen literal; both reported.
+5. **Worktree-depth artifacts (documented, not lane defects):** the s9 wrap artifact (in-lane exit 1 with
+   the single `-.md` candidate; canonical-depth exit 0 driving the LANE's code), the wire-delta
+   instruction sha (reproduces only at canonical out depth; proved BOTH ways — canonical tree verbatim,
+   and the lane's rig/scenario/tart at canonical depth), and lock-deps' `env -u` bundle-install leg
+   (exit 13 at worktree depth; the frozen gate passes verbatim at repos/tart).
+6. **One self-caught process miss, reported for honesty:** my FIRST session-golden run FAILED
+   (`fork_roles [:user]` vs `[:user, :user]`) because I hand-retyped the frozen one-liner and wrote
+   `context_messages(rec.path)` where the frozen bytes read `context_messages(forked.path)`. Re-extracting
+   the frozen bytes and running them verbatim → `SESSION_GOLDEN_OK` (7/7). The session bytes never moved;
+   the transcription did — exactly the failure mode the never-retype rule exists for.
+7. **Mid-implementation self-review fix (landed before any gate run):** `delete_backward`'s marker arm
+   initially built the new line from the PRE-renumber buffer, which would revert a same-line renumber;
+   pi re-reads the line post-renumber (editor.ts:1419). Fixed to the pi order and pinned by test 17.
+
+## 5. Residuals / risks
+
+- s11/s13 remain STANDING-OPEN-RED (I47 verdict + the I54 amendment class) — not this program's bar;
+  untouched.
+- Deliberate pi quirks preserved and pinned as such: forward-delete leaves a stale registry entry
+  (inert); `set_text` with IDENTICAL content clears the registry with NO undo push (pi's
+  push-if-differs order); a same-line double-digit renumber (id 10 → 9) shifts pi's cursor-relative
+  deletion window (unpinned edge, quirk-commented at the arm).
+- Marker atomicity stays confined to the two deletion arms + the paste-over arm (Grounds §5 reductions):
+  motion, word ops, and wrap remain char-unit and may walk into a marker — untouched by this entry's
+  gates; reopen on owner live-run pain.
+- The CSI-u decode stays CUT per the I35 ruling (tripwire: the s15 wire gate's exact-content assert).
+- s9's in-lane exit 1 and the wire-delta/lock-deps worktree notes above are checkout-depth artifacts;
+  the canonical-depth controls are green with the lane's code.
+
+STATUS: COMPLETE
 
 ## Verdict
 
