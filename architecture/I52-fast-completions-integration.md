@@ -1658,6 +1658,34 @@ itemized deviation.
 - **Both exception checkpoints — ratified** (the worktree-seed repair correct
   per protocol; the frozen-boundary itemization complete: nothing silent).
 
+### core
+
+## Integrate record (judge, appended post-integration)
+
+- Integrated: lane `core` (repo tart) → `project/pi-port`; lane commit
+  `2dceef3` merged `--no-ff` as **`1a8ea775`** (the final integrated tart
+  SHA of the program). Teardown complete (worktree + lane branch removed).
+- The integrator's bounds refusal mid-run left its own orphaned conductor
+  commit (`ac28753`) on the lane branch — judge-reset (`--mixed` to fb830d6,
+  the pre-attempt state) before the clean re-integrate; reflog-proven the
+  tool's artifact, not builder work. Itemized per honest history.
+- Post-integrate cold gate re-run on the integrated tree: 21/22 PASS raw
+  (third full cold reproduction, identical results; WIRE_DELTA_OK
+  full_body `4aa136a9…` reproduced a third time); scope FAIL =
+  `OUT OF SCOPE: ["lib/tart/render/chat.rb"]` only — the ratified
+  deviation (a); actual 49 = 48 declared + 1 ratified, DECLARED-BUT-ABSENT
+  none.
+- space.yaml records: verdict `continue`, integration_branch
+  `project/pi-port`, integrate_sha `2dceef3…`.
+
+**Program close: the successor program (fiber-native & own-the-wire) is
+COMPLETE** — ENTRY 1 I50 (de-bridge) + ENTRY 2 I51 (fast-completions gem)
++ ENTRY 3 I52 (this integration), all judged CONTINUE and integrated.
+tart now owns its entire LLM stack: one fiber-native turn loop, one
+pi-faithful wire codec (the gem), zero ruby_llm/faraday/shim residue.
+Final integrated tart SHA: `1a8ea775`. Landing (rubygems publish +
+path-pin → released-gem swap + the tart PR) is the human's.
+
 ## Acceptance Criteria
 
 | AC | Raw result (judge, cold, canonical tree) | Verdict |
