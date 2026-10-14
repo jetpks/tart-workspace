@@ -67,7 +67,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: gem-concurrency-docs
+  current_iteration: steering-queue
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -2194,4 +2194,10 @@ project:
     rehearsal:
       gates_digest: fe9c3af5551826f498ae386a65759a0323e5bc9fc9d88e839268fcbcca66a753
       at: '2026-10-14T04:14:27-06:00'
+  - name: steering-queue
+    ordinal: 54
+    file: architecture/I54-steering-queue.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
