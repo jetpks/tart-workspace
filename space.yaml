@@ -2292,7 +2292,28 @@ project:
   - name: edit-tool-bg
     ordinal: 57
     file: architecture/I57-edit-tool-bg.md
-    freeze_sha:
+    freeze_sha: 6e6b086fc11b42e0570c46087e7c09dd16c48b61
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/render/edit_block.rb
+      - lib/tart/render/transcript.rb
+      - lib/tart/render/chat.rb
+      - lib/tart/agent/chat.rb
+      - lib/tart/agent/message.rb
+      - lib/tart/agent/session.rb
+      - lib/tart/tools/edit.rb
+      - lib/tart/theme.rb
+      - test/render/edit_block_test.rb
+      - test/render/transcript_test.rb
+      - test/edit_details_test.rb
+      - gems/tui-split-rig/lib/tui_split_rig/runner.rb
+      - gems/tui-split-rig/lib/tui_split_rig/scenario.rb
+      - gems/tui-split-rig/scenarios/s17_edit_tool_bg.yml
+      - gems/tui-split-rig/test/scenario_test.rb
+    rehearsal:
+      gates_digest: 124e2bb0ef770125bc19f8e4da12f794500e780771c9b9ed148bf8e4305dbad6
+      at: '2026-10-14T14:13:39-06:00'
   integration_branch: project/pi-port
