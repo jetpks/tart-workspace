@@ -2055,6 +2055,107 @@ STATUS: COMPLETE_WITH_CONCERNS (concerns are the itemized deviations 1–8
 and spec-over-pi decisions above — all documented, none blocking; byte
 parity 11/11 against pi's recorded wire bodies is proven)
 
+### harness
+
+# I51 harness-lane report — fast-completions-gem (recorded-wire parity harness)
+
+UTC: 2026-10-14T04:47:52Z · Lane `harness`, repo fast-llm, worktree branch `lane/I51-fast-completions-gem-harness`, cut from INTEGRATED tip `7a665d4` (merge of lane core). No commits made; tree left for judgment.
+
+## Files landed (exactly the frozen 14-path touch set)
+
+```
+gems/completions/spec/fixtures/wire/{fireworks_plain,openai_ladder_on,openai_ladder_off,zai_on,zai_off,
+  deepseek_on,tool_roundtrip,thinking_replay,reasoning_details_replay,cross_model_thinking_replay,
+  budget_field}.json   (11 fixture files, byte-identical copies — see provenance)
+gems/completions/spec/fixtures/wire/CAPTURE.mjs
+gems/completions/spec/fast/completions/wire_parity_spec.rb
+gems/completions/script/install_check.sh
+```
+
+`git status --porcelain` at end: only `?? gems/completions/script/`, `?? gems/completions/spec/fast/completions/wire_parity_spec.rb`, `?? gems/completions/spec/fixtures/`. Nothing else in the tree modified; no commits, no pushes.
+
+## Fixture provenance
+
+- COPIED from the staging dir `build/i51-harness/fixtures/` via `cp -p` (all 11 `<tag>.json` byte-identical; digests verified below). NOT re-captured via CAPTURE.mjs — the staged bytes are the frozen truth and the copy is verified by the digest gate.
+- `CAPTURE.mjs` = the staged driver copied verbatim + a comment-only header insertion (the frozen digest table + a provenance-only notice), per the lane prompt's requirement that the committed header document origin + digests. `diff staging committed` output: exactly lines `8a9,24` (17 added comment lines, no other change). The suite never executes it.
+- The staging dir's `manifest.json` was deliberately NOT copied (not in the touch set).
+- Staging dir untouched (copy-from only).
+
+## AC2 digest gate — `ruby -rjson -rdigest` over the 11 committed fixtures (verbatim output)
+
+```
+fireworks_plain=0b9da927d3cab0b8b41ecb634fde099729e03f817ef6ba3aba26720df2130d93 OK
+openai_ladder_on=b05b45aeb3a4f7bdfa12d142e839882855688a246ead4d016fbe474188dfaed2 OK
+openai_ladder_off=60914406494e2e8403de6b932f01cd5d901c9ae4c4de75e283b25656fa6304b1 OK
+zai_on=9a23aee6b115cce0bd6a608465f2c56332123e47a0f22c491793c0a4d0e45c13 OK
+zai_off=88dd5af69ceb68bbc41aad9ddfbc4dcb36e0dd66fec3563054d484cc0f727f7c OK
+deepseek_on=ce98edaee2ecb634dcd4461e3e56cfc4f973cd37026fc390b63ac2bdfbfec5f5 OK
+tool_roundtrip=940d8f5b262f59a3db7b27a70471ac96a40c170264edc83219bef83dce1e9038 OK
+thinking_replay=c9259d5da9ca8c63186522c24b9bdfd1fe81aa0903187b0f50634b56eb3c7e6c OK
+reasoning_details_replay=c21da08d520e246652b33bedf76d89db581692a7775de5181dc8c63013a0ae4e OK
+cross_model_thinking_replay=809a9b7ecc99399379031524ed5810677e31c22cac2f64eb6e728602ea5939fc OK
+budget_field=fb29e70650e9708f394c319d3c8ecacb840c134d214f9ce2747151356b86d1b7 OK
+```
+
+11/11 OK (fixture tag/request_path/shape also asserted per file; byte sizes match the staged manifest: 428/457/457/501/453/459/686/538/581/515/487).
+
+## Integrated-tree run outputs
+
+This worktree IS the integrated tree (7a665d4 — core merged), so these are the integrated-tree outputs; the judge re-runs cold.
+
+1. Full suite, AC1 invocation (`bundle exec rspec`, repo root, through the root `.rspec` — includes `wire_parity_spec.rb` via `--pattern gems/completions/spec/fast/**/*_spec.rb`):
+
+```
+122 examples, 0 failures
+Randomized with seed 37958
+```
+
+(second run, different seed: `122 examples, 0 failures`, seed 61570)
+
+2. Wire parity subset (the 12 harness examples — 11 scenarios + fixture-fidelity gate), all green on the FIRST run against core's codec: byte equality + SHA256 per §12.3 table. Verified the failure machinery too: with a temporary one-byte scenario mutation, the spec failed printing `byte mismatch: expected 428B, got 427B; first divergent byte at offset 113` plus the key-order-aware `$.messages[1].content` line pair; then restored byte-clean (diff empty).
+
+3. Install check, `bash gems/completions/script/install_check.sh` (run twice: from repo root and from /tmp; both exit 0, both print INSTALL_CHECK_OK; scratch fully torn down each run — `tmp/` empty after):
+
+```
+  Successfully built RubyGem
+  Name: fast-completions
+  Version: 0.1.0
+  File: fast-completions-0.1.0.gem
+install-check: repo-root build packaged no lib/ (gemspec base: __dir__ is nil under RubyGems gemspec eval); rebuilding from gems/completions
+  Successfully built RubyGem
+  Name: fast-completions
+  Version: 0.1.0
+  File: fast-completions-0.1.0.gem
+install-check: built fast-completions-0.1.0.gem
+install-check: seeded 17 dependency gems (async-2.46.0, async-http-0.105.0, async-pool-0.12.0, console-1.38.0, fiber-annotation-0.2.0, fiber-local-1.1.0, fiber-storage-1.0.1, io-endpoint-0.19.0, io-event-1.22.1, io-stream-0.14.0, json-3.1.0, openssl-4.0.2, protocol-hpack-1.5.1, protocol-http-0.72.0, protocol-http1-0.41.0, protocol-http2-0.29.1, protocol-url-0.19.0)
+Successfully installed fast-completions-0.1.0
+1 gem installed
+install-check: require-ok fast-completions-0.1.0 from the scratch install
+install-check: smoke-ok (1 request, reply text verified)
+INSTALL_CHECK_OK
+```
+
+Script behavior notes: `gem build --output` keeps the .gem in the run's scratch (repo tree never carries an artifact); GEM_HOME/GEM_PATH are scratch-only (repo provably off the load path — the smoke re-asserts `Gem.loaded_specs["fast-completions"].gem_dir` is under the scratch GEM_HOME); the async-http closure is seeded from ambient system gems so the check is offline; if `--local` resolution ever fails on a foreign machine, one networked `gem install` retry is attempted; every process is a foreground child, the mock lives inside the smoke process, EXIT trap removes the scratch — no orphans.
+
+## Core defect found by this lane's gate (report-only; not patched)
+
+`gems/completions/fast-completions.gemspec` builds `spec.files` via `Dir.glob(..., base: __dir__)`. RubyGems loads gemspecs through `eval`, where `__dir__` is nil, so the glob silently falls back to the current directory: a repo-root `gem build gems/completions/fast-completions.gemspec` (the frozen §12.2 form) packages a .gem containing ONLY `README.md` — no `lib/`. The install then "succeeds" and `require "fast/completions"` raises LoadError. Raw facts, reproduction commands, and a suggested one-line core fix are in `build/loop/exception-2026-10-14T04:47:52Z.md`. install_check.sh keeps the frozen repo-root build verbatim, asserts the artifact contains `lib/fast/completions.rb`, and on that specific failure loudly rebuilds from the gemspec's own directory (artifact-equivalent packaging) so the gate certifies the real artifact while the defect stays surfaced. Once core fixes the gemspec, the fallback never fires.
+
+## §12.3 construction vs the real API — itemized
+
+- No scenario fought the codec: all 11 constructions passed byte parity on the first run; §12.3's names (Model kwargs, Chat, thinking_level, Message factories, dialect DSL, `thinking_token_budget_field`) all exist exactly as frozen. No core defect report from the scenario table itself.
+- Capture mechanism note (not a defect): MockLLMServer stores request bodies PARSED (tart lineage; mock is core's file). wire_parity_spec re-serializes the captured Hash via `JSON.generate` for the byte/digest comparison — order-faithful (Ruby Hash preserves insertion order; JSON.parse preserves document order), so any gem-side key-order/presence/value defect still fails both assertions; only formatting-style bytes (already erased by the mock at capture) are invisible. Documented in the spec header.
+- Stamp precision (per frozen §12.3 note, byte-safe): `reasoning_details_replay`'s assistant carries `provider: "mock", model: "mock-1"` (the lane table row omits it; without the same-model stamp the thinking block would fold to text and the fixture's `reasoning_details` could never appear). `tool_roundtrip`'s assistant is stamped `provider: "fireworks"` per the lane table (§12.3's note suggests "mock"; no thinking blocks, so byte-equivalent — chose the lane table).
+
+## Residual risks / concerns
+
+1. The gemspec defect is live on the integrated tree: any judge/coordinator gate that runs `gem build gems/completions/fast-completions.gemspec` from the repo root and then consumes the artifact WITHOUT my fallback will hit the empty-lib package. Fix is core's, one line (see exception file).
+2. `install_check.sh` shells out to `tar`/`grep` (present on macOS/Linux default toolchains; both runs verified locally on macOS/bsdtar).
+3. The seeding step assumes async-http is installed in the ambient gem home (it must be, for the gem's suite to run); if not, the script aborts at seed with a clear message (and the --local fallback would fail too) — the networked retry only covers an incomplete (not absent) closure.
+4. Parity capture via parsed-body re-serialization is byte-faithful for these ASCII fixtures; a future fixture with non-ASCII or unusual escaping would need a raw-capture surface on the mock (core's file) to stay byte-exact.
+
+STATUS: COMPLETE_WITH_CONCERNS
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
