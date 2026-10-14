@@ -1971,7 +1971,7 @@ project:
     ordinal: 50
     file: architecture/I50-de-bridge.md
     freeze_sha: 1facb6bbce477b3235bb57831488ebab722b1f6d
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
@@ -2002,8 +2002,75 @@ project:
     file: architecture/I51-fast-completions-gem.md
     freeze_sha: d3388fb0de28d2335c9bd787390dbfb70a7a8eb2
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: fast-llm
+      base_sha: b6ffad113c673eeb8a11d7bcc5c71f1dc87c4a0f
+      worktree: build/I51-fast-completions-gem-core/wt
+      integration_branch: main
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
+      touch_set:
+      - ".gitignore"
+      - ".rspec"
+      - Gemfile
+      - Gemfile.lock
+      - README.md
+      - gems/completions/fast-completions.gemspec
+      - gems/completions/README.md
+      - gems/completions/CHANGELOG.md
+      - gems/completions/lib/fast/completions.rb
+      - gems/completions/lib/fast/completions/version.rb
+      - gems/completions/lib/fast/completions/types.rb
+      - gems/completions/lib/fast/completions/dialects.rb
+      - gems/completions/lib/fast/completions/errors.rb
+      - gems/completions/lib/fast/completions/sse.rb
+      - gems/completions/lib/fast/completions/client.rb
+      - gems/completions/lib/fast/completions/protocol.rb
+      - gems/completions/lib/fast/completions/codec.rb
+      - gems/completions/lib/fast/completions/tool.rb
+      - gems/completions/lib/fast/completions/cancellation.rb
+      - gems/completions/lib/fast/completions/chat.rb
+      - gems/completions/spec/spec_helper.rb
+      - gems/completions/spec/support/mock_llm_server.rb
+      - gems/completions/spec/fast/completions/sse_spec.rb
+      - gems/completions/spec/fast/completions/protocol_spec.rb
+      - gems/completions/spec/fast/completions/codec_spec.rb
+      - gems/completions/spec/fast/completions/dialects_spec.rb
+      - gems/completions/spec/fast/completions/errors_spec.rb
+      - gems/completions/spec/fast/completions/client_spec.rb
+      - gems/completions/spec/fast/completions/chat_spec.rb
+      - gems/completions/spec/fast/completions/tool_spec.rb
+      - gems/completions/spec/fast/completions/cancellation_spec.rb
+      - gems/completions/spec/fast/completions/stream_cancel_spec.rb
+      integrate_sha: e29375b9222ca7f89e145d7a7b8acba089f8daf0
+    - name: harness
+      repo: fast-llm
+      base_sha: 7a665d42503b8ecae81919649fe26098894663ad
+      worktree: build/I51-fast-completions-gem-harness/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
+      touch_set:
+      - gems/completions/spec/fixtures/wire/CAPTURE.mjs
+      - gems/completions/spec/fixtures/wire/fireworks_plain.json
+      - gems/completions/spec/fixtures/wire/openai_ladder_on.json
+      - gems/completions/spec/fixtures/wire/openai_ladder_off.json
+      - gems/completions/spec/fixtures/wire/zai_on.json
+      - gems/completions/spec/fixtures/wire/zai_off.json
+      - gems/completions/spec/fixtures/wire/deepseek_on.json
+      - gems/completions/spec/fixtures/wire/tool_roundtrip.json
+      - gems/completions/spec/fixtures/wire/thinking_replay.json
+      - gems/completions/spec/fixtures/wire/reasoning_details_replay.json
+      - gems/completions/spec/fixtures/wire/cross_model_thinking_replay.json
+      - gems/completions/spec/fixtures/wire/budget_field.json
+      - gems/completions/spec/fast/completions/wire_parity_spec.rb
+      - gems/completions/script/install_check.sh
     rehearsal:
       gates_digest: 26b0f7b47113237e3034d5043bcd708eb6f431088eb46888c65dd88df142acdf
       at: '2026-10-13T20:25:49-06:00'
-  integration_branch: project/pi-port
+  integration_branch: main

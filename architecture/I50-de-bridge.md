@@ -1205,15 +1205,70 @@ absolute-path artifact, s9 = the known deep-path artifact with exit-0 equal-dept
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section de-bridge verdict --from <file>`. -->
+- **Disagreement rulings** — every PHASE 0 item ruled; gem facts re-verified cold
+  against installed ruby_llm 2.1.0 this session.
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify de-bridge`)?
+  | # | Item | Ruling | Why (one line) |
+  |---|------|--------|----------------|
+  | 1 | Belt's `@chat.cancel` residue consumption | **ACCEPT** | The belt's only consumer died with the Bridge (gem chat.rb:418-421 sets, :1193-1199 clears-on-raise — verified cold); unconsumed, the flag spuriously cancels the esc→resubmit run (observed hang), and the in-arm consume is the gem's documented reuse contract, pinned by the new 5th test. |
+  | 2 | Reaper context-split `Task.current?&.async` + off-reactor WNOHANG arm | **ACCEPT** | Frozen `Task.current.async` raises NoAsyncTaskError off-reactor while FROZEN subagents_test.rb:553 drives `Bash#execute` bare and AC4 forbids any new `Thread.new` — the three frozen constraints were unsatisfiable together; the reactor path is the frozen shape verbatim and the off-reactor arm is test-only-reachable (no production bare-thread caller exists). |
+  | 3 | bash_tool_test reactor wrap (forced re-pin) | **ACCEPT** | Forced by #2; assertions byte-unmodified; itemized per the spec's own PHASE 0 clause. |
+  | 4 | user_bash drainer-wait Cancel guard | **ACCEPT** | The frozen ensure skipped `finish` when the Cancel lands AT `drainer.wait` (probe6 ARM D re-run cold this session), violating frozen invariants (b)/(c); every frozen literal kept, the guard restores the invariants. |
+  | 5 | chat_test escape-pin drive re-pin | **ACCEPT** | The base pins passed only via cancel()'s main-thread render — an arm the frozen shape deletes; drive moved to the main-thread reactor, every assertion byte-identical, production unaffected (the kernel task runs on the TUI thread). |
+  | 6 | 5th pin (`test_run_after_an_interrupt_makes_a_fresh_request`) | **ACCEPT** | AC5's own ≥1040 arithmetic requires 5 new pins; the spec named 4; the 5th guards #1's contract — arithmetic honored, not evaded. |
+  | 7 | `dry/monads` require + mixin sweep | **ACCEPT** | Dead with the Result terminal (only uses were the deleted `case … in Success/Failure` arms); in-bounds file; zero-dep boundary respected. |
+  | 8 | probe4 not rerun | **ACCEPT** | ARM C requires the deleted Bridge; its post-de-bridge facts (Sync INLINE, overlap, fiber-local pairing) are re-proven live by the new suite pins. |
+
+- **OQ rulings.** **OQ-1 AFFIRM** (no re-key): probe4's fiber-local finding stands and the
+  new attribution pin passes with the UNCHANGED Thread.current keying under :fibers —
+  the plan's re-key would be property-neutral churn. **OQ-2 AFFIRM**: herdr.rb:113 /
+  models.rb:70 / registry.rb untouched; their "bridge" mentions verified as pi
+  extension-API / Shapes-metaphor prose; `bridge-absent` passes with them intact.
+  **OQ-3 AFFIRM (with #1's consumption)**: the belt stays per the frozen letter and
+  probe3 ARM2's silent-stream caveat; dropping it was rejected as a larger deviation
+  with no gain. **New evidence — interrupt-during-:fibers-batch latency (probe6 ARM A,
+  re-run cold: cancel→surfaced == the batch's remaining runtime)**: ACCEPTED as this
+  entry's documented latency shape — no AC or pin covers interrupt-during-batch, the
+  mechanism is the gem's own `ensure tasks&.each(&:wait)` (tool_concurrency.rb:79,
+  verified cold), and a fix would touch the gem or add machinery outside the frozen
+  shape. ROUTED to the successor program as a backlog candidate (residual risk below).
+
+- **Acceptance Criteria integrity** — `architect verify de-bridge`: (a) frozen
+  sections untouched PASS, (b) no builder commits PASS, (c) report exists PASS,
+  (d) in-bounds PASS; `git diff 1facb6bb..HEAD -- architecture/I50-de-bridge.md`
+  empty (evidence transcription only). Cold battery re-run by the judge in the lane
+  worktree (`architect gate de-bridge core`): 19/21 green; the two REDs are the
+  sanctioned layout artifacts, RE-PROVEN by the judge this session — wire-bodies:
+  the sole byte difference from golden `2ece7d4b…` is the absolute tree root inside
+  the system prompt's `<cwd>` (one occurrence, `body.messages.0.content`); path-swap
+  reproduces `2ece7d4b…` EXACTLY, tools `7360fd1e…` EXACT as captured. s9: the
+  integrated tree exits 0 at canonical depth (/tmp/i50-eqdepth) and the BASE tree
+  exits 1 at the deep path (build/i50-ctrl-base) — path-caused, not diff-caused;
+  twelve precedents now (I34–I50). Canonical-tree runs post-integration are the
+  counting gates (below).
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | bridge-absent PASS cold; ladder order Async::Cancel→CancelledError→StandardError verified in the diff; summarize ladder matches the frozen shape; classification family green in the 1040-run suite | Spec §1–§2 | PASS |
+| AC2 | debridge-units PASS cold (3 runs/17 asserts + zombie 1/2); abort pin wall<2.0, interrupted?, last_error nil, agent_end interrupted/no-error, no error message_end; existing pins green (two with sanctioned drive-only re-pins, ruled above); 5th residue pin green | Spec §7, AC2 | PASS |
+| AC3 | overlap + attribution pins green cold with unchanged Thread.current keying; session-golden PASS cold; wire-bodies worktree-RED re-proven as the sanctioned path artifact (path-swap EXACT); canonical wire run re-proven post-integration | Spec §2/§7, AC3 | PASS |
+| AC4 | threads-budget PASS cold (no +Thread.new in lib diff; reaper is a reactor task); zombie pin green; status.rb mutex fully gone (three synchronize blocks at base — the spec's "five" was a miscount, all die); output_accumulator.rb untouched | Spec §4–§5, AC4 | PASS |
+| AC5 | suite 1040 runs/4866 asserts/0 fail/1 skip cold; SEAM_BENCH_OK; s1–s8+s10 exit 0, s9 = re-proven deep-path artifact; TART_MODE_OK; TOOL_PENDING_GATE_OK; USER_BASH_STREAM_GATE_OK; scope = EXACTLY the 11 declared files, 0 untracked | Spec §7, AC5 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+- **Iteration** — **CONTINUE**. The diff is faithful to the frozen Specification's
+  intent: every deviation from the letter is a spec-internal contradiction resolved
+  minimally, itemized, and pinned by a test; the wire is byte-frozen modulo the
+  re-proven layout artifacts; the one behavioral delta beyond the frozen shape
+  (interrupt-during-batch latency) is documented and routed, not hidden. Lane `core`
+  integrates.
+
+- **Residual risks (owner-visible).** (1) Interrupt during a :fibers tool batch now
+  waits out the batch's natural completion (probe6 ARM A; was ≤5 s bridge-abort at
+  base) — successor-program backlog candidate, needs a gem-side ensure change or
+  new machinery. (2) `@chat.send(:raise_if_cancelled!)` reaches a private gem API —
+  pinned to ruby_llm 2.1.0 by the frozen Gemfile.lock; re-verify on any gem bump.
+  (3) The off-reactor bash arm (`current?&.async` fallback) is test-only-reachable
+  today; a future bare-thread production caller would take the WNOHANG poll path
+  (base-equivalent exit detection, slightly coarser). Cosmetic, frozen, never
+  amended: AC2's "EPIO/EPIPE" typo (server-side is EPIPE) and Spec §5's
+  "five synchronize blocks" (actual three).
