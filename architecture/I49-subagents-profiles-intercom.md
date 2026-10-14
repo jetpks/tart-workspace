@@ -1664,11 +1664,257 @@ Never commit. Never edit architecture/** or space.yaml. Never touch repos/pi or 
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I49-subagents-profiles-intercom-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence subagents-profiles-intercom --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# Builder report — I49 subagents-profiles-intercom, lane `core`
+
+Worktree: `build/I49-subagents-profiles-intercom-core/wt` (from frozen base
+8f5620a, branch lane/I49-subagents-profiles-intercom-core). Never committed;
+`git diff --cached` empty; diff vs 8f5620a + untracked = EXACTLY the declared
+16-file set (verified below).
+
+## File-by-file table
+
+| File | State | Lines | Content |
+|------|-------|-------|---------|
+| `lib/tart/subagents/profiles.rb` | NEW | 180 | `Profiles.discover/resolve_table/resolve` + the pi `closestMatch` port (edit distance + adjacent transposition + the `max(1, len/4)` threshold); warning diagnostics, never raises |
+| `lib/tart/subagents/supervisor.rb` | NEW | 457 | `Supervisor` constants (byte-pinned) + `apply_bridge` + `ask_timeout_ms` + `request_visible_text`/`pending_line` + `atomic_write_json`; `SupervisorChannel` (0.25s poll thread, pending registry, lifecycle sweep, T1-exact reply with the disk-first fallback, pending_text) |
+| `lib/tart/subagents/workflows.rb` | NEW | 349 | `WORKFLOW_TEMPLATES` (six frozen `Prompts::Template`, descriptions/argument-hints byte-carried from pi prompts/*.md frontmatter; contents = adapted ports, no cut-machinery tokens) + `Subagents.merge_workflow_templates` |
+| `lib/tart/tools/contact_supervisor.rb` | NEW | 189 | The child tool (SafeExecute, pi_name `contact_supervisor`, pi description byte-exact); constructor env read; request write (atomic, 64KB cap) + blocking reply poll + timeout/inert paths |
+| `lib/tart/schemas/subagents.rb` | NEW | 111 | `Schemas::Subagents::ProfileContract` (dry-validation, the I43 discipline; `validate_keys = false`) + `ProfileFields` (pinned messages); instantiated once (`PROFILE_CONTRACT`, the Schemas::Tools pattern) |
+| `lib/tart/subagents.rb` | MOD | 268 (+18) | requires (profiles/supervisor/workflows); `register` constructs + arms the SupervisorChannel (same hooks/kernel/agent as the Manager), assigns `manager.supervisor_channel`, gains additive `root:` kwarg |
+| `lib/tart/subagents/manager.rb` | MOD | 713 (+45/−8) | THE SURGICAL SITES ONLY: `attr_reader :root` + `attr_accessor :supervisor_channel`; `root:` kwarg; lookup → `Profiles.resolve`; model tier `model \|\| spec[:model]`; `Supervisor.apply_bridge(spec)`; mkdir + `control/supervisor-{requests,replies}`; `child_env` + exactly `PI_SUPERVISOR_CHANNEL` + `PI_SUBAGENTS_AGENT`; `shutdown` stops the channel last; `unknown_agent_message` retired |
+| `lib/tart/tools/subagent.rb` | MOD | 262 (+25/−12) | `reply_to` param + action enum gains reply/pending; DESCRIPTION names the profile dirs + the intercom actions; dispatch arms (nil channel → the state texts = the gate's driven bytes); safe-next-steps names the two actions |
+| `lib/tart/tools.rb` | MOD | 27 (+4/−1) | require contact_supervisor; `Tools::ALL` UNCHANGED (the seven) — doc comment now records ALL vs TOOL_CLASSES |
+| `lib/tart/tools/registry.rb` | MOD | 145 (+6/−2) | TOOL_CLASSES gains `contact_supervisor`; `build_tool` branch threads `identity:` (the Bash-branch precedent) |
+| `lib/tart/schemas.rb` | MOD | 22 (+2/−1) | the one member require + the doc-list line |
+| `bin/tart` | MOD | 625 (+11) | interactive boot: gate-on `Subagents.merge_workflow_templates(prompts.templates)` BEFORE build_surface (print boot never merges — it never loads Prompts) |
+| `README.md` | MOD | 532 (+91/−5) | §Subagents extended: profiles (dirs/field table/precedence/example), the intercom (reasons, reply/pending, ask-timeout env, channel layout), the six templates + gate-on merge, the OQ-9 cut pointer; Timeouts/Print-mode paragraphs preserved |
+| `test/subagents_test.rb` | MOD | 500 (+113/−9) | the enumerated re-pins ONLY (argv `--tools` tail, sanctioned env set + two new keys' values, system-prompt.md bridge tail, unknown-agent merged-table shape) + NEW: staged-profile spawn pins (model routing, tools order + union, prompt body), call-model-beats-profile, root kwarg + channel accessor + register arms, registry-validation pin. 27 → 31 runs |
+| `test/subagents_profiles_test.rb` | NEW | 314 | discovery/precedence/contract accept-reject table/diagnostics/resolve/unknown-agent/hermeticity + a staged-root spawn integration pin — 15 runs |
+| `test/subagents_intercom_test.rb` | NEW | 810 | constants bytes (BRIDGE_INSTRUCTION vs a transcribed pi literal), apply_bridge, child tool in-process (progress shape/atomicity, validation, 64KB, short-timeout, reply consumption, inert), channel in-process (surface bytes/display/kick/ONCE, interview block, progress-never-surfaces, lifecycle sweep incl. terminal-run + expiry + resolved, T1 wrong-address + blank, pending shapes, poison files), ROUND TRIP channel-form (real print child unblocks; next captured request carries `**Reply from supervisor:**`), ROUND TRIP parent-loop form (REAL `Agent::Loop`; the kick's `wake` delivers the ask as the NEXT request's user-role text with the reasonHeading + reply hint), parent-tool reply/pending, workflow-template pins — 24 runs |
+
+Total new lib lines: 1,286 across 5 new files; +45/−8 in manager.rb (the
+surgical bound); suite 994 → 1037 runs (+43).
+
+## Verification transcript (tails, all in THIS worktree unless noted)
+
+```
+$ bundle install --quiet && bundle exec rake
+1037 runs, 4783 assertions, 0 failures, 0 errors, 1 skips        # base 994 runs / 1 skip — count only went UP, the skip unchanged
+
+$ bundle exec ruby bench/seam_bench.rb
+SEAM_BENCH_OK
+
+$ bash tmp/i49-spec/gate-units.sh   # the EXACT frozen subagents-profiles-units literal
+WORKFLOW_TEMPLATES_OK
+PROFILES_OK
+BRIDGE_SPAWN_OK
+CHANNEL_OK
+CHILD_TOOL_OK
+SUBAGENTS_PROFILES_UNITS_OK
+
+$ bash gate-session-golden.sh
+SESSION_GOLDEN_OK
+
+$ bundle exec ruby -Itest test/subagents_e2e_test.rb     # legs A–D (the e2e lane owns E/F)
+4 runs, 77 assertions, 0 failures, 0 errors, 0 skips      # exit 0, i48-e2e marker present
+
+# s-gates (tmux 3.8, HERDR_* scrubbed, canonical out dirs tmp/parity-gate-s*):
+s1_text_turn=>0  s2_tool_turn=>0  s3_tool_turn_files=>0  s4_bash_variants=>0
+s5_bash_truncation=>0  s6_long_calls=>0  s7_compaction=>0  s8_zero_usage_compaction=>0
+s9_startup_help=>0  s10_editor_wrap=>1   # the KNOWN deep-path artifact (below)
+s1_tart.yml => TART_MODE_OK
+tool-pending-probe  => TOOL_PENDING_GATE_OK
+user-bash-stream-probe => USER_BASH_STREAM_GATE_OK
+
+$ git diff --name-only 8f5620a  (+ git ls-files --others --exclude-standard)
+README.md bin/tart lib/tart/schemas.rb lib/tart/subagents.rb lib/tart/subagents/manager.rb
+lib/tart/tools.rb lib/tart/tools/registry.rb lib/tart/tools/subagent.rb test/subagents_test.rb
++ untracked: lib/tart/schemas/subagents.rb lib/tart/subagents/profiles.rb
+lib/tart/subagents/supervisor.rb lib/tart/subagents/workflows.rb
+lib/tart/tools/contact_supervisor.rb test/subagents_intercom_test.rb
+test/subagents_profiles_test.rb          # = EXACTLY the 16 declared files; nothing staged
+```
+
+### wire-bodies — the frozen digests and the equal-depth control (the ten-precedent class)
+
+The gate literal normalizes only the RELATIVE sandbox substring, but the
+system prompt's `<cwd>` section carries the ABSOLUTE path (macOS
+`/private/...` resolved), so the request-body digest is LOCATION-sensitive:
+
+| Run | Location | Body digest (gate's normalization) |
+|-----|----------|-------------------------------------|
+| frozen gate | repos/tart (judge's canonical) | `2ece7d4b…` (declared) |
+| base 8f5620a | `/tmp/t49wire-ctl` | `226f46a4ca55b2e9d908e943ed8e039fd19b6fa203bf7715ec8bd300a9fc105e` |
+| THIS lane's tree | `/tmp/t49wire-ctl` (SAME path, rsynced over base) | `226f46a4ca55b2e9d908e943ed8e039fd19b6fa203bf7715ec8bd300a9fc105e` — **IDENTICAL to base** |
+| THIS lane's tree | the deep lane worktree | `b04e6ffe0f5a933c9f47ee954edc5c085a2e8a07b43c471a9fd2b7cde584bd46` |
+
+The equal-depth/same-location control proves the diff is WIRE-NEUTRAL at
+default-off: base and this tree hash byte-identically at one path; the
+residual delta vs the frozen literal is purely the absolute-path artifact.
+The TOOLS digest is path-independent and matches the frozen value EXACTLY:
+`7360fd1ec6419b5f9966c3067588314cdd0d29231a78346443a0002923c23707` ✓.
+
+### s10 (and the s9-class artifact)
+
+s10_editor_wrap exits 1 in the deep lane worktree; the rig's own report
+attributes the unified diff to `parity-run-path` — the run path appears in
+the status line and its length re-wraps the footer (same content, different
+wrap column). Equal-depth control (`/tmp/t49wire-ctl`, this tree): **exit 0**.
+`git diff 8f5620a` touches NOTHING under `lib/tart/render/**` or tui. The
+ten-precedent class (I34–I48); the judge re-runs on the integrated tree.
+
+### subagents-profiles-units — one researched repair story (pre-green)
+
+The gate initially failed at its line 211 (`channel.reply(reply_to:
+child_ask["id"])` → "No pending supervisor request found"): the child's ask
+file lands between the channel's 0.25s scan ticks, and the gate's file-poll
+answers FASTER than the poller registers (reproduced deterministically with
+scan-decision instrumentation). PHASE 0 resolution below (item 2). After the
+disk-first fallback the gate is green end to end, all five sub-checkpoints.
+
+## PHASE 0 disagreements (researched, itemized)
+
+1. **The gate's forbidden-token list is stricter than Spec §7's prose.**
+   Spec §7 pins the absence of "`action: "guide"`"; the frozen gate literal
+   is `%w[workflow: runs.all runs.run action: "guide" bg_wait]`, and `%w`
+   splits it into SIX tokens including bare `action:` and `"guide"`.
+   Consequence: no template content may contain the substring `action:` AT
+   ALL (so the templates cannot even teach `action: "status"`). RESOLVED:
+   complied with the stricter reading (it satisfies both readings); all six
+   templates teach only the spawn idiom `subagent({ agent: …, task: …,
+   async: true })`. Cite: architecture I49 ```gates``` 
+   `subagents-profiles-units`; Spec §7.
+
+2. **`#reply` needed a disk-first fallback (gate-necessitated; itemized as
+   the one Spec §4.3 interpretation).** Spec §4.3: "the target must be a
+   PENDING request id — else ArgumentError". Read against the registry
+   ONLY, the frozen gate is mechanically racy: it polls the request FILE
+   (0.1s cadence) and replies the moment it appears, while the channel's
+   0.25s poll can be up to one tick behind (reproduced: reply raced the
+   registration and lost). RESOLVED: a registry miss falls back to an
+   EXACT-id disk lookup (`<home>/*/control/supervisor-requests/<id>.json`,
+   path-unsafe ids rejected, lifecycle must still be pending); the T1
+   negatives keep pi's byte-exact errors — a run id, an agent name, a
+   stale/prefix id name NO request file anywhere and still raise
+   `No pending supervisor request found for reply_to '<x>'.`; blank
+   message still raises first. No fuzzy matching exists (OQ-5 held). This
+   is the channel's own disk-first rule (T3) applied to the reply path;
+   itemized for judge adjudication. Cites: Spec §4.3; gates line 211;
+   Grounds §4 T1.
+
+3. **Interview JSON indentation: 2-space (port) vs pi's tab.** pi
+   `requestVisibleText` emits `JSON.stringify(request.interview, null,
+   "\t")`; the frozen Spec §4.4 says `<interview JSON, 2-space indented>`.
+   The spec is the authority → `JSON.pretty_generate` (2-space). Deviation
+   from pi MANDATED by the spec. Cite: Spec §4.4 vs native-supervisor-
+   channel.js:459-478.
+
+4. **The 64KB cap checks the port's own serialization.** pi checks
+   `JSON.stringify(request, null, "\t")`; the port writes
+   `JSON.generate` (the house atomic-write idiom) and checks THAT byte
+   count, so the exact boundary byte differs by formatting. The observable
+   contract (error `Supervisor request is too large.` + no file written)
+   is identical; the test blows past the boundary under any formatting
+   (70KB message). Cite: native-supervisor-channel.js:150-152.
+
+5. **Reply messages are trimmed (pi byte-behavior; spec silent).**
+   pi `writeReply` trims (`message.trim()`) for both the blank check and
+   the stored message; the port does the same. Cite:
+   native-supervisor-channel.js:484-493.
+
+6. **Profile spec-hash `context` uses the builtin table's SYMBOLS.**
+   The contract validates `"fresh"|"fork"` strings (Spec §2); the built
+   spec hash maps to `:fork`/`:fresh` because Spec §1 defines the hash as
+   "the I48 builtin shape" and the Manager's fork check reads
+   `spec[:context] == :fork` (manager.rb, I48-frozen). Cite: Spec §1/§2;
+   manager.rb `forked = spec[:context] == :fork`.
+
+7. **The unknown-agent closest-match threshold is pi's, not just
+   "Levenshtein".** Spec §1 says "Levenshtein-closest … when no close
+   match, the sentence is omitted" without a threshold. Ported pi's
+   `closestMatch` verbatim: distance ≤ `max(1, candidate.length / 4)` OR a
+   single adjacent transposition, ties by distance then name. Cite:
+   pi-subagents src/shared/edit-distance.js:26-34.
+
+8. **The subagent tool's nil-channel reply/pending results are the STATE
+   texts.** Spec §6: "channel absent (a Manager built without register —
+   tests) → the error result naming the state"; the frozen gate drives a
+   BARE Manager and expects `execute(action: "pending") ==
+   "No pending supervisor requests."` and `execute(action: "reply",
+   reply_to: "nope")` → `{error: "No pending supervisor request found for
+   reply_to 'nope'."}`. With no channel nothing can be pending, so the
+   state error IS those bytes. Implemented exactly; no lazy channel
+   construction was added (Spec §3f keeps a plain attr_accessor).
+
+9. **Additive seams beyond the letter's minimum, all defaulted and
+   itemized:** `Manager` also gains `attr_reader :root` (pins the
+   resolution root); `Subagents.register` gains `root:` (nil →
+   `Agent::Session.default_root`) so tests/hermetic boots can stage the
+   profile tier. Both follow the I48 precedent of additive defaulted
+   kwargs beside the frozen surface (the register doc's own PHASE 0
+   note). No frozen positional order changed.
+
+10. **Scan-time lifecycle disposal.** Spec §4.3 defines the lifecycle
+    sweep over the pending REGISTRY; pi's poll ALSO disposes never-to-be-
+    registered files at first sight (progress; resolved/expired/inactive
+    — `cleanupRequestLifecycle`). Implemented pi's shape: a synthetic
+    stale/expired/terminal ask is unlinked at its first scan without ever
+    surfacing (pinned by test). Cite: native-supervisor-channel.js
+    poll()+requestLifecycle.
+
+## OQ notes (Grounds §8 — evidence additions, no overrides)
+
+- **OQ-1 (surgical bound)**: the manager.rb diff is exactly the nine
+  enumerated sites (see the table); `git diff 8f5620a --
+  lib/tart/subagents/manager.rb` shows +45/−8 lines total, nothing in the
+  §2.7 driven surface, run-dir layout beyond the two control subdirs,
+  steer/stop inboxes, deadline/watcher/reconcile/notify/wake. The existing
+  I48 battery passes with only the enumerated re-pins — the
+  mounting-boundary proof (27 of its tests byte-unchanged).
+- **OQ-2 (both tiers)**: shipped; pinned (recursive, dotfile/non-md
+  ignored, project wins same-name, builtin overlay).
+- **OQ-3 (`subagent_supervisor_request`)**: byte-pinned.
+- **OQ-4 (one tool)**: reply/pending ride `subagent`; the separate wire
+  tool is cut.
+- **OQ-5 (no fuzzy matching)**: held — the disk-first fallback matches
+  EXACT ids only; every T1 negative is pinned byte-exact.
+- **OQ-6 (tolerated keys)**: pinned with
+  systemPromptMode/inheritProjectContext/allowNestedSubagents/aliases/
+  acceptanceRole/machine in one profile; itemized in the contract's doc
+  comment.
+- **OQ-7 (no new command surface)**: the merge rides prompts.templates
+  before build_surface; autocomplete/MOTD/expansion come free; print
+  never merges.
+- **OQ-8 (delivery semantics)**: the channel queues + kicks exactly like
+  completions; kernel/agent nil = queue only (pinned); the wake turn
+  delivers the ask as user-role wire text (the parent-loop pin).
+- **OQ-9 (cut list)**: documented in README's cut pointer.
+
+## Status
+
+COMPLETE_WITH_CONCERNS:
+1. PHASE 0 item 2 (the `#reply` disk-first fallback) awaits judge
+   adjudication — it is what makes the frozen `subagents-profiles-units`
+   literal pass AS WRITTEN (reproduced race otherwise); if ruled a
+   deviation, the alternative is a one-line gate-literal repair (poll for
+   the pending registration before replying), not a machinery change. All
+   T1 negative bytes are unaffected either way.
+2. `wire-bodies`' request-body digest is environment-baked (the `<cwd>`
+   absolute path); locally it cannot match the frozen literal anywhere
+   except the judge's canonical tree — the same-location equal-depth
+   control (base == this tree, byte-identical `226f46a4…`) is the recorded
+   proof of wire-neutrality, and the tools digest matches the frozen value
+   exactly. The judge re-runs at repos/tart where the frozen digests hold.
+
+All other gates green in this worktree: suite 1037 runs / 0 failures /
+1 base skip; SEAM_BENCH_OK; SESSION_GOLDEN_OK; subagents-profiles-units
+green end-to-end; s1–s9 exit 0; s10 exit 1 only at depth (the rig's own
+`parity-run-path` attribution; equal-depth control exit 0); TART_MODE_OK;
+both probes OK; e2e legs A–D green (4 runs, 77 assertions); diff +
+untracked = exactly the 16 declared files; nothing staged, never
+committed.
 
 ## Verdict
 
