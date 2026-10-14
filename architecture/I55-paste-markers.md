@@ -1410,15 +1410,122 @@ STATUS: COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section paste-markers verdict --from <file>`. -->
+# Verdict — I55 paste-markers (judged cold, fresh session)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify paste-markers`)?
+Mechanical post-flight: `architect verify` 4/4 PASS (frozen untouched, zero
+builder commits, report present, in-bounds); freeze 5146159d unchanged in
+Grounds/Specification/AC (the only post-freeze delta is the Builder Prompt +
+this Report/Verdict, both sanctioned sections); `git -C wt log e61cb78..`
+empty — all work uncommitted, exactly the 10 declared files.
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+Cold gates, two contexts: (a) integration repo at base e61cb78 — all 16
+standing battery gates PASS (suite 1056 runs, bench, s1–s10, s1_tart, both
+probes, thinking-pins, hermeticity, lock-deps, zai-data, threads-budget,
+wire-delta with I52's exact digests, session-golden 7/7); the 7 new-feature
+gates FAIL at base exactly as designed (s14 is RED-at-base by Grounds §4.3).
+(b) lane worktree — every gate drowns in the documented worktree-depth
+bundler artifact (`env -u FAST_COMPLETIONS_PATH bundle install` cannot
+resolve the Gemfile's relative fast-llm path from the worktree; reproduced
+this session; tart never boots). The lane context is not a valid gate
+context for this repo; the builder ran the frozen gate bytes verbatim in the
+worktree WITH the path exported (I54 lane-report precedent) and the
+canonical post-integration run below is the operative confirmation. One
+judge-side effect, noted for the record: my worktree gate run overwrote the
+builder's kept tmp/parity-gate-s{14,15} artifacts (tart side empty from the
+failed boot; pi's marker row intact; tmp/base-red-s14 untouched and still
+proving the RED-at-base arm).
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+## Gate table + adjudications
+
+| gate | base | ruling |
+|---|---|---|
+| paste-units | FAIL | Lane run green (18 runs ≥ 12 + /insert_paste/ re-run 2/2); diff matches D1/D2/D3 letter; post-integration run confirms. PASS |
+| paste-undo-units | FAIL | Lane green (4 ≥ 3 + /paste/ re-run); Snapshot carries pastes/paste_counter, undo restores (D4). PASS |
+| submit-units | FAIL | Lane green (4 ≥ 4 + /multi_line_paste/ re-run); the seam is exactly two read lines (D5). PASS |
+| rig-knobs | FAIL | Lane green (5 ≥ 3; full scenario_test 40 runs); no-knob branch is the byte-identical single send-keys call (diff-verified). PASS |
+| s14-display | FAIL | RED-at-base proven both ways (base capture shows the raw 12 lines; pi shows the calibrated marker). Post-integration green. PASS |
+| s15-wire-session | FAIL | Lane green: 1 request/app, exact 12-line user content shape-normal for pi, zero marker bytes, session records expanded text. PASS |
+| scope | FAIL | The frozen `e61cb78..HEAD` literal is vacuous pre-integration (builders never commit); worktree-form scope check SCOPE_OK 10 files; the literal is operative on the integrated tree below. PASS |
+| suite/bench/s1–s10/s1_tart/probes/thinking/hermeticity/lock-deps/zai-data/threads-budget/wire-delta/session-golden | PASS | Standing battery green at base and green with the lane's code in the lane run (suite 1087 = 1056 + the 31 new pins); s9's in-lane exit 1 is the known deep-path wrap artifact (12+ precedents) with the canonical-depth control green driving the lane's code — accepted. PASS |
+
+## PHASE 0 rulings (all seven itemized deviations)
+
+1. Suffix-less renumber renders empty, not pi's literal "undefined" —
+   ACCEPT. The spec's frozen D3 letter ("suffix preserved verbatim")
+   governs; pi's `${suffixGroup}` on a suffix-less (hand-typed) marker emits
+   the bytes "undefined" — a bug, not behavior; every port-generated marker
+   carries a suffix, so the edge is hand-typed-only and disclosed.
+2. PASTE_MARKER_SINGLE carried but runtime-unused — ACCEPT. D1 freezes the
+   constant as the shape pin; the standing I35 char-unit reduction realizes
+   the deletion arms offset-based; spec-required, unused-by-design.
+3. Paste-over renumber runs after the content splice (spec-literal order) —
+   ACCEPT. D2 step 2 freezes that order; no pi analog exists to arbitrate
+   (OQ-1 territory); marker-shaped bytes in expanded content renumbering is
+   an unpinned, in-code-documented edge; the unit pins use marker-free
+   content.
+4. Scope gate's frozen `e61cb78..HEAD` vacuous pre-integration — ACCEPT.
+   Builders never commit (standing rule); the worktree-form check ran
+   alongside and the frozen literal runs on the integrated tree.
+5. Worktree-depth artifacts (s9 wrap; wire-delta sha reproducing only at
+   canonical out depth; lock-deps `env -u` leg exit 13) — ACCEPT. 12+
+   precedents; every control at canonical depth driving the LANE's rig and
+   tart is green; the canonical post-integration run is the operative
+   record.
+6. Self-caught hand-retyped session-golden false alarm, frozen bytes re-run
+   green — ACCEPT. The exact failure mode the never-retype rule exists for;
+   honestly reported; the final run used the extracted frozen bytes.
+7. Mid-implementation fix to the post-renumber re-read (pi :1419) — ACCEPT.
+   Verified against the pi oracle this session: pi re-reads the line after
+   the renumber and deletes by the STALE cursorCol arithmetic — the port now
+   matches, pinned by test 17.
+
+## Open questions
+
+- OQ-1 (paste-over realization): ACCEPT the spec's ruling — expand-then-
+  process (the insert_multiline splice shape, cursor at the expanded tail),
+  registry drop with the D3 renumber discipline, the new paste then running
+  the normal path, ONE undo unit. The owner's one-line claude-code reference
+  carries no letter to diff against and pi has no analog (grep-confirmed);
+  the realization is minimal, composes with the existing splice, and the
+  unit pins ARE the contract (tests 11–14, 20) — a rig scenario can never
+  pin the port's own arm.
+- OQ-2 (forward-delete without registry cleanup): ACCEPT as deliberate
+  parity, not an oversight. Verified this session: pi's forward-delete
+  atomicity comes from segmentWithMarkers (registry-validated) and the
+  registry cleanup exists ONLY in the backspace arm; the stale entry is
+  inert because expansion is marker-driven. The port pins the quirk as such
+  (test 18: `expanded_text == input` after the span delete).
+- OQ-3 (expected_requests → non-negative): ACCEPT. Additive shared-
+  instrument change: 0 is meaningful only for paste-only flows (s14),
+  negative still rejected, no existing scenario's value changes (s1–s10
+  untouched and green), the full scenario_test passes, and the relaxation
+  carries its own knob pins (test 31).
+
+## AC scores
+
+- AC1 PASS — D1–D4 letter confirmed against pi editor.ts @ f1b2e77f
+  (per-id suffix-agnostic expansion with replacer function; ASCII-`\w`
+  path guard; JS-split trailing-empty counting; the stale-cursorCol
+  post-renumber arithmetic; segmentWithMarkers-based forward-delete); 18
+  multiline + 4 undo pins against floors 12/3.
+- AC2 PASS — exactly the two submit read lines change; dequeue/Chat#input/
+  autocomplete stay raw (pi :4753 verified); 4 chat pins + the s15 live pin.
+- AC3 PASS — knobs validated at load, no-knob path byte-frozen, 5 rig pins,
+  full scenario_test 40 runs green.
+- AC4 PASS — s14 RED-at-base proven (base capture keeps the raw lines; pi
+  shows the calibrated `[paste #1 +12 lines]`); s15 green with the exact
+  wire content shape-normal for pi's parts array (the I54-s12 precedent
+  applied exactly as frozen); session records the expanded text — backlog
+  item f's pin. Calibration confirmed cold on the integrated tree.
+- AC5 PASS — standing battery green at base and with the lane's code; the
+  owner's frozen digests (wire instruction/tools, session 7/7) unmoved.
+- AC6 PASS — integrated diff is exactly the 10 declared files,
+  non-vacuous; no existing scenario/golden/fixture/registry touched
+  (verified in the diff and the frozen scope gate on the integrated tree).
+
+Standing rulings honored: existing scenarios' wire/session bytes unmoved;
+s14/s15 are NEW scenarios with fresh baselines; the paste-over arm is
+unit-pinned only as the PORT's own behavior; landing stays human (integrate
+only, nothing pushed).
+
+Verdict: CONTINUE — lane `core` integrated.
