@@ -2327,7 +2327,10 @@ project:
   - name: render-perf
     ordinal: 58
     file: architecture/I58-render-perf.md
-    freeze_sha:
+    freeze_sha: 62cfabb530d43902e91418c29cebf99cfe99d459
     verdict: pending
     lanes: []
+    rehearsal:
+      gates_digest: 5ce47fe2bcc197fdbb7d97ebbd4f409310f6261ffcb3c8cf3530d5a93145a0c5
+      at: '2026-10-14T17:08:36-06:00'
   integration_branch: project/pi-port
