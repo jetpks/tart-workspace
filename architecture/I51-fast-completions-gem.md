@@ -1108,15 +1108,20 @@ core-then-e2e pattern). The AC's integrated-tree gates run after both.
 
 # Acceptance Criteria — I51 fast-completions-gem
 
-Gate calibration (pre-declared): **EVERY capability gate is RED at base
-BY DESIGN** — repos/fast-llm at base `b6ffad1` contains only the
-placeholder README; nothing named by these gates exists there. All gates
+Gate calibration (pre-declared): **every capability gate is RED at base
+BY DESIGN — except the negative `no-catalog` pin, GREEN at base by
+ABSENCE (nothing exists to grep; it is non-vacuous only on the
+integrated tree, where lib/ exists and the greps run against real
+content)** — repos/fast-llm at base `b6ffad1` contains only the
+placeholder README; nothing named by these gates exists there. `scope`
+FAILS at base too (the declared set does not exist — the vacuous-diff
+abort is the base red). All gates
 run on the INTEGRATED tree (after lanes `core` then `harness` merge, in
 that order — Specification §15). `wire-fixtures-digests` is a pure-data
 gate (green in any worktree that carries the correct fixture bytes).
-The judge re-runs every gate cold from `repos/fast-llm`. Scope is
-vacuously OK at base (empty diff vs `b6ffad1`) and MUST be non-vacuous
-on the integrated run. This entry's repo is fast-llm ALONE — repos/tart
+The judge re-runs every gate cold from `repos/fast-llm`. Scope is RED
+at base by design and MUST be exact + non-vacuous on the integrated
+run. This entry's repo is fast-llm ALONE — repos/tart
 is read-only grounding (the provision/verify machinery enforces the
 repo boundary; no tart gate is this entry's to run).
 
@@ -1249,7 +1254,10 @@ own check); the placeholder README is replaced by the real root README
   ac: AC1
   cwd: repos/fast-llm
   cmd: |-
-    bundle install --quiet && bundle exec rspec 2>&1 | tail -3
+    bundle install --quiet
+    out=$(bundle exec rspec 2>&1); ec=$?
+    printf "%s\n" "$out" | tail -3
+    exit $ec
   expect:
     exit_code: 0
     stdout_match: 0 failures
@@ -1289,7 +1297,9 @@ own check); the placeholder README is replaced by the real root README
   ac: AC2
   cwd: repos/fast-llm
   cmd: |-
-    bundle exec rspec gems/completions/spec/fast/completions/wire_parity_spec.rb 2>&1 | tail -3
+    out=$(bundle exec rspec gems/completions/spec/fast/completions/wire_parity_spec.rb 2>&1); ec=$?
+    printf "%s\n" "$out" | tail -3
+    exit $ec
   expect:
     exit_code: 0
     stdout_match: 0 failures
@@ -1298,7 +1308,9 @@ own check); the placeholder README is replaced by the real root README
   ac: AC3
   cwd: repos/fast-llm
   cmd: |-
-    bundle exec rspec gems/completions/spec/fast/completions/stream_cancel_spec.rb 2>&1 | tail -3
+    out=$(bundle exec rspec gems/completions/spec/fast/completions/stream_cancel_spec.rb 2>&1); ec=$?
+    printf "%s\n" "$out" | tail -3
+    exit $ec
   expect:
     exit_code: 0
     stdout_match: 0 failures
@@ -1307,6 +1319,7 @@ own check); the placeholder README is replaced by the real root README
   ac: AC4
   cwd: repos/fast-llm
   cmd: |-
+    set -e
     ruby -e '
       spec = Gem::Specification.load("gems/completions/fast-completions.gemspec")
       abort "gemspec failed to load" unless spec
@@ -1314,7 +1327,7 @@ own check); the placeholder README is replaced by the real root README
       abort "runtime deps must be exactly [async-http ~> 0.95], got #{deps.inspect}" unless deps == [["async-http", "~> 0.95"]]
       puts "DEP_PIN_OK"
     '
-    ! grep -ri faraday --exclude-dir=.git . | grep -q . || { echo "FARADAY PRESENT"; exit 1; }
+    if grep -ri faraday --exclude-dir=.git . | grep -q .; then echo "FARADAY PRESENT"; grep -ri faraday --exclude-dir=.git . | head -5; exit 1; fi
     echo NO_FARADAY_OK
   expect:
     exit_code: 0
@@ -1357,6 +1370,7 @@ own check); the placeholder README is replaced by the real root README
   ac: AC6
   cwd: repos/fast-llm
   cmd: |-
+    if [ ! -f gems/completions/script/install_check.sh ]; then echo "install_check.sh missing"; exit 1; fi
     bash gems/completions/script/install_check.sh
   expect:
     exit_code: 0
