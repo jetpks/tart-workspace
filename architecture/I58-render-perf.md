@@ -285,6 +285,20 @@ ONE lane `core` — chat.rb + loop.rb are co-designed with the probe that
 measures them, and the suite re-pins touch the same files; no disjoint
 file sets are provable (I54-I57 single-lane precedent).
 
+```lanes
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/core/loop.rb
+    - lib/tart/render/chat.rb
+    - test/chat_test.rb
+    - test/loop_test.rb
+    - test/render/render_perf_test.rb
+    - test/support/render_perf_probe.rb
+    - gems/tui-split-rig/bin/render-perf-probe
+  effort: high
+```
+
 ### Tool guidance (exact verification)
 
 - Battery (standing 23 + 3 new gates; assembled programmatically in
