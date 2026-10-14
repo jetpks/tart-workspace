@@ -1019,10 +1019,144 @@ scenario/golden/fixture/registry file is touched.
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I55-paste-markers-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section paste-markers prompt --append --lane <lane> --from build/I55-paste-markers-<lane>/prompt.md`. -->
+### core
+
+# Builder Prompt — I55 paste-markers, lane `core`
+
+You are lane `core` of iteration I55 (paste-markers), freeze
+`5146159d979599fd74c75e9754ab663319d15c0e`, repo **tart** (your
+worktree; branch `lane/I55-paste-markers-core`). The frozen iteration
+file is `architecture/I55-paste-markers.md` in the space — Grounds,
+Specification, Acceptance Criteria are read-only truth; § cites below
+are that file's. Identical space-staged copies sit at
+`build/I55-paste-markers-core/{grounds,specification,
+acceptance-criteria}.md`.
+
+## Mission
+
+Close the owner's problems.md item 8: pasted content handling — a large
+paste (> 10 lines OR > 1000 chars, strictly greater, over the FILTERED
+text) stores the full text in an editor paste registry and inserts ONLY
+a `[paste #1 +12 lines]`-style marker at the cursor (pi editor.ts
+:1302-1317); submit expands markers (submitValue :1364-1377 → the wire,
+the session, history, and the queues all receive the EXPANDED text; the
+marker is display-only); backspace over a marker deletes it atomically
+with registry cleanup + renumber (:1395-1420); plus the two niceties in
+the same path (non-printable filtering already exists; the path-prefix
+space rule :1290-1299 is NEW). Plus the OWNER'S SANCTIONED DEVIATION:
+pasting again immediately OVER a marker (a valid marker ending exactly
+at the cursor) replaces it with its full text inline — the claude-code
+behavior, pi has NO analog, unit-pinned only (never rig-pinned). Plus
+the rig instrument to pin it end to end: two knobs
+(`paste:`/`submit:`) and two NEW scenarios (s14 display, s15
+submit-wire-session).
+
+## THE LAWS YOU MUST INTERNALIZE (Grounds + Specification, condensed)
+
+1. **No golden moves.** NOT ONE wire byte of the existing scenarios may
+   change; new behaviors get NEW scenarios (s14/s15) with fresh
+   baselines, NEVER edits to s1–s10/s1_tart/probes/registry/differ/
+   fixtures. The wire-delta + session-golden gates are byte-frozen
+   (I52/I54's exact literals — adopted verbatim in the AC block; never
+   retype them).
+2. **The marker bytes are frozen by live calibration** (Grounds §4.2):
+   12 pasted lines render EXACTLY `[paste #1 +12 lines]` in pi's editor
+   — the spec's D7 paste block (12 short ASCII lines, no trailing
+   newline) is the s14/s15 content, byte for byte.
+3. **Expansion is id-driven, suffix-agnostic, BLOCK-form gsub only**
+   (Spec D1): paste content containing `\1`/`\\`-shaped bytes must
+   expand verbatim (pi's replacer-function parity); a hand-typed marker
+   whose id is in the registry expands (pi quirk — pin it).
+4. **The paste-over arm is expand-then-process, ONE undo unit**
+   (Spec D2 step 2): the old marker's span is replaced by its registry
+   content inline (the insert_multiline splice, cursor at the expanded
+   tail), the entry drops with the backspace renumber discipline
+   (contiguity 1..n preserved), and the NEW paste then runs the normal
+   path (normalize/filter → path-space reading the POST-expansion line →
+   large-check).
+5. **Forward delete over a valid marker removes the whole span and
+   leaves the registry UNTOUCHED** (pi handleForwardDelete :1792-1800 —
+   pi's exact quirk; deliberate parity, not an oversight; pin it as
+   such). Backspace is the arm WITH cleanup + renumber (:1395-1420).
+6. **The submit seam is the ONLY surface change** (Spec D5): `submit`
+   (chat.rb:994) and `submit_follow_up` (:1052) read
+   `@editor.expanded_text.dup.strip`; everything downstream is then
+   pi-parity automatic. Do NOT "fix" the raw readers:
+   `dequeue_queued_messages` (:1122) joins RAW editor text through
+   `set_text` (pi interactive-mode.ts:4753 — a live marker dies as
+   literal text there; pin that behavior), `Chat#input` (:332), and the
+   autocomplete seam stay raw. NO change under `lib/tart/agent/**` or
+   session recording — the text is expanded at the surface seam.
+7. **Undo carries the registry** (Spec D4): the Snapshot struct gains
+   `pastes` + `paste_counter`; push deep-copies; undo restores them.
+   `set_text`/`clear` clear the registry AFTER the push-if-differs
+   (pi setText :1124-1125 order — undo restores the old registry).
+8. **The rig's no-knob path is byte-frozen** (Spec D6): with `paste`
+   absent and `submit` true (every pre-existing scenario) the runner
+   sends EXACTLY today's single `tmux send-keys <prompt> Enter` call
+   (runner.rb:124) — do not split or reorder it; the s1–s10 battery is
+   the regression net. The paste knob is `tmux load-buffer` +
+   `paste-buffer -p` (bracketed wrap — live-calibrated) with a
+   token-scoped buffer name; `expected_requests` validation relaxes to
+   NON-NEGATIVE (0 for paste-only flows; negative still rejected); the
+   knob tests are named `test_paste_knob_*`/`test_submit_knob_*`/
+   `test_expected_requests_zero_*`.
+9. **Test names are gate contracts** (Spec D8): editor_multiline tests
+   match `/paste_marker|expanded_text|paste_over|path_prefix/` (floor
+   12), editor_undo tests match `/marker/` (floor 3), chat tests match
+   `/paste_marker/` (floor 4). The AC gates grep exactly those.
+
+## Boundaries (frozen — the lane's whole touch set)
+
+May touch ONLY: `lib/tart/render/editor.rb`,
+`lib/tart/render/chat.rb`,
+`gems/tui-split-rig/lib/tui_split_rig/scenario.rb`,
+`gems/tui-split-rig/lib/tui_split_rig/runner.rb`,
+`gems/tui-split-rig/scenarios/s14_paste_marker_display.yml` (NEW),
+`gems/tui-split-rig/scenarios/s15_paste_marker_submit.yml` (NEW),
+`gems/tui-split-rig/test/scenario_test.rb`,
+`test/render/editor_multiline_test.rb`,
+`test/render/editor_undo_test.rb`, `test/chat_test.rb`. Must NOT touch:
+everything else — `lib/tart/agent/**`, session recording, `bench/`,
+`test/support/mock_llm_server.rb`, `registry.yml`, every existing
+scenario/golden/fixture, the probe scripts, README, transcript.rb,
+motd.rb, repos/fast-llm, repos/pi. No new `Thread.new` in lib.
+
+## Verification (run cold, from your worktree root)
+
+- `bundle install --quiet && bundle exec rake` — the suite (all new
+  tests ride it; the rig's scenario_test is part of the suite).
+- `bundle exec ruby bench/seam_bench.rb | tail -1` → SEAM_BENCH_OK.
+- Rig, per scenario:
+  `env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<name>.yml --out tmp/<dir>`
+  — s1–s10 exit 0, s1_tart exits 1 by design (assert TART_MODE_OK per
+  the AC gate), s14 exit 0 with the marker row in BOTH captures and no
+  pasted-content row, s15 exit 0 with the request-log + session asserts
+  the AC gate encodes. Baseline s14/s15 fresh (first green captures are
+  the goldens). s14 is RED-at-base BY DESIGN (base tart shows the raw
+  lines — Grounds §4.3); after your editor work it goes green.
+- Both probes `--gate`. The full AC gate list is the frozen ```gates
+  block — your lane's own cold pre-report run should mirror it.
+- s9 in your LANE WORKTREE may exit 1 with the KNOWN deep-path
+  staged-path wrap artifact (12+ precedents; the canonical-depth run is
+  the truth). Do not chase it in-lane; report it.
+
+## Report + discipline
+
+Report at `build/I55-paste-markers-core/report.md`: per-AC results with
+exact commands + tail outputs, the s14/s15 out dirs, the new-test
+inventory (file, name, one line), the s14/s15 baseline narrative
+(candidates seen → resolution), deviations itemized with pi cites,
+residuals. Builders NEVER commit — leave the work in the worktree; the
+integrator commits. If you hit a frozen-contract contradiction you
+cannot resolve inside your touch set, STOP and write
+`build/loop/exception-<UTC timestamp>.md` with raw facts (never silent
+improvisation). Give every long command an explicit timeout; do not
+block on contact_supervisor.
+
+Effort: high — the editor registry, both deletion arms, the undo
+carry, the submit seam, and the rig extension are one coupled change
+under a heavy frozen net; precision beats speed.
 
 ## Builder Report
 
