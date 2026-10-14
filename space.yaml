@@ -67,7 +67,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: edit-tool-bg
+  current_iteration: render-perf
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -2313,9 +2313,9 @@ project:
       - gems/tui-split-rig/lib/tui_split_rig/scenario.rb
       - gems/tui-split-rig/scenarios/s17_edit_tool_bg.yml
       - gems/tui-split-rig/test/scenario_test.rb
-      base_sha: 908be5a9fc09f21b150d3497be7cd2cbab290671
-      worktree:
-      integration_branch: project/pi-port
+      base_sha: 41f0a5f3a01bc98afb30b26f4c52f60befadfe97
+      worktree: build/I57-edit-tool-bg-core/wt
+      integration_branch:
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
@@ -2324,4 +2324,10 @@ project:
     rehearsal:
       gates_digest: 124e2bb0ef770125bc19f8e4da12f794500e780771c9b9ed148bf8e4305dbad6
       at: '2026-10-14T14:13:39-06:00'
+  - name: render-perf
+    ordinal: 58
+    file: architecture/I58-render-perf.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
