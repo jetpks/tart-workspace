@@ -2159,7 +2159,7 @@ project:
       - gems/completions/spec/fast/completions/batch_cancel_spec.rb
       base_sha: 4736ddcd8d94b9d56a91c7d9d3a683dad35c97dc
       worktree:
-      integration_branch: project/pi-port
+      integration_branch: main
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
@@ -2185,7 +2185,7 @@ project:
       - gems/completions/spec/fast/completions/docs_links_spec.rb
       base_sha: 4736ddcd8d94b9d56a91c7d9d3a683dad35c97dc
       worktree:
-      integration_branch: project/pi-port
+      integration_branch: main
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
