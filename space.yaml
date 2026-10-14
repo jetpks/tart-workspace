@@ -67,7 +67,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: resize-layout
+  current_iteration: edit-tool-bg
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -2289,4 +2289,10 @@ project:
     rehearsal:
       gates_digest: 9b1d2350b3cb32c9d32779c2b5564ef8e7579778fc03bf125e4223cfe1072455
       at: '2026-10-14T11:27:19-06:00'
+  - name: edit-tool-bg
+    ordinal: 57
+    file: architecture/I57-edit-tool-bg.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
