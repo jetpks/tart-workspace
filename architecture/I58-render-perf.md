@@ -681,10 +681,102 @@ pins + hermeticity via the corrected extractor above).
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I58-render-perf-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section render-perf prompt --append --lane <lane> --from build/I58-render-perf-<lane>/prompt.md`. -->
+### core
+
+You are the builder for iteration `render-perf` (I58), lane `core`. Work
+ONLY in the provisioned worktree on branch `lane/I58-render-perf-core`
+(base `41f0a5f`); NEVER commit (the integrator lands your tree), NEVER
+touch the space repo, NEVER push. The full iteration contract is the
+frozen Grounds/Specification/Acceptance Criteria in this file (verbatim
+below) — read them first; this header is the lane's operating brief.
+
+THE TASK IN ONE PARAGRAPH: close problems.md item 3 by replacing the
+60 Hz busy-window render burn with pi's render discipline (state changes
++ an ~80 ms spinner tick each request exactly one paint; the
+animate-window mechanism itself stays untouched and caller-less in lib/)
+and caching the live region's markdown/reasoning conversion on
+`[viewport_width, @live.bytesize, @reasoning.bytesize]`; ship the
+committed probe (rig bin + default-off instrument) whose frozen budgets
+(AC3) the cure must meet. Rendered screen bytes change NOWHERE — the
+battery, s17, and the wire/session digests prove it.
+
+TOUCH SET (exactly 7 files; the scope gate enforces):
+- lib/tart/core/loop.rb — the additive `tick(interval)` helper (a
+  reactor task firing `request_draw` every interval until cancelled;
+  `#every`'s finite tick count cannot express an unbounded busy window).
+- lib/tart/render/chat.rb — delete the busy `animate` re-arm (:436) and
+  the agent_end wind-down animate (:627 → `request_draw`); the agent
+  event sink requests a draw (reactor-context legal; the user-bash chunk
+  sink is the in-tree precedent); the spinner tick arms/cancels with
+  busy/user-bash state; `assistant_live_lines` gains the size-keyed
+  cache.
+- test/chat_test.rb — re-pin the retired animation-window pins (the
+  `test_bash_loader_glyph_advances_across_draws_without_busy` class) to
+  the tick discipline; glyph-on-time assertions stay verbatim.
+- test/loop_test.rb — pins for `tick` if you realize it in the kernel
+  (arm/fire/cancel; the animate-window pacing pins must pass
+  UNMODIFIED).
+- test/render/render_perf_test.rb — NEW (name filter `render_perf`):
+  cache exactness (recompute iff the key changes; byte-identical rows at
+  several live/reasoning sizes incl. reset cycles), dirty marks (delta/
+  tool/compaction events request draws), tick cadence against the
+  injected clock, the wind-down replacement.
+- test/support/render_perf_probe.rb — NEW: the default-off instrument
+  (RUBYOPT + TART_PERF_OUT gated). Port the proven scratch form at
+  repos/tart/tmp/render-perf-calib/instrument.rb EXACTLY in shape:
+  watcher-thread install (do NOT hook Kernel#require — bundled_gems +
+  zeitgeist wrap it and the super-chain NoMethodErrors; probed), NO
+  stdlib requires in the preload (a pre-bundler `require "json"`
+  activates json 3.1.0 over the Gemfile's 3.0.2 and breaks bundle exec;
+  hand-format the JSONL records), Thread-local accumulation so
+  enqueue-path conversions are excluded, prepends on render_frame /
+  display_lines / build_widget / Transcript.markdown_lines /
+  reasoning_lines / TUI::Session#draw.
+- gems/tui-split-rig/bin/render-perf-probe — NEW: the driver + analyzer
+  (the tool-pending-probe bin precedent). Port the proven scratch forms
+  (tmp/render-perf-calib/probe.rb + analyze.rb) with the frozen `gate`
+  shape: 1×12,000-line marker-carrying seed (MK-### every 9 rows,
+  deterministic filler), 80-row marker-free tail seed, 800×50-char
+  markdown-flavored deltas paced 100 ms (mock specs built in RUBY —
+  `:pause` cannot ride YAML, safe_load rejects symbols), pipe-pane
+  stamping, the 120-event ALT+wheel-up burst (`tmux send-keys -H` with
+  ESC[<72;20;20M bytes) interleaved with capture-pane polls at ~2 s in,
+  teardown; then compute the AC3 metrics and assert the budgets +
+  anti-vacuity preconditions, printing `BPn: PASS/FAIL <measured>` lines
+  and RENDER_PERF_OK / exiting nonzero. `--app tart|pi|both` (the GATE
+  runs tart; both is for anchor records). `env -u HERDR_*` always.
+  NO changes to the rig's lib/ or scenarios/ — the bin uses the public
+  runner primitives + its own MockLLMServer instance.
+
+MUST-NOT: no transcript.rb / markdown.rb / viewport.rb / editor.rb /
+footer.rb / theme.rb changes; no gems/tui-split-rig/lib/** or
+scenarios/** changes; no lib/tart/agent/** changes; no wire/session/
+golden/registry byte moves; no new runtime deps; `draw_frame`'s
+`@dirty || animating?` gate and the animate-window mechanism
+byte-unchanged; no `animate` caller left in lib/ after the change.
+
+OPERATING DISCIPLINE:
+- Run the battery cold from the worktree (the 26 gates in the frozen AC
+  block; s9's known deep-path artifact in a lane worktree = report, do
+  not chase). The render-perf-probe gate takes ~3 min (the 80 s stream
+  is the point) — budget your runs.
+- The probe budgets are the deliverable: if your cure meets BP1-BP4 but
+  a budget fails, the CURE is wrong (re-read Grounds §2/§3), not the
+  budget — the numbers were measured at base. If you believe a budget
+  is miscalibrated, STOP and checkpoint build/loop/exception-<UTC>.md
+  with raw numbers; never silently re-freeze.
+- Anything structural the probe uncovers beyond the named defect (e.g.
+  GC pressure at 50K+ rows) → checkpoint file for the human, NOT scope
+  creep.
+- Report at build/I58-render-perf-core/report.md (the staged
+  architecture file's Builder Report section is transcribed from it):
+  per-AC outcomes, the probe's measured budget table (before/after if
+  you can run base), deviations itemized, incidents.
+- Children never block on contact_supervisor; escalation only via
+  build/loop/exception-*.md. bg_wait abort with "Still active" →
+  RE-ISSUE the wait.
+
+The frozen sections follow verbatim.
 
 ## Builder Report
 
