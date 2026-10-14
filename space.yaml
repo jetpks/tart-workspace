@@ -2197,7 +2197,26 @@ project:
   - name: steering-queue
     ordinal: 54
     file: architecture/I54-steering-queue.md
-    freeze_sha:
+    freeze_sha: 0b03de52c820669a19fe0df9a8090371f20007ca
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/agent/loop.rb
+      - lib/tart/render/chat.rb
+      - lib/tart/render/editor.rb
+      - lib/tart/commands.rb
+      - test/support/mock_llm_server.rb
+      - test/agent_loop_test.rb
+      - test/chat_test.rb
+      - test/render/editor_test.rb
+      - gems/tui-split-rig/lib/tui_split_rig/scenario.rb
+      - gems/tui-split-rig/lib/tui_split_rig/runner.rb
+      - gems/tui-split-rig/scenarios/s12_steering_mid_round.yml
+      - gems/tui-split-rig/scenarios/s13_command_while_streaming.yml
+      - README.md
+    rehearsal:
+      gates_digest: 1f653eeb2d22b27b39112050b9aaa1d483de9467e07107c4f609eb3164f2ac48
+      at: '2026-10-14T06:18:35-06:00'
   integration_branch: project/pi-port
