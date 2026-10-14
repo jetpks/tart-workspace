@@ -2147,7 +2147,35 @@ project:
   - name: gem-concurrency-docs
     ordinal: 53
     file: architecture/I53-gem-concurrency-docs.md
-    freeze_sha:
+    freeze_sha: e7202316e841075b018992046ea948cb6876c9be
     verdict: pending
-    lanes: []
+    lanes:
+    - name: concurrency
+      repo: fast-llm
+      touch_set:
+      - gems/completions/lib/fast/completions/chat.rb
+      - gems/completions/CHANGELOG.md
+      - gems/completions/spec/fast/completions/tool_concurrency_spec.rb
+      - gems/completions/spec/fast/completions/batch_cancel_spec.rb
+    - name: docs
+      repo: fast-llm
+      touch_set:
+      - README.md
+      - gems/completions/README.md
+      - gems/completions/docs/tutorials/first-run.md
+      - gems/completions/docs/how-to/declare-a-custom-dialect.md
+      - gems/completions/docs/how-to/cancel-a-running-chat.md
+      - gems/completions/docs/how-to/add-a-tool.md
+      - gems/completions/docs/reference/tools.md
+      - gems/completions/docs/reference/dialects.md
+      - gems/completions/docs/reference/errors.md
+      - gems/completions/docs/reference/stream-events.md
+      - gems/completions/docs/explanation/why-streaming-only.md
+      - gems/completions/docs/explanation/why-dialects-as-data.md
+      - gems/completions/docs/explanation/fiber-native-design.md
+      - gems/completions/spec/fixtures/readme/owner-4736ddc.md
+      - gems/completions/spec/fast/completions/docs_links_spec.rb
+    rehearsal:
+      gates_digest: fe9c3af5551826f498ae386a65759a0323e5bc9fc9d88e839268fcbcca66a753
+      at: '2026-10-14T04:14:27-06:00'
   integration_branch: project/pi-port
