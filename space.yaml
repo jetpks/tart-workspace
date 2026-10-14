@@ -1976,7 +1976,10 @@ project:
   - name: fast-completions-gem
     ordinal: 51
     file: architecture/I51-fast-completions-gem.md
-    freeze_sha:
+    freeze_sha: 1657e7933825cbe6f38cd70ce5881d5b1908745a
     verdict: pending
     lanes: []
+    rehearsal:
+      gates_digest: 26b0f7b47113237e3034d5043bcd708eb6f431088eb46888c65dd88df142acdf
+      at: '2026-10-13T20:03:28-06:00'
   integration_branch: project/pi-port
