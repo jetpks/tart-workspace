@@ -2188,6 +2188,33 @@ the spec's leg-E letter); (8) the stopped-run notify ordering pin
    pass is also recorded above. The 250ms timeout leg (the env-honored
    bound proof) never flaked.
 
+## Post-merge judge addendum (same session — integration record)
+
+`architect integrate --lanes core,e2e --teardown` landed both lanes as
+merge commits on project/pi-port (0ff5fd1 lane core → 4cc5820 merge;
+3f82e56 lane e2e → 2943ef0 merge; worktrees torn down, lane branches
+deleted, NOTHING pushed — landing is the human's). The merged tree
+carries the judge-repaired e2e file (the leg-E bridge assertion fix was
+applied to the lane worktree BEFORE integration).
+
+The FULL cold battery re-run on the COMMITTED integrated tree
+(`architect gate subagents-profiles-intercom`): **19/19 gates PASS** —
+suite SUITE_OK (1039 runs / 4850 assertions / 0 failures / 1 base
+skip), SEAM_BENCH_OK, s1–s10 exit 0 canonical, TART_MODE_OK, both
+probes OK, WIRE_BODIES_OK (both digests EXACT), SESSION_GOLDEN_OK,
+`subagents-profiles-units` PASS **verbatim** (all five checkpoints —
+the frozen literal passed the ordered battery this time; the recorded
+flake stands as a residual with its one-token judge form),
+SUBAGENTS_E2E_OK (6 runs / 144 assertions / 0 failures, legs A–F), and
+the scope gate PASS **non-vacuously** on merged HEAD — `git diff
+--name-only 8f5620a HEAD` = EXACTLY the declared 17-file set.
+
+This closes program ENTRY 7 — the modernization program's FINAL entry
+(native subagents wave complete: I43 schemas, I44 shapes, I45 flow,
+I46 zai, I47 seam-memory, I48 subagents-core, I49
+profiles+intercom+workflows). The coordinator writes the program final
+report next.
+
 ## Acceptance Criteria
 
 | AC# | Raw result | Brief § | Verdict |
