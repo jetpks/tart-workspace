@@ -2260,7 +2260,25 @@ project:
   - name: resize-layout
     ordinal: 56
     file: architecture/I56-resize-layout.md
-    freeze_sha:
+    freeze_sha: 6ea730ae50ebdb2377a0ded7b56f107481c1a1f7
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/render/chat.rb
+      - lib/tart/render/motd.rb
+      - lib/tart/render/transcript.rb
+      - lib/tart/render/text.rb
+      - test/chat_test.rb
+      - test/render/motd_test.rb
+      - test/render/text_test.rb
+      - test/render/transcript_test.rb
+      - gems/tui-split-rig/lib/tui_split_rig/runner.rb
+      - gems/tui-split-rig/lib/tui_split_rig/scenario.rb
+      - gems/tui-split-rig/scenarios/s16_resize_wrap.yml
+      - gems/tui-split-rig/test/scenario_test.rb
+    rehearsal:
+      gates_digest: 9b1d2350b3cb32c9d32779c2b5564ef8e7579778fc03bf125e4223cfe1072455
+      at: '2026-10-14T11:27:19-06:00'
   integration_branch: project/pi-port
