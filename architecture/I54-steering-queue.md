@@ -770,52 +770,391 @@ coupled change; the frozen-net re-pins need care).
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse steering-queue` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze steering-queue` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria — I54 steering-queue
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
-
-**AC1.** ...
+- **AC1 — Steering delivers INSIDE the tool round (the loop).** A steer
+  submitted while a tool batch is executing (or mid-stream) rides the
+  NEXT LLM request of the SAME run: no new `agent_start` between the
+  batch and the request, the steering text is the request's trailing
+  user message, and the session JSONL records it as a user message at
+  that delivery point (between the tool result and the next assistant
+  message). A follow-up (alt+enter) submitted mid-run is delivered ONLY
+  after the agent fully completes (no more tool calls, no pending
+  steering) — as a new outer turn of the same session flow. The
+  pre-run-queue + prompt behavior (two requests, the I03-locked
+  recorded deviation) is un-regressed. Both queue modes are clearable
+  (`clear_queues`) and snapshot-readable. [Property floor: the delivery
+  POINT and the same-run identity, not implementation shape.]
+- **AC2 — Commands dispatch busy-or-not (the submit cure).** While a
+  turn streams, `/thinking off` EXECUTES (the session thinking level
+  changes) and NOTHING is queued — the next request's user content does
+  not contain the command text, and the loop's steer queue is never
+  handed it. Expansion (skills/templates) happens before queueing. The
+  remaining builtins and registered commands dispatch immediately while
+  busy (pi's letter). `/compact` and `/new` while busy take the
+  abort-first arm: the in-flight run is interrupted and the command is
+  dispatched through the idle path at `agent_end`; nothing is ever sent
+  to the model. A text submit during compaction steers (delivered after
+  compaction at the next drain point) with pi's "Queued message for
+  after compaction" feedback.
+- **AC3 — The queue display and the keybinds (the surface).** While
+  messages are queued, the frame renders — between the dock spacer and
+  the editor — a blank row, one dim `Steering: <text>` row per steering
+  message, one dim `Follow-up: <text>` row per follow-up (first line
+  only, clipped, one-space padded), and the dim hint `↳ Alt+Up to edit
+  all queued messages`; the transcript area yields the rows (min 1),
+  the editor and footer do not move. On delivery the row is removed and
+  the user echo renders at the delivery point (not at submit). alt+enter
+  queues a follow-up while busy and submits while idle (never a
+  newline); alt+up clears BOTH the surface mirror and the loop queues,
+  restores queued-then-current joined with blank lines into the editor
+  (set_text: content replaced, cursor at end, undo snapshot), and
+  flashes the restore status (pi's texts). Newline keys remain
+  shift+enter/ctrl+j.
+- **AC4 — Rig parity pins (new scenarios, both apps).** `s12_steering_
+  mid_round` and `s13_command_while_streaming` exit 0 cold: both apps
+  complete with exactly 2 requests; s12's request 2 carries the steering
+  text as its LAST user message in BOTH apps; s13's request 2 user
+  content contains no `/thinking` in EITHER app; the settled screens
+  match modulo the existing sanctioned classes (no registry edits). The
+  old-port shape (3 requests, round-boundary drain) would fail both
+  scenarios' `completed` checks. [Exactness is the deliverable: the
+  request-count and trailing-user-message bytes are frozen equality;
+  screen parity rides the standing rig bar.]
+- **AC5 — The full no-regression battery, cold.** `bundle exec rake`
+  green; `SEAM_BENCH_OK`; rig s1–s10 exit 0; s1_tart's designed exit-1
+  arm green (`TART_MODE_OK`); both probes `--gate` OK; thinking-pins ≥
+  11+8 runs; hermeticity ≥ 8+4 runs; lock-deps `GEM_LOAD_OK`; zai-data
+  `ZAI_DATA_OK`; threads-budget clean vs `1a8ea77`; wire-delta EXACT
+  (instruction `2faaf667…`, tools `7360fd1e…`, key order/store/max/
+  stream_options/messages as frozen at I52); session-golden 7/7 digests
+  EXACT.
+- **AC6 — Scope and frozen bytes.** The integrated diff vs `1a8ea77` is
+  EXACTLY the 13 declared files (no more, none absent, non-vacuous); no
+  existing scenario/golden/fixture/registry file is touched; README
+  changes are the keybinding rows only.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse steering-queue` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: steering-units
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet
+    out=$(bundle exec ruby -Ilib -Itest test/agent_loop_test.rb -n "/steering_delivered_inside_the_tool_round|follow_up_delivered_only_after_full_completion|steering_recorded_at_its_delivery_point|clear_queues_empties_both_queues/" 2>&1); ec=$?
+    echo "$out" | tail -3
+    runs=$(echo "$out" | grep -oE "[0-9]+ runs" | head -1 | cut -d" " -f1)
+    [ "$ec" -eq 0 ] || { echo "FAIL steering pins ec=$ec"; exit 1; }
+    [ "${runs:-0}" -ge 4 ] || { echo "FAIL steering pins runs=${runs:-0} (want >=4: mid-round delivery, follow-up timing, delivery-point recording, clear_queues)"; exit 1; }
+    out2=$(bundle exec ruby -Ilib -Itest test/agent_loop_test.rb -n "/queued_message_continues_the_outer_loop/" 2>&1); ec2=$?
+    [ "$ec2" -eq 0 ] || { echo "FAIL I03-locked deviation un-regressed ec=$ec2"; exit 1; }
+    echo STEERING_UNITS_OK
+  expect:
+    exit_code: 0
+    stdout_match: STEERING_UNITS_OK
+
+- id: surface-units
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet
+    out=$(bundle exec ruby -Ilib -Itest test/chat_test.rb -n "/thinking_command_while_busy|queued_messages_render|alt_enter_queues_follow_up|alt_up_restores_queued_messages|compact_while_busy_defers|new_while_busy_defers|compaction_submit_steers/" 2>&1); ec=$?
+    echo "$out" | tail -3
+    runs=$(echo "$out" | grep -oE "[0-9]+ runs" | head -1 | cut -d" " -f1)
+    [ "$ec" -eq 0 ] || { echo "FAIL surface pins ec=$ec"; exit 1; }
+    [ "${runs:-0}" -ge 7 ] || { echo "FAIL surface pins runs=${runs:-0} (want >=7: busy-command cure, queue rows, alt+enter, alt+up, /compact defers, /new defers, compaction steer)"; exit 1; }
+    out2=$(bundle exec ruby -Ilib -Itest test/render/editor_test.rb -n "/set_text/" 2>&1); ec2=$?
+    runs2=$(echo "$out2" | grep -oE "[0-9]+ runs" | head -1 | cut -d" " -f1)
+    [ "$ec2" -eq 0 ] && [ "${runs2:-0}" -ge 1 ] || { echo "FAIL set_text pin ec=$ec2 runs=${runs2:-0}"; exit 1; }
+    echo SURFACE_UNITS_OK
+  expect:
+    exit_code: 0
+    stdout_match: SURFACE_UNITS_OK
+
+- id: s12-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s12_steering_mid_round.yml --out tmp/parity-gate-s12 && ruby -rjson -e 'steer = "wait, sort them by size"; %w[pi tart].each do |app|; lines = File.readlines("tmp/parity-gate-s12/run-1/#{app}-requests.jsonl"); abort "#{app}: expected 2 requests, got #{lines.size}" unless lines.size == 2; body = JSON.parse(lines[1])["body"]; users = body["messages"].select { |m| m["role"] == "user" }; abort "#{app}: steering text not the trailing user message of request 2" unless users.last["content"] == steer; end; puts "S12_REQUESTS_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: S12_REQUESTS_OK
+
+- id: s13-parity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s13_command_while_streaming.yml --out tmp/parity-gate-s13 && ruby -rjson -e '%w[pi tart].each do |app|; lines = File.readlines("tmp/parity-gate-s13/run-1/#{app}-requests.jsonl"); abort "#{app}: expected 2 requests, got #{lines.size}" unless lines.size == 2; body = JSON.parse(lines[1])["body"]; users = body["messages"].select { |m| m["role"] == "user" }; abort "#{app}: command text leaked to the model: #{users.last["content"].inspect}" if users.any? { |m| m["content"].to_s.include?("/thinking") }; end; puts "S13_REQUESTS_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: S13_REQUESTS_OK
+
+- id: suite
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/parity-gate-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/parity-gate-s6
+  expect:
+    exit_code: 0
+
+- id: s7-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7
+  expect:
+    exit_code: 0
+
+- id: s8-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml --out tmp/parity-gate-s8
+  expect:
+    exit_code: 0
+
+- id: s9-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s9_startup_help.yml --out tmp/parity-gate-s9
+  expect:
+    exit_code: 0
+
+- id: s10-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s10_editor_wrap.yml --out tmp/parity-gate-s10
+  expect:
+    exit_code: 0
+
+- id: s1-tart-mode
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_tart.yml --out tmp/parity-gate-s1tart; ec=$?; if [ "$ec" -gt 1 ]; then exit 1; fi; ruby -rjson -e 's = JSON.parse(File.read("tmp/parity-gate-s1tart/summary.json"))["runs"][0]["apps"]["tart"]; abort "tart incomplete" unless s["completed"] && s["requests"] == s["expected_requests"]; puts "TART_MODE_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: TART_MODE_OK
+
+- id: tool-pending-gate
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tool-pending-probe --gate --out tmp/i54-tp
+  expect:
+    exit_code: 0
+    stdout_match: TOOL_PENDING_GATE_OK
+
+- id: user-bash-stream-gate
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    test -x gems/tui-split-rig/bin/user-bash-stream-probe && gems/tui-split-rig/bin/user-bash-stream-probe --gate --out tmp/i54-ubs
+  expect:
+    exit_code: 0
+    stdout_match: USER_BASH_STREAM_GATE_OK
+
+- id: thinking-pins
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet
+    out1=$(bundle exec ruby -Ilib -Itest test/agent_loop_test.rb -n "/reasoning_effort|reasoning_content|zai_|thinking_reply_persists|switch_model_re_resolves_the_reasoning_facts|print_mode_wires_the_thinking_facts/" 2>&1); ec=$?
+    runs1=$(echo "$out1" | grep -oE "[0-9]+ runs" | head -1 | cut -d" " -f1)
+    [ "$ec" -eq 0 ] || { echo "FAIL thinking wire pins ec=$ec"; exit 1; }
+    [ "${runs1:-0}" -ge 11 ] || { echo "FAIL thinking wire pins runs=${runs1:-0} (want >=11)"; exit 1; }
+    out2=$(bundle exec ruby -Ilib -Itest test/settings_test.rb -n "/thinking_level|known_thinking_level_map/" 2>&1); ec=$?
+    runs2=$(echo "$out2" | grep -oE "[0-9]+ runs" | head -1 | cut -d" " -f1)
+    [ "$ec" -eq 0 ] || { echo "FAIL settings thinking pins ec=$ec"; exit 1; }
+    [ "${runs2:-0}" -ge 8 ] || { echo "FAIL settings thinking pins runs=${runs2:-0} (want >=8)"; exit 1; }
+    echo THINKING_PINS_OK
+  expect:
+    exit_code: 0
+    stdout_match: THINKING_PINS_OK
+
+- id: hermeticity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet
+    out1=$(bundle exec ruby -Ilib -Itest test/launcher_smoke_test.rb 2>&1); ec=$?
+    runs1=$(echo "$out1" | grep -oE "[0-9]+ runs" | head -1 | cut -d" " -f1)
+    [ "$ec" -eq 0 ] || { echo "FAIL launcher smoke ec=$ec"; exit 1; }
+    [ "${runs1:-0}" -ge 8 ] || { echo "FAIL launcher smoke runs=${runs1:-0} (want >=8)"; exit 1; }
+    out2=$(bundle exec ruby -Ilib -Itest test/e2e_session_test.rb 2>&1); ec=$?
+    runs2=$(echo "$out2" | grep -oE "[0-9]+ runs" | head -1 | cut -d" " -f1)
+    [ "$ec" -eq 0 ] || { echo "FAIL e2e session ec=$ec"; exit 1; }
+    [ "${runs2:-0}" -ge 4 ] || { echo "FAIL e2e session runs=${runs2:-0} (want >=4)"; exit 1; }
+    echo HERMETICITY_OK
+  expect:
+    exit_code: 0
+    stdout_match: HERMETICITY_OK
+
+- id: lock-deps
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    set -e
+    if grep -n "ruby_llm" tart.gemspec; then echo "FAIL: gemspec still carries ruby_llm"; exit 1; fi
+    grep -qF 'gem "fast-completions", "0.1.0"' Gemfile || { echo "FAIL: Gemfile pin line missing"; exit 1; }
+    grep -qF 'path: ENV.fetch("FAST_COMPLETIONS_PATH", "../fast-llm/gems/completions")' Gemfile || { echo "FAIL: corrected path form missing"; exit 1; }
+    env -u FAST_COMPLETIONS_PATH bundle install --quiet
+    ruby -e 'lock = File.read("Gemfile.lock"); abort "fast-completions missing from lock" unless lock =~ /^    fast-completions \(0\.1\.0\)/; %w[ruby_llm faraday faraday-net_http faraday-retry faraday-multipart].each { |g| abort "#{g} still in lock" if lock =~ /^    #{g} / }; puts "LOCK_DEPS_OK"'
+    bundle exec ruby -e 'require "fast/completions"; require "tart"; abort "gem not loadable" unless defined?(Fast::Completions::Client); puts "GEM_LOAD_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: GEM_LOAD_OK
+
+- id: zai-data
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet
+    grep -q "Fast::Completions::Dialect" lib/tart/models.rb || { echo "FAIL: no Dialect construction in models.rb"; exit 1; }
+    out=$(bundle exec ruby -Ilib -Itest test/models_test.rb -n "/dialect/" 2>&1); ec=$?
+    runs=$(echo "$out" | grep -oE "[0-9]+ runs" | head -1 | cut -d" " -f1)
+    [ "$ec" -eq 0 ] || { echo "FAIL dialect pins ec=$ec"; exit 1; }
+    [ "${runs:-0}" -ge 2 ] || { echo "FAIL dialect pins runs=${runs:-0} (want >=2)"; exit 1; }
+    bundle exec ruby -Ilib -e 'require "tart"; compat = Tart::Shapes::ModelCompat.new(thinking_format: "zai", max_tokens_field: "max_tokens", supports_developer_role: false, supports_reasoning_effort: true, zai_tool_stream: true); d = Tart::Models.dialect_for(compat); abort "zai dialect values moved" unless d.thinking_format == :zai && d.max_tokens_field == "max_tokens" && d.supports_developer_role == false && d.supports_reasoning_effort == true && d.zai_tool_stream == true && d.supports_store == false; plain = Tart::Models.dialect_for(nil); abort "nil compat must yield the default dialect" unless plain.thinking_format == :openai && plain.supports_store == true; puts "ZAI_DATA_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: ZAI_DATA_OK
+
+- id: threads-budget
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    added=$(git diff 1a8ea77 -- lib | grep -E "^\+[^+].*Thread\.new" || true)
+    if [ -n "$added" ]; then echo "FAIL: new Thread.new sites in lib:"; echo "$added"; exit 1; fi
+    echo THREADS_BUDGET_OK
+  expect:
+    exit_code: 0
+    stdout_match: THREADS_BUDGET_OK
+
+- id: wire-delta
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    rm -rf tmp/i54-wire && env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/i54-wire >/dev/null 2>&1; ec=$?; [ "$ec" -eq 0 ] || { echo "FAIL: s1 rig ec=$ec"; exit 1; }
+    ruby -rjson -rdigest -e 'lines = File.readlines("tmp/i54-wire/run-1/tart-requests.jsonl"); abort "expected 1 request, got #{lines.size}" unless lines.size == 1; b = JSON.parse(lines[0])["body"]; abort "body not a parsed object" unless b.is_a?(Hash); norm = JSON.parse(JSON.generate(b).gsub("tmp/i54-wire/run-1/sandbox", "<SBX>")); abort "key order/set moved: #{norm.keys.inspect}" unless norm.keys == ["model", "messages", "stream", "stream_options", "store", "max_completion_tokens", "tools"]; abort "store must be false" unless norm["store"] == false; mt = norm["max_completion_tokens"]; abort "max_completion_tokens must be a positive Integer, got #{mt.inspect}" unless mt.is_a?(Integer) && mt.positive?; m0, m1 = norm["messages"]; abort "instruction role must be system, got #{m0["role"]}" unless m0["role"] == "system"; sha = Digest::SHA256.hexdigest(m0["content"]); abort "instruction bytes moved: #{sha}" unless sha == "2faaf667477fec9cdf0433d1ffe1cce4ee146c3b826185b5b7db3fd116b14056"; abort "user message moved: #{m1.inspect}" unless m1 == {"role" => "user", "content" => "hello"}; tools = Digest::SHA256.hexdigest(JSON.generate(norm["tools"])); abort "tool declarations moved: #{tools}" unless tools == "7360fd1ec6419b5f9966c3067588314cdd0d29231a78346443a0002923c23707"; abort "stream_options moved" unless norm["stream_options"] == {"include_usage" => true}; puts "WIRE_DELTA_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: WIRE_DELTA_OK
+
+- id: session-golden
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec ruby -Ilib -e 'require "tart"; require "tmpdir"; require "json"; require "digest"; FakeMsg = Struct.new(:role, :attrs) do def to_h = attrs end; VOLATILE = %w[id parentId timestamp parentSession cwd firstKeptEntryId].freeze; normalize = lambda do |obj|; case obj; when Hash then obj.each_with_object({}) { |(k, v), h| h[k] = VOLATILE.include?(k) && !v.nil? ? "<#{k}>" : normalize.call(v) }; when Array then obj.map { |v| normalize.call(v) }; else obj; end; end; digest_lines = lambda { |path| Digest::SHA256.hexdigest(File.readlines(path).map { |l| JSON.generate(normalize.call(JSON.parse(l))) }.join("\n")) }; out = {}; Dir.mktmpdir do |dir|; root = File.join(dir, "agent"); plain = Tart::Agent::Session::Recorder.new(cwd: dir, root: root); plain.append_message(FakeMsg.new(:user, {role: "user", content: "list the files"})); plain.append_message(FakeMsg.new(:assistant, {role: "assistant", content: nil, tool_calls: [{id: "call_1", name: "ls", arguments: {path: "."}}]})); plain.append_message(FakeMsg.new(:tool, {role: "tool", tool_call_id: "call_1", content: "fixture.txt"})); plain.append_message(FakeMsg.new(:assistant, {role: "assistant", content: "the listing is above"})); rec = Tart::Agent::Session::Recorder.new(cwd: dir, root: root); rec.append_message(FakeMsg.new(:user, {role: "user", content: "list the files"})); rec.append_message(FakeMsg.new(:assistant, {role: "assistant", content: nil, tool_calls: [{id: "call_1", name: "ls", arguments: {path: "."}}]})); rec.append_message(FakeMsg.new(:tool, {role: "tool", tool_call_id: "call_1", content: "fixture.txt"})); rec.append_message(FakeMsg.new(:assistant, {role: "assistant", content: "the listing is above"})); rec.append_bash_execution(Tart::Agent::Session.bash_execution_message(command: "echo hi", output: "hi", exit_code: 0, cancelled: false, truncated: false, full_output_path: nil)); rec.append_compaction(summary: "Earlier turns summarized.", first_kept_entry_id: nil, tokens_before: 15, details: "auto"); forked = Tart::Agent::Session::Recorder.new(cwd: dir, root: root, parent_session: rec.path); forked.append_message(FakeMsg.new(:user, {role: "user", content: "after the fork"})); out[:plain] = digest_lines.call(plain.path); out[:plain_context] = Digest::SHA256.hexdigest(JSON.generate(Tart::Agent::Session.context_messages(plain.path))); out[:plain_roles] = Tart::Agent::Session.context_messages(plain.path).map { |m| m[:role] }.inspect; out[:primary] = digest_lines.call(rec.path); out[:forked] = digest_lines.call(forked.path); out[:context] = Digest::SHA256.hexdigest(JSON.generate(Tart::Agent::Session.context_messages(rec.path))); out[:fork_roles] = Tart::Agent::Session.context_messages(forked.path).map { |m| m[:role] }.inspect; end; want = {plain: "928183de7736e9ad59237d6eb4bf7eb0215f8933ac1e1c2c4d8cb0e61ca38728", plain_context: "d3c1574f049f9688309656a21d42100e32b0203025f77f8afbed70819cb228ee", plain_roles: "[:user, :assistant, :tool, :assistant]", primary: "cb29e42e1ba9ecc29e28ce3d833e68fbd8f17ddfa2700b02b1b6bd98b24baa29", forked: "3a5f6d606f5952fd2e0e25bf085d442c386d18bb0d60a4bdd7c43b04b203ae8d", context: "f75f99b4516b3e69f41d847cb5266d7cac897e3fd320190588d83e26497a029", fork_roles: "[:user, :user]"}; bad = want.keys.select { |k| out[k] != want[k] }; abort "session bytes moved: #{bad.map { |k| [k, out[k]] }.inspect}" unless bad.empty?; puts "SESSION_GOLDEN_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: SESSION_GOLDEN_OK
+
+- id: scope
+  ac: AC6
+  cwd: repos/tart
+  cmd: |-
+    ruby -e '
+      expected = %w[
+        lib/tart/agent/loop.rb
+        lib/tart/render/chat.rb
+        lib/tart/render/editor.rb
+        lib/tart/commands.rb
+        test/support/mock_llm_server.rb
+        test/agent_loop_test.rb
+        test/chat_test.rb
+        test/render/editor_test.rb
+        gems/tui-split-rig/lib/tui_split_rig/scenario.rb
+        gems/tui-split-rig/lib/tui_split_rig/runner.rb
+        gems/tui-split-rig/scenarios/s12_steering_mid_round.yml
+        gems/tui-split-rig/scenarios/s13_command_while_streaming.yml
+        README.md
+      ].sort
+      actual = `git diff --name-only 1a8ea77..HEAD`.split("\n").map(&:strip).reject(&:empty?).sort
+      extra = actual - expected
+      missing = expected - actual
+      abort "OUT OF SCOPE: #{extra.inspect}" unless extra.empty?
+      abort "DECLARED BUT ABSENT: #{missing.inspect}" unless missing.empty?
+      abort "VACUOUS: empty diff" if actual.empty?
+      puts "SCOPE_OK #{actual.size} files"
+    '
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
+
+## Pre-freeze calibration (this session's own check)
+
+Designed-RED at base (the iteration's deliverables): `steering-units`
+(no such pins; the drain rework absent), `surface-units` (no such pins),
+`s12-parity`/`s13-parity` (the `mid_run_keys` knob does not exist — the
+scenario loader errors), `scope` (empty diff = vacuous). Designed-GREEN
+at base (the standing battery — I52's cold-verified set, unchanged
+surfaces): `suite`, `bench`, `s1`–`s10`, `s1-tart-mode`, both probes,
+`thinking-pins`, `hermeticity`, `lock-deps`, `zai-data`,
+`threads-budget` (diff vs 1a8ea77 = empty), `wire-delta`,
+`session-golden`. The rehearsal must show exactly this vector; any
+GREEN-at-design-RED or RED-at-design-GREEN is a calibration defect to
+fix before freeze.
 
 ## Builder Prompt
 
