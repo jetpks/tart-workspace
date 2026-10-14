@@ -1916,6 +1916,135 @@ both probes OK; e2e legs A–D green (4 runs, 77 assertions); diff +
 untracked = exactly the 16 declared files; nothing staged, never
 committed.
 
+### e2e
+
+# Builder report — I49 subagents-profiles-intercom, lane `e2e`
+
+Worktree: `build/I49-subagents-profiles-intercom-e2e/wt` (base 8f5620a, branch
+lane/I49-subagents-profiles-intercom-e2e). Touch set: `test/subagents_e2e_test.rb`
+ONLY — 352 insertions, 0 deletions (pure append; the legs A–D bytes and every
+helper they use are untouched, proven by `git diff` 0 deleted lines). Never
+committed; `git status` shows the one modified file, nothing staged.
+
+## Leg-by-leg design table
+
+| | Leg E — print-parent intercom shape (AC2 print surface + bound) | Leg F — profiles end-to-end (AC1/AC3) |
+|---|---|---|
+| Parent | REAL `bin/tart -p` subprocess via the existing `tart_sub` (closed `unsetenv_others` env, staged HOME, staged settings `{"subagents": true}` + full-7 defaultTools, `TART_MCP_CONFIG` absent pointer, PARENT_DEADLINE_S=180 watchdog) | the TEST process (in-process `Tart::Subagents::Manager` — leg C's shape), `cwd:` = staged project dir, `home:` = staged subagents home, `root:` = `<staged HOME>/.tart` (the additive kwarg, Spec §3), `identity: "pi"`, fresh `Hooks` |
+| Children | one async `worker` spawned by the parent's scripted tool call with `timeout_ms: 6000` — the RUN deadline is the child's bound because the sanctioned child env set carries no `<IDENTITY>_INTERCOM_ASK_TIMEOUT_MS` key (the child asks at the 600 s default; the run deadline kills the waiting asker — the spec's ask-unanswered path) | `researcher` (user-tier profile: tools read/grep/find/ls/bash, `model: mock/glm-e2e-profile:high`, thinking high, context fresh, tolerated unknown key `systemPromptMode`) then `worker` (project-tier `<cwd>/.tart/agents/worker.md`: tools `read, grep` comma-string, own body) — spawns SEQUENTIAL, each waited to completion |
+| Script (shared MockLLMServer, slots consumed in arrival order across both processes) | 3 slots: [1] parent tool_call `subagent{agent: worker, async: true, timeout_ms: 6000}` → [2] parent final (32 chars ≈ 3.2 s at the real 0.1 s/char pace, chunk_every NOT honored — I48 P0-10) → [3] child tool_call `contact_supervisor{reason: need_decision, message: E_ASK_MESSAGE}` | 2 slots: [1] researcher final (completes the run) → [2] worker final — no cross-process order bet (sequential spawns, bounded waits) |
+| Order bet | the parent's tool-result turn is issued ~instantly after the spawn while the child still owes its ~350 ms interpreter boot (I48 Grounds §4 probe B, ~357 ms cold) — margin ≈100×; a flipped order fails loud (the parent's second turn would execute the child's script slot and exit non-zero; recorded in-file) | none (documented in-file) |
+| Asserts | exit 0; `stdout.strip == E_FINAL` (a print parent never answers mid-run — OQ-8c; the drain adds no stdout); 3 captures; child asked through `contact_supervisor`; status.json `stopped` + `timedOut true` + `id` cross-check; result success false; pid reaped (`assert_ps_clean`); exactly 1 parent session; the ask entry `custom_message`/`customType "subagent_supervisor_request"` with the §4.4 bytes pinned EXACT (reasonHeading `Subagent needs a supervisor decision.` + `Run: <runId>` + `Agent: worker` + the message + the `Reply with: subagent({ action: "reply", reply_to: "<requestId>", message: "..." })` hint + the `Live guidance: ...steer... (Reply to the pending request first.)` line), `display: true`, recorded BEFORE the `subagent-notify` entry; `supervisor-replies/` exists and stays EMPTY; `supervisor-requests/` empty within a bounded 5 s poll (the terminal sweep, T3) | merged table: researcher tools/model/`source: :user`; worker `source: :project` + project body + tools `read, grep`; builtins retained; `Profiles.resolve` returns the spec; child WIRE `model == "glm-e2e-profile"` (profile model rides the wire; provider `mock` maps onto the port's single chat-completions seam — the units gate's proven shape); wire tools == profile list + `contact_supervisor` LAST; argv `--tools` == `read,grep,find,ls,bash,contact_supervisor`; no `--resume` (context fresh); `PI_SUPERVISOR_CHANNEL == <run-dir>/control`; `PI_SUBAGENTS_AGENT == "researcher"`; `PI_MODEL/PI_PROVIDER/PI_THINKING_LEVEL` == `glm-e2e-profile`/`mock`/`high`; system-prompt.md = profile body + `Intercom orchestration channel:` block (ends with `Supervisor::BRIDGE_INSTRUCTION`; the pi template bytes pinned via the need_decision example + the "Do not use contact_supervisor for routine completion handoffs." closing rule); researcher completes with the scripted final; worker run's system-prompt.md carries the PROJECT body and NOT the builtin token; worker argv `--tools` == `read,grep,contact_supervisor`; both pids reaped |
+| Teardown | leg-local `ensure` → `i49_leg_cleanup` (manager shutdown, `kill_stray_children`, server stop, dir removal — bounded, assertion-free, idempotent with the shared teardown; `MockLLMServer#stop` rescues the double close) → post-cleanup `assert_i49_hygiene` (no `i49-e2e-*` dirs anywhere); per-child pids pinned in-body | same |
+
+First frozen-surface touch per leg (the RED mechanism): leg E
+`Tart::Subagents::Supervisor::REQUEST_CUSTOM_TYPE` (also a real OQ-3 byte pin);
+leg F `Tart::Subagents::Profiles.resolve_table` (also a real tier-precedence pin).
+Constants/methods are appended after the I48 `private` helpers, so the leg test
+methods carry an explicit `public` marker (minitest 6 `methods_matching` uses
+`public_instance_methods`); helpers stay private.
+
+## Red-at-worktree transcript (the declared reds)
+
+`bundle exec ruby -Itest test/subagents_e2e_test.rb` (seed 46217):
+
+```
+  1) Error:
+Tart::SubagentsE2ETest#test_leg_e_print_parent_intercom_shape:
+NameError: uninitialized constant Tart::Subagents::Supervisor
+    test/subagents_e2e_test.rb:613:in 'Tart::SubagentsE2ETest#test_leg_e_print_parent_intercom_shape'
+
+  2) Error:
+Tart::SubagentsE2ETest#test_leg_f_profiles_end_to_end:
+NameError: uninitialized constant Tart::Subagents::Profiles
+    test/subagents_e2e_test.rb:727:in 'Tart::SubagentsE2ETest#test_leg_f_profiles_end_to_end'
+
+6 runs, 81 assertions, 0 failures, 2 errors, 0 skips
+```
+
+Line 613 = `assert_equal "subagent_supervisor_request", Tart::Subagents::Supervisor::REQUEST_CUSTOM_TYPE`
+(leg E's first frozen touch); line 727 = `Tart::Subagents::Profiles.resolve_table(...)`
+(leg F's first frozen touch). Legs A–D: 4 passes. No syntax error, no fixture-path
+failure. Hygiene after the red run: zero `i49-e2e-*`/`i48-e2e-*` dirs under
+`Dir.tmpdir`; no orphan processes from the run (the only `bin/tart` ps hits are
+pre-existing processes from other iterations/worktrees, none referencing this
+worktree).
+
+## `bundle exec rake` (the full suite)
+
+```
+996 runs, 4411 assertions, 0 failures, 2 errors, 1 skips
+rake aborted! Command failed with status (1)
+```
+
+Base 994 runs + the 2 new legs' erroring runs; 0 failures (every OTHER test
+green in this tree); the 1 base skip unchanged; the only 2 errors are the
+declared NameErrors above (same lines 613/727). (Pre-existing chat_test
+RatatuiRuby/Async "Terminal is not initialized" warnings appear unchanged.)
+
+## PHASE 0 items (researched, itemized; resolved by the frozen letter)
+
+1. **"teardown asserts no `i49-e2e-*` dirs" vs "legs A–D byte-untouched".** The
+   shared `teardown` (subagents_e2e_test.rb:96-106) sits inside the I48
+   instrument region. Resolved WITHOUT editing it: each new leg carries a
+   leg-local `ensure` (`i49_leg_cleanup` — bounded, assertion-free, idempotent
+   with the shared teardown; `MockLLMServer#stop` rescues `IOError` on the
+   double close, manager shutdown rescued, dir removal guarded) plus the
+   post-cleanup `assert_i49_hygiene` (no `i49-e2e-*` dirs under `Dir.tmpdir`);
+   the no-live-child-pids half is `assert_ps_clean` on every spawned child pid
+   in-body + `kill_stray_children` before the dirs go away. Lane prompt §"The
+   two legs" (design constraints) + §"Verification" (Minitest hygiene) satisfied;
+   `git diff` shows 0 deleted lines.
+2. **`[i48-e2e]` staging-line prefix on I49 legs.** The lane prompt prescribes
+   "printed `[i48-e2e]` staging lines" for the new legs (and the `subagents-e2e`
+   gate greps `i48-e2e`), while scratch dirs carry the `i49-e2e-` prefix. Both
+   followed literally (print prefix continuity, dir prefix greppable).
+3. **Leg E's requestId sourcing.** `tart_sub` blocks until parent exit and the
+   channel's terminal sweep unlinks request files before exit, so the id cannot
+   be read from disk post-run. Resolved: parse the id from the surfaced hint
+   (`reply_to: "<36-char uuid>"`), pin every other byte of the §4.4 content
+   against independently sourced values (runId from the start message AND
+   status.json["id"]; agent from the spawn). The reply-hint id itself is
+   additionally validated as a uuid shape and the request file's existence +
+   consumption are pinned via the dirs (replies empty; requests swept).
+4. **Three declared red constants, two legs.** The lane lists NameErrors on
+   `Profiles` / `Supervisor` / `ContactSupervisor` "at the legs' first
+   frozen-surface touch"; with two legs each leg shows its own first touch —
+   leg E → `Tart::Subagents::Supervisor` (line 613), leg F →
+   `Tart::Subagents::Profiles` (line 727). `Tart::Tools::ContactSupervisor` is
+   only reachable THROUGH the machinery (the child's bridged tool), never as a
+   test-process first touch, so it cannot appear in the at-base transcript. No
+   artificial tripwire references were added.
+5. **Leg F's user-tier root.** `Agent::Session.default_root` reads
+   `Dir.home` (session.rb:71-73) — the TEST process's real home, never staged
+   in-process. Resolved by the driven surface: the Manager's additive `root:`
+   kwarg (Spec §3: "the Manager gains root: (additive kwarg, default
+   Agent::Session.default_root — the profiles' user tier)"). At base the leg
+   NameErrors at `Profiles.resolve_table` before the Manager is constructed, so
+   the base run never sees the (absent) kwarg.
+6. **Terminal-sweep pin is tick-racy unless the channel sweeps at stop.** The
+   drain exits ≤0.05 s after the run settles (manager.rb:273-277 polls
+   `outstanding?` at POLL_INTERVAL/5) while the channel tick is 0.25 s; a
+   tick-only sweep can lose that race and leave the request file at parent
+   exit. The frozen leg-E letter pins "no leftover request files after the run
+   ends (the channel's terminal sweep — poll-bounded)" and T3 pins "no orphan
+   pending entries after drain/shutdown" — i.e. the core lane's stop path must
+   sweep. Flagged for the core lane; NOT edited by this lane (my leg asserts the
+   letter with a bounded 5 s poll).
+7. **The child's ask timeout is not in the sanctioned env set.** The units
+   gate's sanctioned list (PI_* keys) has no `INTERCOM_ASK_TIMEOUT_MS`, so leg
+   E's child asks at the 600 s default and is bounded by the spawn's
+   `timeout_ms` run deadline — exactly the spec's leg-E letter ("the leg sets a
+   short run deadline via the spawn's timeout_ms; the run ends stopped/failed").
+   Recorded in-file; no machinery change.
+8. **Leg E also pins the stopped-run notify.** I48's `notify_completion` fires
+   unconditionally for async settles (manager.rb:526), so the parent session
+   gains a `subagent-notify` entry AFTER the ask; leg E pins the ordering (ask
+   first) and leaves the stopped-notify wording to leg B's completed-variant
+   pins (not this lane's letter).
+
+## STATUS: COMPLETE
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
