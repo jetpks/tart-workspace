@@ -67,7 +67,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: paste-markers
+  current_iteration: resize-layout
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -2257,4 +2257,10 @@ project:
     rehearsal:
       gates_digest: 855a58461235c9b244abc7b14b6738153947b79f368107382d4f5aa2a68754ad
       at: '2026-10-14T09:20:29-06:00'
+  - name: resize-layout
+    ordinal: 56
+    file: architecture/I56-resize-layout.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
