@@ -1945,23 +1945,25 @@ project:
       - test/subagents_profiles_test.rb
       - test/subagents_intercom_test.rb
       base_sha: 8f5620af2fb2a3d79e06a66b522b08ecbbcf215d
-      worktree: build/I49-subagents-profiles-intercom-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 0ff5fd18edb2797873654a4677fcf638da0c1234
     - name: e2e
       repo: tart
       touch_set:
       - test/subagents_e2e_test.rb
       base_sha: 8f5620af2fb2a3d79e06a66b522b08ecbbcf215d
-      worktree: build/I49-subagents-profiles-intercom-e2e/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 3f82e567386d3e77f4f0610ae600b13bbe915771
     rehearsal:
       gates_digest: b430f0db9afacecc320116c766e552067c6ae9cd10e615d19c018eba917ee28e
       at: '2026-10-13T17:11:01-06:00'
