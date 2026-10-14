@@ -1989,7 +1989,7 @@ project:
       - test/launcher_smoke_test.rb
       base_sha: 2943ef0d1baa67453e49605486ce584806249bc4
       worktree:
-      integration_branch: main
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
