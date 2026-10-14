@@ -1283,11 +1283,227 @@ beats speed.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I54-steering-queue-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence steering-queue --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# Builder Report — I54 steering-queue, lane `core` (repo tart, worktree branch lane/I54-steering-queue-core, base 1a8ea77)
+
+Builder: architect-builder child, session 2026-10-15. No commits (git log 1a8ea77.. empty — the
+worktree carries the work; the integrator commits). Every long command ran with an explicit
+timeout; nothing ran in the background.
+
+## 0. Environment facts (raw)
+
+- All `bundle`/rig commands ran with
+  `FAST_COMPLETIONS_PATH=/Users/eric/architect/spaces/20261009-pi-port/repos/fast-llm/gems/completions`
+  exported (the worktree cannot resolve the Gemfile's relative `../fast-llm/gems/completions`;
+  I52 report line 5 precedent: "All bundle/gate commands ran with FAST_COMPLETIONS_PATH … exported").
+- `git status --porcelain` (final): exactly the 13 declared files — 11 modified + 2 new scenarios.
+  Gemfile.lock, lib/tart/models.rb, motd.rb, bin/tart, repos/fast-llm, repos/pi: untouched.
+- The instruction (system-prompt) bytes embed the ABSOLUTE sandbox cwd and wrap by path length:
+  the byte-frozen wire-delta gate's instruction sha only reproduces when the gate runs EXACTLY as
+  frozen (cwd repos/tart, `--out tmp/i54-wire` relative). From the lane worktree the sha reads
+  58ac97d1fc60d26387a32f5361e57320300302334403bb61ec2a908713cf932d (deep-path wrap artifact, the
+  documented s9 family). Proofs below (§AC5): WIRE_DELTA_OK verbatim at repos/tart, and
+  WIRE_DELTA_OK for the LANE worktree via `--tart-dir <wt>` at canonical depth — the lane moves
+  no wire byte.
+- The suite's "1 skips" is pre-existing (pristine repos/tart at 1a8ea77 reports the same).
+
+## 1. Per-AC results (commands verbatim; outputs are tails)
+
+### AC1 — the loop (steering inside the round; follow-up at full completion; recording; queues)
+
+- `bundle exec ruby -Ilib -Itest test/agent_loop_test.rb -n "/steering_delivered_inside_the_tool_round|follow_up_delivered_only_after_full_completion|steering_recorded_at_its_delivery_point|clear_queues_empties_both_queues/"`
+  → `4 runs, 18 assertions, 0 failures, 0 errors, 0 skips`
+- `bundle exec ruby -Ilib -Itest test/agent_loop_test.rb -n "/queued_message_continues_the_outer_loop/"`
+  → `1 runs, 3 assertions, 0 failures, 0 errors, 0 skips` (I03-locked deviation un-regressed, unmodified pin)
+- Full agent_loop_test: `61 runs, 306 assertions, 0 failures, 0 errors, 0 skips`
+- New pins: (a) steer mid-tool-round → 2 requests, no second agent_start, steer = request 2's
+  trailing user message AFTER the tool result; (b) follow-up mid-run → 3 requests, the complete
+  tool-less answer's request carries NO follow-up, one agent_start; (c) session JSONL roles
+  `[user, assistant, tool, user, assistant]` with the steer text at the delivery point; (d)
+  clear_queues/snapshots/alias.
+- Live parity (s12, `gems/tui-split-rig/scenarios/s12_steering_mid_round.yml`): pi request 2 users
+  `[..., "wait, sort them by size"]`; OLD-port base measured 3 requests (exp run at 1a8ea77:
+  `request 1: ["list the files"]; request 2: ["list the files"]; request 3: ["list the files", "wait, sort them by size"]`).
+  AC1: PASS (see §4 deviation 3 for the outer-break realization).
+
+### AC2 — commands dispatch busy-or-not; /compact + /new abort-first; compaction submit
+
+- `bundle exec ruby -Ilib -Itest test/chat_test.rb -n "/thinking_command_while_busy|queued_messages_render|alt_enter_queues_follow_up|alt_up_restores_queued_messages|compact_while_busy_defers|new_while_busy_defers|compaction_submit_steers/"`
+  → `7 runs, 38 assertions, 0 failures, 0 errors, 0 skips`
+- `bundle exec ruby -Ilib -Itest test/render/editor_test.rb -n "/set_text/"` → `1 runs, 6 assertions, 0 failures, 0 errors, 0 skips`
+- Pins: /thinking off while busy EXECUTES (loop level "off" + surface runtime level) and NOTHING
+  queues; /compact + /new while busy record `interrupt_work!`, defer, and at :agent_end run the
+  EXACT idle path (outputs "context compacted" / reset fired) with the wind-down SKIPPED;
+  compaction-time submit steers + flashes "Queued message for after compaction".
+- Live parity (s13): pi users across both requests contain no "/thinking"; tart: exactly 1 request,
+  screen shows `Thinking level: off` + the streamed reply (see §4 deviation 1 for the gate defect).
+  AC2: PASS (the cure proven; the s13 gate defect is a calibration matter, not a behavior gap).
+
+### AC3 — the queue display and the keybinds
+
+- Covered by the same 7-run chat_test gate above + `/queued_message_delivery_removes_the_row_and_echoes_at_delivery|newline_keys/`
+  → `10 runs, 55 assertions, 0 failures, 0 errors, 0 skips` (with enter_while_running_steers).
+- Observed pins: the blank row + dim `Steering: <text>` + dim `↳ Alt+Up to edit all queued messages`
+  render between the dock spacer and the editor; the transcript yields exactly the pending rows
+  (editor bottom border row unchanged); NO submit-time echo for busy submits; delivery removes the
+  row and echoes AT DELIVERY; alt+enter busy → `follow_up` (not steer), idle → submits (never a
+  newline; shift+enter/ctrl+j still newline — re-pinned test_newline_keys…); alt+up clears mirror +
+  loop queues, restores `"first wish\n\nsecond wish"` via set_text, never aborts, flashes pi's
+  restore/no-queue texts.
+- s12 settled screens: pi and tart IDENTICAL modulo sanctioned classes (rig exit 0; both show the
+  tool block, then the `wait, sort them by size` echo, then `Done after steering.`).
+  AC3: PASS.
+
+### AC4 — rig parity pins (new scenarios)
+
+- `env -u … gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s12_steering_mid_round.yml --out tmp/parity-s12`
+  → exit 0 (out dir kept; `run-1/{pi,tart}{,.capture.styled,-requests.jsonl}` + summary.json fresh).
+- Frozen s12 gate post-assertion: `pi: steering text not the trailing user message of request 2`,
+  exit 1 — pi's steering user content is a PARTS ARRAY ([{"type"=>"text","text"=>…}], _queueSteer
+  agent-session.ts:2244-2256); the gate's bare-string equality can only pass for tart. With the
+  content shape normalized, BOTH apps MATCH:
+  `pi: trailing user content MATCHES (parts-array normalized) / tart: trailing user content MATCHES`.
+- `… run gems/tui-split-rig/scenarios/s13_command_while_streaming.yml --out tmp/parity-s13` → exit 2:
+  pi 2 requests (the 2nd is pi's error-retry after `Error: Stream ended without finish_reason` —
+  the mock's `:slow_stream` emits no finish_reason; pi renders `Reply after the command.` from the
+  retry), tart exactly 1 request (`Thinking level: off` + the streamed reply; NOTHING queued — the
+  cure demonstrated). The frozen `expected_requests: 2` + `lines.size == 2` cannot hold for the
+  cured tart. lib/tart/models.rb (`supports_finish_reason: false`, I52 exception item 3) is frozen
+  must-not-touch; the mock's ONE-additive-method cap blocks a finish_reason pacer (which would
+  break pi's arm instead — pi would drop to 1 request).
+- AC4: NOT-SATISFIED AS FROZEN — s12's rig arm passes, its gate assertion fails on pi's wire shape;
+  s13's gate is unsatisfiable for the cured port. EXCEPTION FILED (see §4 items 1–2). The behaviors
+  the gates were designed to prove (mid-round delivery bytes; no command text reaching the model)
+  are BOTH demonstrated by the captured request logs.
+
+### AC5 — the full no-regression battery, cold
+
+| gate | command (abridged) | result |
+|---|---|---|
+| suite | `bundle install --quiet && bundle exec rake` | `1056 runs, 4960 assertions, 0 failures, 0 errors, 1 skips` (base 1044 + exactly the 12 new pins) |
+| bench | `bundle exec ruby bench/seam_bench.rb 2>&1 \| tail -1` | `SEAM_BENCH_OK` |
+| s1–s10 | per-scenario rig runs, `--out tmp/parity-gate-sN` | all `exit=0` (s9 included — the known deep-path artifact did NOT reproduce this run) |
+| s1-tart-mode | rig run `--out tmp/parity-gate-s1tart` | exit 1 (by design) + `TART_MODE_OK` |
+| tool-pending | `gems/tui-split-rig/bin/tool-pending-probe --gate --out tmp/i54-tp` | `TOOL_PENDING_GATE_OK` |
+| user-bash | `gems/tui-split-rig/bin/user-bash-stream-probe --gate --out tmp/i54-ubs` | `USER_BASH_STREAM_GATE_OK` |
+| steering-units | frozen -n shapes | 4 runs + I03 pin 1 run, both exit 0 (§AC1) |
+| surface-units | frozen -n shapes | 7 runs + set_text 1 run, both exit 0 (§AC2) |
+| thinking-pins | frozen -n shapes | both exit 0 (`THINKING_PINS_OK`; note: the gate's runs-extraction grep picked up non-summary fragments — 4824/2630 — the anchors pass regardless; frozen text untouched) |
+| hermeticity | launcher_smoke + e2e_session | `8 runs, 39 assertions, 0 failures` / `4 runs, 90 assertions, 0 failures`, both ec 0 |
+| lock-deps | frozen command | `LOCK_DEPS_OK` (worktree note: the `env -u FAST_COMPLETIONS_PATH bundle install` leg prints "does not exist." at worktree depth — the lock file itself verified untouched, see §AC6) |
+| zai-data | frozen command | `ZAI_DATA_OK` (dialect pins 2 runs, 0 failures) |
+| threads-budget | `git diff 1a8ea77 -- lib \| grep -E "^\+[^+].*Thread\.new"` | empty → `THREADS_BUDGET_OK` |
+| wire-delta | byte-frozen command, cwd repos/tart | `WIRE_DELTA_OK` (verbatim). Lane-worktree proof: same gate shape with `--tart-dir <worktree>` at canonical depth → `WIRE_DELTA_OK for the LANE worktree` |
+| session-golden | byte-frozen command (worktree) | `SESSION_GOLDEN_OK` (7/7 digests) |
+| s12/s13 gates | frozen commands (worktree) | s12: rig exit 0, post-assertion exit 1 (pi shape — §AC4); s13: rig exit 2 (§AC4) |
+
+AC5: PASS on every standing gate; the two NEW gates carry the §4 calibration defects.
+
+### AC6 — scope and frozen bytes
+
+- `git status --porcelain` = exactly the 13 declared files.
+- Scope check (worktree form — `git diff --name-only 1a8ea77` + `git ls-files --others`, since the
+  frozen literal `1a8ea77..HEAD` is vacuous pre-integration): `SCOPE_OK 13 files`.
+- Gemfile.lock byte-identical (`git diff --stat Gemfile.lock` empty); no existing
+  scenario/golden/fixture/registry/differ/probe file touched; README diff = the three keybinding
+  rows only (`| Shift+Enter, Ctrl+J | insert a newline |`, `| Alt+Enter | queue a follow-up message
+  (submits when idle) |`, `| Alt+Up | restore queued messages to the editor |`).
+- mock_llm_server.rb diff = the ONE additive method `request_count` (+7 lines) — Spec §6's cap held.
+- AC6: PASS.
+
+## 2. Re-pin list (with reasons)
+
+1. test/chat_test.rb `with_recording_agent` (~:1404): stub `push_message` → `steer` — the surface's
+   busy-submit collaborator is the pi-named seam (Spec §7).
+2. test/chat_test.rb (~:2976, bang-bash agent stub): `push_message` → `steer` (same reason).
+3. test/chat_test.rb `test_newline_keys_insert_newlines_without_submitting` (:4104-4120): alt+enter
+   no longer newlines — re-pinned to shift+enter/ctrl+j newline + idle alt+enter SUBMITS
+   (pi interactive-mode.ts:4497-4504); the joined-trim/history assertions re-derived.
+4. test/chat_test.rb `test_slash_text_while_running_steers_like_any_message` (:1886) — REPLACED
+   (not in the spec's three-item re-pin list; itemized): the I13-era pin asserted "/compact mid-turn
+   steers" — the exact behavior §2 removes. It HANGS under the new law (the interrupt path means
+   request 2 never arrives; observed live before replacement). Its coverage now lives in
+   `test_compact_while_busy_defers_the_dispatch_to_agent_end` +
+   `test_new_while_busy_defers_the_reset_to_agent_end` +
+   `test_thinking_command_while_busy_dispatches_and_queues_nothing`.
+
+## 3. New pins (12; suite 1044 → 1056)
+
+agent_loop_test: steering_delivered_inside_the_tool_round_rides_the_next_request,
+follow_up_delivered_only_after_full_completion, steering_recorded_at_its_delivery_point_in_the_session_jsonl,
+clear_queues_empties_both_queues_and_snapshots_read_back.
+chat_test: thinking_command_while_busy_dispatches_and_queues_nothing,
+queued_messages_render_rows_and_shrink_the_transcript_budget,
+alt_enter_queues_follow_up_while_busy_and_submits_while_idle,
+alt_up_restores_queued_messages_to_the_editor,
+queued_message_delivery_removes_the_row_and_echoes_at_delivery,
+compact_while_busy_defers_the_dispatch_to_agent_end, new_while_busy_defers_the_reset_to_agent_end,
+compaction_submit_steers_with_the_after_compaction_flash.
+editor_test: set_text_replaces_content_cursor_at_end_and_pushes_undo.
+
+## 4. Deviations from the frozen letter (ALL itemized; none silent)
+
+1. **s13 gate unsatisfiable for the cured port (BLOCKER-class, adjudication needed).** The frozen
+   YAML (`expected_requests: 2`) + gate (`lines.size == 2`) cannot pass: pi's 2nd request is an
+   error-retry artifact (the mock's `:slow_stream` ends without finish_reason → pi
+   `Error: Stream ended without finish_reason` → auto-retry consumes response 2), while the cured
+   tart dispatches `/thinking off`, queues NOTHING, and the finish-less stream completes via
+   I52's frozen `supports_finish_reason: false` (lib/tart/models.rb:145-170 — must-not-touch) →
+   1 clean request. The spec's own old-port trace is internally inconsistent ("request 2 carries it
+   … the steer opens request 3" — the steer is consumed BY request 2; measured at base:
+   2 requests with the leak). No in-touch-set resolution exists (mock pacer = a second mock change +
+   would drop pi to 1). LANDED VERBATIM, run RED, evidence: tmp/parity-s13/. Exception:
+   build/loop/exception-2026-10-15T00:00:00Z.md.
+2. **s12 gate's pi arm unsatisfiable as frozen.** pi's steering user content is a parts array
+   ([{"type"=>"text","text"=>…}], agent-session.ts:2244-2256); the gate's
+   `users.last["content"] == steer` (bare string) fails for pi, passes for tart. The RIG exits 0
+   (both apps 2 requests; screens identical). Shape-normalized, both MATCH. Never rehearsed
+   pre-freeze (designed-RED at base). Same exception file, item 6.
+3. **The outer break realized as consume-and-HOLD** (loop.rb run_loop): the frozen expression
+   `break if steering_messages.empty? && follow_up_messages.empty?` drains destructively — the
+   follow-up was EATEN by the check before the opening could deliver it (observed: 2 requests, no
+   delivery, second turn_start then agent_end). Realized as pi's poll semantics
+   (agent-loop.ts :295→:212-220, :302-308 — pendingMessages): `held = steering_messages +
+   follow_up_messages; break if held.empty?`, the opening consumes `held + steering_messages` first.
+   This also fixes a base race (a steering message landing in the wind-down window was silently
+   eaten by the destructive check). The I03-locked pin stayed green unmodified; the §1.3
+   "never both in one opening" precedence applies to the queue drains (held leftovers ride
+   `steering` in arrival order, pi's pendingMessages processing order).
+4. **submit_follow_up expands skills/prompt-templates** (chat.rb): Spec §2.4 omits expansion, but
+   pi's alt+enter routes through session.prompt(text, {streamingBehavior: "followUp"}) which
+   expands BEFORE queueing (agent-session.ts:2005-2010 → :2012-2024). Added for pi fidelity
+   (`text = @commands.expand_skill(text) if @commands`). The builtin dispatch + thinking gate +
+   !-bash intercept intentionally do NOT run on the follow-up path (pi's handleFollowUp skips the
+   if-chain; the text queues verbatim post-expansion).
+5. **Re-pin 4 above** (test_slash_text_while_running_steers_like_any_message replaced) — beyond the
+   spec's named three.
+6. **InterruptKernel double placement** (chat_test): defined after IdleKernel (Ruby constant
+   load-order inside the test class body) — cosmetic, noted for completeness.
+
+## 5. Residual risks
+
+- The two NEW-gate calibration defects (§4 items 1–2) need an architect amendment before the
+  s12/s13 frozen gates can go green; the raw evidence + amendment options are in the exception file.
+- s13's settled-SCREEN parity is undemonstrable while the gate is mis-calibrated (pi renders the
+  retry's Error + answer rows that the port never produces); s12's screen parity IS demonstrated.
+- Dequeue while a suggestion list is open: Editor#set_text cannot cancel the surface-side
+  autocomplete (the spec's own §4 discipline note); a stale list persists until the next key. pi
+  cancels inside setText. Minor UX edge, unfixed per the frozen seam split.
+- The wire-delta/session gates are depth-sensitive (instruction embeds the absolute cwd); lane
+  worktree runs show the wrap-artifact sha. Canonical-depth runs (the gates' frozen cwd) are the
+  truth — both provided.
+- The thinking-pins gate's runs-extraction grep is loose (picks up non-summary "N runs" fragments);
+  anchors pass regardless; frozen gate text untouched.
+
+## 6. Out dirs kept (evidence)
+
+tmp/parity-s12, tmp/parity-s13 (fresh runs + captures + request logs + summary.json),
+tmp/parity-gate-s1..s10, tmp/parity-gate-s1tart, tmp/parity-gate-s12, tmp/parity-gate-s13,
+tmp/i54-tp, tmp/i54-ubs, tmp/i54-wire (worktree), tmp/i54-wire-canon, and the canonical-depth runs
+inside repos/tart/tmp (i54-wire, i54-wire-lane — repos/tart git status clean before/after).
+
+STATUS: COMPLETE_WITH_CONCERNS
 
 ## Verdict
 
