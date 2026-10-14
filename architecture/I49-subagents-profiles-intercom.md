@@ -2047,15 +2047,192 @@ RatatuiRuby/Async "Terminal is not initialized" warnings appear unchanged.)
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section subagents-profiles-intercom verdict --from <file>`. -->
+# Verdict — I49 subagents-profiles-intercom
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify subagents-profiles-intercom`)?
+Judged cold in a fresh session on the integrated tree (base 8f5620a +
+both lanes' 17-file diff, staged uncommitted before the formal merge —
+the I48 precedent; the battery re-run after `architect integrate` lands
+byte-identical content). Mechanical post-flight first: `architect
+verify` 8/8 PASS both lanes (frozen region untouched — diff vs freeze
+b97dcd0b shows only the Builder Prompt appends; zero builder commits —
+`git -C <wt> log 8f5620a..` empty both lanes; reports present; both
+worktrees in-bounds: core exactly the 16-file touch set, e2e exactly
+test/subagents_e2e_test.rb as a 352-line pure append, 0 deletions).
+Evidence transcribed verbatim (core 4b1ea5ad, e2e 47cd8747). The
+environmental carry-ins were honored: HERDR_* scrubbed on every rig
+invocation, canonical out dirs (the s9/s10 deep-path artifact never
+fired — the battery ran at canonical depth), s1_tart tolerated exit 1
+with TART_MODE_OK.
+
+## OQ rulings (Grounds §8 — by the frozen letter; all "Recommend ACCEPT")
+
+All nine AFFIRMED as lettered, each verified against the built surface
+and the pi-subagents 0.77.0 source: **OQ-1** the manager.rb edit is
+exactly the nine enumerated sites (+45/−8: root accessor/kwarg,
+supervisor_channel accessor, Profiles.resolve lookup, the model tier
+`model || spec[:model]`, apply_bridge, the two control subdirs, the two
+child_env keys, the shutdown hook; unknown_agent_message retired into
+resolve) — nothing else in the I48 run-lifecycle machinery moved and the
+I48 battery passes with only the enumerated re-pins (27 of its tests
+byte-unchanged, 27→31 runs); **OQ-2** both tiers shipped + pinned
+(recursive, dotfile/non-md ignored, project > user > builtin); **OQ-3**
+`subagent_supervisor_request` byte-exact (verified against
+supervisor-ui.js:3); **OQ-4** reply/pending ride the one `subagent` tool;
+**OQ-5** exact reply_to only — no fuzzy matching anywhere (the disk-first
+fallback is exact-id; see core P0-2); **OQ-6** the field set + tolerated
+keys (validate_keys=false; itemized comment block); **OQ-7** no new
+command surface — the templates ride Prompts/templates/autocomplete/MOTD
+through the existing surfaces, interactive boot only, gate-off zero
+bytes (wire-bodies WIRE_BODIES_OK cold proves it); **OQ-8** the single
+queue + wake — the parent-loop suite pin proves the ask reaches a MODEL
+turn as user-role text, leg E proves the print record + bound; **OQ-9**
+the cut list, README pointer shipped, no cut-machinery token in any
+template (gate-pinned).
+
+## PHASE 0 rulings — core lane (10 items)
+
+- **P0-1 stricter forbidden-token list — ACCEPT.** The `%w[]` literal
+  splits `action: "guide"` into bare `action:` + `"guide"` tokens; the
+  lane complied with the stricter reading (no `action:` substring
+  anywhere), which satisfies both readings. Zero cost, gate-green.
+- **P0-2 `#reply` disk-first exact-id fallback — ACCEPT.** The frozen
+  gate polls the request FILE and replies the moment it appears while
+  the channel's registry can lag up to one 0.25s tick — read
+  registry-only, the frozen literal races and loses (the lane
+  reproduced it deterministically). The fallback matches EXACT request
+  ids only (path-unsafe ids rejected; lifecycle must still be pending),
+  so every T1 negative keeps pi's byte-exact error (run id, agent name,
+  stale id — all raise, no reply file ever written; gate-pinned twice).
+  This is the channel's own disk-first rule (T3) applied to the reply
+  path; OQ-5's no-fuzzy-matching holds. The right call over a gate
+  repair: the machinery answers faster than its poller, exactly the
+  parent behavior pi's own single-object channel has in-process.
+- **P0-3 interview JSON 2-space — ACCEPT.** Spec §4.4 mandates 2-space
+  against pi's tab; the spec is the authority over the oracle (the
+  I43-class rule).
+- **P0-4 64KB cap on the port's serialization — ACCEPT.** pi counts its
+  pretty-printed bytes; the port counts JSON.generate's — the pinned
+  observable (the `Supervisor request is too large.` error + no file)
+  is identical and the tests blow past any formatting delta.
+- **P0-5 reply trim — ACCEPT.** pi writeReply trims both the blank
+  check and the stored message; byte-behavior preserved.
+- **P0-6 context as :fresh/:fork symbols — ACCEPT.** Spec §1 defines
+  the spec Hash as "the I48 builtin shape" and the Manager's frozen
+  fork check reads `spec[:context] == :fork`; the contract validates
+  the "fresh"|"fork" STRINGS per §2 and the mapping happens at build.
+- **P0-7 pi's closestMatch threshold — ACCEPT.** Ported verbatim from
+  shared/edit-distance.js (distance ≤ max(1, len/4) or one adjacent
+  transposition); the spec's "Levenshtein-closest" underdetermines the
+  threshold and pi is the named oracle.
+- **P0-8 nil-channel reply/pending state texts — ACCEPT.** With no
+  channel nothing can be pending; the frozen gate drives a bare
+  Manager and expects exactly those bytes — forced by the gate itself.
+- **P0-9 additive root: seams — ACCEPT.** Manager#root + register(root:)
+  are defaulted additive kwargs beside the frozen surfaces (the I48
+  P0-3 precedent); every frozen drive remains valid; hermetic boots
+  need the seam.
+- **P0-10 scan-time lifecycle disposal — ACCEPT.** pi's poll disposes
+  never-to-be-registered files at first sight (cleanupRequestLifecycle);
+  the port matches and pins it (poison/stale/expired/terminal never
+  surface).
+
+## PHASE 0 rulings — e2e lane (8 items)
+
+All ACCEPT: (1) the leg-local ensure + hygiene assert instead of
+touching the shared teardown (0 deleted lines — legs A–D byte-untouched
+proven by the pure-append diff); (2) both prefix letters followed
+([i48-e2e] print lines, i49-e2e- dirs); (3) leg E's requestId sourced
+from the surfaced hint + uuid shape + independent byte sources — the
+only channel available (the file is swept before exit, by design);
+(4) two declared reds for two legs — ContactSupervisor is unreachable
+as a test-process first touch, sound; (5) leg F's root via the driven
+`root:` kwarg; (6) the terminal-sweep stop-time race flagged against
+the core lane — verified RESOLVED in the built core: `SupervisorChannel
+#stop` runs a final lifecycle sweep before joining and Manager#shutdown
+stops the channel LAST (after runs settle); leg E's requests-empty
+poll passed cold, no machinery change needed; (7) the run deadline as
+the child's bound (no ask-timeout key in the sanctioned set — exactly
+the spec's leg-E letter); (8) the stopped-run notify ordering pin
+(additive, letter-faithful).
+
+## Judge-found defects, fixed at integration (I36/I48 precedent, recorded — never silent)
+
+1. **e2e leg E :654 was mechanically unsatisfiable.** The leg asserted
+   the child's `contact_supervisor` tool_call appears in a captured
+   wire request — but the child makes exactly ONE wire request
+   (system+user); it then BLOCKS inside the tool call until the run
+   deadline kills it, so no assistant tool_call can ever enter a
+   captured request (proved cold: the pre-fix rake run and standalone
+   run both red at exactly :654 with the child request's roles
+   `["developer","user"]`). The lane could not have caught it (their
+   tree reds at NameError before the machinery exists) — the declared
+   integrated-tree-only risk class. Judge repair (lane worktree +
+   integrated tree): assert the bridge directly on the child's ONE
+   request — its tool declarations include `contact_supervisor` and
+   its system prompt carries `Supervisor::BRIDGE_INSTRUCTION` verbatim;
+   the ask itself remains pinned through the parent-session §4.4 bytes
+   below. Post-fix: e2e standalone 6 runs / 144 assertions / 0F, full
+   suite 1039/4850/0F/1skip, SUBAGENTS_E2E_OK cold.
+2. **The frozen `subagents-profiles-units` 600ms blocking-ask leg is a
+   timing razor, not an unsatisfiable literal.** The ordered battery
+   (suite → e2e → rigs → units) failed it once cold ("reply result
+   bytes: {error: \"Timed out waiting for supervisor reply.\"}" — the
+   helper thread's 0.2s-delayed reply missed the 0.6s deadline under
+   residual load), and one isolated re-run failed the same way; the
+   verbatim literal then passed 3/3 isolated, and the builder's
+   worktree run passed. Verdict: satisfiable, load-flaky. The gate
+   file is NOT amended (the I45/I48 discipline): the recorded judge
+   form changes ONE token (`"600"` → `"1500"` on
+   PI_INTERCOM_ASK_TIMEOUT_MS — still short, still proves the env
+   override threads the blocking path) and passed 3/3; the verbatim
+   pass is also recorded above. The 250ms timeout leg (the env-honored
+   bound proof) never flaked.
+
+## Acceptance Criteria
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | subagents-profiles-units verbatim 3/3 + judge-form 3/3 (PROFILES_OK/BRIDGE_SPAWN_OK); subagents_profiles_test 15 runs green in-suite; tiers/precedence/contract/unknown-agent/hermeticity pinned; model order call > profile > parent pinned (suite + leg F) | §1/§2 | PASS |
+| AC2 | units CHANNEL_OK/CHILD_TOOL_OK (surface bytes, T1 wrong-id × 3 + blank, round trip with a REAL child unblocked through its next request, lifecycle, progress-never-surfaces); subagents_intercom_test 24 runs incl. the parent-loop wake round trip; subagents-e2e SUBAGENTS_E2E_OK legs A–F (leg E post one-block judge repair) | §4/§5 | PASS |
+| AC3 | units BRIDGE_SPAWN_OK + suite re-pins only (argv tools tail, the 15-key sanctioned env set, system-prompt bridge tail, unknown-agent merged-table text); manager.rb diff = exactly the nine sites (+45/−8); BUILTIN_AGENTS/DEFAULT_FORK_PREAMBLE pins unmodified; BRIDGE_INSTRUCTION byte-identical to pi (1489 bytes, verified against intercom-bridge.js) | §3 | PASS |
+| AC4 | units WORKFLOW_TEMPLATES_OK (six names, frontmatter bytes, forbidden-token absence, vocabulary + council protocol inline, merge override); gate-off zero bytes proven by WIRE_BODIES_OK (both digests EXACT at canonical depth) | §7 | PASS |
+| AC5 | suite 1039 runs / 4850 assertions / 0 failures / 1 base skip (base 994/1skip; +45 = +43 core units + 2 e2e legs); SEAM_BENCH_OK; s1–s10 exit 0 cold canonical; TART_MODE_OK; both probes OK; WIRE_BODIES_OK; SESSION_GOLDEN_OK; subagents-e2e green A–F; scope = EXACTLY the declared 17 files, nothing in the must-not-touch set (verified on the staged diff AND the merged HEAD) | §8 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+All five AC PASS. The three supervisor traps are pinned end-to-end: T1
+(request-id routing — the units wrong-id pins + the round trip replies
+the child's OWN request id; the disk-first fallback stays exact-id),
+T2 (the child's ask bounded by the run deadline — leg E's
+stopped/timedOut pin; contact_supervisor exempt from tool timeouts),
+T3 (the terminal sweep drops asks of dead runs — units + leg E's
+requests-empty poll + the stop-time sweep the e2e lane flagged, built
+and verified).
+
+## Residuals (recorded, none blocking)
+
+- The frozen `subagents-profiles-units` 600ms blocking-ask leg stays
+  load-flaky (2 fails / 4+ passes observed); the one-token judge form
+  (600→1500) is recorded above; the gate file is never amended. Any
+  future re-run that flakes there should use the judge form.
+- The OQ-8(b) busy-parent delivery latency divergence (queued ask rides
+  the next add_user_message drain, not mid-turn) is itemized and
+  pinned as ruled; reopen on live pain (the spec's own standing note).
+- A gate-on parent's children re-read the shared settings file, so a
+  child's wire also declares `subagent` (registered last) when the
+  staged/home settings gate is on — pre-existing I48 shape (the env
+  gate row is NOT passed; children never nest by the sanctioned-env
+  pin), unchanged by this entry; noted for the program record.
+- Interview JSON indents 2-space (spec-mandated) vs pi's tab — a
+  deliberate, recorded oracle divergence.
+
+## Iteration
+
+**CONTINUE** — the closing entry landed faithful to the frozen letter:
+every regression gate GREEN cold on the integrated tree with the
+default-off zero-behavior bar proven by the EXACT wire/session digests,
+both capability gates green (the units literal verbatim 3/3 + the
+recorded judge form; the e2e battery green A–F after the recorded
+one-block judge repair of an unsatisfiable leg-E assertion), scope
+exactly the declared 17 files, the I47/I48 seams consumed never edited,
+and both judge-found defects recorded with discriminating re-runs.
+**This closes program ENTRY 7 — the program's FINAL entry; the
+coordinator writes the program final report next.**

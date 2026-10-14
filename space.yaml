@@ -1923,7 +1923,7 @@ project:
     ordinal: 49
     file: architecture/I49-subagents-profiles-intercom.md
     freeze_sha: b97dcd0b8d5da25cb07acb8838fba318b811ab4a
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
@@ -1944,10 +1944,24 @@ project:
       - test/subagents_test.rb
       - test/subagents_profiles_test.rb
       - test/subagents_intercom_test.rb
+      base_sha: 8f5620af2fb2a3d79e06a66b522b08ecbbcf215d
+      worktree: build/I49-subagents-profiles-intercom-core/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
     - name: e2e
       repo: tart
       touch_set:
       - test/subagents_e2e_test.rb
+      base_sha: 8f5620af2fb2a3d79e06a66b522b08ecbbcf215d
+      worktree: build/I49-subagents-profiles-intercom-e2e/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: b430f0db9afacecc320116c766e552067c6ae9cd10e615d19c018eba917ee28e
       at: '2026-10-13T17:11:01-06:00'
