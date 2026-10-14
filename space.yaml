@@ -67,7 +67,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: subagents-profiles-intercom
+  current_iteration: de-bridge
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -1967,4 +1967,10 @@ project:
     rehearsal:
       gates_digest: b430f0db9afacecc320116c766e552067c6ae9cd10e615d19c018eba917ee28e
       at: '2026-10-13T17:11:01-06:00'
+  - name: de-bridge
+    ordinal: 50
+    file: architecture/I50-de-bridge.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
