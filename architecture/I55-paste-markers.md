@@ -283,35 +283,313 @@ notes/spec-digest-20261014T122538Z.md, verified)
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section paste-markers specification --from <file>`. -->
+# Specification — I55 paste-markers
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+## Objective
+
+Port pi's large-paste marker compaction into tart (ENTRY B of the live-run
+fixes rev3 program, `notes/plan-20261014T031751Z.md`): a large paste
+(> 10 lines OR > 1000 chars) stores the full text in an editor paste
+registry and inserts ONLY a `[paste #N +M lines]` / `[paste #N C chars]`
+marker at the cursor; submit expands markers (the wire, the session, the
+history, and the queue all receive the EXPANDED text — the marker is
+display-only); backspace over a marker deletes it atomically, drops the
+registry entry, and renumbers; plus the owner's sanctioned
+paste-over-marker deviation (Grounds §3). Pinned by unit tests and by two
+NEW rig scenarios (s14 display / s15 submit-wire-session). No wire byte of
+any EXISTING scenario moves. Durable context: BRIEF §8 (exact-parity
+done bar) — this entry is parity-first against pi's editor.ts letter with
+the owner's one deviation.
+
+## Output format
+
+The builder's scratch report (`build/I55-paste-markers-core/report.md`,
+transcribed verbatim into Builder Report): a per-gate table (gate id,
+command, exit code, tail), the new-test inventory (file, test name, one
+line), the s14/s15 baseline narrative (candidates seen → resolution),
+and a STATUS line. Raw command output paths under the lane worktree's
+`tmp/`.
+
+## Tool guidance — exact verification commands
+
+- Standing battery (adopted verbatim from the I54 freeze;
+  `architecture/I54-steering-queue.md` gates block — digests extracted
+  programmatically, never hand-transcribed): `bundle exec rake`;
+  `bundle exec ruby bench/seam_bench.rb` (SEAM_BENCH_OK); the rig runs
+  for s1–s10 + s1_tart + both probes; thinking-pins / hermeticity /
+  lock-deps / zai-data / threads-budget (vs `e61cb78`) / wire-delta /
+  session-golden — all in the frozen gates block below.
+- Unit runs (forms verified this session):
+  `bundle exec ruby -Ilib -Itest test/render/editor_multiline_test.rb -n /…/`,
+  `… test/render/editor_undo_test.rb …`, `… test/chat_test.rb …`,
+  `bundle exec ruby -Itest gems/tui-split-rig/test/scenario_test.rb -n /…/`.
+- New-scenario gates: `env -u HERDR_ENV -u HERDR_TAB_ID -u
+  HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u
+  HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run
+  gems/tui-split-rig/scenarios/<name>.yml --out tmp/<dir>` (the env-strip
+  discipline is load-bearing — Grounds §4).
+- pi oracle: `repos/pi` @ f1b2e77f sources; the installed `pi` binary
+  carries the feature (Grounds §0).
+
+## The contract, area by area
+
+### D1 — Editor paste registry (`lib/tart/render/editor.rb`)
+
+- Constants (pi editor.ts:32/:35, byte-faithful):
+  `PASTE_MARKER_REGEX = /\[paste #(\d+)( (\+\d+ lines|\d+ chars))?\]/`
+  (Ruby non-global — used via `String#scan`/`gsub` with a block) and
+  `PASTE_MARKER_SINGLE = /\A\[paste #(\d+)( (\+\d+ lines|\d+ chars))?\]\z/`.
+- State: `@pastes` (Hash Integer ⇒ String) + `@paste_counter`
+  (Integer, 0). Invariant after every op: registry ids are exactly
+  `1..n` contiguous and `@paste_counter == @pastes.size` (pi's
+  store-increment / delete-decrement+shift arithmetic).
+- `expanded_text` (pi getExpandedText :1100-1103 → expandPasteMarkers
+  :1090-1097): over the joined input, for each registry id replace
+  `[paste #<id>( (suffix))?]` with the stored content — id-driven and
+  SUFFIX-AGNOSTIC (a hand-typed marker whose id is in the registry
+  expands — pi quirk, pinned). **The replacement MUST use block-form
+  `gsub` (or equivalent) — never a String replacement argument**: paste
+  content containing `\1`/`\\`-shaped bytes must expand verbatim
+  (pi's JS replacer-function parity; pinned with a regex-danger
+  fixture).
+- `set_text` (editor.rb:519-536) and `clear` (editor.rb:113-122) clear
+  the registry + counter (pi setText :1124-1125; the port's `clear`
+  realizes pi's clearEditor→setText("")). In `set_text` the clear comes
+  AFTER the push-if-content-differs, so the snapshot carries the OLD
+  registry and one undo restores it (pi order, pinned).
+
+### D2 — `insert_paste` (pi handlePaste :1259-1325)
+
+In order (the port's realization; the CSI-u decode stays CUT — Grounds
+§5):
+1. `exit_history_browsing`; `@last_action = nil`; ONE unconditional
+   `push_undo_snapshot` (existing behavior, unchanged — the whole
+   composite below is ONE undo unit).
+2. **OWNER ARM (Grounds §3, the port's own behavior — pi has NO
+   analog)**: if a marker with an id in `@pastes` ENDS exactly at the
+   cursor on the current line, replace that span with its registry
+   content inline (the `insert_multiline` splice shape: the span is
+   removed, the content spliced at the span start, cursor lands at the
+   end of the expanded content / before the following text), then drop
+   the registry entry and renumber with exactly the D3 discipline
+   (counter decrement, higher-id shift, text renumber). Then continue
+   with the NEW paste through 3–5. (The path-space rule in 4 therefore
+   reads the post-expansion line.)
+3. Normalize (`self.class.normalize_text`) + filter non-printables
+   keeping `\n` (existing behavior, unchanged).
+4. **Path-prefix space (pi :1290-1299, NEW)**: if the filtered text
+   starts with `/`, `~`, or `.` AND the character before the cursor
+   (current line, col−1) matches ASCII `\w` = `[A-Za-z0-9_]` (pi's JS
+   `\w` — NOT the port's unicode-wide `WORD_CHAR`), prepend one space.
+5. **Large-paste check (pi :1300-1317, NEW)**: over the FILTERED text,
+   `split("\n", -1).length > 10 || length > 1000` (both strictly
+   greater; the `-1` limit reproduces JS split's trailing-empty
+   counting) → `@paste_counter += 1`; `@pastes[id] = filtered`; insert
+   ONLY the marker via the multiline splice — line form
+   `` `[paste ##{id} +#{lines} lines]` `` when `lines > 10`, else char
+   form `` `[paste ##{id} #{chars} chars]` `` (chars = filtered
+   length). Otherwise the filtered text splices inline (existing
+   behavior).
+- The marker bytes are frozen by the live calibration: 12 pasted lines
+  → `[paste #1 +12 lines]` (Grounds §4.2).
+
+### D3 — Marker deletion arms
+
+- **Backspace (pi handleBackspace :1383-1428)**: inside the existing
+  `@cursor_col.positive?` branch (after its undo push), if a
+  `PASTE_MARKER_REGEX` match on the current line ENDS exactly at
+  `@cursor_col` AND its id is in `@pastes`: drop the id, decrement the
+  counter, shift every higher registry id down one (ascending order),
+  renumber every marker in EVERY line with id greater than the deleted
+  one to id−1 (each marker's suffix preserved verbatim; block-form
+  gsub), then delete the whole marker span from the current line and
+  set the cursor to the span start. A marker whose id is NOT in the
+  registry (hand-typed) deletes char-wise — pi parity (unmerged
+  segment), pinned.
+- **Forward delete (pi handleForwardDelete :1781-1815)**: if a valid
+  marker match STARTS exactly at `@cursor_col`, delete the whole span
+  in one op and leave the registry UNTOUCHED — pi's exact letter
+  (the stale entry is inert: expansion is marker-driven), pinned as
+  deliberate parity (Grounds OQ-2).
+
+### D4 — Undo carries the registry (pi :2116-2134)
+
+The `Snapshot` struct gains `pastes` + `paste_counter` members;
+`push_undo_snapshot` populates them (the stack's deep-copy detaches the
+Hash); `undo` restores them alongside the state triple (direct
+assignment, the existing discipline). One undo after any marker op
+(backspace-delete, paste-over) restores the pre-op marker text AND
+registry (`expanded_text` round-trips).
+
+### D5 — The submit surface delivers EXPANDED text (`lib/tart/render/chat.rb`)
+
+- `submit` (:990-1024) and `submit_follow_up` (:1044-1064): the single
+  read line in each changes from `@editor.input.dup.strip` to
+  `@editor.expanded_text.dup.strip` (pi submitValue :1364-1377 expands
+  BEFORE onSubmit; pi handleFollowUp :4476 reads getExpandedText).
+  Everything downstream is then automatic and pi-parity: commands
+  if-chain, skill expansion, steer/followUp queueing + mirrors, the
+  user echo (`enqueue_user_submission`), history
+  (`add_to_history` — expanded, pi :4482/:4494/:3356-3396), the bash
+  intercept, the agent run, the session recording, the wire.
+- UNCHANGED raw readers (pi parity — do NOT "fix"): `Chat#input`
+  (:332), autocomplete (`slash_token`/`input`), bash-mode/backslash
+  checks, and **`dequeue_queued_messages` (:1122) — RAW
+  `@editor.input` joined through `set_text`** (pi
+  restoreQueuedMessagesToEditor :4753 reads getText() raw; a live
+  marker at dequeue dies as literal text because set_text clears the
+  registry — pi's exact shape, pinned).
+- No `lib/tart/agent/**` or session-recording change exists — the text
+  is expanded at the surface seam (pi's architecture; verified live,
+  Grounds §4.4–4.5).
+
+### D6 — The rig instrument (`gems/tui-split-rig`)
+
+- `Scenario` (`lib/tui_split_rig/scenario.rb`): two new optional knobs
+  with load-time validation — `paste:` (String; the text sent as a
+  bracketed paste BEFORE the prompt) and `submit:` (boolean, DEFAULT
+  TRUE; false = never send Enter — paste-only display flows).
+  **`expected_requests` validation relaxes to NON-NEGATIVE integer**
+  (0 now valid; negative still rejected) — paste-only scenarios make no
+  requests (Grounds OQ-3). The `responses` non-empty rule is unchanged
+  (a paste-only scenario carries one never-served response). Header
+  comment documents the knobs (house style).
+- `Runner#run_app` (`lib/tui_split_rig/runner.rb`): when `paste` is
+  set, after the boot settle and before the prompt: write the text to a
+  file under the out dir, `tmux load-buffer -b <token-scoped-name>`,
+  `tmux paste-buffer -b … -p -t <session>` (the bracketed-paste wrap —
+  live-calibrated, Grounds §4.1), `delete-buffer`. **The no-knob path
+  is byte-frozen**: when `paste` is absent and `submit` is true (every
+  pre-existing scenario), the runner sends EXACTLY today's single
+  `tmux send-keys <prompt> Enter` call (:124) — the knob branches must
+  not split or reorder it (the s1–s10 battery is the regression net).
+  In the knob path: the prompt is sent only when non-empty; Enter only
+  when `submit`.
+- `test/scenario_test.rb`: knob tests named `test_paste_knob_*`,
+  `test_submit_knob_*`, `test_expected_requests_zero_*` (parse,
+  defaults, rejections, 0-accepted) — the gate's name filter matches
+  those.
+
+### D7 — The two NEW scenarios (`gems/tui-split-rig/scenarios/`)
+
+Both carry doc-comment headers (house style); the paste text is the
+EXACT calibrated 12-line block (Grounds §4):
+
+```
+line alpha one / line bravo two / line charlie three / line delta four /
+line echo five / line foxtrot six / line golf seven / line hotel eight /
+line india nine / line juliet ten / line kilo eleven / line lima twelve
+```
+
+(one per line, no trailing newline — YAML `|-`).
+
+- **`s14_paste_marker_display.yml`**: `prompt: ""`, the paste block,
+  `submit: false`, `expected_requests: 0`, one never-served stream
+  response. Pins: the settled screen shows the marker row
+  `[paste #1 +12 lines]` in the editor and NO pasted-content row, in
+  BOTH apps, screens identical (RED-at-base by design — Grounds §4.3).
+- **`s15_paste_marker_submit.yml`**: `prompt: ""`, the paste block,
+  `expected_requests: 1`, stream reply `copy that, twelve lines`. Pins:
+  request 1's user content is the EXACT 12-line text in BOTH apps
+  (shape-normal extraction for pi — parts array vs string, Grounds
+  §4.4), zero marker bytes on the wire, the settled screens show the
+  EXPANDED user echo and no marker, and tart's session JSONL records
+  the expanded text with no marker bytes (Grounds §4.5 — backlog item
+  f's pin).
+- NO existing scenario/golden/fixture/registry file is touched.
+
+### D8 — Unit pins (name filters are the gate contract)
+
+- `test/render/editor_multiline_test.rb` — ≥ 12 tests matching
+  `/paste_marker|expanded_text|paste_over|path_prefix/`, covering at
+  minimum: both marker forms (line + char, exact bytes, cursor after
+  the marker, registry stored); the >10-lines and >1000-chars
+  boundaries (10 lines / 1000 chars inline; 11 lines / 1001 chars
+  marker); the path-prefix space rules (word-char-before → space;
+  non-word / line-start / unicode-é-before → none — ASCII `\w`); the
+  non-printable filter still holding with markers; `expanded_text`
+  (multi-marker join, regex-danger content verbatim, hand-typed
+  marker with a valid id expands, suffix-mismatch expands);
+  paste-over-marker (large-then-large: old content inline + new
+  marker, ids contiguous 1..1; large-then-small: expanded + inline
+  text; cursor-not-adjacent: the normal second marker `#2`;
+  single-undo round-trip); backspace renumber (two markers, delete #1
+  → text shows `[paste #1 +N lines]` for the survivor, registry size
+  1, suffix preserved); hand-typed marker backspace char-wise;
+  forward-delete span without registry cleanup.
+- `test/render/editor_undo_test.rb` — ≥ 3 tests matching `/marker/`:
+  marker-delete-then-undo restores text + registry
+  (`expanded_text` round-trip); paste-over is ONE undo unit;
+  set_text-clears-registry with undo restoring it.
+- `test/chat_test.rb` — ≥ 4 tests matching `/paste_marker/`: submit
+  delivers the expanded text to the agent (stub) with history
+  expanded and the editor cleared; busy submit_follow_up queues the
+  expanded text; the marker string never reaches the agent
+  (submit + follow-up arms); dequeue-restore keeps a live marker's
+  TEXT literally with the registry empty (pi :4753 parity).
+
+## Boundaries
+
+- **May touch (the complete set — the scope gate freezes exactly this
+  list)**: `lib/tart/render/editor.rb`, `lib/tart/render/chat.rb`,
+  `gems/tui-split-rig/lib/tui_split_rig/scenario.rb`,
+  `gems/tui-split-rig/lib/tui_split_rig/runner.rb`,
+  `gems/tui-split-rig/scenarios/s14_paste_marker_display.yml` (NEW),
+  `gems/tui-split-rig/scenarios/s15_paste_marker_submit.yml` (NEW),
+  `gems/tui-split-rig/test/scenario_test.rb`,
+  `test/render/editor_multiline_test.rb`,
+  `test/render/editor_undo_test.rb`, `test/chat_test.rb`.
+- **Must not touch**: everything else — including `lib/tart/agent/**`,
+  session recording, `bench/`, `test/support/mock_llm_server.rb`,
+  `registry.yml`, every existing scenario/golden, `README.md` (no
+  keybinding change this entry), the probes' `bin/` scripts, and
+  `lib/tart/render/` files other than editor/chat.
+- **Out of scope (recorded reductions, Grounds §5)**: cursor-motion /
+  word-op / word-wrap marker atomicity; the CSI-u decode (tripwire =
+  the s15 wire gate); pi's external-editor and jump-mode surfaces;
+  s11/s13 (standing-open, not this program's bar).
+
+## Lane plan
+
+ONE lane, `core` (chat.rb and editor.rb are co-designed with the rig
+scenarios that pin them; the rig delta is 2 lib files + 2 YAMLs + 1
+test file — below any sane split threshold; I54's single-lane
+precedent for this program). Declaration:
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision paste-markers`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/render/editor.rb
+    - lib/tart/render/chat.rb
+    - gems/tui-split-rig/lib/tui_split_rig/scenario.rb
+    - gems/tui-split-rig/lib/tui_split_rig/runner.rb
+    - gems/tui-split-rig/scenarios/s14_paste_marker_display.yml
+    - gems/tui-split-rig/scenarios/s15_paste_marker_submit.yml
+    - gems/tui-split-rig/test/scenario_test.rb
+    - test/render/editor_multiline_test.rb
+    - test/render/editor_undo_test.rb
+    - test/chat_test.rb
+  objective: the paste registry, the marker insert/delete/expand ops, the
+    expanded submit seam, the rig paste/submit knobs, the s14/s15
+    scenarios, and the unit pins.
+  output: scratch report at build/I55-paste-markers-core/report.md
+    (per-gate table, test inventory, baseline narrative, STATUS line).
+  boundaries: the ten-file touch set above; must-not-touch per
+    Boundaries; builders never commit.
 ```
+
+## Effort
+
+Dispatched at the coordinator's default for this program's single-lane
+entries (I54 precedent); no escalation keywords required — the contract
+above is fully mechanical.
+
+## PHASE 0 (builder discipline, unchanged)
+
+Disagreements with this spec's letter go in the report's PHASE 0 section
+with file:line evidence — never silent improvisation; builders never
+commit; escalation via `build/loop/exception-*.md` only.
 
 ## Acceptance Criteria
 
