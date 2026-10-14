@@ -539,51 +539,284 @@ design to chance.
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse de-bridge` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze de-bridge` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# Acceptance Criteria — I50 de-bridge
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+Gate calibration (pre-declared): **RED at base BY DESIGN** —
+`bridge-absent` (lib/tart/agent/bridge.rb exists at 2943ef0) and
+`debridge-units` (the three new agent_loop pins + the zombie pin do not
+exist at base; the -n filter runs 0 tests, so the run-count assert fails —
+the designed red, not a vacuous pass). **GREEN at base, must stay GREEN** —
+`suite`, `bench`, `s1`–`s10`, `s1-tart-mode`, `tool-pending-gate`,
+`user-bash-stream-gate` (the de-bridged user_bash streaming surface's live
+proof), `wire-bodies` (`2ece7d4b…` + `7360fd1e…` EXACT — this entry is
+wire-neutral by construction), `session-golden`, and `threads-budget`
+(vacuously green at base — the property is diff-scoped vs 2943ef0; it is
+non-vacuous on the integrated run). Every rig invocation scrubs the six
+HERDR_* env vars (the I47/I48/I49 frozen-gate lesson). The s-gates keep the
+CANONICAL short out dirs. The KNOWN s9 lane-worktree deep-path artifact
+(eleven precedents, I34–I49) does not fail this iteration when the same
+tree exits 0 at canonical depth — the judge runs the battery on the
+integrated tree. `scope` is vacuously OK at base (empty diff vs 2943ef0)
+and MUST be non-vacuous on the integrated run (exactly the 11 declared
+files). Gate literals were authored against the instrument (the I48 P0-8 /
+I45 D1-D2 lesson): minitest `-n /regex/` prints `<N> runs` and autorun
+exits non-zero on failure; a 0-run filter still exits 0 — hence the
+explicit run-count asserts.
 
-**AC1.** ...
+**AC1 (the Bridge dies; the turn runs on the reactor; the ladder).**
+`lib/tart/agent/bridge.rb` is ABSENT and no `Agent::Bridge` /
+`Bridge.new` / `step_via_bridge` / `work_callable` / `JOIN_TIMEOUT`
+reference remains under lib/, bin/, or test/. `step_on_reactor` runs
+`@chat.step` INLINE on the turn fiber with the rescue ladder in EXACTLY
+the frozen order — `Async::Cancel` FIRST (belt-and-braces `@chat.cancel`,
+then re-raise; run()'s existing rescue owns the interrupted bookkeeping),
+`RubyLLM::CancelledError` second (today's cancelled arm: no @last_error,
+no error emit, nil message), `StandardError` last
+(`record_terminal_error(e)` — the raised instance for the old Failure
+payload). `summarize` runs `summary_chat.ask` inline (Cancel → cancel +
+re-raise; CancelledError/StandardError → nil — compaction aborts, run
+continues). `:fibers` tool concurrency is armed at the `Agent::Loop`
+with_tools seam. The I45 step-classification family stays GREEN with its
+assertions UNMODIFIED. Pinned by `bridge-absent` + `suite`.
+
+**AC2 (interrupt semantics — abort, no error terminal).** An interrupt
+during a live stream aborts the in-flight request (the pin's wall bound —
+a full scripted stream would run ≈4 s, the aborted run lands < 2 s; the
+P0 probe's server-side EPIO/EPIPE record is the mechanism evidence) and
+emits NO error terminal: `agent.interrupted?` true, `agent.last_error`
+nil, agent_end carries `interrupted: true` and no `error` key, and no
+`message_end` with `error: true` fired. The EXISTING cancelled-shape pins
+(`test_kernel_interrupt_cancels_in_flight_turn`,
+`test_stop_file_interrupts_the_run_at_the_boundary`, chat_test's kernel
+interrupt + escape-cancel family, bash_tool_test's task.stop pin) stay
+GREEN UNMODIFIED — interrupt behavior is observably unchanged; only the
+mechanism underneath (queue-pop Cancel → IO-wait Cancel) moved. Pinned by
+`debridge-units` + `suite`.
+
+**AC3 (:fibers concurrency + attribution).** With two interleaved sleep
+tools in ONE scripted batch through a real Agent::Loop on a reactor, the
+two executions OVERLAP in wall clock (span < 0.9 s; sequential would be
+≈1.0 s — the RED-at-base anchor: base tart runs tools sequentially), and
+tool events attribute correctly: each :tool_execution_end event pairs
+with its own start by tool_call id, each duration ≈ its own tool's
+runtime (0.4–0.75 s), two :tool messages land. The attribution keying
+stays Thread.current-based (Grounds §3 probe4: Thread#[] is fiber-local —
+the plan's stomp premise disproven; OQ-1). The concurrency flip is
+wire-neutral: both frozen digests EXACT. Pinned by `debridge-units` +
+`wire-bodies` + `session-golden`.
+
+**AC4 (reaper fiber + thread budget + mutex sweep).** The bash reaper is
+a reactor task on the scheduler's `process_wait` (no Thread.new); a
+cancelled bash run leaves NO zombie (the bounded ECHILD-tolerant self-reap
+holds the guarantee stop_children takes the reaper with the tool fiber —
+test-pinned via the process table). The lib diff vs 2943ef0 introduces NO
+new `Thread.new` sites and removes the Bridge's and the reaper's; the
+pipe-drain reader threads (bash/grep/find) and every other sanctioned
+site (poller, Loop#signal, subagents, print deadline, mcp stdio, herdr
+sender) are untouched. `agent/status.rb`'s mutex is gone;
+`tools/output_accumulator.rb`'s mutex stays (cross-thread drains).
+Pinned by `threads-budget` + `suite`.
+
+**AC5 (parity battery + scope).** The default rake task fully green (run
+count ≥ 1040: base 1039 − 4 deleted bridge-terminal tests + ≥5 new pins;
+the one base skip unchanged); `SEAM_BENCH_OK`; s1–s10 exit 0 cold at the
+canonical out dirs; `TART_MODE_OK`; both probe gates OK
+(`TOOL_PENDING_GATE_OK`, `USER_BASH_STREAM_GATE_OK`); `WIRE_BODIES_OK`
+with both digests EXACT; `SESSION_GOLDEN_OK`; the integrated diff vs
+2943ef0 touches EXACTLY the 11 declared files — nothing in core/**,
+print.rb, mcp*, subagents*, hooks.rb, memory*, herdr.rb, models.rb,
+registry.rb, shapes/schemas, compaction.rb, the other tool bodies,
+output_accumulator.rb, safe_execute.rb, support/**, bin/tart, README.md,
+gemspec/Gemfile/Gemfile.lock, bench/**, the rig tree, or any test file
+outside the declared set.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse de-bridge` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+
+- id: bench
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+
+- id: s1-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
+  expect:
+    exit_code: 0
+
+- id: s2-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
+  expect:
+    exit_code: 0
+
+- id: s3-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
+  expect:
+    exit_code: 0
+
+- id: s4-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
+  expect:
+    exit_code: 0
+
+- id: s5-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/parity-gate-s5
+  expect:
+    exit_code: 0
+
+- id: s6-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/parity-gate-s6
+  expect:
+    exit_code: 0
+
+- id: s7-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7
+  expect:
+    exit_code: 0
+
+- id: s8-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml --out tmp/parity-gate-s8
+  expect:
+    exit_code: 0
+
+- id: s9-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s9_startup_help.yml --out tmp/parity-gate-s9
+  expect:
+    exit_code: 0
+
+- id: s10-parity
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s10_editor_wrap.yml --out tmp/parity-gate-s10
+  expect:
+    exit_code: 0
+
+- id: s1-tart-mode
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_tart.yml --out tmp/parity-gate-s1tart; ec=$?; if [ "$ec" -gt 1 ]; then exit 1; fi; ruby -rjson -e 's = JSON.parse(File.read("tmp/parity-gate-s1tart/summary.json"))["runs"][0]["apps"]["tart"]; abort "tart incomplete" unless s["completed"] && s["requests"] == s["expected_requests"]; puts "TART_MODE_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: TART_MODE_OK
+
+- id: tool-pending-gate
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    gems/tui-split-rig/bin/tool-pending-probe --gate --out tmp/i50-tp
+  expect:
+    exit_code: 0
+    stdout_match: TOOL_PENDING_GATE_OK
+
+- id: user-bash-stream-gate
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    test -x gems/tui-split-rig/bin/user-bash-stream-probe && gems/tui-split-rig/bin/user-bash-stream-probe --gate --out tmp/i50-ubs
+  expect:
+    exit_code: 0
+    stdout_match: USER_BASH_STREAM_GATE_OK
+
+- id: wire-bodies
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    rm -rf tmp/i50-wire && env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/i50-wire >/dev/null 2>&1; ec=$?; [ "$ec" -eq 0 ] || exit 1; ruby -rjson -rdigest -e 'bodies = File.readlines("tmp/i50-wire/run-1/tart-requests.jsonl").map { |l| Digest::SHA256.hexdigest(JSON.generate(JSON.parse(l)).gsub("tmp/i50-wire/run-1/sandbox", "<SBX>")) }; tools = Digest::SHA256.hexdigest(JSON.generate(JSON.parse(File.readlines("tmp/i50-wire/run-1/tart-requests.jsonl")[0])["body"]["tools"])); abort "request-body bytes moved: #{bodies.inspect}" unless bodies == ["2ece7d4b875c98590b2f839814a0d3444fbfe1a8514b09c17d000663466c25d2"]; abort "tool declarations moved: #{tools}" unless tools == "7360fd1ec6419b5f9966c3067588314cdd0d29231a78346443a0002923c23707"; puts "WIRE_BODIES_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: WIRE_BODIES_OK
+
+- id: session-golden
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec ruby -Ilib -e 'require "tart"; require "tmpdir"; require "json"; require "digest"; FakeMsg = Struct.new(:role, :attrs) do def to_h = attrs end; VOLATILE = %w[id parentId timestamp parentSession cwd firstKeptEntryId].freeze; normalize = lambda do |obj|; case obj; when Hash then obj.each_with_object({}) { |(k, v), h| h[k] = VOLATILE.include?(k) && !v.nil? ? "<#{k}>" : normalize.call(v) }; when Array then obj.map { |v| normalize.call(v) }; else obj; end; end; digest_lines = lambda { |path| Digest::SHA256.hexdigest(File.readlines(path).map { |l| JSON.generate(normalize.call(JSON.parse(l))) }.join("\n")) }; out = {}; Dir.mktmpdir do |dir|; root = File.join(dir, "agent"); plain = Tart::Agent::Session::Recorder.new(cwd: dir, root: root); plain.append_message(FakeMsg.new(:user, {role: "user", content: "list the files"})); plain.append_message(FakeMsg.new(:assistant, {role: "assistant", content: nil, tool_calls: [{id: "call_1", name: "ls", arguments: {path: "."}}]})); plain.append_message(FakeMsg.new(:tool, {role: "tool", tool_call_id: "call_1", content: "fixture.txt"})); plain.append_message(FakeMsg.new(:assistant, {role: "assistant", content: "the listing is above"})); rec = Tart::Agent::Session::Recorder.new(cwd: dir, root: root); rec.append_message(FakeMsg.new(:user, {role: "user", content: "list the files"})); rec.append_message(FakeMsg.new(:assistant, {role: "assistant", content: nil, tool_calls: [{id: "call_1", name: "ls", arguments: {path: "."}}]})); rec.append_message(FakeMsg.new(:tool, {role: "tool", tool_call_id: "call_1", content: "fixture.txt"})); rec.append_message(FakeMsg.new(:assistant, {role: "assistant", content: "the listing is above"})); rec.append_bash_execution(Tart::Agent::Session.bash_execution_message(command: "echo hi", output: "hi", exit_code: 0, cancelled: false, truncated: false, full_output_path: nil)); rec.append_compaction(summary: "Earlier turns summarized.", first_kept_entry_id: nil, tokens_before: 15, details: "auto"); forked = Tart::Agent::Session::Recorder.new(cwd: dir, root: root, parent_session: rec.path); forked.append_message(FakeMsg.new(:user, {role: "user", content: "after the fork"})); out[:plain] = digest_lines.call(plain.path); out[:plain_context] = Digest::SHA256.hexdigest(JSON.generate(Tart::Agent::Session.context_messages(plain.path))); out[:plain_roles] = Tart::Agent::Session.context_messages(plain.path).map { |m| m[:role] }.inspect; out[:primary] = digest_lines.call(rec.path); out[:forked] = digest_lines.call(forked.path); out[:context] = Digest::SHA256.hexdigest(JSON.generate(Tart::Agent::Session.context_messages(rec.path))); out[:fork_roles] = Tart::Agent::Session.context_messages(forked.path).map { |m| m[:role] }.inspect; end; want = {plain: "928183de7736e9ad59237d6eb4bf7eb0215f8933ac1e1c2c4d8cb0e61ca38728", plain_context: "d3c1574f049f9688309656a21d42100e32b0203025f77f8afbed70819cb228ee", plain_roles: "[:user, :assistant, :tool, :assistant]", primary: "cb29e42e1ba9ecc29e28ce3d833e68fbd8f17ddfa2700b02b1b6bd98b24baa29", forked: "3a5f6d606f5952fd2e0e25bf085d442c386d18bb0d60a4bdd7c43b04b203ae8d", context: "f75f99b4516b3e69f41d847bb5266d7cac897e3fd320190f588d83e26497a029", fork_roles: "[:user, :user]"}; bad = want.keys.select { |k| out[k] != want[k] }; abort "session bytes moved: #{bad.map { |k| [k, out[k]] }.inspect}" unless bad.empty?; puts "SESSION_GOLDEN_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: SESSION_GOLDEN_OK
+
+- id: bridge-absent
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    if [ -f lib/tart/agent/bridge.rb ]; then echo "FAIL: bridge.rb still present"; exit 1; fi
+    if grep -rnE "\bAgent::Bridge\b|\bBridge\.new\b" lib bin test; then echo "FAIL: Bridge references remain"; exit 1; fi
+    if grep -rnE "step_via_bridge|work_callable|JOIN_TIMEOUT" lib; then echo "FAIL: bridge machinery names remain"; exit 1; fi
+    echo BRIDGE_ABSENT_OK
+  expect:
+    exit_code: 0
+    stdout_match: BRIDGE_ABSENT_OK
+
+- id: debridge-units
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet
+    out1=$(bundle exec ruby -Ilib -Itest test/agent_loop_test.rb -n "/fibers_tool_concurrency_overlaps|tool_event_attribution_under_interleaved|interrupt_mid_stream_aborts/" 2>&1); ec=$?
+    echo "$out1" | tail -3
+    runs1=$(echo "$out1" | grep -oE "[0-9]+ runs" | head -1 | cut -d" " -f1)
+    [ "$ec" -eq 0 ] || { echo "FAIL agent_loop units ec=$ec"; exit 1; }
+    [ "${runs1:-0}" -ge 3 ] || { echo "FAIL agent_loop units runs=${runs1:-0} (want >=3; 0 at base is the designed red)"; exit 1; }
+    out2=$(bundle exec ruby -Ilib -Itest test/bash_tool_test.rb -n "/cancelled_bash_run_leaves_no_zombie/" 2>&1); ec=$?
+    echo "$out2" | tail -3
+    runs2=$(echo "$out2" | grep -oE "[0-9]+ runs" | head -1 | cut -d" " -f1)
+    [ "$ec" -eq 0 ] || { echo "FAIL bash zombie pin ec=$ec"; exit 1; }
+    [ "${runs2:-0}" -ge 1 ] || { echo "FAIL bash zombie pin runs=${runs2:-0}"; exit 1; }
+    echo DEBRIDGE_UNITS_OK
+  expect:
+    exit_code: 0
+    stdout_match: DEBRIDGE_UNITS_OK
+
+- id: threads-budget
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    added=$(git diff 2943ef0d -- lib | grep -E "^\+[^+].*Thread\.new" || true)
+    if [ -n "$added" ]; then echo "FAIL: new Thread.new sites in lib:"; echo "$added"; exit 1; fi
+    if grep -n "reaper = Thread.new" lib/tart/tools/bash.rb; then echo "FAIL: reaper still a thread"; exit 1; fi
+    echo THREADS_BUDGET_OK
+  expect:
+    exit_code: 0
+    stdout_match: THREADS_BUDGET_OK
 ```
 
 ## Builder Prompt
