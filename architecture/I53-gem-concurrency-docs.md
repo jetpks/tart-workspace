@@ -321,34 +321,325 @@ Open questions (judge adjudicates; none blocking):
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section gem-concurrency-docs specification --from <file>`. -->
+# Specification — I53 gem-concurrency-docs
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+## 0. Objective
+
+One iteration, two lanes on repos/fast-llm @ `4736ddc`, disjoint file
+sets, one judge pass (the gem-polish program's single entry):
+
+1. `concurrency` — reopen I51's frozen D9: the gem's standalone Chat
+   executes a tool batch CONCURRENTLY (pi's `executeToolCallsParallel`
+   shape, tart's I52 fiber mechanics), wire-neutral, with the cancel
+   discipline (I51 D8) extended to the batch.
+2. `docs` — the diataxis pass + the owner's four dangling README links,
+   owner prose byte-frozen (Grounding D9).
+
+After this entry the program is complete; landing (publish/push/release
+tags) is the human's.
+
+## 1. Lane `concurrency` — the concurrent tool batch
+
+### 1.1 `run_tool_batch` becomes two-phase (chat.rb; Grounds D1–D5)
+
+Rewrite `run_tool_batch` (chat.rb:132-150) as:
+
+**Phase A — serial before-phase**, per tool_call block of
+`final.content` IN CALL ORDER, on the calling fiber (pi's loop,
+agent-loop.ts:593-643):
+1. Latch check (`@cancelled` ⇒ raise `CancelledError`) + 
+   `Cancellation.check` — the per-iteration checkpoint, today's
+   :138/:141 discipline kept (a cancel latched by an earlier call's
+   hook raises HERE, before this call's hooks fire — spec'd by
+   batch_cancel_spec example 2).
+2. Before hooks dispatch in registration order (unchanged contract).
+3. Executability resolution: resolve the tool. Unknown tool ⇒ an
+   IMMEDIATE outcome — the exact today-bytes result
+   `{content: "no such tool: <name>", is_error: true}` — recorded
+   INLINE in call order, NO child task (pi's immediate arm; Grounds
+   D2/D3: hooks fire for unknown tools too, gem continuity).
+4. Executable calls collect as ordered specs.
+
+**Phase B — concurrent execution**: one `Async::Task.current.async`
+child per executable call (children of the STEP task — the Sync-inline
+reactor discipline; tart I52 D2 precedent). Each child, in order of
+body:
+1. Opening checkpoint: latch check + `Cancellation.check` (a cancel
+   that landed during Phase A or a sibling's execution kills the child
+   HERE — its tool never runs; the frozen stream_cancel D8 pin
+   `ran == ["a"]` depends on exactly this).
+2. `execute` with the §11 outcome mapping (String verbatim / Hash ⇒
+   JSON.generate / `{error:}` ⇒ error result — unchanged bytes).
+3. Failure isolation (Grounds D4): rescue ladder around the execution —
+   `Fast::Completions::CancelledError` ⇒ re-raise (never a result);
+   `Async::Cancel` ⇒ passes through (`< Exception`, not caught);
+   other `StandardError` ⇒ that call's result becomes
+   `{content: e.message.to_s, is_error: true}` — siblings unaffected,
+   the join completes (pi executePreparedToolCall :824-837).
+4. After hooks fire INSIDE the child, as the call completes (pi's
+   thunk-run `afterToolCall`), keyed by tool_call id through the call's
+   own closure. Hook exceptions are NOT converted — they propagate
+   (today's contract; Grounds D4).
+5. The child's Message.tool_result is collected INDEX-KEYED (call
+   position), never completion-keyed.
+
+**Join**: wait all children; a cancel during the join aborts in-flight
+children (async stop-children), the join re-raises IMMEDIATELY (never
+waits out natural completion — the I50 ARM-A class), `#step`'s
+existing ladder (:120-124) surfaces `CancelledError`; NO phantom
+terminals: zero tool-result Messages appended, no after hooks fired
+for aborted calls (Grounds D5).
+
+**After the join**: append the tool-result Messages IN CALL ORDER
+(index-keyed collection; pi's orderedFinalizedCalls + post-join
+message creation, :646-655). History bytes are thereby identical to
+the serial executor's for every batch (Grounds D7 — wire-neutral by
+construction).
+
+Unchanged (frozen surface): `#step`'s stream path, the
+assistant-append ordering, `@tool_batch_pending`/`complete?` state
+machine, `cancel`/`@in_flight` mechanics, hooks' registration-order
+contract, `execute_tool_call`'s outcome-mapping bytes, `add_message`,
+the public method set. No concurrency knob of any kind (Grounds D6).
+Update the chat.rb class/method comments that say "SERIALLY (D9)" to
+the new shape (comments are house prose, not owner prose).
+
+### 1.2 NEW spec: `tool_concurrency_spec.rb` (RED at base BY DESIGN where marked)
+
+`gems/completions/spec/fast/completions/tool_concurrency_spec.rb`,
+mock-driven (chat_spec idioms: MockLLMServer, `:stream` + `tool_calls`
+scripts, `Async do … end`, `client.close`). Every wall bound cites the
+tart precedent bounds (Grounds §5). Required examples:
+
+1. **Overlap + span** [RED at base]: two 0.5 s sleep-tools in ONE
+   scripted batch (Kernel#sleep inside execute — scheduler-interruptible
+   under the reactor). Each tool records monotonic entry/exit stamps.
+   Assert: `max(entries) < min(exits)` (the execution windows overlap —
+   serial fails: entry₂=0.5 ≮ exit₁=0.5) AND wall span (first entry →
+   last exit) `< 0.9` s (concurrent ≈ 0.5; serial ≈ 1.0 — the I50
+   bound) AND both tool-result Messages land.
+2. **Call-order results under inverted completion + completion-order
+   after hooks** [RED at base]: c1 sleeps 0.5 s, c2 sleeps 0.2 s in one
+   batch (completion order c2-first). Assert: tool_result Messages in
+   CALL order `[c1, c2]` with correct ids; after-hook fire order ==
+   completion order `[c2, c1]` (per-child hooks, Grounds D2/OQ-4);
+   before-hook fire order == call order `[c1, c2]` (serial phase).
+3. **Failure isolation** [RED at base]: c1's execute raises
+   `StandardError`("boom"), c2 sleeps 0.2 s clean. Assert: `step`
+   completes; c1's result `is_error: true` with content exactly
+   `"boom"`; c2's result clean; both appended in call order (Grounds
+   D4 — at base the raise propagates out of step).
+4. **Unknown tool finalizes inline in a multi-call batch** [GREEN at
+   base — regression guard for the two-phase split]: batch
+   [known-tool c1, unknown "nope" c2]. Assert: results in call order;
+   c2 content exactly `"no such tool: nope"`, `is_error: true`; c1's
+   before+after hooks fired.
+
+### 1.3 NEW spec: `batch_cancel_spec.rb` (RED at base BY DESIGN)
+
+`gems/completions/spec/fast/completions/batch_cancel_spec.rb`:
+
+1. **Cancel during the join** [RED at base via the entered-set]: two
+   0.5 s sleep-tools; a sibling task (same reactor) waits for the
+   FIRST tool's entry signal (a Queue handshake), settles ~0.05 s
+   (both children provably in flight — they enter within the first
+   scheduler tick), then `chat.cancel`. Assert: BOTH tools entered
+   (entered == `[c1, c2]` — at base c2 never enters: RED); wall from
+   cancel to `CancelledError` surfacing `≤ 0.2` s (natural completion
+   ≈ 0.4 s away — the I52 bound); `step` raised `CancelledError`; ZERO
+   tool-result Messages in `chat.messages`; ZERO after-hook fires; the
+   observed step-block events end at the stream's `:done` — no
+   `:error`/`:done` after the cancel (no phantom terminals, Grounds
+   D5).
+2. **Cancel latched by a before hook stops the batch at the next
+   phase checkpoint** [RED at base]: two-call batch; c1's before hook
+   calls `chat.cancel`. Assert: `step` raises `CancelledError`; NO
+   tool executes (`ran == []` — at base c1 still executes after its
+   own hook's cancel: RED); c2's before hooks never fire; no
+   tool-result Messages. (Grounds D5; deterministic — no timing.)
+
+### 1.4 CHANGELOG correction (house prose)
+
+`gems/completions/CHANGELOG.md` 0.1.0: the Chat bullet "execute tool
+calls serially with cancellation checkpoints and before/after hooks
+keyed by tool-call id" is now false. Rewrite that bullet to the new
+contract (concurrent batch — one reactor task per call, results in
+call order, per-call failure isolation, batch cancel discipline).
+No version bump, no new section (0.1.0 is unreleased; tags are the
+human's).
+
+### 1.5 Verification (concurrency lane, in its worktree)
+
+```
+cd repos/fast-llm && bundle install --quiet && bundle exec rspec   # 0 failures
+bundle exec rspec gems/completions/spec/fast/completions/wire_parity_spec.rb   # byte-parity green, untouched
+bash gems/completions/script/install_check.sh   # INSTALL_CHECK_OK (smoke runs the new executor)
+git diff --stat   # only the 4 declared files
+```
+
+## 2. Lane `docs` — the diataxis tree + the owner's links
+
+### 2.1 The page list (EXACTLY these 11 paths, all NEW)
+
+Under `gems/completions/docs/` — one task per page, README the landing
+page (house pattern, Grounds §6). Content contracts (property-level;
+prose is the builder's, seeded from the cited sources — no inventions):
+
+| Page | Required content (seeds) |
+|---|---|
+| `docs/reference/tools.md` | The Tool DSL: `description`/`tool_name`/`parameters` (literal + block forms)/`execute`; wire-name rule (`tool_name` ∥ class basename); parameters emitted VERBATIM (§9.2); the §11 outcome contract (String verbatim, Hash ⇒ JSON, `{error:}` ⇒ error result); `with_tools` class-or-instance. THE FIBER-SAFETY CONTRACT: execute runs on a reactor child — never block the reactor; batch semantics per THIS spec §1 (concurrent, results in call order, raising isolates to an error result, cancel aborts with `CancelledError` and no results); hooks (registration order, id-keyed; after hooks fire in completion order). Target of `[see the tool docs]`. |
+| `docs/reference/dialects.md` | All 13 VOCABULARY keys with defaults + allowed values (dialects.rb:17-31 — the full table); the shipped `:zai`/`:deepseek`/`:fireworks` declarations verbatim (:150-168); declaring custom (block DSL + kwargs); `Fast::Completions.dialect(:x)` lookup (KeyError), `.dialects`; last-wins re-declaration; `Model` resolution (explicit Dialect ∥ symbol ∥ default); `ArgumentError` on unknown key/value. Target of `[see the dialect docs]` AND `[Dialect Docs]`. |
+| `docs/reference/errors.md` | The README's error-taxonomy table MOVED here (rows verbatim) + expansion: status mapping for the ApiError tree; `TimeoutError` (TTFB + inactivity); `ConnectionError` (ECONN*); `StreamError` (emits `:error` first); `CancelledError` NOT under `Error` and why (rescue-ladder cleanliness, D8). |
+| `docs/reference/stream-events.md` | The full `Event` vocabulary with per-type fields: `:start`, `:text_start/:text_delta/:text_end`, `:thinking_start/:thinking_delta/:thinking_end`, `:tool_call_start/:tool_call_delta/:tool_call_end` (protocol.rb), client-level `:error` (reason `:error`) + `:done` (finish reason — `:tool_use` et al.); the `#step` block contract. |
+| `docs/tutorials/first-run.md` | The README Quickstart grown into a first-run tutorial: client + model + one tool, streamed (the `Async do` shape, `#step` block over deltas), what `complete?` means, the follow-up turn consuming tool results. |
+| `docs/how-to/declare-a-custom-dialect.md` | Task-shaped: declare, mount on a Model, last-wins override, the closed-vocabulary failure. |
+| `docs/how-to/cancel-a-running-chat.md` | Task-shaped: `chat.cancel` mid-stream vs mid-batch (in-flight children abort, `CancelledError`, no phantom terminals, no results), connection discard + reuse, the latch. |
+| `docs/how-to/add-a-tool.md` | Task-shaped: subclass, declare, register, the outcome contract, the fiber-safety note (link tools.md). |
+| `docs/explanation/why-streaming-only.md` | No synchronous requests: the fiber-native stance + why. |
+| `docs/explanation/why-dialects-as-data.md` | The LiteLLM anti-shape: no universal translation, closed vocabulary, fail-loud at declaration, no base-URL detection. |
+| `docs/explanation/fiber-native-design.md` | The reactor contract: caller's reactor, ONE persistent `Async::HTTP::Client`, requests as reactor tasks, `Async::Cancel` semantics, the batch executor (children of the step task), zero gem-owned threads/reactors. |
+
+### 2.2 README surgery (gems/completions/README.md — owner prose BYTE-FROZEN, Grounding D9)
+
+1. ADD the four link definitions (anywhere legal; house style = a
+   definitions block at the end):
+   - `[see the tool docs]: docs/reference/tools.md`
+   - `[see the dialect docs]: docs/reference/dialects.md`
+   - `[Dialect Docs]: docs/reference/dialects.md`
+   - `[socketry/async-http]: https://github.com/socketry/async-http`
+2. MOVE the Error-taxonomy section: the `## Error taxonomy` heading +
+   table (:109-123) leave the README, replaced by a pointer block of
+   AT MOST 6 lines: the `## Error taxonomy` heading kept + 1–2
+   sentences + a link resolving to `docs/reference/errors.md`.
+3. NOTHING ELSE: every other line byte-identical to `4736ddc` (pinned
+   mechanically, AC6). "Dialects as data" STAYS (Grounds D9);
+   Installation/Quickstart/Dialects/Parity pointers unchanged.
+
+### 2.3 Root README + fixture
+
+- `README.md` (monorepo root, house-authored): align to link the docs
+  tree — a minimal edit (e.g. the `gems/completions` bullet gains a
+  docs/ mention/link). No other changes.
+- `spec/fixtures/readme/owner-4736ddc.md` (NEW): a byte-verbatim copy
+  of `git show 4736ddc:gems/completions/README.md` — the prose-preservation
+  anchor. Byte-identity to 4736ddc is gate-pinned (AC6), not spec-pinned.
+
+### 2.4 NEW spec: `docs_links_spec.rb` (rides the standing suite; RED at base BY DESIGN)
+
+`gems/completions/spec/fast/completions/docs_links_spec.rb`. Properties
+(all mechanical; no network):
+
+1. **Prose preservation** (vs the §2.3 fixture, line-LCS diff): every
+   REMOVED line belongs to the Error-taxonomy section (from
+   `## Error taxonomy` inclusive to `## Parity` exclusive); every
+   ADDED line is either a link definition (`/\A\[[^\]]+\]:\s*\S/`) or
+   part of ONE contiguous replacement block ≤ 6 lines that links
+   `docs/reference/errors.md` and sits between the "Dialects as data"
+   section and `## Parity`. (Green-at-base trivially — the README IS
+   the fixture at base; non-vacuous post-change.)
+2. **Link resolution**: for every `.md` in scope — repo `README.md`,
+   `gems/completions/README.md`, `gems/completions/CHANGELOG.md`,
+   `gems/completions/docs/**/*.md` (EXCLUDING `spec/fixtures/**`, whose
+   frozen owner copy dangles by design; fenced code blocks skipped) —
+   every reference definition and inline link with a relative path
+   resolves to an existing file (anchor fragments stripped); absolute
+   `http(s)://` URLs pass.
+3. **Label closure**: every used reference label `[label]` has a
+   definition in the same file (the four owner links LAND).
+4. **The four ruled destinations** (gems/completions/README.md):
+   `[see the tool docs]` → `docs/reference/tools.md`;
+   `[see the dialect docs]` → `docs/reference/dialects.md`;
+   `[Dialect Docs]` → `docs/reference/dialects.md`;
+   `[socketry/async-http]` → `https://github.com/socketry/async-http`.
+5. **Quadrants non-empty**: `docs/{tutorials,how-to,reference,explanation}`
+   each contain ≥ 1 `.md`.
+
+### 2.5 Verification (docs lane, in its worktree)
+
+```
+cd repos/fast-llm && bundle install --quiet && bundle exec rspec   # 0 failures (docs_links_spec red-at-base in ITS OWN worktree is the designed base state; the lane turns it green)
+git show 4736ddc:gems/completions/README.md | diff - gems/completions/spec/fixtures/readme/owner-4736ddc.md   # empty
+git diff 4736ddc -- gems/completions/README.md   # only link definitions + the one moved section
+```
+
+The docs lane documents THIS SPEC's §1 batch contract (frozen here),
+not the sibling lane's working tree — the lanes are independent and
+may run concurrently.
+
+## 3. May touch / must not touch
+
+May touch (the ```lanes block below is the frozen truth; this prose
+summarizes):
+
+- Lane `concurrency` (repo fast-llm):
+  `gems/completions/lib/fast/completions/chat.rb`,
+  `gems/completions/CHANGELOG.md`, and the two NEW spec files
+  (`tool_concurrency_spec.rb`, `batch_cancel_spec.rb`).
+- Lane `docs` (repo fast-llm): `README.md` (root),
+  `gems/completions/README.md`, the 11 NEW `gems/completions/docs/**`
+  pages (exact paths §2.1), the NEW fixture
+  `gems/completions/spec/fixtures/readme/owner-4736ddc.md`, and the NEW
+  `gems/completions/spec/fast/completions/docs_links_spec.rb`.
+
+Must not touch (either lane):
+
+- EVERY pre-existing spec file and fixture — the frozen regression
+  net: all of `gems/completions/spec/fast/completions/*_spec.rb` as it
+  stands at `4736ddc`, `spec/fixtures/wire/**`,
+  `spec/support/mock_llm_server.rb`, `spec/spec_helper.rb`. New
+  behavior gets NEW spec files, never edits to old pins.
+- `gems/completions/lib/fast/completions/**` EXCEPT `chat.rb` (docs
+  lane touches NO lib/ file at all — a stray lib/ edit fails its
+  scope).
+- `gems/completions/fast-completions.gemspec`, root `Gemfile` +
+  `Gemfile.lock`, `.rspec`, `.gitignore`,
+  `gems/completions/script/install_check.sh`,
+  `gems/completions/lib/fast/completions/version.rb` — packaging and
+  deps are FROZEN (Grounding D8).
+- Every other repo (`repos/tart`, `repos/pi`, all others) — read-only.
+- No `git push`, no GitHub/rubygems actions, no tags; builders never
+  commit.
+
+Out of scope (itemized; reopen on owner/consumer need): any
+concurrency knob (Grounding D6); tart-side changes (tart keeps its own
+executor, I52 D1/D2); packaging docs into the .gem (Grounding D8/OQ-3);
+benchmark page (no data — landing-time concern); retries; the 0.1.0
+release itself.
+
+## 4. Lane plan
+
+Two lanes, repo fast-llm, DISJOINT by construction (19 files total: 4 +
+15), independent — dispatch may run them concurrently; integrate in
+lane-declaration order (`concurrency`, then `docs`; no dependency
+either way). Both lanes verify in their own worktrees (§1.5/§2.5); the
+judge runs the full gate battery cold on the integrated tree.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision gem-concurrency-docs`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: concurrency
+  repo: fast-llm
+  touch:
+    - gems/completions/lib/fast/completions/chat.rb
+    - gems/completions/CHANGELOG.md
+    - gems/completions/spec/fast/completions/tool_concurrency_spec.rb
+    - gems/completions/spec/fast/completions/batch_cancel_spec.rb
+- name: docs
+  repo: fast-llm
+  touch:
+    - README.md
+    - gems/completions/README.md
+    - gems/completions/docs/tutorials/first-run.md
+    - gems/completions/docs/how-to/declare-a-custom-dialect.md
+    - gems/completions/docs/how-to/cancel-a-running-chat.md
+    - gems/completions/docs/how-to/add-a-tool.md
+    - gems/completions/docs/reference/tools.md
+    - gems/completions/docs/reference/dialects.md
+    - gems/completions/docs/reference/errors.md
+    - gems/completions/docs/reference/stream-events.md
+    - gems/completions/docs/explanation/why-streaming-only.md
+    - gems/completions/docs/explanation/why-dialects-as-data.md
+    - gems/completions/docs/explanation/fiber-native-design.md
+    - gems/completions/spec/fixtures/readme/owner-4736ddc.md
+    - gems/completions/spec/fast/completions/docs_links_spec.rb
 ```
 
 ## Acceptance Criteria
