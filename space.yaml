@@ -2078,7 +2078,61 @@ project:
   - name: fast-completions-integration
     ordinal: 52
     file: architecture/I52-fast-completions-integration.md
-    freeze_sha:
+    freeze_sha: 86d8b28398028d1080bac6f6eeb2282a232da1db
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - Gemfile
+      - Gemfile.lock
+      - tart.gemspec
+      - bin/tart
+      - lib/tart/agent/chat.rb
+      - lib/tart/agent/message.rb
+      - lib/tart/agent/loop.rb
+      - lib/tart/agent/session.rb
+      - lib/tart/compaction.rb
+      - lib/tart/models.rb
+      - lib/tart/settings.rb
+      - lib/tart/print.rb
+      - lib/tart/hooks.rb
+      - lib/tart/tools.rb
+      - lib/tart/schemas/tools.rb
+      - lib/tart/render/footer.rb
+      - lib/tart/render/transcript.rb
+      - lib/tart/render/user_bash.rb
+      - lib/tart/subagents/manager.rb
+      - lib/tart/mcp/tool.rb
+      - lib/tart/tools/read.rb
+      - lib/tart/tools/find.rb
+      - lib/tart/tools/grep.rb
+      - lib/tart/tools/edit.rb
+      - lib/tart/tools/ls.rb
+      - lib/tart/tools/bash.rb
+      - lib/tart/tools/write.rb
+      - lib/tart/tools/memory.rb
+      - lib/tart/tools/subagent.rb
+      - lib/tart/tools/contact_supervisor.rb
+      - lib/tart/tools/safe_execute.rb
+      - lib/tart/tools/registry.rb
+      - test/support/mock_llm_server.rb
+      - test/agent_loop_test.rb
+      - test/chat_test.rb
+      - test/session_test.rb
+      - test/bash_tool_test.rb
+      - test/launcher_smoke_test.rb
+      - test/subagents_test.rb
+      - test/flow_test.rb
+      - test/hooks_test.rb
+      - test/settings_test.rb
+      - test/compaction_test.rb
+      - test/mcp_test.rb
+      - test/models_test.rb
+      - test/golden_parity_test.rb
+      - test/render/transcript_test.rb
+      - README.md
+    rehearsal:
+      gates_digest: beb106ef26e668ca61ec2920d04a4551987e76f300f6dea3df69b4fad6f70a22
+      at: '2026-10-13T23:42:23-06:00'
   integration_branch: main
