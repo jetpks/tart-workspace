@@ -167,35 +167,146 @@ repos/pi f1b2e77f, default interactive mode = FULLSCREEN alt-screen
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section render-perf specification --from <file>`. -->
+### Objective
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+Close problems.md item 3 ("major scroll lag, especially while printing") by
+fixing exactly what the probe indicts (Grounds §2): the 60 Hz busy-window
+render burn and the per-frame whole-text live-region markdown
+re-conversion it multiplies. The rendered SCREEN BYTES are unchanged
+everywhere — this iteration changes WHEN frames compose, not WHAT they
+compose. Behavior bar: the full battery + s17 + wire/session digests
+EXACT; no golden moves (the plan's letter).
 
-```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision render-perf`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
-```
+### The deliverables
+
+**D1 — pi's render discipline on the busy path (the burn cure).**
+
+- `render_frame` (lib/tart/render/chat.rb:418-437) STOPS re-arming the
+  60 Hz animation window: the `@kernel.animate(duration:
+  BUSY_FRAME_SECONDS) if busy? || user_bash_streaming?` tail (:436) is
+  deleted, as is the wind-down `@kernel.animate(duration:
+  BUSY_FRAME_SECONDS)` at the agent_end arm (:627 — replaced by
+  `@kernel.request_draw`, one final paint).
+- State changes request paints instead of relying on the burn: the
+  agent-event sink (`on_agent_event`) ends with `@kernel.request_draw`
+  (reactor-context legal — the sink runs on the agent fiber of the
+  reactor, the user-bash chunk sink already does exactly this); the
+  `:message_update` delta arm consequently paints on arrival. The I38
+  user-bash stream sinks already request draws per chunk.
+- The spinner/loader advances via pi's OWN cadence: a repeating ~80 ms
+  tick (`SPINNER_INTERVAL_SECONDS`) that calls `request_draw` while
+  `busy? || user_bash_streaming?`, armed at `:agent_start` /
+  user-bash stream start, cancelled at `:agent_end` / stream end /
+  surface teardown. Realized as a small additive kernel helper
+  (`Tart::Core::Loop#tick(interval)` — a reactor task firing
+  `request_draw` every interval until cancelled; `Loop#every` needs a
+  finite tick count and the busy duration is unbounded). The glyph
+  itself stays time-derived (`spinner_frame(anchor)` unchanged) — the
+  visible cadence is pi's 12.5 Hz exactly (pi loader.ts:12/:82-99).
+- The `animate`/`animating?` window MECHANISM in core/loop.rb is
+  UNTOUCHED (draw_frame's `@dirty || animating?` gate stays; the I01
+  letter and loop_test's deadline-pacing pins hold for real animation
+  users). Post-change nothing in lib/ calls `animate` — that is the
+  point (grep-verifiable).
+
+**D2 — the live-region conversion cache (the md cure).**
+
+- `assistant_live_lines`'s markdown/reasoning conversion
+  (render/chat.rb:1902-1909 — `Transcript.reasoning_lines(@reasoning…)` +
+  `Transcript.markdown_lines(@live…)`) is cached: recompute ONLY when
+  the cache key `[viewport_width, @live.bytesize, @reasoning.bytesize]`
+  changes (deltas only append; `@live`/`@reasoning` reset at
+  `:message_start`/`:message_end` — size-keyed invalidation is exact for
+  every mutation site). `user_bash_live_rows` is NOT cached (time- and
+  toggle-dependent). The cached rows are byte-identical to the
+  uncached computation (pure function of the key's inputs) — pinned by
+  unit test at several live sizes.
+- `display_lines`/`build_widget`/`transcript.rb`/`markdown.rb`/
+  `viewport.rb` are untouched (Grounds §2: not indicted).
+
+**D3 — the committed probe (the entry's instrument, now a gate).**
+
+- `test/support/render_perf_probe.rb` — the default-off instrument
+  (RUBYOPT-loaded, `TART_PERF_OUT`-gated): the scratch
+  `tmp/render-perf-calib/instrument.rb` form verbatim in spirit —
+  watcher-thread install (no Kernel#require hook), no stdlib requires
+  (hand-formatted JSONL records), prepends on `render_frame`,
+  `display_lines`, `build_widget`,
+  `Transcript.markdown_lines`/`reasoning_lines` (Thread-local
+  accumulation, enqueue-path excluded), and `TUI::Session#draw`.
+- `gems/tui-split-rig/bin/render-perf-probe` — the driver (the scratch
+  `probe.rb` + `analyze.rb` combined; the tool-pending-probe bin
+  precedent): `--app tart|pi|both` (default both; the GATE runs
+  `--app tart`), `--shape gate` fixed to the frozen calibration shape
+  (1×12,000-line marker-carrying seed + 80-row marker-free tail seed +
+  800×50-char deltas paced 100 ms; ALT+wheel burst of 120 events
+  interleaved with capture-pane polls at ~2 s in), `--out <dir>` for
+  artifacts (paint.tsv / frames.jsonl / events.jsonl / requests.jsonl /
+  report). It computes the AC3 metrics, prints one `BPn: PASS/FAIL
+  <measured>` line per budget, asserts the anti-vacuity preconditions,
+  and exits 0 with `RENDER_PERF_OK` only when everything holds. NO
+  changes to the rig's runner.rb/scenario.rb/mock — the bin uses the
+  existing public primitives + its own MockLLMServer instance (mock
+  specs built in Ruby; `:pause` cannot ride YAML).
+
+**D4 — re-pins (declared; no assertion semantics weakened).**
+
+- test/chat_test.rb's animation-window pins (the
+  `test_bash_loader_glyph_advances_across_draws_without_busy` class,
+  :3769-3799) re-pin from `kernel.animate_calls` to the tick discipline
+  (a tick timer armed for the run, `request_draw` called per delta /
+  per chunk); the glyph-advances-on-TIME assertions stay verbatim.
+- New `test/render/render_perf_test.rb` (`render_perf` name filter):
+  the cache's exactness (recompute iff the key changes; byte-identical
+  rows at several live/reasoning sizes incl. a reset cycle), the dirty
+  marks (a delta event requests a draw; tool/compaction events request
+  a draw), the tick cadence (armed while busy, cancelled at agent_end;
+  fires at ~80 ms against the injected clock), and the wind-down
+  request_draw replacement.
+
+### Boundaries
+
+MUST-NOT (the judge's tripwires): no `lib/tart/render/transcript.rb`,
+`markdown.rb`, `viewport.rb`, `editor.rb`, `footer.rb`, `theme.rb`
+changes; no `gems/tui-split-rig/lib/**` or `scenarios/**` changes (the
+probe is a NEW bin; no scenario YAML, no registry/golden edits); no
+agent-layer changes (`lib/tart/agent/**` untouched — the wire/session
+bytes are frozen); no wire byte, session byte, or golden byte moves
+anywhere; no new runtime deps; the loop's animate-window mechanism and
+`draw_frame`'s gate unchanged; `BUSY_FRAME_SECONDS` may be deleted with
+its last call sites or left dead — either way no `animate` caller
+remains in lib/. Suite pins that asserted the retired burn are re-pinned
+(D4) with a comment citing this iteration — everything else in the suite
+passes unmodified.
+
+### Lane plan
+
+ONE lane `core` — chat.rb + loop.rb are co-designed with the probe that
+measures them, and the suite re-pins touch the same files; no disjoint
+file sets are provable (I54-I57 single-lane precedent).
+
+### Tool guidance (exact verification)
+
+- Battery (standing 23 + 3 new gates; assembled programmatically in
+  `build/i58-spec/gates.yaml` by `build/i58-spec/assemble-gates.rb` from
+  I57's frozen block — 7 digests comm-checked, zero strays; threads-budget
+  rebased 908be5a→41f0a5f; s17-parity promoted standing).
+- The probe gate: `env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH
+  -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID
+  gems/tui-split-rig/bin/render-perf-probe --app tart --shape gate --out
+  tmp/render-perf-gate` (≈ 3 min at base; the stream alone is 80 s).
+- Scratch calibration evidence (this session's runs, base 41f0a5f):
+  `repos/tart/tmp/render-perf-calib/stage-gate/{tart,pi}/` —
+  events.jsonl / frames.jsonl / paint.tsv / requests.jsonl; the analyzer
+  `tmp/render-perf-calib/analyze.rb <stage-dir>`.
+- NEVER hand-transcribe the digest literals; gates are assembled from
+  I57's frozen block.
+
+### Effort
+
+Model zai/glm-5.3-flash, effort HIGH (a concurrency-adjacent render-loop
+change with a frozen budget instrument and suite re-pins; the
+I54-class risk of a mis-shaped tick/cache needs the care).
 
 ## Acceptance Criteria
 
