@@ -1110,10 +1110,192 @@ check). Pinned by `scope`.
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I52-fast-completions-integration-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section fast-completions-integration prompt --append --lane <lane> --from build/I52-fast-completions-integration-<lane>/prompt.md`. -->
+# Builder Prompt — I52 fast-completions-integration, lane `core`
+
+You are lane `core` of iteration I52 (fast-completions-integration),
+freeze `86d8b283`, repo **tart** (your worktree; branch
+`lane/I52-fast-completions-integration-core`). The frozen iteration file
+is `architecture/I52-fast-completions-integration.md` in the space —
+Grounds, Specification, Acceptance Criteria are read-only truth; § cites
+below are that file's. Identical space-staged copies sit at
+`build/I52-fast-completions-integration-core/{grounds,specification,
+acceptance-criteria}.md`.
+
+## Mission
+
+Swap tart's whole LLM layer onto the `fast-completions` gem
+(Fast::Completions, repos/fast-llm @ dc8eea9 — READ-ONLY, consumed
+never edited): `ruby_llm`, its transitive faraday stack, and every shim
+that worked around them leave TOGETHER in one atomic change. The turn
+keeps running as fibers on the kernel reactor (I50's shape — you do NOT
+touch the reactor/kernel). The wire is built by the gem's pi-faithful
+codec. The battery (rig s1–s10 + probes, suite, bench, session goldens,
+the I36/I46 thinking pins) stays green — the mock is protocol-agnostic,
+the pins are client-agnostic, the recorded session bytes are FROZEN.
+
+## THE ONE RULING YOU MUST INTERNALIZE (Grounds §3 D4 — read it fully)
+
+"Wire bytes unchanged" is MECHANICALLY INFEASIBLE through the frozen gem
+(the gem's Model API cannot omit the max-tokens key; its key order and
+`store:false` are pi's; the instruction role follows pi's rule where
+ruby_llm emitted developer unconditionally). The frozen discipline is
+the DELTA-AUDITED move: tart's wire becomes pi's wire with EXACTLY the
+four enumerated renderer-level deltas — (1) key order → pi's
+[model, messages, stream, stream_options, store, max_completion_tokens,
+tools]; (2) `store:false` added; (3) `max_completion_tokens` always
+present (positive Integer); (4) instruction role developer→system for
+non-reasoning models. EVERY other byte holds: the tools declarations
+digest `7360fd1e…` EXACT, the instruction content + user messages
+byte-identical, the session golden digests VERBATIM, the recorded
+session hash shape = ruby_llm's empirical bytes (Specification §8's
+frozen pin). Do NOT try to preserve ruby_llm's byte shapes through
+adapters or payload surgery — that reintroduces the seams this
+iteration deletes. The `wire-delta` gate is your proof instrument; the
+staged base capture is
+`build/I52-fast-completions-integration-core/base_s1_body.json`.
+
+## The contract (frozen Specification, condensed)
+
+- **§1 `Tart::Agent::Chat` (NEW lib/tart/agent/chat.rb)** — the
+  conversation object wrapping `Fast::Completions::Client#stream`:
+  with_instructions/with_tools/add_message; `messages` reader + WRITER
+  (compaction's rewrite); `tools`/`model` readers; `thinking_level=`;
+  `with_max_output_tokens`; `complete?`; `#step` (ruby_llm's step
+  contract: on tool_use → run the batch → return the LAST tool-result
+  Message; else the final assistant); `apply_facts(...)` rebuilds the
+  wire model; `summary_chat` factory (same client + model + facts,
+  summarization instructions + max tokens — NO seam, NO private-API
+  reach); `endpoint` reader (subagents' parent facts). **Cancel: the
+  step rescues `Fast::Completions::CancelledError` and RE-RAISES
+  `Async::Cancel`** (Grounds D3 + probe P1 — the gem froze
+  Cancel→CancelledError at ITS boundary; tart's ladder wants Cancel).
+  NO latch, NO `#cancel`, NO `raise_if_cancelled!` — the belt dies.
+- **§2 The batch executor** — children of the turn task
+  (`Async::Task.current.async` per tool call — CONCURRENT, the I50
+  overlap pin), hooks by tool_call id through per-task closures (NO
+  Thread.current — deleted), results appended in CALL order, the
+  ToolGate wrapper flows unchanged, terminate ledger unchanged; on
+  cancel: re-raise, NEVER wait out natural completion (the I50 probe6
+  ARM A residual CLOSES — pinned by the new
+  `test_cancel_during_tool_batch_aborts_fast`).
+- **§3 The event→chunk adapter** — the render contract is FROZEN:
+  `:message_update` carries a chunk duck (`.content`,
+  `.thinking&.text`); map `:text_delta`/`:thinking_delta` only.
+  render/chat.rb is UNTOUCHED.
+- **§4 models.rb** — `Models.wire_model` (catalog facts → the gem
+  Model; max_tokens defaults to context_window when the catalog omits
+  it); `Models.dialect_for(compat)` (zai → the Dialect with the I46
+  five-key subset + supports_store:false; nil/non-zai → the DEFAULT
+  dialect — today's only-zai behavior). DELETE WIRE_PROVIDER/
+  wire_provider. `Settings.thinking_facts`' `supports?` fallback →
+  `model&.reasoning == true`. The known-models tables STAY.
+- **§5 Loop surgery** — DELETE `install_thinking_seam`,
+  `apply_zai_dialect`, `install_summary_chat_seam`, the Thread.current
+  pairing, the duplicate-`reasoning` replay strip, the
+  `@chat.cancel`/`raise_if_cancelled!` belt, `build_summary_chat`'s
+  private-API reaches. Constructor kwargs UNCHANGED (the pins construct
+  them); they thread to `apply_facts`. `switch_model` → `apply_facts`
+  with the new facts. `step_on_reactor`'s ladder: FROZEN order with
+  `Fast::Completions::CancelledError` in the ruby_llm arm's place.
+  `recover_overflow?` re-keys on
+  `Fast::Completions::ContextLengthExceededError`. Compaction's
+  `tool.parameters_schema` keeps working (a `parameters_schema` reader
+  aliasing the gem's `parameters`, defined in SafeExecute + the mcp
+  wrapper).
+- **§6 bin/tart + TestChat** — `build_chat`: the gem Client (timeout
+  120; retries DIE — D9) + the tart Chat; the launcher's Loop.new call
+  UNCHANGED. TestChat.build: same signature, builds the tart Chat; the
+  mock SERVER class untouched.
+- **§7 The sweep** — `Cancellation.check`/`CancelledError` re-points
+  (~32 sites); the 10 tool classes + mcp/tool.rb re-base onto
+  `Fast::Completions::Tool` (`parameters PARAMETERS_SCHEMA.dup` DSL is
+  the same shape; mcp's SchemaDefinition stringification inlined ~10 l);
+  user_bash's `Cancellation.watch` → a tart-local flag check at the
+  same boundaries (D10); footer reseed via the Message adapter's tokens
+  duck; compaction uses `total_tokens` when present; session's
+  `compaction_usage` reads the gem Usage (cache_write; the 1h-ttl
+  sub-key dies); subagents' `global_llm_config` → the Chat's `endpoint`
+  facts threaded from the boot; comment rewords (print/hooks/tools/
+  schemas-tools/transcript/session/chat_test/golden_parity/transcript_
+  test); README's LLM-layer row. Test construction re-points ONLY
+  (RubyLLM::Message→Message factories, Tokens→duck,
+  ToolCall→Tart::Agent::ToolCall, context blocks→TestChat/Client,
+  flow_test error classes→the gem's, settings_test's models.find pin
+  re-pinned on the resolution chain).
+- **§8 Named test additions** — `test_cancel_during_tool_batch_aborts_
+  fast` + `test_recorded_message_shape_matches_the_frozen_bytes` (the
+  exact frozen hash in the AC) in agent_loop_test.rb; the two
+  `dialect_for` pins in models_test.rb. The AC's run-count floors are
+  the calibration.
+- **§9 Deps** — tart.gemspec drops ruby_llm; Gemfile gains
+  `gem "fast-completions", "0.1.0", path: ENV.fetch("FAST_COMPLETIONS_
+  PATH", "../fast-llm/gems/completions")` (the corrected path form —
+  Grounds D8). In YOUR worktree export
+  `FAST_COMPLETIONS_PATH=/Users/eric/architect/spaces/20261009-pi-port/repos/fast-llm/gems/completions`
+  before `bundle install` (the worktree's relative default does not
+  resolve); NEVER commit that env into a file — the canonical
+  repos/tart checkout uses the relative default and the judge's
+  `lock-deps` gate runs WITHOUT the override.
+
+## May touch (EXACTLY these 48; the ```lanes``` block is the frozen truth)
+
+```
+Gemfile  Gemfile.lock  tart.gemspec  bin/tart  README.md
+lib/tart/agent/chat.rb        (NEW)
+lib/tart/agent/message.rb     (NEW)
+lib/tart/agent/loop.rb  lib/tart/agent/session.rb
+lib/tart/compaction.rb  lib/tart/models.rb  lib/tart/settings.rb
+lib/tart/print.rb  lib/tart/hooks.rb  lib/tart/tools.rb
+lib/tart/schemas/tools.rb
+lib/tart/render/footer.rb  lib/tart/render/transcript.rb
+lib/tart/render/user_bash.rb
+lib/tart/subagents/manager.rb  lib/tart/mcp/tool.rb
+lib/tart/tools/{read,find,grep,edit,ls,bash,write,memory,subagent,
+  contact_supervisor,safe_execute,registry}.rb
+test/support/mock_llm_server.rb   (the TestChat factory block only)
+test/{agent_loop,chat,session,bash_tool,launcher_smoke,subagents,flow,
+  hooks,settings,compaction,mcp,models,golden_parity}_test.rb
+test/render/transcript_test.rb
+```
+
+## Must NOT touch
+
+- repos/fast-llm (READ-ONLY), repos/pi, every other repos/* path, the
+  space outside build/ + tmp/.
+- `gems/tui-split-rig/**`, `bench/seam_bench.rb`, `test/fixtures/**`,
+  `lib/tart/core/**`, `lib/tart/render/chat.rb`, `lib/tart/shapes/**`,
+  the mock SERVER class body.
+- No new runtime deps (fast-completions only, via the Gemfile line); no
+  faraday anywhere; no vendored gem code; no payload-mutation seams (the
+  deltas of the ruling are the wire's new truth — never adapter them
+  back); no new `Thread.new` in lib.
+- NEVER commit, NEVER push, no GitHub/rubygems actions.
+
+## Verification (run in YOUR worktree with FAST_COMPLETIONS_PATH exported)
+
+1. `bundle install && bundle exec rake` → fully green.
+2. The negative greps of `seams-absent` clean (no RubyLLM/ruby_llm/
+   faraday under lib bin test README.md tart.gemspec Gemfile; no seam
+   names; chat.rb + message.rb exist).
+3. The I36/I46 thinking pins green UNMODIFIED
+   (`test/agent_loop_test.rb -n "/reasoning_effort|reasoning_content|zai_|thinking_reply_persists|switch_model_re_resolves_the_reasoning_facts|print_mode_wires_the_thinking_facts/"`).
+4. The new pins green (batch-abort ≤0.2 s; recorded hash exact).
+5. `bundle exec ruby bench/seam_bench.rb` → SEAM_BENCH_OK.
+6. The rig battery from your worktree is the KNOWN deep-path shape
+   (s9 may exit 1 in a deep worktree — eleven+ precedents); run s1 +
+   s2 + s7 at minimum and expect exit 0; the judge re-runs the full
+   battery cold on the integrated tree at canonical depth.
+7. The `wire-delta` gate's assertions hold against a local s1 run
+   (normalize your out path) — the four deltas and NOTHING else moved.
+
+## Report
+
+Write `build/I52-fast-completions-integration-core/report.md`: the
+touch-list check, the verification outputs verbatim (tails), the
+wire-delta local run output (incl. the full-body SHA you observed —
+the judge records it), every deviation from the frozen spec itemized
+(never silent), and any place the gem's surface fought the integration
+(report it — do not patch repos/fast-llm). Do not commit.
 
 ## Builder Report
 
