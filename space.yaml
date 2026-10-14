@@ -2230,7 +2230,23 @@ project:
   - name: paste-markers
     ordinal: 55
     file: architecture/I55-paste-markers.md
-    freeze_sha:
+    freeze_sha: 5146159d979599fd74c75e9754ab663319d15c0e
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/render/editor.rb
+      - lib/tart/render/chat.rb
+      - gems/tui-split-rig/lib/tui_split_rig/scenario.rb
+      - gems/tui-split-rig/lib/tui_split_rig/runner.rb
+      - gems/tui-split-rig/scenarios/s14_paste_marker_display.yml
+      - gems/tui-split-rig/scenarios/s15_paste_marker_submit.yml
+      - gems/tui-split-rig/test/scenario_test.rb
+      - test/render/editor_multiline_test.rb
+      - test/render/editor_undo_test.rb
+      - test/chat_test.rb
+    rehearsal:
+      gates_digest: 855a58461235c9b244abc7b14b6738153947b79f368107382d4f5aa2a68754ad
+      at: '2026-10-14T09:20:29-06:00'
   integration_branch: project/pi-port
