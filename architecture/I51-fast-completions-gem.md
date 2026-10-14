@@ -1503,10 +1503,333 @@ frozen data, judgeable without executing anything).
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I51-fast-completions-gem-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section fast-completions-gem prompt --append --lane <lane> --from build/I51-fast-completions-gem-<lane>/prompt.md`. -->
+# Builder Prompt — I51 fast-completions-gem
+
+> Two lanes, repo fast-llm, disjoint by construction. Each prompt below was assembled from its scratch file — lane `core`: `build/i51-core/prompt.md`; lane `harness`: `build/i51-harness/prompt.md` (verbatim copies; the coordinator dispatches from those paths). Dispatch order: `core` first, integrate, then `harness` verification on the integrated tree (Specification §15).
+
+---
+
+# Lane prompt — I51 fast-completions-gem, lane `core`
+
+You are lane `core` of iteration I51 (fast-completions-gem), freeze
+`1657e793`, repo **fast-llm** (your worktree; branch `lane/i51-core`).
+The frozen iteration file is `architecture/I51-fast-completions-gem.md`
+in the space — Grounds, Specification, Acceptance Criteria are
+read-only truth; § cites below are that file's. Space scratch copies of
+the spec sections also sit at `build/i51-core/{grounds,specification,
+acceptance-criteria}.md` (identical bytes).
+
+## Mission
+
+Scaffold the fast-llm monorepo and build the gem `fast-completions`
+(`Fast::Completions`, `require "fast/completions"`): a standalone,
+releasable, fiber-native OpenAI-compatible chat-completions client,
+byte-faithful to pi's wire, with dialects as data and async-http as the
+ONLY runtime dependency. The oracle is pi (`repos/pi/packages/ai/src/`)
+— a REWRITE with citations, never copied TypeScript (BRIEF §2). You
+build EVERYTHING except the wire fixtures + parity spec + install
+script (sibling lane `harness` owns those — do NOT create them).
+
+## The contract (frozen Specification, condensed — § cites are the file's)
+
+- **§1–§2 Scaffold**: the exact file tree; root `Gemfile` (dev deps
+  only: rspec, rake; `gemspec path: "gems/completions"`); root `.rspec`
+  (`-I gems/completions/lib`, `--require` the spec_helper, `--pattern
+  gems/completions/spec/fast/**/*_spec.rb`); `.gitignore`; gemspec in
+  house shape with EXACTLY ONE runtime dep
+  (`add_dependency "async-http", "~> 0.95"`); version 0.1.0; CHANGELOG.
+- **§3 Public API** — frozen names, frozen signatures:
+  `Fast::Completions::{Model, Client, Chat, Message, Usage, Event, Tool,
+  Dialect, Cancellation, CancelledError}` + the error tree of §8 + the
+  dialect DSL `Fast::Completions.dialect(:name) { … } /
+  .dialects`. Model gains the optional `provider:` metadata field
+  (default "fast-completions"; metadata only, never a wire byte —
+  same-model replay comparison per §12.3's note).
+- **§4 Dialects as data**: the 14-key vocabulary, defaults = the plain
+  arm, unknown keys/values → ArgumentError at declaration; the
+  well-known trio declarations verbatim (:zai = I46 five-key subset +
+  supports_store:false; :deepseek; :fireworks = empty). NO catalog,
+  NO pricing, NO base-URL constants (AC4 negative greps bite).
+- **§5 Types**: value objects; Message roles/blocks; Usage with
+  native total_tokens; Event vocabulary `:start/:text_start/:text_delta/
+  :text_end/:thinking_*/:tool_call_*/:done/:error` with `partial` (the
+  live accumulator, pi types.ts :794-816).
+- **§6 Client**: ONE persistent Async::HTTP::Client; runs inside the
+  caller's reactor; POST `{base}/chat/completions`; headers
+  authorization/content-type/accept; session-affinity headers per
+  dialect when the chat supplies a session id; timeout = TTFB deadline
+  + inactivity read-timeout (same value, default 30) → TimeoutError;
+  cancel aborts the request, discards the connection, raises
+  CancelledError, NO terminal event; non-2xx → §8 mapping; network
+  failures → ConnectionError.
+- **§7 SSE parser**: chunk-boundary-safe, `data:` payloads in order,
+  comment lines ignored, CRLF normalized, `[DONE]` terminal token,
+  multi-data-line concat with "\n".
+- **§8 Errors**: the frozen class tree; ContextLengthExceededError
+  detected by pi's 25 overflow patterns (utils/overflow.ts :33-96,
+  ported verbatim as data); StreamError for terminal stream errors
+  carrying pi's message forms.
+- **§9 Request build — THE BYTE CONTRACT**: key order and emission
+  rules EXACTLY as §9 enumerates (pi buildParams :802-1000): model,
+  messages, stream, stream_options{include_usage}, store:false,
+  max_tokens|max_completion_tokens, temperature-only-when-set, tools +
+  zai tool_stream (and the `tools: []` tool-history fallback),
+  thinking arms (:zai / :deepseek / :openai incl. the off-floor — map's
+  off String, else omitted), thinking budget field (budgets 1024/2048/
+  8192/16384 clamped to max−1024, only when > 0), NOTHING else.
+  Messages: developer-vs-system role rule; user string verbatim; tool
+  results {role:"tool", content: joined, tool_call_id:} with the
+  "(no tool output)" placeholder; tools {type:function, function:
+  {name, description, parameters-VERBATIM}}. Assistant replay (§9.4–
+  9.5): same-model/cross-model thinking rules, signature replay
+  (reasoning/reasoning_content/reasoning_text fields per
+  OPENAI_COMPLETIONS_REASONING_FIELDS), reasoning_details array replay
+  with the validity check, deepseek empty reasoning_content, text
+  joined to ONE plain string (content:null when no text), tool_calls
+  array with JSON.generate(arguments), empty assistants skipped,
+  orphaned tool calls get synthetic "No result provided" is_error
+  results (system messages held back between call and results).
+  Thinking ladder (§9.3): pi's supported-levels + clamp semantics.
+  Max tokens (§9.6): clamp vs context window − estimate(chars/3.5) −
+  4096.
+- **§10 Delta parse**: per-chunk order (response_id/response_model,
+  usage + the choices[0].usage fallback, finish_reason, content deltas,
+  FIRST-non-empty-of reasoning_content/reasoning/reasoning_text with
+  the field name as signature, tool-call deltas accumulated
+  index-then-id with RAW string deltas in events, reasoning_details
+  delta accumulation with consecutive-merge); terminal discipline
+  (finalize blocks; cancel ⇒ CancelledError; error stop ⇒ :error event
+  then StreamError; no finish_reason + !supports_finish_reason ⇒
+  infer tool_use/stop; missing finish_reason when expected ⇒
+  StreamError; else :done). Usage math per §10.1 (cacheRead/cacheWrite/
+  input/output/reasoning/total_tokens). Stop map per §10.2.
+- **§11 Tool + Cancellation**: class-level description/tool_name/
+  parameters; `#execute(**args)` → String/Hash/{error:};
+  Cancellation.check ~15 lines.
+- **§12 Chat**: history semantics; Chat stamps its own outputs
+  (provider: model.provider, model: model.id, api
+  "openai-completions"); step = build → stream → yield events → on
+  :tool_use execute tools SERIALLY (Cancellation.check, before/
+  after hooks keyed by tool_call id — registration order, NO
+  Thread/fiber-local pairing), append tool results, return the final
+  Message; complete?; cancel (latch + Async::Cancel, no phantom
+  terminal); thinking_level=/with_thinking_level.
+- **§12.1 The gem's OWN mock**: copy tart's
+  `repos/tart/test/support/mock_llm_server.rb` (read-only copy is
+  sanctioned) at its current integrated state; DROP the Tart::Test/
+  TestChat minitest nesting; keep everything else behavior-identical
+  (script vocabulary incl. :slow_stream + :error, rearm!,
+  suppress_usage!, captured_requests/captured_request_logs, empty-
+  connect discipline, EPIPE discipline); provenance comment in the
+  header.
+- **§13 READMEs**: gem README states the exact phrase "the
+  OpenAI-compatible chat-completions wire", mentions "/v1/completions"
+  + "legacy" (disambiguation), dialect DSL with the zai example, deps
+  statement; root README describes the monorepo.
+
+Every pi behavior above has a file:line cite in the frozen spec —
+carry those cites into code comments at the implementation sites.
+
+## May touch (EXACTLY these 31; the ```lanes``` block is the frozen truth)
+
+```
+.gitignore  .rspec  Gemfile  Gemfile.lock  README.md
+gems/completions/fast-completions.gemspec
+gems/completions/README.md  gems/completions/CHANGELOG.md
+gems/completions/lib/fast/completions.rb
+gems/completions/lib/fast/completions/{version,types,dialects,errors,
+  sse,client,protocol,codec,tool,cancellation,chat}.rb
+gems/completions/spec/spec_helper.rb
+gems/completions/spec/support/mock_llm_server.rb
+gems/completions/spec/fast/completions/{sse,protocol,codec,dialects,
+  errors,client,chat,tool,cancellation,stream_cancel}_spec.rb
+```
+
+(README.md at the root REPLACES the placeholder — the one sanctioned
+base-file rewrite. Gemfile.lock is generated by bundle install;
+commit-ready content, but YOU NEVER COMMIT.)
+
+## Must NOT touch
+
+- `gems/completions/spec/fixtures/**`, `spec/fast/completions/
+  wire_parity_spec.rb`, `script/install_check.sh` (lane `harness`).
+- EVERYTHING outside repos/fast-llm: repos/tart and repos/pi are
+  READ-ONLY references (the mock is copied, not moved).
+- No new runtime deps (async-http only); no faraday anywhere; no
+  vendored pi TypeScript; no GitHub/rubygems actions; NEVER commit,
+  NEVER push, no release tags.
+
+## Verification (run in YOUR worktree; the judge re-runs on the integrated tree)
+
+- `bundle install && bundle exec rspec` → 0 failures (all nine unit
+  specs + stream_cancel_spec; the parity spec does not exist in your
+  tree — the suite pattern simply finds nothing there, which is
+  correct).
+- `bundle exec rspec gems/completions/spec/fast/completions/
+  stream_cancel_spec.rb` green — the AC3 pin: `:slow_stream` script,
+  cancel from a sibling fiber after the first delta ⇒ CancelledError
+  raised, NO :error/:done event after cancel, the next request on the
+  same client succeeds.
+- A smoke check in chat_spec: one full turn (instructions + tool +
+  user) against the mock — tool round trip, hooks fired with the
+  tool_call ids.
+- `ruby -e "require 'fast/completions'"` clean under `bundle exec`.
+
+## Report
+
+Write `build/i51-core/report.md`: files created (with the touch list
+check), the verification outputs verbatim (tail of each), deviations
+from the frozen spec (if any — itemize, never silent), and any pi
+oracle line-cites you could not honor with a reason. Do not commit.
+
+---
+
+# Lane prompt — I51 fast-completions-gem, lane `harness`
+
+You are lane `harness` of iteration I51 (fast-completions-gem), freeze
+`1657e793`, repo **fast-llm** (your worktree; branch `lane/i51-harness`).
+The frozen iteration file is `architecture/I51-fast-completions-gem.md`
+in the space; § cites below are that file's.
+
+## Mission
+
+Land the BYTE-PARITY harness: the 11 recorded pi wire fixtures, the
+parity spec that proves `Fast::Completions` emits byte-identical
+request bodies, and the release/install check script. Your work is RED
+at base BY DESIGN in your own worktree (the gem is sibling lane
+`core`'s work; you mount on `core`'s integration — the coordinator
+runs your verification against the integrated tree). Do NOT create or
+modify anything under `lib/` — if the API surface fights you, report
+it (the frozen §3 names are the contract) instead of patching the gem.
+
+## The recorded fixtures (frozen data — Grounds §3, Specification §12.2)
+
+Eleven canonical request bodies captured from REAL pi (the installed
+`@earendil-works/pi-ai` 1.1.0 dist driven hermetically; deterministic
+across runs). The staged copies are at
+`build/i51-harness/fixtures/*.json` in the space (each
+`{tag:, request_path:, request_body:}`; `FROZEN-DIGESTS.txt` + the AC2
+gate carry the SHA256 table; `CAPTURE.mjs` is the verbatim capture
+driver for provenance). Commit them under
+`gems/completions/spec/fixtures/wire/` (the 11 `<tag>.json` +
+`CAPTURE.mjs`; header comment in CAPTURE.mjs documents the driver's
+origin + the frozen digests — the suite NEVER executes it).
+
+FROZEN DIGESTS (SHA256 of `request_body`):
+
+```
+fireworks_plain=0b9da927d3cab0b8b41ecb634fde099729e03f817ef6ba3aba26720df2130d93
+openai_ladder_on=b05b45aeb3a4f7bdfa12d142e839882855688a246ead4d016fbe474188dfaed2
+openai_ladder_off=60914406494e2e8403de6b932f01cd5d901c9ae4c4de75e283b25656fa6304b1
+zai_on=9a23aee6b115cce0bd6a608465f2c56332123e47a0f22c491793c0a4d0e45c13
+zai_off=88dd5af69ceb68bbc41aad9ddfbc4dcb36e0dd66fec3563054d484cc0f727f7c
+deepseek_on=ce98edaee2ecb634dcd4461e3e56cfc4f973cd37026fc390b63ac2bdfbfec5f5
+tool_roundtrip=940d8f5b262f59a3db7b27a70471ac96a40c170264edc83219bef83dce1e9038
+thinking_replay=c9259d5da9ca8c63186522c24b9bdfd1fe81aa0903187b0f50634b56eb3c7e6c
+reasoning_details_replay=c21da08d520e246652b33bedf76d89db581692a7775de5181dc8c63013a0ae4e
+cross_model_thinking_replay=809a9b7ecc99399379031524ed5810677e31c22cac2f64eb6e728602ea5939fc
+budget_field=fb29e70650e9708f394c319d3c8ecacb840c134d214f9ce2747151356b86d1b7
+```
+
+## The parity spec (Specification §12.2–§12.3)
+
+`gems/completions/spec/fast/completions/wire_parity_spec.rb`: for each
+scenario, build the EXACT §12.3 gem-side construction, run ONE request
+against the gem's MockLLMServer (script `{type: :stream, content:
+"ok"}`), capture the raw request body from the server, and assert
+byte-identical to the fixture's `request_body` (string equality +
+SHA256 == the table above). On mismatch, print a parsed-body diff that
+shows KEY ORDER (e.g. render each side as `keys.zip` lines) — the
+failure must be diagnosable.
+
+The §12.3 table (verbatim from the frozen spec):
+
+Common: instructions "You are a test assistant."; the ONE tool —
+parameters `{"type"=>"object","required"=>["path"],"properties"=>
+{"path"=>{"type"=>"string"},"offset"=>{"type"=>"number"}}}`,
+description "Read file contents."; model id "mock-1", context_window
+128_000; client → MockLLMServer; final user message "hello" (except
+where the history ends differently).
+
+| tag | model kwargs (beyond common) | thinking_level | history before the final user message |
+|---|---|---|---|
+| fireworks_plain | reasoning: false, max_tokens: 512, dialect: :fireworks | nil | — |
+| openai_ladder_on | reasoning: true, max_tokens: 512, thinking_level_map: {off:"none",low:"low",medium:"medium",high:"high"} | :high | — |
+| openai_ladder_off | (same model) | :off | — |
+| zai_on | reasoning: true, max_tokens: 512, map: {off:"disabled",low:"low",medium:"medium",high:"high"}, dialect: :zai | :high | — |
+| zai_off | (same model) | :off | — |
+| deepseek_on | reasoning: true, max_tokens: 512, map: {off:"disabled",high:"high"}, dialect: :deepseek | :high | — |
+| tool_roundtrip | reasoning: false, max_tokens: 512, dialect: :fireworks | nil | user "read the file"; assistant(tool_call id "call_1" name "read" arguments {"path"=>"src.rb"}, provider: "fireworks", model: "mock-1"); tool_result "call_1" content "line 1\nline 2"; user "thanks" |
+| thinking_replay | reasoning: true, max_tokens: 512, map: {high:"high"}, provider: "mock" | nil | user "hello"; assistant(thinking "let me think" signature "reasoning_content", text "Hi!", provider: "mock", model: "mock-1"); user "thanks" |
+| reasoning_details_replay | (same model) | nil | user "hello"; assistant(thinking "thought" signature `[{"type":"reasoning.text","text":"t1","signature":"sig"}]` (as a STRING), text "Hi!", provider: "mock", model: "mock-1"); user "thanks" |
+| cross_model_thinking_replay | (same model) | nil | user "hello"; assistant(thinking "let me think" signature "reasoning_content", text "Hi!", provider: "other-provider", model: "mock-1"); user "thanks" |
+| budget_field | reasoning: true, max_tokens: 4096, map: {off:"none",high:"high"}, dialect: user-declared {thinking_token_budget_field: "thinking_token_budget"} | :high | — |
+
+Notes: same-model = `(msg.provider, msg.model)` vs `(model.provider,
+model.id)` — hence `provider: "mock"` on the model for the replay rows
+(§12.3's stamping note); thinking blocks are `{type: :thinking,
+thinking:, signature:}`; tool blocks `{type: :tool_call, id:, name:,
+arguments:}`; the budget dialect is declared in the spec itself via
+`Fast::Completions.dialect(:budget_probe) { thinking_token_budget_field
+"thinking_token_budget" }` (a fresh name — do not collide with the
+trio).
+
+## The install check (Specification §12.2)
+
+`gems/completions/script/install_check.sh`: from the repo root —
+`gem build gems/completions/fast-completions.gemspec`; fresh scratch
+`GEM_HOME`/`GEM_PATH` (mktemp -d); `gem install` the built .gem;
+`ruby -e 'require "fast/completions"` with the repo OUT of the load
+path (cd elsewhere, scrub GEM_HOME-relative bundler env); then a smoke
+chat: start the gem's MockLLMServer (a small `ruby -I` wrapper is
+fine), build Client+Chat (one instruction, the read tool, one user
+message), run one `step`, assert the reply text; print
+`INSTALL_CHECK_OK`. The script must be idempotent + tear down
+everything it starts (no orphan processes/dirs).
+
+## May touch (EXACTLY these 14; the ```lanes``` block is the frozen truth)
+
+```
+gems/completions/spec/fixtures/wire/CAPTURE.mjs
+gems/completions/spec/fixtures/wire/{fireworks_plain,openai_ladder_on,
+  openai_ladder_off,zai_on,zai_off,deepseek_on,tool_roundtrip,
+  thinking_replay,reasoning_details_replay,cross_model_thinking_replay,
+  budget_field}.json
+gems/completions/spec/fast/completions/wire_parity_spec.rb
+gems/completions/script/install_check.sh
+```
+
+## Must NOT touch
+
+- Everything else in repos/fast-llm — `lib/**`, the unit specs, the
+  mock, gemspec, READMEs, Gemfile (lane `core`).
+- EVERYTHING outside repos/fast-llm (tart/pi read-only; the fixture
+  staging dir `build/i51-harness/fixtures/` is space scratch — you
+  COPY from it, you never write back).
+- No commits, no pushes, no GitHub/rubygems actions.
+
+## Verification (your worktree + the integrated tree)
+
+- In YOUR worktree: `ruby -rjson -rdigest` over the 11 fixture files
+  reproduces the frozen digest table (the AC2 `wire-fixtures-digests`
+  gate — green in any tree carrying correct bytes).
+- The parity spec + install check are RED in your worktree BY DESIGN
+  (no gem). The coordinator/judge runs them on the integrated tree;
+  author them so they FAIL LOUDLY there until `core` is correct (a
+  NameError on a missing constant is the wrong red — prefer load-
+  guarded skips that turn into hard assertions? NO: write the real
+  spec; the integrated run is the judge's).
+- `bash gems/completions/script/install_check.sh` on the integrated
+  tree prints INSTALL_CHECK_OK.
+
+## Report
+
+Write `build/i51-harness/report.md`: the digest verification output
+verbatim, fixture provenance (copied from build/i51-harness/fixtures/
+vs re-captured via CAPTURE.mjs — record which), any scenario where the
+frozen §12.3 construction fought the real API (itemize — that is a
+`core` defect report, not yours to patch), and the integrated-tree run
+outputs when available. Do not commit.
 
 ## Builder Report
 
