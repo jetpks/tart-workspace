@@ -329,34 +329,443 @@ Display (`interactive-mode.ts`):
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section steering-queue specification --from <file>`. -->
+# Specification — I54 steering-queue
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+## Objective
+
+Close the owner's problems.md items 4, 5, 7: the port's mid-flight input
+handling gets pi's shape — slash commands dispatch busy-or-not (finding 4),
+queued messages render above the editor with the dequeue hint and the
+followUp/dequeue keybinds (finding 5), and steering is delivered after each
+tool batch, INSIDE the same run, riding the next LLM request (finding 7) —
+plus pi's followUp mode and the compaction-time submit disposition. The
+queue splits into steer + followUp modes in the agent layer (pi's split);
+session recording carries queued messages as user messages at their actual
+delivery points.
+
+pi sources (this file's §cites to repos/pi, verified this session):
+interactive-mode.ts = I, agent-session.ts = S, agent-loop.ts = L,
+agent.ts = A, keybindings.ts = K, editor.ts (pi tui) = E.
+
+## §1 Agent layer — the queue split and the drain points
+
+**lib/tart/agent/loop.rb.**
+
+1.1 Replace the single `@steering_queue` (`Queue`, :135) with TWO queues —
+`@steering_queue` and `@follow_up_queue` — each a mutex-guarded Array
+(the surface snapshot readbacks need enumeration; `::Queue` cannot
+snapshot). One `@queues_mutex` guards both. Public API:
+
+- `steer(text)` — append to the steering queue (pi `Agent.steer` A:299).
+- `follow_up(text)` — append to the follow-up queue (pi A:304).
+- `push_message(text)` — RETAINED as the documented alias of `steer`
+  (comment: the I03-era name; existing callers unchanged).
+- `clear_queues` — atomically clears BOTH queues (pi `clearQueue` +
+  `agent.clearAllQueues`, S:2402-2410). Returns nothing.
+- `steering_texts` / `follow_up_texts` — thread-safe snapshot `Array`s
+  (the surface mirror's render source, pi `getSteeringMessages`/
+  `getFollowUpMessages` S:2418-2424).
+- `queued_messages?` — either queue non-empty (existing method, now both
+  queues; the wind-down arm's contract unchanged, now also covering
+  follow-ups per pi's `hasQueuedMessages` continue S:1898).
+
+1.2 The I48 file inbox (`drain_steer_inbox`) folds into the STEERING queue
+only — unchanged code, unchanged consumption points.
+
+1.3 Drain points — the pi 1:1 map (Grounds §2's trace verification):
+
+- **NEW, the tool-batch arm**: in `inner_loop`'s `message.role == :tool`
+  branch, AFTER the terminate-ledger consult (I47 — pi's end-decision
+  precedes the poll, L:288-291), drain steering and deliver each message
+  through the existing `add_user_message` (emits :message_start/
+  :message_end, records the session entry, drains nextTurn — the port's
+  existing delivery path). This is pi L:295 (post-turn poll) + L:212-220
+  (pending processed before the next request): the steering text rides
+  the next `step_on_reactor` request of the SAME run. Comment with the
+  cites.
+- The `complete?` arm (existing :419-427): unchanged — drains steering
+  after the final tool-less answer, continues the inner loop (pi's same
+  :295 poll after every turn).
+- The no-prompt opening (`run_loop`'s else branch :375-380): drain
+  steering; if (and only if) the steering drain was empty, drain
+  follow-up — pi `continue()`'s precedence (A:392-405: steering branch
+  returns immediately with follow-ups left queued). Never both in one
+  opening.
+- The outer `break` (:386): `break if steering_messages.empty? &&
+  follow_up_messages.empty?` — the port's final-check race-closer,
+  covering both queues.
+- `#wake`'s emptiness check (:197): unchanged semantics via the both-
+  queue `queued_messages?`.
+
+1.4 `steering_messages` (the drain) and a new `follow_up_messages` (same
+shape) drain their own queue; both remain private.
+
+1.5 NO change to: `run`/`run_loop` prompt handling (the I03-locked
+pre-run deviation stands), `step_on_reactor`, the complete?-arm
+threshold-compaction ordering (`run_threshold_compaction` THEN the drain —
+pi's "pick up steering queued while it ran", L:201-205), turn_start/
+turn_end emission points, `recover_overflow?`, the wake shape.
+
+## §2 Surface submit — commands busy-or-not, steer/followUp queueing
+
+**lib/tart/render/chat.rb `#submit` (:949-977).**
+
+2.1 The `!busy?` gates (:961-962) DROP. New order (pi I:3200-3389 —
+builtins before the streaming branch; S:1968-2024 — command check →
+expansion → queue):
+
+```
+if @commands && text.start_with?("/")
+  text = @commands.expand_skill(text)      # expansion BEFORE queue (S:2005-2010) — unchanged position
+  return if gate_thinking_level(text)      # busy-or-not
+  return if busy_command_arm(text)         # §2.2 — false = fall through
+  return if @commands.dispatch(text)       # busy-or-not
+end
+```
+
+2.2 `busy_command_arm(text)` — private; returns false unless `busy?` AND
+the text is the builtin `/compact` (exact or `/compact …` prefix) or
+`/new` (exact). Then (pi S:2764-2765 compact aborts first; runtime
+:167-178 newSession aborts first — Grounds §2): call
+`@kernel.interrupt_work!`, store the command text in
+`@pending_after_interrupt`, `@kernel.request_draw`, return true. The
+`:agent_end` arm (§2.5) re-dispatches.
+
+2.3 The busy branch of submit (after the `!`-bash intercept, unchanged
+position):
+
+- `busy?` → `@agent.steer(text)`; NO `enqueue_user_submission` echo (the
+  echo renders at DELIVERY, §3.3); the queue mirror gets the text (§3.2);
+  if `@compaction_reason` (compacting), also `flash("Queued message for
+  after compaction")` (pi queueCompactionMessage I:4763-4772 — the port
+  routes to the steer queue directly; pi's surface compaction queue +
+  flush machinery is unnecessary because the port's compaction runs
+  inline and the post-compaction drain is §1.3's complete? arm).
+- else (idle) → today's shape verbatim: `enqueue_user_submission(text)`
+  then `@kernel.async { @agent.run(text) }`.
+
+2.4 **`app.message.followUp` — alt+enter** (K:67-70; registered I:3116):
+in `edit_input`'s `"enter"` case, an `alt` modifier NO LONGER inserts a
+newline — it is the follow-up submit: `submit_follow_up` (new private):
+empty trimmed input → no-op; `busy?` → mirror + `@agent.follow_up(text)`
++ editor/history/undo discipline identical to submit's pre-queue lines +
+NO submit echo; compacting → same + the compaction flash; **idle →
+behaves exactly like plain Enter** (pi I:4497-4504 — falls through to
+`submit`). The shift+enter and ctrl+j newline arms are byte-unchanged.
+The autocomplete-apply arm precedence is preserved (enter applies the
+selection; the alt arm is checked BEFORE the shift arm — pi's newline
+keys are shift+enter/ctrl+j, K's tui table :143).
+
+2.5 **`app.message.dequeue` — alt+up** (K:71-74): new `"up"` alt arm
+(plain up/down unchanged). `dequeue_queued_messages` (new private, pi
+handleDequeue I:4507-4514 + restoreQueuedMessagesToEditor :4743-4761):
+NO abort (D10). `all = [steering…, followUp…]` from the SURFACE mirror;
+`@agent.clear_queues`; if `all.empty?` → `flash("No queued messages to
+restore")`; else `combined = [all.join("\n\n"), @editor.input].reject {
+|t| t.strip.empty? }.join("\n\n")`; `@editor.set_text(combined)`
+(§4); `flash("Restored #{n} queued message#{n > 1 ? "s" : ""} to
+editor")`; clear the mirror; `@kernel.request_draw`.
+
+2.6 The `:agent_end` arm (existing :526+): after today's interrupted/
+error handling, BEFORE the wind-down continuation (:547-552), add the
+deferred-arm consumption: if `@pending_after_interrupt` is set, clear it
+and `@kernel.async { @commands&.dispatch(<the stored text>) }` (runs
+outside the mutex — kernel.async schedules; the re-dispatch hits the
+exact idle paths: /compact → dispatch_compact, /new → reset lambda) and
+SKIP the wind-down continuation for THIS agent_end (manual compaction
+never continues the interrupted turn — S:2762-2763). The wind-down
+continuation itself is unchanged (`queued_messages?` now covers both
+queues — pi S:1898 continues on either).
+
+## §3 Surface queue display
+
+**lib/tart/render/chat.rb.**
+
+3.1 The mirror: `@queued = {steer: [], follow_up: []}` (guarded by the
+existing `@mutex`). Appended by §2.3/§2.4; cleared by §2.5 and
+delivery (§3.3).
+
+3.2 Rendering (pi `updatePendingMessagesDisplay` I:4724-4740 +
+TruncatedText truncated-text.ts:7-40): a new `pending_rows` source +
+`pending_widget` child in `build_widget` between `dock_spacer_widget`
+and the editor slot:
+
+```
+[transcript, dock_spacer, pending, picker_or_menu || editor, footer]
+constraints: [min(transcript_rows), length(spacer), length(pending), length(editor), length(FOOTER)]
+```
+
+`transcript_area_rows` (existing :1088-1093) subtracts `pending_rows`
+TOO (`[height - editor_area_rows - FOOTER_ROWS - dock_spacer_rows -
+pending_rows, 1].max`) — the transcript yields (pi's document-area
+shrink), the editor/footer never move (the selection's
+`editor_area_top` math is untouched). `pending_rows` = 0 when both
+mirror arrays are empty; else `2 + n_steer + n_follow_up`:
+
+- row 0: blank (pi's `Spacer(1)`),
+- per steering text: ONE row, dim (`Theme[:dim]`), text
+  `Steering: <text>`, first line only (split on "\n"), clipped to the
+  viewport width minus 2, one leading space, right-padded to the width,
+- per follow-up text: same shape with `Follow-up: <text>`,
+- last row: dim `↳ Alt+Up to edit all queued messages` (pi's
+  `keyDisplayText("app.message.dequeue")` = "Alt+Up"; the port has no
+  keybinding registry — the string is the rendered constant), same
+  clip/pad discipline.
+
+3.3 Delivery echo + mirror removal (pi S:1122-1134 + I:3503-3507): in
+`on_agent_event`'s `:message_start` case, a `user`-role message whose
+text matches the FIRST index of the mirror's `:steer` (else `:follow_up`)
+array: remove it from the mirror and `@transcript_state
+.enqueue_user_submission(<text>)` — the user echo renders AT DELIVERY
+(inside the existing mutex; the arm ends with the redraw the event sink
+already triggers). Non-queued user messages (the idle submit's opening
+message) skip the arm — the idle path already echoed at submit (D5).
+`@kernel.request_draw` after.
+
+## §4 Editor seam
+
+**lib/tart/render/editor.rb** — `set_text(text)` (pi setText E:1115-1126
++ setTextInternal :494-496): cancel the autocomplete context if any
+(the port's autocomplete is surface-side; the editor seam clears
+`last_action`-equivalent state per the port's existing discipline), exit
+history browsing, normalize newlines, push an undo snapshot when the
+normalized content differs from the current, replace the content, place
+the cursor at the END. No paste-registry interaction (ENTRY B's
+territory — the port has none).
+
+## §5 Commands comment accuracy
+
+**lib/tart/commands.rb** — `dispatch_compact`'s comment (:219-222)
+updated to record the surface's busy arm (§2.2): pi aborts a running
+turn first; the PORT arms interrupt + deferred re-dispatch in
+`Render::Chat#busy_command_arm`; the Handler still only compacts an
+idle agent. NO behavior change in this file.
+
+## §6 Rig + mock (NEW scenarios only; nothing existing touched)
+
+**test/support/mock_llm_server.rb** — add ONE method:
+`request_count` (non-draining: `@request_logs.size`) — the runner's
+mid-run poll needs a peek that does not consume `captured_request_logs`.
+
+**gems/tui-split-rig/lib/tui_split_rig/scenario.rb** — new optional
+scenario key (validated at load like the existing knobs):
+
+```yaml
+mid_run_keys:
+  after_request: 1      # positive integer — the trigger
+  keys: ["text", "Enter"]  # tmux key tokens, sent verbatim
+```
+
+**gems/tui-split-rig/lib/tui_split_rig/runner.rb** — in `run_app`, after
+the prompt is sent and BEFORE the reply settle: when
+`scenario.mid_run_keys` is set, poll `mock.request_count` every
+`POLL_INTERVAL` until `>= after_request` (HARD_CAP-bounded; a dead pane
+or a timeout fails the app's `completed`), then `tmux("send-keys", "-t",
+session, *keys)` per token, then the existing `settle(session,
+"reply")` continues. Default (no key): today's behavior byte-identical.
+
+**gems/tui-split-rig/scenarios/s12_steering_mid_round.yml** (NEW):
+
+```yaml
+name: s12_steering_mid_round
+prompt: "list the files"
+expected_requests: 2
+mid_run_keys:
+  after_request: 1
+  keys: ["wait, sort them by size", "Enter"]
+responses:
+  - type: stream
+    content: ""
+    tool_calls:
+      - id: call_s12_1
+        name: bash
+        arguments:
+          command: "sleep 1.5 && echo steering-window"
+  - type: stream
+    content: "Done after steering."
+```
+
+The tool's own sleep IS the determinism window (D11): keys sent after
+request 1 is served land during the stream or the tool run — both before
+the post-batch drain. OLD-port discrimination: the old drain-at-round-end
+behavior sends THREE requests (request 2 = plain continuation, round
+ends, the steer opens a NEW round) → `completed` fails (3 ≠ 2).
+
+**gems/tui-split-rig/scenarios/s13_command_while_streaming.yml** (NEW):
+
+```yaml
+name: s13_command_while_streaming
+prompt: "hello"
+expected_requests: 2
+mid_run_keys:
+  after_request: 1
+  keys: ["/thinking off", "Enter"]
+responses:
+  - type: slow_stream
+    content: "xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+  - type: stream
+    content: "Reply after the command."
+```
+
+`:slow_stream` paces 0.1 s/char (mock spec_pause) — the keys land
+mid-stream deterministically. `/thinking off` (not `high`): the rig's
+mock-1 is `reasoning: false` and BOTH apps' gates offer only `off`
+(pi models.ts:1224-1226 returns ["off"]; the port's
+`available_thinking_levels` — chat.rb:1730+ — same) — so the command
+EXECUTES in both apps (the cure demonstrated) and nothing queues.
+OLD-port discrimination: `/thinking off` queued as steer → request 2
+carries it as a user message → the round ends → the steer opens request
+3 → count fails.
+
+Both scenarios: no registry edits (exit 0 requires actual screen parity
+modulo the existing sanctioned classes); baselines captured fresh at
+build time as the new goldens.
+
+## §7 Tests (the frozen net + new pins)
+
+Re-pins (test-file edits, each with its reason in the diff):
+
+- chat_test.rb:1404 — the stub's `push_message` → `steer` (the surface's
+  collaborator seam renamed).
+- chat_test.rb:2976 — same stub shape.
+- chat_test.rb:4104-4120 — alt+enter no longer newlines; re-pin: idle
+  alt+enter submits (pi I:4497-4504), newline = shift+enter/ctrl+j.
+
+New unit pins (minitest, the existing families):
+
+- **Loop (agent_loop_test.rb):** (a) steering submitted DURING a tool
+  round rides the NEXT request of the SAME run — script [tool-call
+  stream, final], push a steer between the steps (kernel-task timing per
+  the existing mid-run tests — e.g. a slow tool or a chunk callback),
+  assert 2 requests, request 2's LAST user message == the steer text, NO
+  second `agent_start`; (b) followUp submitted mid-run waits for full
+  completion — delivered only after the agent would stop (assert the
+  follow-up text rides a request AFTER a complete tool-less answer, same
+  run); (c) the session JSONL records the steer as a user message
+  BETWEEN the tool result and the final assistant (delivery-point
+  recording); (d) `clear_queues` empties both; `steering_texts`/
+  `follow_up_texts` snapshot; `push_message` == `steer` alias; (e)
+  pre-run push_message + prompt still = 2 requests (the I03-locked
+  deviation un-regressed).
+- **Chat surface (chat_test.rb):** (f) `/thinking off` while busy: the
+  command dispatches (the thinking level changes on the surface+loop)
+  and NOTHING queues (a recording agent's `steer` never receives
+  "/thinking"); (g) plain text while busy: no submit echo, the queue
+  mirror holds it, the rendered frame carries the dim `Steering: <text>`
+  row + blank + hint rows (draw + read the widget rows — the
+  transcript_lines-style readback or the drawn tree), the transcript
+  budget shrinks by the pending rows; (h) alt+enter while busy: the
+  `Follow-up:` row renders, `follow_up` (not `steer`) is called; idle
+  alt+enter submits; (i) alt+up dequeue: mirror + loop queues cleared,
+  editor = queued-then-current joined `\n\n`, the flash text, and the
+  empty case's "No queued messages to restore"; (j) delivery: a user-
+  role :message_start whose text is queued removes the row and echoes
+  via enqueue_user_submission at that point; (k) /compact while busy:
+  interrupt_work! fires, the command text is deferred, and at :agent_end
+  the deferred dispatch runs the idle compact path (a scripted kernel);
+  same for /new; (l) compaction-time submit: `@compaction_reason` set →
+  steer + the "Queued message for after compaction" flash.
+- **Editor (test/render/editor_test.rb):** (m) set_text replaces
+  content, cursor at end, undo snapshot pushed (undo returns the prior
+  content), history browsing exited.
+
+## §8 README
+
+The keybindings table row `Shift+Enter or Alt+Enter, Ctrl+J | insert a
+newline` becomes `Shift+Enter, Ctrl+J | insert a newline`, plus two new
+rows in pi's /hotkeys letters (I:6893-6894): `Alt+Enter | queue a
+follow-up message (submits when idle)` and `Alt+Up | restore queued
+messages to the editor`.
+
+## Output format
+
+Lane report at `build/I54-steering-queue-core/report.md`: per-AC results
+with the exact commands + tail outputs, the two new scenarios' out dirs
+(`tmp/parity-s12`, `tmp/parity-s13` — captures + request logs + summary
+fresh), the re-pin list with reasons, deviations itemized with pi cites.
+No commits (the integrator commits); the lane branch carries the work.
+
+## Tool guidance (verify, do not trust)
+
+- Full battery cold from `repos/tart`: `bundle install --quiet &&
+  bundle exec rake`; `bundle exec ruby bench/seam_bench.rb | tail -1`;
+  per-scenario `env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u
+  HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID
+  gems/tui-split-rig/bin/tui-split-rig run
+  gems/tui-split-rig/scenarios/<s>.yml --out tmp/<dir>`; the two probes
+  (`--gate`).
+- s9 in a LANE WORKTREE exits 1 with the KNOWN deep-path staged-path
+  artifact (twelve+ precedents: pristine base fails identically at a
+  same-depth path; canonical-depth run is the truth) — do not chase it
+  in-lane; report it.
+- The wire/session digest gates are byte-frozen (I52's standing forms) —
+  copy them verbatim, never hand-transcribe digests.
+
+## Boundaries
+
+**May touch (the lane's frozen touch set — nothing else):**
+
+```
+lib/tart/agent/loop.rb
+lib/tart/render/chat.rb
+lib/tart/render/editor.rb
+lib/tart/commands.rb            (comment accuracy only, §5)
+test/support/mock_llm_server.rb (ONE additive method, §6)
+test/agent_loop_test.rb
+test/chat_test.rb
+test/render/editor_test.rb
+gems/tui-split-rig/lib/tui_split_rig/scenario.rb
+gems/tui-split-rig/lib/tui_split_rig/runner.rb
+gems/tui-split-rig/scenarios/s12_steering_mid_round.yml  (NEW)
+gems/tui-split-rig/scenarios/s13_command_while_streaming.yml  (NEW)
+README.md                        (keybinding rows only, §8)
+```
+
+**Must not touch:** every existing scenario YAML, the registry, the
+differ, the probes' code paths, the frozen wire/session digest fixtures
+and their tests' assertion bytes, `lib/tart/agent/chat.rb` +
+`message.rb` (the gem seam — the steering message rides the existing
+`add_message` path), `lib/tart/render/transcript.rb` (enqueue_user_
+submission is reused as-is), session/print/subagents/herdr/hooks/mcp/
+tools/settings/models, `bin/tart` (no wiring changes needed),
+repos/fast-llm, repos/pi. No new Thread.new in lib (threads-budget).
+No behavior change to any existing scenario's request stream (old
+scenarios never submit mid-run — the request bodies are unchanged by
+construction; the digest gates enforce it).
+
+**Out of scope:** Grounds §5's non-goals (QueueMode settings, startup-
+help rows, extension abortHandler, the surface compaction queue, the
+I03-locked deviation, turn-event semantics, paste markers, s11, ENTRY
+B–E surfaces).
+
+## Lane plan
+
+ONE lane — `core`, repo `tart`, the full touch set above. Justification
+(D1): chat.rb is single-writer by the plan's standing rules and the
+loop/surface/rig work couples at the submit→steer seam, the delivery
+mirror, and the new scenarios (which require BOTH §1 and §2–3 landed to
+pass); no disjoint file sets are provable.
+
+Effort: high (the loop rework + surface seams + rig extension are one
+coupled change; the frozen-net re-pins need care).
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision steering-queue`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/agent/loop.rb
+    - lib/tart/render/chat.rb
+    - lib/tart/render/editor.rb
+    - lib/tart/commands.rb
+    - test/support/mock_llm_server.rb
+    - test/agent_loop_test.rb
+    - test/chat_test.rb
+    - test/render/editor_test.rb
+    - gems/tui-split-rig/lib/tui_split_rig/scenario.rb
+    - gems/tui-split-rig/lib/tui_split_rig/runner.rb
+    - gems/tui-split-rig/scenarios/s12_steering_mid_round.yml
+    - gems/tui-split-rig/scenarios/s13_command_while_streaming.yml
+    - README.md
 ```
 
 ## Acceptance Criteria
