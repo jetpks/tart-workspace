@@ -379,35 +379,730 @@ Open questions (judge adjudicates; none blocking):
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section fast-completions-gem specification --from <file>`. -->
+# Specification — I51 fast-completions-gem
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+## 0. Objective
 
-```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision fast-completions-gem`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+Scaffold the `fast-llm` monorepo (repos/fast-llm, git-init'd at `b6ffad1`
+with a placeholder README) and build the gem `fast-completions`
+(`Fast::Completions`, `require "fast/completions"`): a standalone,
+releasable, fiber-native OpenAI-compatible chat-completions client whose
+wire bytes are pi's bytes (Grounds §3's fixture set is the bar) — the gem
+ENTRY 3 swaps into tart. ONE wire protocol, dialects as data, async-http
+as the only dependency. This entry NEVER touches repos/tart and never
+performs GitHub/rubygems actions.
+
+Output format: the file tree below, exactly; an RSpec suite; the wire
+fixtures + parity spec; the install-check script. All verification runs
+from the repo root of repos/fast-llm.
+
+## 1. Monorepo scaffold (lane `core`)
+
 ```
+fast-llm/
+  .gitignore                 # pkg/, tmp/, Gemfile.lock? — see below
+  Gemfile                    # root, dev deps only
+  README.md                  # the monorepo read-me (§13)
+  gems/completions/
+    fast-completions.gemspec # §2
+    README.md                # the gem read-me (§13)
+    CHANGELOG.md             # §2
+    lib/fast/completions.rb  # umbrella require + the dialect DSL entry
+    lib/fast/completions/version.rb
+    lib/fast/completions/types.rb        # §5
+    lib/fast/completions/dialects.rb     # §4
+    lib/fast/completions/errors.rb       # §8
+    lib/fast/completions/sse.rb          # §7
+    lib/fast/completions/client.rb       # §6
+    lib/fast/completions/protocol.rb     # §9 (request build) + §10 (delta parse)
+    lib/fast/completions/codec.rb        # §9.4 (replay normalization) — may fold into protocol.rb; the spec freezes the SURFACE not the split
+    lib/fast/completions/tool.rb         # §11
+    lib/fast/completions/cancellation.rb # §11
+    lib/fast/completions/chat.rb         # §12
+    spec/spec_helper.rb
+    spec/support/mock_llm_server.rb      # §12.1 (the gem's OWN copy)
+    spec/fast/completions/{sse,protocol,codec,dialects,errors,client,chat,tool,cancellation}_spec.rb
+    spec/fixtures/wire/*.json            # §12.2 (lane `harness`)
+    spec/fast/completions/wire_parity_spec.rb  # lane `harness`
+    script/install_check.sh               # lane `harness`
+```
+
+The internal file split above is the DEFAULT; a lane may merge
+`codec.rb` into `protocol.rb` (or split `protocol.rb` into
+`request.rb`/`stream.rb`) as long as (a) the public surface of §3–§12 is
+exactly as frozen, (b) the file-touch list stays within the lane's
+declared set (amendations via the coordinator, never silently), and (c)
+`require "fast/completions"` loads everything.
+
+Root Gemfile (dev deps only — NOTHING becomes a runtime dep):
+
+```ruby
+# frozen_string_literal: true
+source "https://rubygems.org"
+
+gemspec path: "gems/completions"
+
+group :development, :test do
+  gem "rspec"
+  gem "rake"
+end
+```
+
+`.gitignore`: `pkg/`, `tmp/`, `coverage/`, `*.gem`, `.bundle/`. Root
+`Gemfile.lock` IS committed (house commits its lockfile as `gems.locked`)
+— it is a may-touch artifact of lane `core` (regenerated by bundle
+install; must NOT contain faraday or rspec outside the dev group).
+
+## 2. Gem metadata (lane `core`)
+
+- `lib/fast/completions/version.rb`: `Fast::Completions::VERSION =
+  "0.1.0"`.
+- `fast-completions.gemspec` — house shape (fast-protowire/fast-
+  prometheus, Grounds §4): `spec.name = "fast-completions"`,
+  `spec.version = Fast::Completions::VERSION`, summary one line ("A
+  fiber-native client for the OpenAI-compatible chat-completions wire,
+  byte-faithful to pi."), `spec.authors = ["Eric Jacobs"]`, MIT,
+  `spec.homepage = "https://github.com/jetpks/fast-completions"`,
+  `spec.required_ruby_version = ">= 3.3"`,
+  `spec.files = Dir.glob(["{lib}/**/*", "*.md"], File::FNM_DOTMATCH,
+  base: __dir__)`, the metadata uri block + `rubygems_mfa_required`, and
+  EXACTLY ONE runtime dependency:
+  `spec.add_dependency "async-http", "~> 0.95"`.
+  No other `add_dependency` line may exist (AC4).
+- `CHANGELOG.md`: a `## 0.1.0` section describing the port (codec arms
+  plain/zai/deepseek, dialects as data, async-http client, Chat/Tool,
+  parity harness) in house changelog prose.
+
+## 3. Public API surface (frozen names; both lanes build against THIS)
+
+```ruby
+require "fast/completions"
+
+model = Fast::Completions::Model.new(
+  id: "mock-1",              # required, String
+  reasoning: true,           # required, boolean
+  context_window: 128_000,   # required, Integer
+  max_tokens: 512,           # required, Integer
+  thinking_level_map: {off: "none", low: "low", medium: "medium", high: "high"}, # optional
+  dialect: :zai,             # optional: Symbol name or Fast::Completions::Dialect
+)
+model.supported_thinking_levels   # pi getSupportedThinkingLevels (§9.3)
+model.clamp_thinking_level(:xhigh) # pi clampThinkingLevel (§9.3)
+
+client = Fast::Completions::Client.new(base_url:, api_key:, timeout: 30)
+client.stream(model:, messages:, instructions: nil, tools: [], thinking: nil,
+              max_tokens: nil) { |event| }   # → Fast::Completions::Message (final assistant)
+client.close
+
+Fast::Completions.dialect(:acme) { … }  # declare (§4); returns the Dialect
+Fast::Completions.dialect(:zai)         # no block → lookup (raises KeyError if undeclared)
+Fast::Completions.dialects              # Hash name→Dialect (frozen dup)
+
+chat = Fast::Completions::Chat.new(client:, model:)
+chat.with_instructions("…")       # chainable; may be called once (later call replaces)
+chat.with_tools(MyTool, OtherTool) # chainable; Tool classes or instances; additive
+chat.add_message(msg)              # Message (user/assistant replay/tool replay); chainable
+chat.messages                      # dup'd Array of Message
+chat.thinking_level = :high        # or chat.with_thinking_level(:high) chainable; nil = off-equivalent (no effort)
+chat.with_max_output_tokens(1024)  # chainable; nil = model default
+chat.step { |event| … }            # one assistant turn + tool execution (§12); returns final Message
+chat.complete?                     # true when the last turn ended with no pending tool batch
+chat.cancel                        # cancel the in-flight stream (D8)
+
+Fast::Completions::Message.user("hello")
+Fast::Completions::Message.user([{type: :text, text: "hello"}])
+Fast::Completions::Message.system("You are …")
+Fast::Completions::Message.assistant(blocks, provider: "mock", model: "mock-1")
+Fast::Completions::Message.tool_result(tool_call_id:, content:, tool_name: nil)
+# blocks: {type: :text, text:}, {type: :thinking, thinking:, signature:},
+#         {type: :tool_call, id:, name:, arguments: Hash}
+msg.role        # :system | :user | :assistant | :tool_result
+msg.content     # String (user/system) or Array of block Hashes (assistant)
+msg.provider / msg.model / msg.api   # assistant identity (replay normalization, §9.4)
+
+class MyTool < Fast::Completions::Tool
+  description "Read file contents."
+  parameters {"type" => "object", "required" => ["path"], "properties" => {"path" => {"type" => "string"}}}
+  def execute(path:) "contents" end   # String, Hash, or {error: "…"}
+end
+MyTool.new.name        # "MyTool" → underscored? NO: name = the class's declared
+                       # `tool_name "my_tool"` if set, else the class name (§11)
+
+Fast::Completions::Cancellation.check   # raises CancelledError if the current async task is cancelled
+Fast::Completions::CancelledError       # NOT < Error (D8)
+```
+
+`Event` objects yielded to `#step`/`#stream` blocks (pi types.ts :794-816
+vocabulary, Ruby symbols): `Event` with `.type` one of `:start,
+:text_start, :text_delta, :text_end, :thinking_start, :thinking_delta,
+:thinking_end, :tool_call_start, :tool_call_delta, :tool_call_end,
+:done, :error` and fields `content_index` (Integer, present on block
+events), `delta`/`content` (String, per type), `tool_call` (the finalized
+ToolCall hash `{id:, name:, arguments:}` at `:tool_call_end`),
+`message`/`reason` (at `:done`/`:error`), plus `partial` — the live
+assistant Message so far (never frozen copies; `partial` is the shared
+accumulator, exactly pi's contract). `:done` carries `reason:` one of
+`:stop, :length, :tool_use`; `:error` carries `reason:` `:error` (the
+stream ALSO raises the mapped error — §8 — the event is the terminal
+record).
+
+## 4. Dialects as data (`dialects.rb`)
+
+DSL (declaration order irrelevant; keys frozen):
+
+```ruby
+Fast::Completions.dialect(:zai) do
+  thinking_format :zai                # :openai (default) | :zai | :deepseek — ANY OTHER VALUE RAISES ArgumentError at declaration
+  max_tokens_field "max_tokens"       # "max_completion_tokens" (default) | "max_tokens" — else ArgumentError
+  supports_developer_role false       # default true
+  supports_reasoning_effort true      # default true
+  supports_store true                 # default true (emits store:false)
+  supports_usage_in_streaming true    # default true (emits stream_options)
+  supports_finish_reason true         # default true (false ⇒ §10 inference)
+  requires_reasoning_content_on_assistant_messages false # default false
+  zai_tool_stream false               # default false
+  thinking_token_budget_field nil     # "thinking_token_budget" | "thinking_budget" | "thinking_budget_tokens" | nil (default nil)
+  supports_thinking_token_budget false # default false; true ⇒ field "thinking_token_budget"
+  send_session_affinity_headers false # default false
+  session_affinity_format :openai     # :openai | :openai_nosession | :openrouter (default :openai)
+end
+```
+
+- `Fast::Completions::Dialect` — value object, reader per key, `==` by
+  keys, `to_h` (declaration-order-stable). The frozen DEFAULT dialect
+  (used when `Model` has no `dialect:`) is the plain arm: every default
+  above with `thinking_format :openai`.
+- Well-known trio, SHIPPED as declarations inside `lib/fast/completions/
+  dialects.rb` (registered at require time; a consumer re-declaring
+  `:zai` OVERRIDES — last declaration wins, documented):
+  - `:zai` — `thinking_format :zai, zai_tool_stream: true,
+    max_tokens_field: "max_tokens", supports_developer_role: false,
+    supports_reasoning_effort: true, supports_store: false` (the I46
+    five-key subset + pi's zai store suppression, Grounds §2).
+  - `:deepseek` — `thinking_format :deepseek, max_tokens_field:
+    "max_tokens", supports_developer_role: false,
+    supports_reasoning_effort: true, requires_reasoning_content_on_
+    assistant_messages: true, supports_store: false` (pi's deepseek
+    detection, Grounds §2).
+  - `:fireworks` — the empty declaration (every default; names the
+    live-verified trio's third member — fireworks needs nothing).
+- Unknown keys inside the block RAISE ArgumentError (fail loud at
+  declaration, never silently dropped — the no-universal-translation
+  discipline). The vocabulary is CLOSED to exactly the 14 keys above.
+- No model catalog, no pricing, no provider registry, no base-URL
+  constants anywhere in lib/ (AC4 negative pins).
+
+## 5. Types (`types.rb`)
+
+- `Model` (§3 construction + readers; keyword-init value object; unknown
+  keys ArgumentError).
+- `Message` — keyword-init; roles above; assistant blocks are plain
+  Hashes with symbol keys (the §3 shapes); `Message#to_h` /
+  `Message.from_h` round-trip (the gem's own serialization — session
+  recording is the consumer's, but the codec must be able to freeze and
+  restore history; used by specs).
+- `Usage` — value object: `input, output, cache_read, cache_write,
+  reasoning, total_tokens` (pi parseChunkUsage semantics, Grounds §2;
+  `total_tokens` native — OQ-9).
+- `Event` — §3.
+- All frozen value objects; defensive dups on construction.
+
+## 6. Client (`client.rb`) — async-http, fiber-native
+
+- ONE `Async::HTTP::Client` per `Client` instance (persistent
+  connections, keep-alive), built from the parsed base URL
+  (`Async::HTTP::Endpoint`). `#close` closes it. Requests run INSIDE the
+  caller's reactor (`Async` — the caller wraps in `Async do … end` or
+  runs under a scheduler; the client never creates its own reactor).
+- `#stream(model:, messages:, instructions:, tools:, thinking:,
+  max_tokens:)` — POST `{base}/chat/completions` (path join: base URL
+  ending in `/v1` + `/chat/completions`; no other path surgery — the
+  consumer's base URL is the API root prefix exactly like pi's
+  `model.baseUrl`).
+- Headers: `authorization: Bearer <key>`, `content-type: application/
+  json`, `accept: application/json` (pi's SDK shape; SSE is body-
+  negotiated). When `dialect.send_session_affinity_headers` and the chat
+  supplies a session id (§12): `:openrouter` ⇒ `x-session-id`;
+  `:openai` ⇒ `session_id` + `x-client-request-id` + `x-session-
+  affinity`; `:openai_nosession` ⇒ the latter two (openai-completions.ts
+  :776-789, compat-schema.ts :4-9).
+- Body: `JSON.generate(request_hash)` — the §9 byte contract.
+- Streaming: iterate the response body (`response.body.each`) through
+  the §7 SSE parser; feed events to the block; the FULL terminal
+  behavior of §10 applies (the parser drives protocol state).
+- Timeout (D5/OQ-1): `timeout:` (seconds, default 30) is BOTH the
+  time-to-first-byte deadline (connect + request + response headers) and
+  the inactivity read-timeout between body chunks. On expiry:
+  `Fast::Completions::TimeoutError` (§8); the request is aborted.
+- Cancel (D8): `Async::Cancel` raised into the waiting fiber (or
+  `#close` of the body from a sibling) aborts the in-flight request —
+  the connection is discarded (never reused), `CancelledError` surfaces
+  to the caller, and NO terminal event is emitted (AC3).
+- Non-2xx: read the body, parse JSON when possible, map per §8. Network
+  failures (ECONNREFUSED/ECONNRESET/…) ⇒ `ConnectionError`.
+- 2xx with SSE error payloads inside the stream ⇒ §10 terminal error
+  discipline.
+
+## 7. SSE line parser (`sse.rb`)
+
+- Input: arbitrary byte chunk boundaries. Output: per `data:` payload
+  string, in order. Rules: events separated by blank line (`\n\n`);
+  `data: ` prefix (one space) stripped; lines starting `:` are comments
+  (ignored — the mock's keepalives); CR stripped (`\r\n` normalized);
+  `data: [DONE]` is the terminal marker (yields a distinguished `:done`
+  token, NOT a payload); multi-`data:`-line events are concatenated with
+  `\n` (SSE spec). UTF-8 throughout. Unit-pinned against the mock's
+  exact framing (chunked transfers arrive as arbitrary splits — pin a
+  split-across-chunks case).
+
+## 8. Errors (`errors.rb`)
+
+Class tree (frozen):
+
+```
+Fast::Complet::Error (StandardError)            # Fast::Completions::Error
+├─ ApiError(status:, body:)                      # message: "<status> <provider message>"
+│  ├─ BadRequestError (400)
+│  │  └─ ContextLengthExceededError              # detected via the pattern list
+│  ├─ AuthenticationError (401)
+│  ├─ PermissionError (403)
+│  ├─ NotFoundError (404)
+│  ├─ RateLimitError (429)
+│  └─ ServerError (5xx)
+├─ TimeoutError
+└─ ConnectionError
+Fast::Completions::CancelledError (StandardError, NOT < Error)
+```
+
+- 400-classification: `ContextLengthExceededError` when the response
+  body (message, or any string in the parsed error JSON) matches ANY of
+  pi's overflow patterns (utils/overflow.ts :33-96 — port the FULL list
+  of 25 regexes verbatim, case-insensitive, as data); otherwise
+  `BadRequestError`.
+- ApiError#message = `"<status>: <message>"` where message is the
+  provider's `error.message` when parseable, else the raw body
+  (truncated to ~500 chars).
+- `:error` stop reason from a finish_reason (§10) raises
+  `Fast::Completions::Error` subclasses? NO — stream-terminal errors
+  (finish_reason error classes, stream-ended-without-finish) raise
+  `Fast::Completions::StreamError < Error` carrying `stop_reason:` and
+  pi's message form (`Provider finish_reason: <r>` / `Stream ended
+  without finish_reason`) — the `:error` event is still emitted first.
+
+## 9. Request build — THE BYTE CONTRACT (`protocol.rb`)
+
+Ruby Hash insertion order + `JSON.generate` MUST reproduce pi's wire
+bytes for the Grounds §3 fixtures. Emission rules (pi buildParams
+:802-1000, line-cited in comments):
+
+1. `model` = model.id.
+2. `messages` = §9.1–9.4 conversion of [instructions (when present)] +
+   history.
+3. `stream` = true (the client always streams).
+4. `stream_options: {include_usage: true}` iff
+   `dialect.supports_usage_in_streaming`.
+5. `store: false` iff `dialect.supports_store`.
+6. max tokens: `max_tokens` iff `dialect.max_tokens_field ==
+   "max_tokens"` else `max_completion_tokens`; value = the effective cap
+   (§9.5); the key is OMITTED when the effective cap is nil.
+7. `temperature` only when explicitly set (Chat does not set it; the
+   parameter exists on `Client#stream` — omit from the frozen scenarios;
+   any float formatting risk is the consumer's).
+8. `tools` (iff any tools): the §9.2 conversion; then `tool_stream:
+   true` iff `dialect.zai_tool_stream` AND tools present. When NO tools
+   but the history contains tool calls or tool results: `tools: []`
+   (openai-completions.ts :860-863).
+9. thinking arms, in this precedence (model.reasoning gates EVERY arm —
+   a non-reasoning model emits NONE of these):
+   - `:zai` — `thinking:` `{"type"=>"enabled","clear_thinking"=>false}`
+     when an effort is present else `{"type"=>"disabled"}`;
+     `reasoning_effort` (string) iff effort present AND
+     supports_reasoning_effort — value = map[clamped] when it is a
+     String else the clamped level to_s.
+   - `:deepseek` — `thinking:` `{"type"=>"enabled"}` when effort
+     present; when NO effort, `{"type"=>"disabled"}` UNLESS
+     map[:off] == nil-for-null (pi: `model.thinkingLevelMap?.off !==
+     null` — a map WITHOUT an :off key also emits disabled; an explicit
+     `off: nil` (JSON null) suppresses the disabled object);
+     `reasoning_effort` iff effort AND supports_reasoning_effort
+     (map-else-level).
+   - `:openai` (default) — `reasoning_effort` iff effort present AND
+     supports_reasoning_effort (map-else-level); when NO effort AND
+     model.reasoning AND supports_reasoning_effort: `reasoning_effort`
+     = map[:off] WHEN map[:off] is a String (else omitted — the
+     off-floor rule, Grounds fixture 3).
+10. thinking budget (independent of format): field =
+    `dialect.thinking_token_budget_field ||
+    (dialect.supports_thinking_token_budget ? "thinking_token_budget" :
+    nil)`; when field AND effort AND model.reasoning: budget =
+    DEFAULT_THINKING_BUDGETS[clamped] (minimal 1024 / low 2048 / medium
+    8192 / high 16384; xhigh/max clamp to high per pi
+    `clampReasoning`), clamped to `min(budget, effective_max_tokens -
+    1024)`; emit `field => budget` ONLY when budget > 0, AFTER the
+    thinking arms.
+11. NO other top-level keys. (`tool_choice`, sampling params, priority,
+    prompt_cache_* are NOT implemented — Specification §14.)
+
+### 9.1 Messages
+
+- Instructions: ONE leading `{role:, content: String}` — role
+  `"developer"` iff model.reasoning AND dialect.supports_developer_role
+  else `"system"` (openai-completions.ts :1233).
+- User: `{role: "user", content: <String or the block array verbatim>}`
+  — String content passes as the JSON string (fixture fact); a block
+  array passes as the array (text parts only — images cut, D7; a
+  user message whose text blocks are all empty is SKIPPED).
+- Tool result: `{role: "tool", content: <joined>, tool_call_id:}` —
+  content = text blocks joined `"\n"`; when empty: `"(no tool output)"`
+  (image-only placeholder CUT with D7); `name` key NOT emitted
+  (requires_tool_result_name unported, §14).
+
+### 9.2 Tools
+
+`{"type" => "function", "function" => {"name" =>, "description" =>,
+"parameters" =>}}` in declaration order. The parameters Hash is emitted
+VERBATIM (insertion order preserved — the consumer's schema is the
+bytes). NO `strict` key (pi's detected default suppresses it, Grounds
+§2; strict-mode support unported, §14).
+
+### 9.3 The thinking ladder
+
+- Supported levels: `[:off]` when `!model.reasoning`; else the ladder
+  `off, low, medium, high, xhigh, max` filtered — a level is supported
+  when the map omits it or maps it to non-nil; `xhigh`/`max` are
+  supported ONLY when the map names them (pi getSupportedThinkingLevels
+  :118-131).
+- Clamp (pi clampThinkingLevel :133-155): unsupported requested level →
+  the next supported level ABOVE, else the nearest BELOW, else the first
+  supported.
+- "Effort present" = the Chat's thinking_level clamped ≠ `:off` (and
+  thinking_level nil ⇒ no effort).
+
+### 9.4 Assistant replay normalization (`codec.rb`; pi
+transform-messages.ts + convertMessages, Grounds §2)
+
+- Same-model = `(msg.provider, "openai-completions", msg.model) ==
+  (model's provider-context)` — the gem compares `msg.provider`/`msg.
+  model` against the CURRENT model's `id` + the `provider:` the consumer
+  set on the replayed message (the gem has no provider registry: the
+  Chat stamps its OWN assistant outputs with `provider:
+  chat.model_context_provider` (default `"fast-completions"`) and
+  `model: model.id`; replayed messages carry whatever the consumer
+  built — same-model is a three-way equality the CONSUMER controls).
+- Thinking blocks: same-model AND signature present ⇒ kept for §9.5
+  replay; same-model without signature ⇒ kept; cross-model non-empty ⇒
+  folded to a text block; empty (`""`/whitespace) ⇒ dropped; `redacted:
+  true` blocks: same-model kept, cross-model dropped (pi :103-130).
+- Tool-call `signature` (thoughtSignature analog): stripped cross-model,
+  kept same-model (unused by the openai wire beyond replay).
+- Orphaned tool calls (an assistant tool_call with NO following tool
+  result for its id): a synthetic tool_result `content: "No result
+  provided"`, `is_error: true` is INSERTED after the assistant message
+  (pi :158-180; OQ-8). A system message BETWEEN a call and its results
+  is held back and emitted after the results.
+- Assistant WIRE shape (convertMessages :1300-1402): text blocks with
+  non-whitespace text joined to ONE plain STRING content (an assistant
+  with no text ⇒ `content: null`; an assistant with tool_calls and no
+  text ⇒ `content: null` + `tool_calls`); `tool_calls` = [{id, type
+  "function", function {name, arguments: JSON.generate(arguments)}}];
+  thinking replay per §9.5; EMPTY assistants (no text after
+  normalization, no tool_calls) are SKIPPED.
+
+### 9.5 Thinking replay (same-model, kept thinking blocks)
+
+- If the FIRST non-empty thinking block's signature parses as a JSON
+  array of valid reasoning_details entries (objects with `type` one of
+  `"reasoning.summary"` (summary String) / `"reasoning.encrypted"`
+  (data String) / `"reasoning.text"` (text String, optional
+  signature)) — pi isOpenAIReasoningDetail :135-165: emit
+  `reasoning_details: <the parsed array>` and NO raw reasoning field.
+- Else if the signature names one of `"reasoning"`, `"reasoning_
+  content"`, `"reasoning_text"` (OPENAI_COMPLETIONS_REASONING_FIELDS
+  :273): emit that field => all non-empty thinking texts joined `"\n"`.
+- Else: no reasoning field.
+- After the above, when `dialect.requires_reasoning_content_on_
+  assistant_messages` AND model.reasoning AND no `reasoning_content`
+  was emitted: emit `reasoning_content: ""` (deepseek; pi :1387-1393).
+- Cross-model folded thinking rides as text content (§9.4) — NO
+  reasoning fields (fixture 10's `"let me thinkHi!"` concatenation is
+  pi's literal behavior).
+
+### 9.6 Effective max tokens (pi simple-options.ts :13-19)
+
+`clamp_max_tokens(requested || model.max_tokens)` = `min(requested ||
+  model.max_tokens, model.context_window - estimate_tokens(messages) -
+  4096)` but at least 1; `estimate_tokens` = ceil(chars / 3.5) over the
+  message texts (pi CHARS_PER_TOKEN 3.5). When nil-able (no request cap
+  and the Chat never sets one) the value still emits (model.max_tokens
+  path) — the key omits ONLY when the Chat was told
+  `with_max_output_tokens(nil)` AND model.max_tokens is nil (edge;
+  fixtures always emit).
+
+## 10. Delta parse + event stream (`protocol.rb`)
+
+Per SSE payload (JSON chunk), in pi's exact order (openai-completions.ts
+:558-707):
+
+1. `chunk["id"]` ⇒ `partial.response_id ||= id` (first wins);
+   `chunk["model"]` differing from model.id ⇒ `partial.response_model
+   ||=`.
+2. `chunk["usage"]` ⇒ parse per §10.1 (the `choices[0]["usage"]`
+   fallback too).
+3. `choices[0]["finish_reason"]` present ⇒ record raw stop reason, map
+   per §10.2.
+4. `choices[0]["delta"]`:
+   - `delta["content"]` non-empty String ⇒ text block: `:text_start`
+     (once), append, `:text_delta` with the RAW string delta.
+   - reasoning: FIRST non-empty of `reasoning_content`, `reasoning`,
+     `reasoning_text` (pi order :620-632) ⇒ thinking block; the FIELD
+     NAME becomes the block's signature; `:thinking_start` once,
+     append, `:thinking_delta` with the raw delta. (The opencode-go
+     signature remap :638-641 is NOT ported — unported provider
+     special-case, §14.)
+   - `delta["tool_calls"]` array: per entry — resolve block by
+     `index` (then by `id`; create on first sight with `id`/`name` from
+     the delta), append `function.arguments` string deltas to the
+     accumulator, push `:tool_call_delta` with the RAW string delta;
+     `arguments` live-updated as best-effort parse (OQ-4).
+   - `delta["reasoning_details"]` array (when present): validated
+     entries accumulate (text/summary consecutive-merge semantics,
+     pi appendOpenAIReasoningDetail :240-265) and serialize into the
+     thinking block's signature at finalize.
+5. `:done` semantics at stream end (`[DONE]` or body EOF): finalize all
+   open blocks (`:text_end`/`:thinking_end`/`:tool_call_end` with the
+   parsed `{id:, name:, arguments:}`); then the terminal discipline:
+   - cancel observed ⇒ CancelledError (no events; D8).
+   - stop_reason `:error` ⇒ emit `:error` event then raise StreamError.
+   - no finish_reason observed AND `!dialect.supports_finish_reason` ⇒
+     infer `:tool_use` when any tool-call block exists else `:stop`.
+   - finish_reason expected (supports_finish_reason) but absent ⇒
+     StreamError "Stream ended without finish_reason".
+   - else `:done` with `reason:` mapped (`:stop`, `:length`,
+     `:tool_use`) and the final Message.
+6. `:start` is emitted BEFORE the first block event, carrying the seed
+   partial. No event precedes `:start`.
+
+### 10.1 Usage parse (pi :1519-1547)
+
+`cache_read` = `prompt_tokens_details.cached_tokens` ??
+`prompt_cache_hit_tokens` ?? `cached_tokens` ?? 0; `cache_write` =
+`prompt_tokens_details.cache_write_tokens` || 0; `input` =
+`[prompt_tokens - cache_read - cache_write, 0].max`; `output` =
+`completion_tokens || 0`; `reasoning` =
+`completion_tokens_details.reasoning_tokens || 0`; `total_tokens` =
+input+output+cache_read+cache_write.
+
+### 10.2 Stop reason map (pi :1562-1589)
+
+`"stop"`/`"end"`/nil ⇒ `:stop`; `"length"` ⇒ `:length`;
+`"function_call"`/`"tool_calls"` ⇒ `:tool_use`; anything else (incl
+`"content_filter"`, `"network_error"`) ⇒ `:error` with message
+`"Provider finish_reason: <raw>"`.
+
+## 11. Tool + Cancellation (`tool.rb`, `cancellation.rb`)
+
+- `Fast::Completions::Tool` — class-level `description`,
+  `tool_name "…"` (optional override; default = class name),
+  `parameters` (Hash, default `{"type"=>"object","properties"=>{}}`);
+  instance `#execute(**arguments)` — the Chat calls it with the parsed
+  arguments hash; a String/Hash return becomes the tool result content
+  (Hash ⇒ JSON.generate for the text); `{error: "…"}` marks an error
+  result (`is_error: true`). ~60 lines total.
+- `Fast::Completions::Cancellation.check` — raises CancelledError when
+  the current `Async::Task` (if any) is cancelled; a no-op outside a
+  reactor. ~15 lines. `Chat` calls it before each tool execution and at
+  stream start (D8 checkpoints).
+
+## 12. Chat (`chat.rb`) + the parity harness
+
+### Chat semantics
+
+- History: `messages` starts empty; `with_instructions` sets THE
+  instruction message; `add_message` appends (the gem never mutates a
+  consumer message); Chat's OWN outputs are appended as assistant
+  Messages stamped `provider:` (default `"fast-completions"`), `model:
+  model.id`, `api: "openai-completions"` — and tool results as
+  tool_result Messages — all via `add_message`.
+- `#step` (one turn): build the §9 request from instructions + history +
+  tools + thinking_level + max_output_tokens; `client.stream`; yield
+  every event to the block; on `:done` with `:tool_use`: for EACH tool
+  call in order — `Cancellation.check`, `before_tool_call` hook, execute,
+  `after_tool_result` hook, append the tool_result Message (is_error per
+  §11) — then return the final assistant Message (batch consumed on the
+  NEXT step; `complete?` false while a batch is pending). On `:done`
+  otherwise: return the Message. Hooks: `chat.before_tool_call { |tool_call| }`
+  / `chat.after_tool_result { |tool_call, result| }` — MULTIPLE blocks
+  register; dispatch IN REGISTRATION ORDER; the tool_call carries `id:/
+  name:/arguments:` — attribution is BY tool_call id (the I49/thread-
+  audit discipline; NO Thread/fiber-local pairing anywhere).
+- `#cancel`: sets a cancel latch + `Async::Cancel` on the in-flight
+  stream task; `step` raises CancelledError AFTER the stream aborted
+  (no phantom terminal, AC3); tool executions between batches observe
+  the latch via `Cancellation.check`.
+- `thinking_level=` accepts the ladder + nil; clamped per §9.3 at
+  request build.
+
+### 12.1 The gem's OWN mock (lane `core`, `spec/support/`)
+
+A copy of tart's `test/support/mock_llm_server.rb` (287 l; read-only
+copy sanctioned by the plan) ADAPTED: drop the `Tart::Test`/
+`TestChat` minitest nesting (the gem has no ruby_llm); keep the class
+top-level as `MockLLMServer`; keep the script-spec vocabulary
+({type: :stream, content:, reasoning_content:, tool_calls:, chunks:},
+:message, :slow_stream + `spec_pause`, :error + status), `rearm!`,
+`suppress_usage!`, `captured_requests`, `captured_request_logs`, the
+empty-connect discipline, EPIPE discipline — behavior byte-equivalent.
+Header comment records provenance ("copied from tart
+test/support/mock_llm_server.rb at 2943ef0, I02/I17/I29 rig lineage;
+ruby_llm adapter removed").
+
+### 12.2 Wire fixtures + parity spec (lane `harness`)
+
+- `spec/fixtures/wire/<tag>.json` — the 11 fixtures of Grounds §3,
+  EXACT bytes: `{tag:, request_path:, request_body:}` with
+  request_body the RAW pi body string (embed with JSON escaping; the
+  file is JSON). The lane reproduces them by RUNNING the capture driver
+  (verbatim copy at `spec/fixtures/wire/CAPTURE.mjs` — the Grounds §3
+  driver, committed FOR PROVENANCE, never executed by the suite; its
+  header documents the installed-pi path + the frozen digests) — the
+  builder copies the bytes from the spec's fixture table BELOW (the
+  Specification embeds each fixture's request_body verbatim in §12.3)
+  OR re-runs the driver; EITHER WAY the AC2 digest gate is the judge's
+  proof.
+- `spec/fast/completions/wire_parity_spec.rb` — for EACH of the 11
+  scenarios: construct the §12.3 gem-side scenario, run ONE request
+  against a started MockLLMServer (script `{type: :stream, content:
+  "ok"}`), take the captured request body (raw string), and assert
+  `Digest::SHA256.hexdigest(captured) == fixture digest` AND byte
+  equality against `request_body`. On mismatch the failure output
+  shows a key-order-aware diff of the parsed bodies (usability pin).
+- `script/install_check.sh` — the AC6 release check (§14 of the AC):
+  `gem build`, scratch `GEM_HOME` install, `require "fast/completions"`
+  from OUTSIDE the repo, smoke chat against a started MockLLMServer
+  (booted by a tiny ruby -e wrapper), prints `INSTALL_CHECK_OK`.
+
+### 12.3 The scenario table (frozen; driver ⇄ gem-side construction)
+
+Common: instructions "You are a test assistant."; the ONE tool
+`{"type"=>"object","required"=>["path"],"properties"=>{"path"=>
+{"type"=>"string"},"offset"=>{"type"=>"number"}}}` under a Tool whose
+description is "Read file contents."; client pointed at the mock; the
+final user message per scenario; model id "mock-1", context_window
+128_000 unless noted.
+
+| tag | model kwargs (beyond common) | thinking_level | history before the final user message |
+|---|---|---|---|
+| fireworks_plain | reasoning: false, max_tokens: 512, dialect: :fireworks | nil | — |
+| openai_ladder_on | reasoning: true, max_tokens: 512, thinking_level_map: {off:"none",low:"low",medium:"medium",high:"high"} | :high | — |
+| openai_ladder_off | (same model) | :off | — |
+| zai_on | reasoning: true, max_tokens: 512, map: {off:"disabled",low:"low",medium:"medium",high:"high"}, dialect: :zai | :high | — |
+| zai_off | (same model) | :off | — |
+| deepseek_on | reasoning: true, max_tokens: 512, map: {off:"disabled",high:"high"}, dialect: :deepseek | :high | — |
+| tool_roundtrip | reasoning: false, max_tokens: 512, dialect: :fireworks | nil | user "read the file"; assistant(tool_call id "call_1" name "read" arguments {"path"=>"src.rb"}, provider: "fireworks", model: "mock-1"); tool_result "call_1" content "line 1\nline 2" |
+| thinking_replay | reasoning: true, max_tokens: 512, map: {high:"high"} | nil | user "hello"; assistant(thinking "let me think" signature "reasoning_content", text "Hi!", provider: "fast-completions-context", model: "mock-1" → SAME-MODEL requires the chat's provider stamp; see note); user "thanks" |
+| reasoning_details_replay | (same model) | nil | user "hello"; assistant(thinking "thought" signature `'[{"type":"reasoning.text","text":"t1","signature":"sig"}]'`, text "Hi!"); user "thanks" |
+| cross_model_thinking_replay | (same model) | nil | user "hello"; assistant(thinking "let me think" signature "reasoning_content", text "Hi!", provider: "other-provider"); user "thanks" |
+| budget_field | reasoning: true, max_tokens: 4096, map: {off:"none",high:"high"}, dialect: user-declared {thinking_token_budget_field: "thinking_token_budget"} | :high | — |
+
+Note (same-model stamping): the driver built assistants with
+`provider:"mock"` matching the model's driver-side provider field
+("mock"). The GEM's Model has NO provider field (no registry); the
+same-model comparison uses `(msg.provider, msg.model)` vs the Chat's
+context — SO the parity spec constructs the replayed assistants with
+`provider:` equal to the Chat's stamp context. The Chat's OWN outputs
+use the default stamp `provider: "fast-completions"`; the parity spec
+sets `chat.assistant_provider_stamp = "mock"` … NO — simpler, frozen:
+`Fast::Completions::Model.new(..., provider: "mock")` — Model GAINS an
+optional `provider:` (default "fast-completions"); same-model compares
+`(msg.provider, msg.model)` against `(model.provider, model.id)`. The
+parity table above then stamps replayed assistants `provider: "mock"`
+for the same-model scenarios (thinking_replay, reasoning_details_
+replay, tool_roundtrip) and `provider: "other-provider"` for
+cross_model. This keeps the gem registry-free while the comparison
+stays consumer-controlled. (Model#provider is metadata ONLY — never a
+wire byte.)
+
+Final user message: "hello" for the no-history scenarios (all but
+tool_roundtrip/replay rows, which end with the user message shown).
+
+## 13. READMEs (lane `core`)
+
+- Root `README.md`: the monorepo — what lives here (gems/completions),
+  the naming rule (gems named for the API they speak), pointer to the
+  gem README, the "release tags are cut by hand" note.
+- `gems/completions/README.md` (house discipline, Grounds §4):
+  - Opens by naming THE WIRE: the gem speaks **"the OpenAI-compatible
+    chat-completions wire"** and disambiguates from the LEGACY
+    `/v1/completions` (text-completions) API — a sentence stating it
+    does NOT speak the legacy completions endpoint (AC5 pins both
+    facts).
+  - What it is NOT: no model catalog, no pricing, no provider registry,
+    no universal translation — the consumer owns models; dialects are
+    declarations (LiteLLM named as the anti-shape is optional).
+  - Installation, quickstart (Chat + Tool, runnable), the dialect DSL
+    with the zai example, deps statement (async-http only), error
+    taxonomy table, the parity statement (byte-faithful to pi's wire;
+    the fixture harness), fiber-native note.
+
+## 14. Boundaries
+
+May touch (the ```lanes``` block is the frozen source of truth; this
+prose summarizes):
+
+- Lane `core` (repo fast-llm): the scaffold files of §1 EXCEPT the
+  harness files (fixtures/, wire_parity_spec.rb, install_check.sh);
+  the unit spec files listed in §1; root Gemfile.lock.
+- Lane `harness` (repo fast-llm): `spec/fixtures/wire/**` (fixtures +
+  CAPTURE.mjs), `spec/fast/completions/wire_parity_spec.rb`,
+  `script/install_check.sh`.
+
+Must not touch:
+
+- EVERYTHING in repos/tart (read-only reference; the mock copy is a
+  copy, not a move), repos/pi, every other repos/* path.
+- `lib/fast/completions/**` is lane `core`'s ALONE; `spec/fixtures/**`
+  + the parity spec + install script are lane `harness`'s ALONE.
+- No GitHub/rubygems actions; no `git push` anywhere; builders never
+  commit (the coordinator integrates); no release tags.
+- No new runtime dependencies beyond async-http; no vendoring of pi
+  TypeScript (this is a REWRITE per BRIEF §2 — ported semantics with
+  citations, never copied TS).
+
+Out of scope (itemized; reopen on consumer need): retries (OQ-2);
+images over the wire (D7); tool_choice; sampling params; strict/
+grammar tool modes; anthropic cache-control; openrouter/vercel
+routing; vllm priority; prompt_cache_key/retention; mid-convo system
+messages/tool additions; requires_tool_result_name /
+requires_assistant_after_tool_result / requires_thinking_as_text;
+thinking formats beyond openai/zai/deepseek (qwen, chat-template,
+baseten, together, openrouter, string-thinking, ant-ling — D2);
+non-streaming POSTs (the client always streams — the mock's
+:message scripts serve streaming frames? NO: out of scope means the
+gem NEVER issues non-streaming requests; parity specs script :stream);
+tool concurrency modes (D9); token estimation beyond §9.6's
+chars/3.5; benchmark page (OQ-11); .github workflows (OQ-12);
+fast-messages/fast-responses siblings.
+
+## 15. Lane plan
+
+Two lanes, repo fast-llm, DISJOINT by construction:
+
+1. `core` — the monorepo scaffold + the gem (lib, gemspec, version,
+   changelog, READMEs, root Gemfile + lock) + the mock copy + the unit
+   RSpec suite. Verification IN ITS WORKTREE: `bundle install &&
+   bundle exec rspec` green (its own unit specs + a smoke spec that
+   runs one chat turn against the mock).
+2. `harness` — the wire fixtures (embedded from §12.3 / re-captured),
+   the parity spec, the install-check script. RED AT BASE BY DESIGN
+   (the gem does not exist in its worktree — the lane mounts on
+   `core`'s integration; gate calibration in the AC declares this).
+   Verification: fixture digests match the frozen table (a pure-data
+   check green in ANY worktree) + the parity spec green on the
+   integrated tree.
+
+Dispatch note (coordinator): integrate `core` FIRST, then run
+`harness`'s verification against the integrated tree (the I48/I49
+core-then-e2e pattern). The AC's integrated-tree gates run after both.
 
 ## Acceptance Criteria
 
