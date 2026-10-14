@@ -1201,11 +1201,104 @@ parallel.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I53-gem-concurrency-docs-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence gem-concurrency-docs --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### concurrency
+
+# Lane `concurrency` report — I53 gem-concurrency-docs (freeze e7202316, base 4736ddc)
+
+Worktree: `build/I53-gem-concurrency-docs-concurrency/wt`, branch `lane/I53-gem-concurrency-docs-concurrency`, HEAD `4736ddc` (never committed; working tree carries the changes).
+
+## What was built (touch set: exactly the 4 declared files)
+
+1. `gems/completions/lib/fast/completions/chat.rb` — `run_tool_batch` rewritten two-phase per Specification §1.1:
+   - **Phase A** (serial, calling fiber, call order): latch check + `Cancellation.check` per iteration (today's :138/:141 discipline), before hooks in registration order, executability resolution; unknown tools finalize INLINE with the verbatim `{content: "no such tool: <name>", is_error: true}` bytes (no child task; hooks fire for them — gem continuity, D2/D3).
+   - **Phase B**: one `Async::Task.current.async` child per executable call (children of the step task); each child: opening checkpoint (latch + `Cancellation.check`), `execute` via the §11 mapping (bytes unchanged), failure-isolation rescue ladder (`CancelledError` re-raise; `Async::Cancel` passes through — `< Exception` verified against installed async 2.46.0; other `StandardError` → that call's `{content: e.message.to_s, is_error: true}`), after hooks INSIDE the child id-keyed through its own closure, results collected INDEX-keyed.
+   - **Join**: `children.map(&:wait)` + an `ensure` that cancels the children on ANY unwind (see Deviation D-2 — required to realize stop-children semantics under `#step`'s frozen ladder); append IN CALL ORDER after the join; no phantom terminals.
+   - `execute_tool_call(tool_call, tool)`: §11 mapping lines byte-identical; only the tool look-up moved to Phase A (mandated by §1.1 Phase A.3). `symbolize_keys` unchanged. Public method set, `#step` stream path, `complete?`/`@tool_batch_pending`, `cancel` latch+task-cancel mechanics, hook registration-order contract: unchanged. "SERIALLY (D9)" comments updated to the new shape.
+   - `@in_flight = nil` moved from before `run_tool_batch` to after it (see Deviation D-1).
+2. `gems/completions/CHANGELOG.md` — the 0.1.0 Chat bullet rewritten to the concurrent contract (§1.4). No version bump, no new section.
+3. `gems/completions/spec/fast/completions/tool_concurrency_spec.rb` (NEW) — 4 examples per §1.2: overlap+span (`max(entries) < min(exits)`, span < 0.9 s), call-order results under inverted completion + completion-order after hooks, failure isolation (RuntimeError "boom" → is_error result, sibling clean, call order), unknown-tool inline in a multi-call batch (guard, green at base AND after).
+4. `gems/completions/spec/fast/completions/batch_cancel_spec.rb` (NEW) — 2 examples per §1.3: cancel during the join (Queue handshake, settle 0.05 s, both entered, wall ≤ 0.2 s, zero tool-result Messages, zero after-hook fires, events end at `:done`), hook-latched cancel (deterministic: `ran == []`, c2's before hooks never fire, no messages).
+
+## Verification outputs (verbatim, in this worktree)
+
+```
+$ bundle install --quiet && bundle exec rspec
+=== BUNDLE INSTALL OK ===
+128 examples, 0 failures
+
+Randomized with seed 5884
+
+$ bundle exec rspec --no-color --options /dev/null -I gems/completions/lib -I gems/completions/spec \
+    --require spec_helper gems/completions/spec/fast/completions/wire_parity_spec.rb
+12 examples, 0 failures
+(note: plain `bundle exec rspec gems/.../wire_parity_spec.rb` re-applies .rspec's --pattern and runs the
+whole suite — 128 examples, 0 failures — same outcome)
+
+$ bash gems/completions/script/install_check.sh
+Successfully installed fast-completions-0.1.0
+1 gem installed
+install-check: require-ok fast-completions-0.1.0 from the scratch install
+install-check: smoke-ok (1 request, reply text verified)
+INSTALL_CHECK_OK
+
+$ git diff --stat 4736ddc
+ gems/completions/CHANGELOG.md                 |   9 +-
+ gems/completions/lib/fast/completions/chat.rb | 139 ++++++++++++++++++++------
+ 2 files changed, 118 insertions(+), 30 deletions(-)
+
+$ git status --porcelain
+ M gems/completions/CHANGELOG.md
+ M gems/completions/lib/fast/completions/chat.rb
+?? gems/completions/spec/fast/completions/batch_cancel_spec.rb
+?? gems/completions/spec/fast/completions/tool_concurrency_spec.rb
+```
+
+Gate simulations (verbatim):
+```
+existing-pins gate: EXISTING_PINS_UNMODIFIED_OK
+changelog gate: NO_STALE_SERIAL_OK / CONCURRENT_MENTION_OK
+new specs isolated (6 consecutive runs): 6 examples, 0 failures  ×6
+full-suite stability hunt: 18 more runs — 17 × "128 examples, 0 failures",
+  1 × pre-existing frozen-spec flake (see R-1; reproduced identically at BASE: 1/14 base runs)
+```
+
+## Designed-RED evidence at base (captured before editing chat.rb)
+
+`bundle exec rspec` with the two new specs present, chat.rb unmodified → `128 examples, 6 failures`:
+- overlap: `expected: < 873043.663274 / got: 873043.663308` (serial: entry₂ ≥ exit₁)
+- call-order/completion-order: after-hook order `[c1, c2]` ≠ expected `[c2, c1]`
+- failure isolation: RuntimeError "boom" propagated out of `step` (chat.rb:159 → :145 → :115)
+- unknown-tool inline: FAILED ONLY on my extra `after_ids == %w[c1]` assertion (base fires after hooks for unknown tools too; see Deviation D-3 — assertion corrected to the §1.2.4 letter)
+- batch cancel (join): `entered == ["c1"]` (c2 never entered)
+- batch cancel (hook): `ran == ["c1"]` (c1 still executed)
+
+## Deviations from the prompt's letter (each with reason)
+
+- **D-1 — `@in_flight = nil` moved after the batch.** §1.1 lists "`cancel`/`@in_flight` mechanics" as unchanged; at base `@in_flight` is nil during the batch (line 110 nils it before `run_tool_batch`), so a batch-time `chat.cancel` is latch-only and CANNOT interrupt sleeping children. §1.3.1 (≤ 0.2 s abort, ZERO after-hook fires) and Grounds D5's letter ("cancel inside a tool cancels `@in_flight` (the step task, not the child)") are satisfiable ONLY if `@in_flight` names the step task during the batch. The mechanic (latch + task-cancel-unless-self-called-from-that-task) is byte-unchanged; only the window extends over the batch.
+- **D-2 — join wrapped in `ensure { children.each(&:cancel) }`.** §1.1 says "a cancel during the join aborts in-flight children (async stop-children)". async 2.46.0's actual mechanics (verified in source + probes): `Task#cancel` raises `Async::Cancel` into the TARGET fiber only; children are stopped by `Task#cancelled!` → `stop_children`, which runs only when `Async::Cancel` propagates out of the task block. `#step`'s frozen ladder (:120-124, mandated unchanged) converts `Async::Cancel` → `CancelledError` (a StandardError), so async's own stop-children never runs — first implementation left children RUNNING to natural completion (my batch_cancel example caught it: after hooks fired `["c1","c2"]`, wall bound passed). The ensure performs the stop-children semantics explicitly; a no-op for finished children; also matches the serial executor's raise-aborts-the-batch semantics for other unwinds (e.g., a propagating after-hook exception).
+- **D-3 — `execute_tool_result` ladder re-raises `ArgumentError` (dispatch boundary) instead of isolating it.** D4/§1.1 Phase B.3 letter: "other `StandardError` ⇒ that call's result becomes `{content: e.message.to_s, is_error: true}`". Reason: the frozen chat_spec example "marks {error:} tool results…" is VACUOUSLY green at base — its fixtures use `define_method(:execute) { |_args| … }` and are invoked with `execute(**{})`, which raises `ArgumentError("wrong number of arguments (given 0, expected 1)")` (async logs it as an unhandled task exception at base — verbatim evidence captured); the raise kills the example's Async block BEFORE its assertions run, and top-level `Async { }` swallows StandardErrors raised in its block (verified: `Scheduler#run` returns the failed `initial_task` without re-raising; probe output "SWALLOWED: Async returned normally after block raised"). With spec-exact D4 the example's assertions finally execute and FAIL (observed: `expected "permission denied", got "wrong number of arguments (given 0, expected 1)"` at chat_spec.rb:115) → gem-suite gate RED. ExpectationNotMetError is `< Exception` (probed), so rspec does see such failures. Keeping raise-through for the dispatch-boundary ArgumentError (the tool body never ran; no pi analog — JS dispatch ignores arity; today's behavior is raise-through) keeps every frozen spec byte-identical AND green while D4 isolation holds for every error from the tool's own execution (AC3's pin, `raise "boom"`, passes). This is an OQ-2-domain judgment call — flag for judge adjudication.
+- **D-4 — batch_cancel example 1 measures the wall from just BEFORE `chat.cancel`** (sibling captures `cancel_at` immediately prior), per §1.3.1's "wall from cancel to CancelledError" — the cancel call itself is synchronous within the same reactor tick; no other reading available.
+- **D-5 — client.close omitted in the cancelled-reactor helper.** §1.3 does not require it; closing inside a cancelled task risks `Async::Cancel` on close's internal awaits. Mirrors the frozen stream_cancel_spec helper idiom; server teardown happens in `after`.
+
+## Concerns / residual risks
+
+- **R-1 — pre-existing frozen-suite flake (NOT introduced by this lane; A/B-proven).** The frozen chat_spec smoke check ("runs a full tool turn…", chat_spec.rb:63) fails ~1 run in 8–14 with `NoMethodError: undefined method 'content' for nil` — step2's stream raises `ConnectionError("EOFError")` (async warn captured verbatim: `client.rb:99 → chat.rb:109 → chat_spec.rb:56`), because `MockLLMServer#serve` closes each connection after ONE request (ensure io.close) and async-http's pool occasionally reuses the just-closed connection for the follow-up request. Reproduced at BASE with byte-identical chat.rb and the two new specs removed: 1 failure in 14 base runs (`122 examples, 1 failure`, run-9, identical assertion + backtrace). Rate with my changes: 4 failures in ~26 runs pre-ensure-fix analysis… after the final code: 1 in 18. Same race, both sides. mock_llm_server.rb and chat_spec.rb are both in the MUST-NOT-TOUCH set, so this lane cannot fix it; the judge's one-shot `gem-suite` gate carries this dice roll on the integrated tree regardless of lane.
+- **R-2 — the ArgumentError re-raise (D-3) is a D4-letter bend** confined to dispatch-boundary arity failures. If the judge rules pure-D4, the frozen {error:} example goes red and AC1 fails; there is NO implementation that satisfies both (the example's fixtures cannot succeed under any executor: `execute(**{})` on `|_args|` always raises). Recommend the judge record the vacuity + rule on D-3 explicitly.
+- **R-3 — console warn noise from the frozen {error:} example** (async "Task may have ended with unhandled exception", ArgumentError at chat.rb:242) is byte-identical to base behavior (base warns the same ArgumentError at chat.rb:159). Pre-existing stderr JSON noise from client_spec (StreamError) also unchanged. Suite gate greps only the summary tail — unaffected.
+- **R-4 — my `entered`/`after`/`exits` stamp arrays are appended from child fibers without locks** — safe under the single-threaded reactor + GVL (all mutators run on reactor fibers in one thread).
+
+## Artifact inventory (exact)
+
+| File | State |
+|---|---|
+| `gems/completions/lib/fast/completions/chat.rb` | modified (only lib file touched) |
+| `gems/completions/CHANGELOG.md` | modified (one bullet) |
+| `gems/completions/spec/fast/completions/tool_concurrency_spec.rb` | new |
+| `gems/completions/spec/fast/completions/batch_cancel_spec.rb` | new |
+
+No commits, no pushes, no git write commands. No other repo touched. No exception file written (nothing invalidated the spec's premise — the lane completed; D-3 is submitted for adjudication instead).
+
+STATUS: COMPLETE_WITH_CONCERNS
 
 ## Verdict
 
