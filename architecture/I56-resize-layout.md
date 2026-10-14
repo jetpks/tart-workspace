@@ -832,10 +832,184 @@ EXACT on the existing digests, goldens and existing scenario pins byte-untouched
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I56-resize-layout-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section resize-layout prompt --append --lane <lane> --from build/I56-resize-layout-<lane>/prompt.md`. -->
+# Builder Prompt — I56 resize-layout, lane `core`
+
+You are lane `core` of iteration I56 (resize-layout), freeze
+`6ea730ae50ebdb2377a0ded7b56f107481c1a1f7`, repo **tart** (your
+worktree; branch `lane/I56-resize-layout-core`, base = project/pi-port
+@ e099cf3). The frozen iteration file is
+`architecture/I56-resize-layout.md` in the space — Grounds,
+Specification, Acceptance Criteria are read-only truth; § cites below
+are that file's. Identical space-staged copies sit at
+`build/I56-resize-layout-core/{grounds,specification,
+acceptance-criteria}.md`.
+
+## Mission
+
+Close the owner's problems.md items 1+2: on SIGWINCH (resize), the
+header help text re-wraps at the new width instead of clipping, the
+ascii art re-picks through a width ladder (wordmark floor below the
+smallest piece), and the editor input reflows WITHOUT any cursor
+movement. Three mechanisms (Spec §Port shape): (1) the COMPOSE LATCH —
+`on_event` grows a resize arm (`event.respond_to?(:resize?) &&
+event.resize?`, the mouse-arm predicate form) that latches the event's
+width/height, re-picks the art, rebuilds the header block, and
+requests a draw; `viewport_width`/`screen_height` (and `build_widget`'s
+own area reads) compose from the latch, and `render_frame` clears it
+after `build_widget` (one-frame semantics). (2) The RESIZE-LIVE
+REBUILD — `push_expandable(resize_live: false)` default + the header
+registered live + `rebuild_live_expandables` (the
+`set_tool_output_expanded` splice arithmetic, no state flip, non-live
+blocks untouched). (3) The span-aware `wrapSingleLine` port (Text, new
+function) driving `Motd.pi_header_lines(expanded:, width:)` at
+`width − 2·OUTPUT_PAD` — EVERY pi-family header row wraps (mark row
+included: the mark's internal space and the separator are part of the
+token stream). Plus the rig instrument: the `resize: [w, h]` knob
+(applied after boot settle, BEFORE the prompt, via `tmux resize-window`)
+and the NEW scenario `s16_resize_wrap` (120→80).
+
+## THE LAWS YOU MUST INTERNALIZE (Grounds + Specification, condensed)
+
+1. **No golden moves.** NOT ONE wire byte of the existing scenarios
+   may change; new behavior gets the NEW scenario s16 with a fresh
+   baseline, NEVER edits to s1–s15/s1_tart/probes/registry/differ/
+   fixtures. The wire-delta + session-golden gates are byte-frozen
+   (I52/I55's exact literals — adopted verbatim in the AC block; never
+   retype them).
+2. **The wrap oracle is the live-pi artifact table** (Grounds §3):
+   `tmp/resize-calib/stage3/pi-w{44,46,48,49,50,51,52,54,56,64,80}.txt`
+   + `.styled`. pi's own `wrapTextWithAnsi` (deno import of
+   `repos/pi/packages/tui/src/utils.ts`, template `/tmp/wrap_probe2.ts`)
+   reproduces every row — run it to cross-check your port BEFORE
+   trusting unit greens. The continuation quirks are REAL pi behavior,
+   not noise: a break on a whitespace token keeps the separator's
+   leading space on the continuation (`␣␣· / commands…` at w50); a
+   word-token break leads with the word (` ctrl+o more` at w80). At a
+   width the row fits, the rows are single-row — the s1/s9/s10 shapes
+   byte-unchanged.
+3. **editor.rb is NOT in your touch set** (Spec Boundaries): the
+   editor already re-wraps per frame at the caller's width; the defect
+   was the stale `viewport_area` (Grounds §0/§2 — read it). The latch
+   supplies the true width. If you believe an editor change is
+   required, that is a PHASE 0 disagreement: raise it, do not touch.
+4. **The flip keeps the art; the resize re-picks it** (Spec): the
+   header's art source is an ivar set by the ladder at enqueue time
+   (boot, /new, compaction re-enqueue) and re-set ONLY by the resize
+   handler before rebuilding. The ctrl+o flip path never re-picks —
+   `test_ctrl_o_flips_the_startup_header_in_place` must stay green and
+   gains a resize companion (the flip-after-resize pin, gate filter
+   `/flip_after_resize/`).
+5. **The ladder is deterministic and CELL-width-based** (Grounds §4 +
+   `build/i56-spec/ladder.txt`): widest piece by max row `TUI.text_width`
+   fitting `max_cell_width + OUTPUT_PAD.length <= width` (never
+   `String#length` — the art is multibyte; rebel is 104 BYTES, 40
+   cells); name-asc tie-break (42 → mono-12 over rebel); below the
+   smallest piece the WORDMARK row (the identity name, e.g. `tart`).
+   120 → slant-relief, 50 → soft, 43 → twisted. The random-per-boot
+   sampling dies (owner-directed); the "any piece" assertion in
+   `test_motd_renders_logo_version_hints_context_and_skills` survives
+   — fix its COMMENT, not its assertion.
+6. **The rebuild sweeps ONLY live blocks** (Spec): tool blocks, the
+   compaction panel, and custom blocks must NOT rebuild on resize (the
+   whole-transcript re-wrap is the PARKED divergence — Grounds §6; a
+   full sweep would re-wrap expandable tool rows while their neighbors
+   stay boot-width). The resource sections ([Context]/[Skills]/…) also
+   stay frozen.
+7. **The latch is one frame** (Spec): latched dims drive the next
+   compose; `render_frame` clears the latch after `build_widget`;
+   subsequent frames compose from the session area. Pin both renders.
+   Guard the resize arm: no header enqueued (`@header_enqueued`
+   false — motd: false, /resume screens) → no art re-pick, no rebuild,
+   latch still set (the editor reflow must work headless too).
+8. **The rig knob** (Spec): `resize: [w, h]` — optional pair of
+   positive integers, load-validated (the `parse_*` pattern; reject
+   everything else), applied as `tmux("resize-window", "-t", session,
+   "-x", w, "-y", h)` + `settle(session, "resize")` after the boot
+   settle and BEFORE the paste/prompt block. `resize-PANE` does NOT
+   move a manual-size session (Grounds §1 — live-proven). The no-knob
+   path is byte-frozen (every pre-existing scenario's flow identical).
+   Knob tests named `test_resize_knob_*` (gate filter `/resize_knob/`,
+   floor 2).
+9. **Test names are gate contracts** (AC): chat tests match
+   `/sigwinch|reflows_on_resize|rebuilds_the_header_block|flip_after_resize|tart_hints_rewrap/`
+   (floor 5), motd tests `/pi_header_rows_wrap|ladder/` (floor 3),
+   text tests `/wrap_spans/` (floor 1), transcript tests
+   `/rebuild_live/` (floor 2). The AC gates grep exactly those; all
+   filters verified EMPTY at base.
+10. **s16's width-80 is calibrated, not negotiable** (Grounds §7): at
+    narrower widths the truncated footer cwd rows escape the
+    `parity-run-path` class anchor (`run-\d+/`) and become
+    unsanctionable candidates. Base candidate list at 80 = 8 (the
+    pi-wrapped hints + onboarding pairs + 2 alignment rows), ALL your
+    work; target ZERO. New candidates at build time: fix-to-match pi
+    from fresh live evidence (env-strip the HERDR_* vars per the
+    calibration probe `tmp/resize-calib/calib.rb`), NEVER a registry
+    pin without an owner ruling.
+
+## Boundaries (frozen — the lane's whole touch set)
+
+May touch ONLY: `lib/tart/render/chat.rb`,
+`lib/tart/render/motd.rb`, `lib/tart/render/transcript.rb`,
+`lib/tart/render/text.rb`, `test/chat_test.rb`,
+`test/render/motd_test.rb`, `test/render/text_test.rb`,
+`test/render/transcript_test.rb`,
+`gems/tui-split-rig/lib/tui_split_rig/runner.rb`,
+`gems/tui-split-rig/lib/tui_split_rig/scenario.rb`,
+`gems/tui-split-rig/scenarios/s16_resize_wrap.yml` (NEW),
+`gems/tui-split-rig/test/scenario_test.rb`. Must NOT touch: everything
+else — `lib/tart/render/editor.rb` (law 3), `lib/tart/agent/**`,
+`lib/tart/render/{bash_block,file_blocks,tool_block,panel,markdown,
+selection,viewport,user_bash,autocomplete,picker,model_menu,kill_ring,
+undo_stack,slash_source}.rb`, `lib/tart/{tui,identity,print,session,
+models,commands,skills,prompts,settings}.rb`, `bin/tart`,
+`test/fixtures/**`, `test/golden_parity_test.rb`,
+`gems/tui-split-rig/registry.yml`, every existing scenario YAML, the
+probe scripts, `bench/`, `test/support/mock_llm_server.rb`, README,
+repos/pi, repos/fast-llm. No new `Thread.new` in lib. No new
+dependencies.
+
+## Verification (run cold, from your worktree root)
+
+- `bundle install --quiet && bundle exec rake` — the suite (all new
+  tests ride it; the rig's scenario_test is part of the suite).
+- `bundle exec ruby bench/seam_bench.rb | tail -1` → SEAM_BENCH_OK.
+- Rig, per scenario (env-strip the HERDR_* vars):
+  `env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<name>.yml --out tmp/<dir>`
+  — s1–s10 exit 0, s1_tart exits 1 by design (assert TART_MODE_OK per
+  the AC gate), s16 exit 0 with ` ctrl+o more` + ` extend Pi.` in BOTH
+  captures. Baseline s16 BEFORE your surface work (the base candidate
+  list is Grounds §7's); first green capture is the golden. s16 is
+  RED-at-base BY DESIGN (exit 2 — the YAML is yours to create).
+- Both probes `--gate`. The full AC gate list is the frozen ```gates
+  block — your lane's own cold pre-report run should mirror it.
+- The pi cross-checks (Tool guidance): a FRESH live pi capture at
+  50/52/80 through the calibration-probe pattern, and the deno
+  wrapTextWithAnsi replica over your wrap inputs — record both in the
+  report.
+- s9 in your LANE WORKTREE may exit 1 with the KNOWN deep-path
+  staged-path wrap artifact (12+ precedents; the canonical-depth run is
+  the truth). Do not chase it in-lane; report it.
+
+## Report + discipline
+
+Report at `build/I56-resize-layout-core/report.md`: per-AC results with
+exact commands + tail outputs, the s16 out dir, the regenerated ladder
+table, the pi-vs-port wrap comparison rows at the pinned widths (plain
++ effective runs), the latch pin's two renders, the new-test inventory
+(file, name, one line), deviations itemized with pi cites, residuals.
+Builders NEVER commit — leave the work in the worktree; the integrator
+commits. If you hit a frozen-contract contradiction you cannot resolve
+inside your touch set, STOP and write
+`build/loop/exception-<UTC timestamp>.md` with raw facts (never silent
+improvisation). Give every long command an explicit timeout; do not
+block on contact_supervisor. PHASE 0 first: reply with your plan and
+EVERY disagreement with this spec, citing real files — silent
+compliance is a failure.
+
+Effort: high — the span-aware wrap port against live-oracle artifacts,
+the latch threading through the compose geometry, and a new
+live-calibrated rig scenario under a heavy frozen net; the
+flip/compaction//new lifecycle interactions must stay byte-frozen.
 
 ## Builder Report
 
