@@ -2162,8 +2162,11 @@ STATUS: COMPLETE_WITH_CONCERNS
 
 Judged in a fresh session 2026-10-14 (architect-judge; this session neither
 built nor graded this work before). Repo fast-llm ALONE — repos/tart untouched
-(verified: tart worktree clean at 2943ef0 lineage; no tart path appears in any
-lane diff).
+(verified: no tart path appears in any lane diff; tart sits at its integrated
+tip). Integration: core mid-iteration per §15's frozen dispatch note (main @
+`7a665d4`, lane commit `e29375b`); harness merged by this verdict session
+(`--into main` explicit — main @ `197ed9ff`, lane commit `844ae03`), both lane
+worktrees/branches torn down; judge-fix commit `dc8eea9` on main.
 
 ## Mechanical post-flight (all by command)
 
@@ -2175,9 +2178,9 @@ lane diff).
   re-record), and HEAD — judge-compared the Grounds/Specification/AC span
   directly (`diff` clean both ways). No action per the provenance note.
 - `git -C build/I51-fast-completions-gem-harness/wt log 7a665d4..`: **empty**
-  (lane harness committed nothing). Core's worktree holds exactly its
-  recorded integrate commit `e29375b` (the §15 mid-iteration dispatch-core
-  integration; main @ `7a665d4`).
+  (lane harness committed nothing). Core's worktree held exactly its recorded
+  integrate commit `e29375b` (the §15 mid-iteration dispatch-core
+  integration), excluded by design.
 - Judge action, itemized: the builders' reports were staged VERBATIM at the
   canonical `build/I51-fast-completions-gem-<lane>/report.md` paths (the
   coordinator's dispatch scratch was lowercase `build/i51-<lane>/report.md`;
@@ -2192,10 +2195,10 @@ Lane `core` deviations (report §Deviations 1–8):
    declares exactly 13 keys (count them); the prose's "14" is the spec's own
    miscount; inventing a 14th would be silent scope addition.
 2. **gemspec `.select { File.file?(f) }` addition — ACCEPT as necessary,
-   MODIFY as insufficient (judge-fixed at integrate; see Defect 1).** The
+   MODIFY as insufficient (judge-fixed at integrate; Defect 1 below).** The
    frozen glob included directories and broke `gem build` outright; the
    builder's filter is correct in direction but CWD-relative — the deeper
-   eval/CWD defect below survives it.
+   eval/CWD defect survives it.
 3. **`.rspec` second `-I gems/completions/spec` — ACCEPT.** Mechanically
    required by `--require spec_helper`; the AC1-named `-I …/lib` and the
    pattern are exactly as frozen.
@@ -2220,16 +2223,18 @@ Lane `core` deviations (report §Deviations 1–8):
 Lane `core` spec-over-pi decisions (report §Frozen-spec-over-pi 1–7):
 all **ACCEPT** — each is the frozen letter governing over pi source where
 the two differ, which is the entry's own rule (the oracle is the spec's
-citations, the freeze is the contract): (1) ladder omits `:minimal` (frozen
-§9.3 ladder is off/low/medium/high/xhigh/max; judge-verified pi's EXTENDED
-ladder does include "minimal" — divergence real, spec wins, reopenable);
-(2) only the 25 overflow patterns ported (NON_OVERFLOW_PATTERNS exclusion
-list not in frozen §8 — residual: a throttling body containing "too many
-tokens" would classify as overflow; reopen on consumer hit); (3) mid-convo
-system messages kept per frozen §9.4's hold-back discipline rather than pi's
-collapse; (4) errored/aborted assistant skip unportable without a stop_reason
-field the frozen §3 Message lacks; (5) tool-call ID normalization unported
-(§14); (6) partialArgs per OQ-4's own simplification; (7) malformed SSE chunk
+citations; the freeze is the contract): (1) ladder omits `:minimal`
+(frozen §9.3 ladder is off/low/medium/high/xhigh/max; judge-verified pi's
+EXTENDED ladder at models.ts:1222 does include "minimal" — divergence real,
+spec wins, reopenable); (2) only the 25 overflow patterns ported
+(NON_OVERFLOW_PATTERNS exclusion list not in frozen §8 — judge-verified
+against overflow.ts:33-96 that all 25 are ported VERBATIM; residual: a
+throttling body containing "too many tokens" would classify as overflow;
+reopen on consumer hit); (3) mid-convo system messages kept per frozen
+§9.4's hold-back discipline rather than pi's collapse; (4)
+errored/aborted assistant skip unportable without a stop_reason field the
+frozen §3 Message lacks; (5) tool-call ID normalization unported (§14);
+(6) partialArgs per OQ-4's own simplification; (7) malformed SSE chunk
 raises StreamError without a prior `:error` event — a documented divergence
 from pi's catch-all, pinned by no frozen letter.
 
@@ -2242,17 +2247,18 @@ Lane `harness` items:
   same-model stamp — the builder's reading is the only correct one).
 - **Builder Concern 2 — parity spec re-serializes the mock's PARSED capture
   via `JSON.generate`: ACCEPT, documented; no churn ordered.** The mock
-  (lane core's file, tart lineage) erases formatting bytes at capture; the
-  round-trip is order-faithful (Ruby Hash preserves insertion order;
+  (lane core's file, tart lineage — judge-diffed: code-identical to tart's
+  minus the Tart::Test/ruby_llm nesting) erases formatting bytes at capture;
+  the round-trip is order-faithful (Ruby Hash preserves insertion order;
   JSON.parse preserves document order) and is DIGEST-PROVEN end-to-end for
   all 11 frozen scenarios — the re-serialized capture hashes to the frozen
   SHA256s, so key-order/presence/value fidelity is fully asserted; only
-  formatting-style bytes (already erased by the mock, not by the spec) are
-  invisible. Ordering the churn now would rewrite lane core's delivered mock
-  mid-judgment to close a residual that no frozen scenario can observe;
-  recorded instead as a reopenable residual (a raw-capture surface on the
+  formatting-style bytes (erased by the mock, not by the spec) are
+  invisible. Ordering the churn now would rewrite lane core's delivered
+  mock mid-judgment to close a residual no frozen scenario can observe;
+  recorded as a reopenable residual instead (raw-capture surface on the
   mock if a future fixture carries non-ASCII/escape-style bytes — harness
-  residual risk 4 adopted).
+  residual risk 4 adopted by this ruling).
 
 ## Judge-found defects — fixed at integrate (I35/I36/I48 precedent), itemized
 
@@ -2265,20 +2271,23 @@ Lane `harness` items:
    README exists from the CWD) and packages a .gem with NO `lib/` that
    "installs" and LoadErrors. Root cause is subtler than the checkpoint's
    nil-`__dir__` theory: under RubyGems' eval, `__dir__` is the dirname of
-   the path AS PASSED (relative when invoked relatively), `Dir.glob(…,
-   base:)` returns BASE-RELATIVE names, and both the builder's
-   `.select { File.file?(f) }` filter AND RubyGems' `validate_non_files` /
-   packaging resolve those names against the INVOCATION CWD. The
-   checkpoint's suggested one-liner (`base: File.expand_path(__dir__)`
-   alone) is INSUFFICIENT — judge-probed: the select stays CWD-relative and
-   the repo-root load still yields `["README.md"]`.
-   Judge fix (one line, inside lane core's declared touch set):
+   the path AS PASSED (relative when invoked relatively — judge-probed:
+   `"tmp/probe.gemspec"` → `__dir__="tmp"`), `Dir.glob(…, base:)` returns
+   BASE-RELATIVE names, and both the builder's `.select { File.file?(f) }`
+   filter AND RubyGems' `validate_non_files`/packaging resolve those names
+   against the INVOCATION CWD. The checkpoint's suggested one-liner
+   (`base: File.expand_path(__dir__)` alone) is INSUFFICIENT — judge-probed:
+   the select stays CWD-relative and the repo-root load still yields
+   `["README.md"]`.
+   Judge fix (`dc8eea9`, one line, inside lane core's declared touch set):
    `base: File.expand_path(__dir__)` AND
    `.select { |f| File.file?(File.expand_path(f, __dir__)) }` — names stay
    gemspec-dir-relative (the form RubyGems packages correctly from the
    gemspec's own directory), the filter becomes CWD-independent, and the
-   frozen repo-root invocation now FAILS LOUDLY ("… are not files") instead
-   of silently mispackaging.
+   frozen repo-root invocation now FAILS LOUDLY
+   (`Gem::InvalidSpecificationException … are not files` — judge-demonstrated)
+   instead of silently mispackaging; foreign-cwd programmatic loads now see
+   the true 14-file list (judge-demonstrated).
    Ruling on the frozen §12.2 prose form (`gem build
    gems/completions/fast-completions.gemspec` from the repo root): **it is
    RubyGems-impossible for a nested monorepo gemspec** (judge-probed:
@@ -2287,53 +2296,63 @@ Lane `harness` items:
    layout that breaks `require`). The I48 gate-authoring-defect class: the
    AC6 EXECUTABLE letter (`bash gems/completions/script/install_check.sh` →
    `INSTALL_CHECK_OK`) is the contract and is satisfiable; the prose build
-   form is not. Never amended the frozen file; this verdict is the record.
+   form is not. The frozen file was never amended; this verdict is the
+   record.
 2. **install_check.sh required a pre-existing gitignored `tmp/` — cold
    FAIL (JUDGE-found; the builder's env had `tmp/`, a fresh tree does
-   not).** Judge cold run of the AC6 gate on the integrated-equivalent tree
-   died at `mktemp -d "$REPO_ROOT/tmp/install-check.XXXXXX"` (No such file
-   or directory) BEFORE any build step. Judge fix (one line, harness lane's
-   file): `mkdir -p "$REPO_ROOT/tmp"` before the mktemp.
+   not).** The judge's first cold AC6 run on the integrated-equivalent tree
+   died at `mktemp -d "$REPO_ROOT/tmp/install-check.XXXXXX"`
+   (mkdtemp: No such file or directory) BEFORE any build step. Judge fix
+   (`dc8eea9`, one line, harness lane's file): `mkdir -p "$REPO_ROOT/tmp"`
+   before the mktemp; demonstrated cold from a tree with no `tmp/`.
 3. **install_check.sh fallback rebuild — converted to the primary with a
    hard artifact assert (the discriminating pin).** As delivered, the
    script's loud-rebuild fallback let AC6 exit 0 with the CORE defect live
    (by the builder's own documented design: report, don't patch core's
    file — correct lane discipline). With the gemspec fixed, the judge
-   replaces try-repo-root-then-fallback with the SUPPORTED invocation as
-   primary (`cd gems/completions && gem build fast-completions.gemspec
-   --output "$SCRATCH/…"`) and keeps `gem_contains_lib` as a HARD failure —
-   any future lib-emptying gemspec regression fails AC6 cold. The script's
-   comment records the RubyGems mechanics; this verdict records the ruling.
-
-Cold re-runs after the fixes: full gate suite on the integrated tree (all
-11 gates), recorded below in the AC table's "integrated" column.
+   (`dc8eea9`) replaces try-repo-root-then-fallback with the SUPPORTED
+   invocation as primary (`cd gems/completions && gem build
+   fast-completions.gemspec --output "$SCRATCH/…"`) and keeps
+   `gem_contains_lib` as a HARD failure — any future lib-emptying gemspec
+   regression fails AC6 cold. The script's comment records the RubyGems
+   mechanics; this verdict records the ruling.
 
 ## Acceptance Criteria integrity
 
 Frozen sections unchanged since freeze (`architect verify` check (a), both
-lanes PASS; judge diff of the frozen span vs `1657e793` clean). Gates
-re-run cold by this session from the repo checkouts — the harness lane's
-worktree IS the integrated-tree content (core merged @ 7a665d4 + harness
-files) for the pre-integration run; the authoritative run is on integrated
-`main` after both lanes merged, per the frozen AC letter.
+lanes PASS; judge diff of the frozen span vs `1657e793` clean). Gates re-run
+cold by this session from the repo checkouts. AUTHORITATIVE run: the full
+11-gate suite on the integrated tree (fast-llm `main` @ `dc8eea9`, after
+BOTH lanes merged + the judge fixes) — **11/11 PASS**: SPEC_STRUCTURE_OK;
+gem-suite **122 examples, 0 failures** (judge seed 4056); WIRE_FIXTURES_OK
+11; wire-parity **122/0** (seed 63013); stream-cancel **122/0** (seed
+7861); DEP_PIN_OK (`[["async-http", "~> 0.95"]]`) + NO_FARADAY_OK;
+NO_CATALOG_OK; README_PIN_OK; INSTALL_CHECK_OK (strict gate, zero fallback
+lines in the output); SCOPE_OK **46 files** — exactly the two lanes'
+declared touch union, nothing else. (Pre-integration cold run on the harness
+worktree — the integrated-equivalent content — showed the same suite green
+at three further seeds; its AC6/AC7 FAILs were the two judge-found defects
+above and the expected pre-merge invisibility of uncommitted harness files
+to `git diff b6ffad1..HEAD`, both resolved by integration + fixes.)
 
-| AC# | Raw result (judge, cold) | Brief/spec § | Verdict |
-|-----|--------------------------|--------------|---------|
-| AC1 | spec-structure PASS; gem-suite 122 examples 0 failures (judge seed 50329 worktree; post-integrate re-run below) | §1–§3, §12 | PASS |
-| AC2 | wire-fixtures-digests 11/11 OK; wire-parity (via full suite) 0 failures; 11 SHA256s == frozen table | §3, §12.2–12.3 | PASS |
-| AC3 | stream-cancel 0 failures (cold; builder 5 seeds; no-phantom-terminal + connection-discard pinned) | §6 D8, §12 | PASS |
-| AC4 | dep-pin `[["async-http", "~> 0.95"]]` + NO_FARADAY_OK; no-catalog NO_CATALOG_OK | §2, §4 | PASS |
-| AC5 | readme-pin README_PIN_OK (phrase + /v1/completions + legacy + dialect + deps + root README) | §13 | PASS |
-| AC6 | install-check FAIL pre-fix (mktemp `tmp/` defect, judge-found) → PASS post-fix on integrated main with the artifact gate hard (see defects 1–3) | §12.2 | PASS (after judge fixes, itemized) |
-| AC7 | scope — worktree run FAIL is the expected pre-merge artifact (uncommitted harness files invisible to `git diff b6ffad1..HEAD`); authoritative run on integrated main below: SCOPE_OK 46 files == the two lanes' declared touch union exactly | §14 | PASS |
+| AC# | Raw result (judge, cold, integrated tree) | Brief/spec § | Verdict |
+|-----|------------------------------------------|--------------|---------|
+| AC1 | SPEC_STRUCTURE_OK; 122 examples, 0 failures (seed 4056) | §1–§3, §12 | PASS |
+| AC2 | WIRE_FIXTURES_OK 11; wire-parity 122/0 (seed 63013); 11 SHA256s == frozen table | §3, §12.2–12.3 | PASS |
+| AC3 | stream-cancel 122/0 (seed 7861; builder 5 seeds; no-phantom-terminal + connection-discard pinned) | §6 D8, §12 | PASS |
+| AC4 | DEP_PIN_OK + NO_FARADAY_OK; NO_CATALOG_OK | §2, §4 | PASS |
+| AC5 | README_PIN_OK (phrase + /v1/completions + legacy + dialect + deps + root README) | §13 | PASS |
+| AC6 | INSTALL_CHECK_OK — strict artifact gate, no fallback, cold from a tree without tmp/ | §12.2 | PASS (after judge fixes 1–3, itemized above) |
+| AC7 | SCOPE_OK 46 files == the two lanes' declared touch union exactly | §14 | PASS |
 
 ## Iteration
 
 **CONTINUE** — the gem is byte-faithful where the entry's bar lives (11/11
-frozen pi wire digests reproduced through the public surface, cold), the
-suite is green (122/0), and both judge-found packaging defects are one-line
-fixes inside the declared touch sets, applied at integrate with the
-artifact gate made discriminating.
+frozen pi wire digests reproduced through the public surface, cold, on the
+integrated tree), the suite is green (122/0 across six seeds total), and
+both judge-found packaging defects were one-line fixes inside the declared
+touch sets, applied at integrate with the artifact gate made
+discriminating.
 
 **Releasability statement (for the program final report):**
 `fast-completions` **0.1.0** — releasable at the loop's stop-point.
@@ -2342,7 +2361,9 @@ one runtime dependency (`async-http ~> 0.95`), MIT, `required_ruby_version
 >= 3.3`, mfa-required metadata; install-check green on the integrated tree
 (build → scratch GEM_HOME install → outside-repo `require` → one smoke
 chat turn against the mock → `INSTALL_CHECK_OK`), run cold twice by the
-builder and twice by the judge. Build invocation for the human's release
-tag: `gem build` from `gems/completions/` (the repo-root form fails loudly
-by RubyGems design for nested gemspecs — Defect 1's record). No tags cut,
-nothing pushed, no GitHub/rubygems actions — per the program preamble.
+builder (with the loud fallback) and twice by the judge (strict gate).
+Build invocation for the human's release tag: `gem build` from
+`gems/completions/` (the repo-root form fails loudly by RubyGems design
+for nested gemspecs — Defect 1's record). No tags cut, nothing pushed, no
+GitHub/rubygems actions — per the program preamble; the loop stops at
+releasable, and it is.
