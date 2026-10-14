@@ -218,35 +218,323 @@ threads, which STAY this entry per the plan).
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section de-bridge specification --from <file>`. -->
+# I50 de-bridge — Specification
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+## Objective
+
+Delete the Bridge worker: the whole agent turn — LLM HTTP (faraday
+`:net_http`, unchanged) AND tool execution — runs as fibers on the existing
+single reactor entered at `lib/tart/core/loop.rb:98`. Zero new dependencies
+(Gemfile/Gemfile.lock/tart.gemspec UNTOUCHED). Wire-neutral by construction:
+no request byte changes on any surface (the frozen digests prove it).
+Grounds §0–§4 are the probe-gated design record; the plan letter's
+"fiber-native & own-the-wire" ENTRY 1 (build/loop/plan-20261013T222728Z.md).
+
+## The target shape
+
+```
+Core::Loop#run  (core/loop.rb:98 — unchanged entry; teardown @work_task&.stop unchanged)
+└─ root.async → work block = Agent::Loop#run (unchanged)
+   └─ turn fiber: inner_loop
+      ├─ step_on_reactor                (was step_via_bridge, loop.rb:618)
+      │   ├─ @chat.step { |chunk| handle_item({type: :chunk, chunk:}) }   # INLINE — no queue, no worker
+      │   ├─ handle_item({type: :step, message:}) if message
+      │   └─ rescue Async::Cancel → @chat.cancel + re-raise        # FIRST (Exception-derived)
+      │       rescue RubyLLM::CancelledError → cancelled arm       # no @last_error, no error emit, nil message
+      │       rescue StandardError => e → record_terminal_error(e) # today's error arm, instance for payload
+      ├─ tool batches: :fibers mode (armed once at Loop#initialize) — sibling tasks in
+      │   the SAME reactor (Sync INLINE, Grounds §2); callbacks call handle_item directly
+      ├─ summarize: summary_chat.ask(prompt) inline — rescue StandardError/CancelledError → nil
+      │   (compaction aborts, run continues); Async::Cancel → summary_chat&.cancel + re-raise
+      └─ per turn: nothing else changes
+user_bash: @kernel.async task runs tool.run_user INLINE; reader-thread chunks cross a
+      plain ::Queue drained by a sibling drainer task on the SAME task (probe5 cooperative);
+      cancel = @cancel_flag + @task.stop — run_user's dual-class rescue produces the
+      cancelled partial outcome, the task's single finish renders every terminal.
+```
+
+## The contract (numbered; every item judgeable)
+
+### 1. `lib/tart/agent/bridge.rb` — DELETED
+
+The file is absent; `require_relative "bridge"` (loop.rb:9) is gone; no
+`Agent::Bridge` / `Bridge.new` reference remains anywhere under lib/, bin/,
+or test/ (grep gate `bridge-absent`). flow_test.rb's four Bridge-terminal
+tests (test_bridge_returns_success…, test_bridge_failure_carries…,
+test_bridge_cancelled_work…, test_bridge_yields_streamed_items…, :33-66)
+are deleted with it; the file's step-classification table (the
+test_worker_http_error/context_length/dead_endpoint family) stays GREEN
+UNMODIFIED — the ladder must reproduce today's public classification
+exactly (last_error class + agent_end[:error] class + no silent swallow).
+
+### 2. `lib/tart/agent/loop.rb` — step_on_reactor + deletions + :fibers
+
+- `step_via_bridge` (:618-641) and `work_callable` (:644-648) are REPLACED
+  by `step_on_reactor` with EXACTLY this shape:
+
+```ruby
+def step_on_reactor
+  @last_message = nil
+  @stream_started = false
+  message = @chat.step { |chunk| handle_item({type: :chunk, chunk:}) }
+  handle_item({type: :step, message:}) if message
+  @last_message
+rescue Async::Cancel
+  # Belt-and-braces (Grounds §3 probe3 ARM2): the flag stops any surviving
+  # stream at its next chunk boundary. The Cancel itself is re-raised —
+  # run()'s rescue owns the interrupted bookkeeping (loop.rb:278-284) and
+  # Core::Loop teardown relies on the raise.
+  @chat.cancel
+  raise
+rescue RubyLLM::CancelledError
+  # Today's cancelled shape: no @last_error, no error emit; the nil
+  # message breaks the inner loop.
+  nil
+rescue StandardError => e
+  record_terminal_error(e)
+  @last_message
+end
+```
+
+  `inner_loop`'s call site (:387) renames to `step_on_reactor`. The
+  `@sink` indirection DIES (:136 init, :624, :646): callbacks in
+  `install_chat_callbacks` call `handle_item(...)` directly. The class
+  doc-comment's bridge references (:280 "every model/tool step is bridged
+  to a worker thread", :325 "the summarization call bridges to a worker")
+  update to the reactor-fiber truth.
+- `summarize` (:553-573): the Bridge/join/on_cancel machinery dies; the
+  body becomes the inline call with the ladder:
+
+```ruby
+def summarize(preparation)
+  prompt = Compaction.summarization_prompt(preparation.messages_to_summarize,
+    previous_summary: preparation.previous_summary)
+  summary_chat = build_summary_chat
+  summary_chat.ask(prompt)
+rescue Async::Cancel
+  summary_chat.cancel
+  raise
+rescue RubyLLM::CancelledError, StandardError
+  nil # compaction aborts, the run continues (today's ANY-Failure rule)
+end
+```
+
+  (:549's doc-comment "Run through the Bridge like every blocking LLM call
+  so a kernel interrupt cancels it" updates — the interrupt is now native.)
+- `:fibers` armed at the ONE seam (decision Grounds §4.4):
+  `initialize`'s `@chat.with_tools(*tools.values) unless tools.empty?`
+  (:151) becomes `@chat.with_tools(*tools.values).with_tool_options(
+  concurrency: :fibers) unless tools.empty?`. build_summary_chat is
+  untouched (no tools — no batch). No global `RubyLLM.configure` change.
+- `install_chat_callbacks` (:812-834): keying UNCHANGED (Grounds §3 probe4:
+  Thread#[] is fiber-local — pairs correctly under :fibers; OQ-1); the
+  comment block replaces the worker-thread rationale with the fiber-local
+  citation (per-fiber storage, probe4-recorded).
+
+### 3. `lib/tart/render/user_bash.rb` — inline execution
+
+- The `@task = @kernel.async` body (:114-127) becomes — chunk Queue +
+  drainer + inline tool run + single finish:
+
+```ruby
+@task = @kernel.async do
+  chunks = Queue.new
+  drainer = Async::Task.current.async do
+    while (item = chunks.pop) != :done
+      @stream_chunk_sink&.call(item)
+    end
+  end
+  begin
+    RubyLLM::Support::Cancellation.watch(
+      -> { raise RubyLLM::CancelledError if @cancel_flag }
+    ) do
+      # Reader THREADS fire on_chunk — push-only onto the ::Queue (probe5:
+      # cooperative pops here); render state is touched ONLY by the
+      # drainer on this reactor task.
+      @slot_omitted
+      @slot[:outcome] = tool.run_user(command, on_chunk: ->(text) { chunks << text })
+    end
+  ensure
+    chunks << :done
+    drainer.wait
+    finish
+  end
+end
+```
+
+  (exact locals at the builder's discretion; the four INVARIANTS are the
+  contract: (a) the sink never runs on a reader thread; (b) `:done`
+  sentinel + drainer join so no chunk is dropped at the terminal —
+  stream_end fires only after the queue is fully drained; (c) ONE finish
+  path renders every terminal: outcome arm, cancelled outcome arm (the
+  task.stop Cancel is rescued INSIDE run_user → cancelled partial
+  outcome), worker-error arm (rescue StandardError → stream_end +
+  line_sink "bash: <msg>" + request_draw); (d) cancel() becomes
+  `@cancel_flag = true; @task.stop` and NOTHING else — no slot polling, no
+  deadline loop, no render from cancel(): the stopped task's unwind
+  produces the cancelled outcome and finish renders it. The bounded 2 s
+  slot-wait (:138-141), the `@slot`-empty fallback arm, and cancel()'s
+  block render/record all DIE (finish owns them). finish(terminal) →
+  finish() — no terminal parameter.)
+- The doc-comment family (:49-50, :86-93, :107, :115-122, :135, :178)
+  updates: no Bridge, no worker thread, no bounded join; the discipline
+  sentence becomes "chunks cross from the reader threads via a plain
+  ::Queue; every sink call runs on the kernel task's reactor fibers".
+
+### 4. `lib/tart/tools/bash.rb` — reaper fiber + zombie guarantee
+
+- `reaper = Thread.new { completed << Process.waitpid2(pid)[1] }` (:250)
+  becomes a reactor task: `reaper = Async::Task.current.async do
+  completed << Process.waitpid2(pid)[1] end` (scheduler `process_wait`,
+  Grounds §2). The completed-Queue pop-loop (:256-272) and
+  `readers.each(&:join)` (:276) stay UNCHANGED (probe5: cooperative on a
+  reactor fiber; the I18 evented-exit latency property — pop returns the
+  moment the reaper pushes — is preserved by cooperative wakeup).
+- The dual-class rescue (:284-293) keeps its kill semantics; the
+  `reaper&.join(TERM_GRACE_SECONDS)` (:290) is REPLACED by a bounded
+  ECHILD-tolerant self-reap, because a stopped tool fiber stops its child
+  reaper task (Grounds §2 stop_children) and the KILL guarantees the
+  child's death: loop `Process.waitpid2(pid, Process::WNOHANG)` (rescue
+  ECHILD → break) every ~10 ms until a status or
+  TERM_GRACE_SECONDS elapses. SOMEONE reaps (the surviving reaper task or
+  the rescue loop); a zombie never outlives the run (test-pinned, §8).
+- :107's reader-thread comment ("push-only work (the bridge queue)") and
+  the run_user doc-comment's bridge queue phrasing update; NO behavior
+  change to run_user/execute/spawn semantics.
+
+### 5. `lib/tart/agent/status.rb` — dead mutex sweep
+
+`@mutex` (:11) and its five synchronize blocks die; the class comment
+("thread-safe") updates to the reactor-fiber truth (on_event and to_s both
+run on fibers of ONE reactor thread). NO other mutex moves:
+tools/output_accumulator.rb's mutex STAYS (cross-thread drain appends —
+Grounds §3 probe5 note), herdr/models/registry untouched (OQ-2).
+
+### 6. `lib/tart/render/chat.rb` — comment sweep only
+
+:214 ("each bridged chunk") and :1676 ("the bridge yields chunks on the
+reactor") reword to the drainer/inline truth. ZERO behavior change in
+render/ (transcript, live region, user-bash streaming sinks — byte
+identical; the user-bash-stream probe gate proves it).
+
+### 7. Tests (the pins that move; everything else stays green unmodified)
+
+- `test/flow_test.rb`: DELETE the 4-bridge-terminal section (§1); KEEP the
+  classification table + the no-silent-swallow golden; the file header
+  comment updates (the flow contract's step boundary is now the rescue
+  ladder).
+- `test/agent_loop_test.rb` ADDITIVE pins (names are the gate's anchors):
+  - `test_fibers_tool_concurrency_overlaps_two_interleaved_tools` — a
+    scripted two-tool-call batch over two 0.5 s sleep tools through a REAL
+    Agent::Loop on a reactor; assert the two :tool_execution_start events'
+    wall span OVERLAPS (span < 0.9 s; at base, sequential, ≈1.0 s — this
+    pin is the RED-at-base anchor) and two :tool tool messages land.
+  - `test_tool_event_attribution_under_interleaved_fibers_tools` — same
+    drive; assert each :tool_execution_end event's tool_call.id matches a
+    distinct start's id and each duration ≈ that tool's OWN runtime
+    (0.4–0.75 s), i.e. no cross-attribution (Grounds §3 probe4 ARM B).
+  - `test_interrupt_mid_stream_aborts_request_no_error_terminal` — a REAL
+    Agent::Loop on a reactor task over :slow_stream (40 chars × 0.1 s),
+    sibling timer `turn.stop` at ~0.3 s; assert (a) total wall < 2.0 s
+    (the request ABORTED — the full stream would run ≈4 s), (b)
+    `agent.interrupted?`, (c) `agent.last_error` nil, (d) the agent_end
+    event carries `interrupted: true` and NO `error` key, (e) no
+    message_end with `error: true` fired (the cancelled shape — NO error
+    terminal, the plan's interrupt gate).
+- `test/bash_tool_test.rb` ADDITIVE pin:
+  `test_cancelled_bash_run_leaves_no_zombie` — spawn `sleep 5` via a
+    reactor task running the tool's execute path, stop the task mid-run,
+    then after the unwind assert the pid is GONE from the process table
+    (`ps -p <pid>` empty after a bounded wait — reaped, not zombie; darwin
+    `ps` stat form acceptable).
+- `test/chat_test.rb`: NO required edits — the user-bash streaming family
+  (:3240 `test_running_user_bash_renders_the_streaming_block_midflight`,
+  :3042 escape-cancel, :3372 cancel-terminal clears) must stay GREEN
+  UNMODIFIED (the de-bridged UserBash reproduces every observable). Any
+  forced re-pin is PHASE 0-itemized.
+- `test/launcher_smoke_test.rb` :38-40 comment only (Grounds §4.7).
+- The existing interrupt pins (Grounds §5) stay GREEN UNMODIFIED.
+
+## Lane plan
+
+ONE lane (`core`) — the seam is atomic: bridge.rb's deletion requires both
+callers (loop.rb + user_bash.rb) landing together (a split would leave one
+worktree referencing a deleted class; the I26 multi-lane lesson applied).
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision de-bridge`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/agent/bridge.rb
+    - lib/tart/agent/loop.rb
+    - lib/tart/agent/status.rb
+    - lib/tart/tools/bash.rb
+    - lib/tart/render/user_bash.rb
+    - lib/tart/render/chat.rb
+    - test/flow_test.rb
+    - test/agent_loop_test.rb
+    - test/bash_tool_test.rb
+    - test/chat_test.rb
+    - test/launcher_smoke_test.rb
 ```
+
+## Boundaries
+
+- **May touch**: EXACTLY the 11 files above (deletion of bridge.rb
+  included; comment-only edits are edits). Nothing else — not core/**
+  (the kernel is the UNCHANGED substrate), not print.rb (the Loop owns
+  the change; the I48 deadline thread stays), not mcp*, subagents*,
+  hooks.rb, memory*, herdr.rb, models.rb, registry.rb, shapes/schemas,
+  compaction.rb, settings/identity/skills/prompts/theme/tui/commands,
+  tools/{read,edit,write,find,grep,ls}.rb, safe_execute.rb,
+  output_accumulator.rb, support/**, bin/tart, README.md, gemspec,
+  Gemfile, Gemfile.lock, bench/**, gems/tui-split-rig/**, test/support/**,
+  and every test file outside the declared set (frozen: subagents*,
+  e2e_session, golden_parity, loop, tools, mcp, markdown, theme, tui,
+  kernel_carryin, identity, prompts, compaction, skills, models, hooks,
+  herdr, commands, system_prompt, session, settings, shapes, test/render/**,
+  test/fixtures/**).
+- **Zero new dependencies**: no Gemfile/Gemfile.lock/gemspec change;
+  `faraday_adapter` stays `:net_http` (config untouched).
+- **The wire is FROZEN**: wire-bodies + session-golden digests EXACT
+  (unchanged literals from I49 — this entry moves WHO runs the turn, never
+  WHAT bytes cross).
+- No behavior change outside the turn/execution mechanics: render bytes,
+  session bytes, wire bytes, exit codes, MOTD, footer — all byte-identical
+  (the battery proves it).
+
+## Tool guidance (verify against live deps before writing code)
+
+- The pinned stack: ruby 4.0.7, async 2.46.0, ruby_llm 2.1.0,
+  faraday 2.14.4 + faraday-net_http 3.4.4 (repos/tart Gemfile.lock).
+  Gem facts are Grounds §2 (file:line cited) — re-verify any you rely on.
+- Probes are RERUNNABLE and are the mechanism record:
+  `cd repos/tart && bundle exec ruby ../../tmp/probe-bridge/probe{3,4,5}_*.rb`.
+- Verification battery (run in YOUR worktree; the judge re-runs cold on
+  the integrated tree): `bundle install --quiet && bundle exec rake`;
+  `bundle exec ruby bench/seam_bench.rb` (SEAM_BENCH_OK); the frozen
+  ```gates (bridge-absent + debridge-units RED-at-base in your tree until
+  built; the s-gates need tmux and scrub the six HERDR_* vars; canonical
+  short out dirs tmp/parity-gate-*; a deep-path s9 exit-1 is the known
+  artifact — record the equal-depth control, ten precedents).
+- `git diff --name-only 2943ef0d` + untracked = EXACTLY the 11-file set.
+
+## Output format
+
+build/I50-de-bridge-core/report.md: file-by-file table (line counts, delta
+directions), the verification transcript tails (suite + bench +
+bridge-absent + debridge-units + threads-budget + wire-bodies +
+session-golden + s-gates), PHASE 0 disagreements itemized (researched,
+cited), OQ notes (Grounds §6 — evidence welcome, never silent override),
+final line `STATUS: COMPLETE | COMPLETE_WITH_CONCERNS | BLOCKED — <why>`.
+
+## Effort
+
+`high` — intricate fiber-lifecycle work (rescue-ladder order, drainer
+shutdown races, zombie reaping) over a 1000-test parity suite; the builder
+model is zai/glm-5.3-flash per the owner directive, so the prompt embeds
+the exact shapes (the ladder, the drainer, the self-reap loop) to leave no
+design to chance.
 
 ## Acceptance Criteria
 
