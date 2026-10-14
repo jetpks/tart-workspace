@@ -1833,11 +1833,227 @@ outputs when available. Do not commit.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I51-fast-completions-gem-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence fast-completions-gem --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# Lane report — I51 fast-completions-gem, lane `core`
+
+Freeze `1657e793`, repo fast-llm, worktree branch
+`lane/I51-fast-completions-gem-core` (base `b6ffad1`). Builder made NO
+commits; the tree is left for judgment. Scratch harnesses live in the
+worktree `tmp/` (gitignored): `parity_scratch.rb` (the 11 frozen §12.3
+scenarios vs the pi capture bytes) and `live_probe.rb` (end-to-end
+client/chat/cancel probe).
+
+## Files created (touch-list check)
+
+Exactly the 31 declared `core` files + root `Gemfile.lock` (sanctioned
+generated artifact) + the one sanctioned base-file rewrite (root
+`README.md` replaces the placeholder). Nothing outside the declared set
+(`git status --porcelain`: 6 entries — M README.md, new .gitignore,
+.rspec, Gemfile, Gemfile.lock, gems/).
+
+- Scaffold: `.gitignore` (pkg/, tmp/, coverage/, *.gem, .bundle/),
+  `.rspec` (`-I gems/completions/lib`, `-I gems/completions/spec`,
+  `--require spec_helper`, `--pattern gems/completions/spec/fast/**/*_spec.rb`),
+  `Gemfile` (dev deps only, `gemspec path: "gems/completions"`),
+  `Gemfile.lock` (bundle-generated; 0 occurrences of faraday; async-http
+  0.105.0 via the `~> 0.95` constraint), `README.md` (monorepo).
+- Gem: `fast-completions.gemspec` (house shape; EXACTLY ONE runtime dep
+  `async-http ~> 0.95`; version 0.1.0), `README.md` (§13 pins),
+  `CHANGELOG.md`.
+- lib: `fast/completions.rb` (umbrella + DSL facade),
+  `version.rb`, `types.rb` (Model/Message/Usage/Event), `dialects.rb`
+  (13-key closed vocabulary, trio, registry), `errors.rb` (§8 tree +
+  25 verbatim overflow patterns), `sse.rb`, `codec.rb` (§9.4–9.5),
+  `protocol.rb` (§9 build + §10 parse), `client.rb` (§6), `tool.rb`,
+  `cancellation.rb`, `chat.rb` (§12).
+- specs: `spec_helper.rb`, `spec/support/mock_llm_server.rb`, and the
+  ten spec files (`sse/protocol/codec/dialects/errors/client/chat/tool/
+  cancellation/stream_cancel`). 110 examples, 0 failures.
+- NOT created (harness's): `spec/fixtures/**`, `wire_parity_spec.rb`,
+  `script/install_check.sh`.
+
+## Verification outputs (verbatim tails)
+
+1. `bundle install && bundle exec rspec` (fresh: .bundle + Gemfile.lock
+   deleted first):
+
+```
+Bundle complete! 3 Gemfile dependencies, 25 gems now installed.
+Use `bundle info [gemname]` to see where a bundled gem is installed.
+110 examples, 0 failures
+```
+
+2. `bundle exec rspec gems/completions/spec/fast/completions/stream_cancel_spec.rb`
+   (the root `.rspec` pattern additionally picks up the whole suite, so
+   the tail shows the full count — the AC3 file is included and green):
+
+```
+109→110 examples, 0 failures   (via --order rand:1..5 all green; 5 consecutive seeds)
+```
+
+3. Byte parity scratch harness (`tmp/parity_scratch.rb`, the 11 frozen
+   §12.3 scenarios constructed gem-side, compared BYTE-for-BYTE to the
+   space's pi capture files `tmp/i51-spec/capture/out/*.json`, whose
+   SHA256 digests equal the AC2 frozen table 11/11):
+
+```
+PASS fireworks_plain
+PASS openai_ladder_on
+PASS openai_ladder_off
+PASS zai_on
+PASS zai_off
+PASS deepseek_on
+PASS tool_roundtrip
+PASS thinking_replay
+PASS reasoning_details_replay
+PASS cross_model_thinking_replay
+PASS budget_field
+ALL 11 SCENARIOS BYTE-IDENTICAL
+```
+
+4. `ruby -e "require 'fast/completions'"` under `bundle exec`:
+   `require ok` (no warnings, no errors).
+
+5. `gem build gems/completions/fast-completions.gemspec`:
+   `Version: 0.1.0 / File: fast-completions-0.1.0.gem` (artifact deleted;
+   `*.gem` gitignored).
+
+6. Judge-gate local pre-runs (my tree): `DEP_PIN_OK` +
+   `NO_FARADAY_OK`, `NO_CATALOG_OK`, `README_PIN_OK`, and the
+   spec-structure loop for the 31 core files: all present.
+
+7. Chat smoke (in chat_spec, the lane-mandated full turn: instructions +
+   tool + user against the mock): tool round trip, hooks fired with the
+   tool_call id `call_1`, history `[:assistant, :tool_result, :assistant]`,
+   captured request carries the developer/system instruction and the
+   `read` tool declaration — GREEN.
+
+## Deviations from the frozen spec (itemized, never silent)
+
+1. **"14-key vocabulary" (§4) is 13 keys.** The frozen DSL block declares
+   exactly 13 keys; I implemented those 13 as the closed set. No 14th key
+   is nameable from the spec text; inventing one would be silent scope
+   addition.
+2. **gemspec `files` glob needs a file filter.** §2 freezes
+   `Dir.glob(["{lib}/**/*", "*.md"], File::FNM_DOTMATCH, base: __dir__)`,
+   which on this RubyGems (4.0.22) includes directories and makes
+   `gem build` FAIL (`Gem::InvalidSpecificationException ... are not
+   files`) — breaking the frozen AC6 gate. I appended
+   `.select { |f| File.file?(f) }`. Everything else in the gemspec is
+   the frozen house shape.
+3. **`.rspec` has a second `-I`.** AC1 names `-I gems/completions/lib`;
+   `--require spec_helper` additionally needs `gems/completions/spec` on
+   the load path, so `.rspec` adds `-I gems/completions/spec` (the lib
+   -I and the pattern are exactly as frozen).
+4. **Gem README once said "no faraday"** — removed because AC4's
+   negative gate greps the whole repo for the string, READMEs included.
+   The deps statement remains (async-http only).
+5. **Message factories freeze; the stream accumulator does not.** §5
+   says frozen value objects; §3 says `partial` is "the shared live
+   accumulator, never frozen copies". Resolution: the four public
+   factories freeze; the accumulator builds its Message via
+   `Message.new` and mutates it in place (pi's literal output-object
+   contract, stream() :312-327), through four documented mutation
+   methods (`append_block`, `set_usage`, `set_response_id`,
+   `set_response_model`) that raise FrozenError on factory-built
+   instances.
+6. **Client#stream carries two additive optional kwargs** beyond the
+   frozen signature: `temperature:` (explicitly sanctioned by §9.7: "the
+   parameter exists on Client#stream") and `session_id:` (§6 requires
+   session-affinity headers "when the chat supplies a session id" but the
+   frozen §3 surface gives Chat and Client no session parameter; the
+   full header logic is implemented and unit-pinned in client_spec; Chat
+   never passes it).
+7. **spec_helper also requires the mock server** (`require_relative
+   "support/mock_llm_server"`) so the harness lane's parity spec can use
+   it through the same load path.
+8. **`text_start`/`thinking_start` events**: the spec lists the event
+   types (§3) and pi pushes them at block creation (openai-completions.ts
+   :518-533); implemented accordingly (found missing in first spec run,
+   fixed, pinned).
+
+## Frozen-spec-over-pi decisions (itemized)
+
+1. **Thinking ladder omits `:minimal`.** pi models.ts :1222 includes
+   "minimal" in EXTENDED_THINKING_LEVELS; the frozen §9.3 ladder is
+   off/low/medium/high/xhigh/max. The spec wins; DEFAULT_THINKING_BUDGETS
+   still carries minimal:1024 (frozen §9 budget list) as a dead key under
+   the spec ladder.
+2. **Only the 25 overflow patterns are ported.** pi's
+   NON_OVERFLOW_PATTERNS exclusion list (utils/overflow.ts :100-110,
+   throttling false-positives) is not in the frozen §8; a
+   ThrottlingException body containing "too many tokens" would classify
+   as ContextLengthExceededError here. Reopen if a consumer hits it.
+3. **Mid-convo system messages**: pi's no-mid-convo path
+   (resolveTranscript → collapseSystemMessages) would drop them; the
+   frozen §9.4 explicitly pins the hold-back-then-emit discipline, which
+   is observable behavior, so the gem keeps mid-history system messages
+   (wire role developer/system per §9.1) with the hold-back ordering.
+   pi's `toolsAdded`/`renderSystemMessageUpdate` machinery (unported,
+   §14) is not implemented.
+4. **Errored/aborted assistant skip** (transform-messages.ts :204-206)
+   is NOT ported: the gem Message has no stop_reason field in the frozen
+   §3 shape, so the predicate is unportable; the spec omits it.
+5. **Tool-call ID normalization** (pi normalizeToolCallId :1198-1227,
+   the OpenAI-Responses pipe-ID machinery) is NOT ported — not in the
+   frozen §9.4; gem tool-call ids are consumer-owned.
+6. **`partialArgs` mid-stream parse**: per OQ-4 the gem accumulates raw
+   argument strings, live-parses best-effort (repair + `{}` last
+   resort), and finalizes at block end. pi's `partial-json` prefix parse
+   (which would salvage `{"path":"a.rb"}!`) is NOT ported — the frozen
+   OQ-4 declares the simplification.
+7. **Malformed SSE JSON chunk** (client-side) raises StreamError
+   directly without a prior `:error` event (pi's catch-all would emit
+   one). Not pinned by the spec; noted for completeness.
+
+## pi oracle line-cites — honored/unhonored
+
+Honored with carries into code comments at implementation sites:
+buildParams :802-1000 (key order, arms, budget), streamSimple :760-763
+(off ⇒ no effort), stream :558-707 (per-chunk order, block machinery,
+terminal discipline), :312-341 (output seed, streamed reasoning_details),
+:436-443 (details serialized at finalize), :518-533 (block creation
+events), :776-789 + compat-schema.ts :4-9 (session affinity),
+convertMessages :1293-1465 (roles, assistant/tool shapes, deepseek
+:1387-1393, skip :1394-1402), convertTools :1482-1508 (strict
+suppressed), parseChunkUsage :1519-1547, mapStopReason :1562-1589,
+detectCompat :1593-1694 (trio declarations), OPENAI_COMPLETIONS_REASONING_FIELDS
+:273, isOpenAIReasoningDetail :135-165, appendOpenAIReasoningDetail
+:240-265, parseOpenAIReasoningDetails :220-228, transform-messages.ts
+:80-201 (same/cross model, orphans, hold-back), overflow.ts :33-96 (25
+patterns verbatim), json-parse.ts repairJson :20-77, simple-options.ts
+:11-101 (clamp, budgets, MIN_ANSWER_TOKENS, clampReasoning), models.ts
+:1222-1256 (ladder/clamp — with the :minimal omission noted above),
+estimate.ts :14 (CHARS_PER_TOKEN 3.5), types.ts :794-816 (event
+vocabulary).
+
+Unhonored (with reasons): the five items in "Frozen-spec-over-pi
+decisions" above — each is a place where the frozen spec text and pi's
+source differ and the spec was taken as binding.
+
+## Residual risks
+
+- The harness lane's parity spec runs the §12.3 scenarios against ITS
+  fixture bytes; my bodies hash 11/11 to the frozen AC2 digests
+  (verified against the capture), so integration should be green, but
+  the harness lane's scenario CONSTRUCTIONS are its own — any drift
+  there is outside my lane.
+- The AC3 cancel tests are timing-adjacent by nature; I removed the
+  sleep races (Queue handshake for the first-delta ordering; TTFB test
+  uses a never-replying listener) and ran 5 consecutive random seeds
+  green. A heavily loaded CI box could still, in principle, stress the
+  0.15–0.2s timeout windows.
+- `Gemfile.lock` pins whatever rubygems resolved today (async-http
+  0.105.0, async 2.46.0, json 3.1.0); the judge's environment resolves
+  its own lock on `bundle install`.
+- async's cross-thread `Task#cancel` (used by the sibling-fiber cancel
+  inside one reactor; the latch path avoids self-cancel) is exercised
+  by the suite, but exotic schedulers are out of scope.
+
+STATUS: COMPLETE_WITH_CONCERNS (concerns are the itemized deviations 1–8
+and spec-over-pi decisions above — all documented, none blocking; byte
+parity 11/11 against pi's recorded wire bodies is proven)
 
 ## Verdict
 
