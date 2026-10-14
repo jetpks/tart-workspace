@@ -1507,15 +1507,192 @@ STATUS: COMPLETE_WITH_CONCERNS
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section steering-queue verdict --from <file>`. -->
+# Verdict — I54 steering-queue (judged in a fresh session, cold)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify steering-queue`)?
+Judge: never built nor graded this work. Mechanical post-flight first:
+`architect verify` all-PASS (frozen untouched, no builder commits, report
+exists, in-bounds); the only post-freeze diff to the iteration file is the
+sanctioned Builder Prompt append (commit f2d3d95); `git log 1a8ea77..` EMPTY
+in the lane worktree. `architect evidence --lane core` transcribed (8a55e3b).
+Gates run COLD twice: bare worktree (environment-conditioned failures — the
+Gemfile's relative `../fast-llm` is unresolvable at worktree depth, the
+I52-reported class) and with `FAST_COMPLETIONS_PATH` exported (the I52
+precedent form). Reading of the actual diff against the Specification's
+intent done in full (loop.rb, chat.rb, editor.rb, commands.rb, runner.rb,
+scenario.rb, both scenario YAMLs verbatim, all test diffs).
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+## The two NEW-gate adjudications (the exception file, I52 D4 precedent)
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+Both s12-parity and s13-parity were designed-RED at base (pre-freeze
+calibration: "exit 2 — no such scenario file") — their post-assertion shapes
+were NEVER exercisable before freeze. Both premises are judge-verified
+falsified:
+
+- **s12-parity — PASS with ratified deviation (mechanical correction).** The
+  rig arm is fully green (exit 0: both apps 2/2 requests, screens
+  text-identical, SGR-identical, only sanctioned classes parity-run-path +
+  footer-provider-prefix). The post-assertion's `users.last["content"] ==
+  steer` (bare-string equality) is falsified for pi BY PI: `_queueSteer`
+  serializes user content as a parts array
+  (`[{"type"=>"text","text"=>…}]`, agent-session.ts:2244-2256 — judge-read
+  in the oracle source; both live request logs carry the shape). Judge-rerun
+  with the shape normalized (`content.map { |p| p["text"] }.join` when
+  Array): **both apps MATCH** — the gate's substance (2 requests both apps,
+  the steering text IS request 2's trailing user message in both apps) holds
+  completely. Delta: one assertion's comparison form. Mechanical correction
+  recorded: normalize before equality. No lane work needed.
+- **s13-parity — PASS with ratified deviation (amendment REQUIRED, recorded
+  below).** The gate's SAFETY arm — no command text reaches the model — is
+  satisfied for BOTH apps (judge-verified from the live request logs: pi
+  zero "/thinking" across both requests; cured tart 1 request, zero). The
+  count arm (`expected_requests: 2` / `lines.size == 2` both apps) encodes a
+  shape that never existed. Judge-verified LIVE at pristine base 1a8ea77
+  (`--tart-dir repos/tart`): the OLD port makes 2 requests with request 2
+  user content `["hello", "/thinking off"]` — the leak, correctly RED via
+  the leak-abort. The CURED port makes exactly 1 clean request (dispatch
+  busy-or-not, nothing queued, the finish-less slow_stream completes via
+  I52's frozen `supports_finish_reason: false` inference — models.rb
+  untouched, diff 0 bytes). pi makes 2 ONLY through an error+retry artifact
+  (the mock's `slow_deltas` emits no finish_reason → pi renders `Error:
+  Stream ended without finish_reason` and retries; request 2 = the same
+  "hello" context). The spec's own old-port trace mis-predicted the base
+  ("the steer opens request 3" — the leak consumes request 2, judge-observed).
+  Additionally: pi's Enter never reached onSubmit for the command (pi's
+  slash-command autocomplete intercepts Enter-to-apply; the settled pi
+  editor RETAINS "/thinking off" — dispatch never happened in pi), so the
+  scenario does not exercise pi's busy-dispatch at all, and the settled
+  screens differ by rows no frozen mechanism can sanction (pi's Error +
+  retry-reply rows — mock artifacts; tart's persistent `Thinking level: off`
+  row — pi shows only a transient status).
+
+  **Standing requirement for the next spec session / owner (NOT improvised
+  in-lane; the mock's one-additive-method cap, the frozen registry, and
+  models.rb all block in-lane resolution):** re-calibrate s13 as either
+  (a) per-app expected requests (pi 2 via its retry, tart 1 clean) + a
+  registry class or scenario change for the level-row/Error-row difference,
+  or (b) a finish_reason-carrying slow pacer (a SECOND mock method — needs
+  the cap lifted) so both apps make exactly 1 clean request and the screens
+  converge, or (c) retirement of s13 in favor of a redesigned
+  command-while-busy scenario (Escape-before-Enter to close pi's
+  autocomplete; the count then reflects pi's true single-request shape).
+  Until amended, s13-parity stays RED in any cold battery that includes it;
+  its safety property is nonetheless demonstrated by the request logs.
+
+## Gate table (cold, worktree, FAST_COMPLETIONS_PATH exported)
+
+| Gate | AC | Mechanical | Adjudication |
+|---|---|---|---|
+| steering-units | AC1 | PASS | PASS — 4 runs + I03 pin green, unmodified |
+| surface-units | AC2 | PASS | PASS — 7 runs + set_text pin green |
+| s12-parity | AC4 | FAIL (pi arm, exit 1) | PASS w/ ratified deviation — parts-array falsifies bare-string equality; normalized both MATCH; rig exit 0 |
+| s13-parity | AC4 | FAIL (exit 2: tart 1≠2) | PASS w/ ratified deviation — leak arm holds both apps live; count arm encodes the leak-era shape; amendment recorded |
+| suite | AC5 | PASS | PASS — 1056 runs, 4960 assertions, 0 failures, 1 pre-existing skip (base 1044 + exactly 12 new pins) |
+| bench | AC5 | PASS | PASS — SEAM_BENCH_OK |
+| s1–s10 | AC5 | PASS ×10 | PASS — all exit 0 (s9's deep-path artifact did NOT reproduce this run) |
+| s1-tart-mode | AC5 | PASS | PASS — TART_MODE_OK |
+| tool-pending-gate | AC5 | PASS | PASS — TOOL_PENDING_GATE_OK |
+| user-bash-stream-gate | AC5 | PASS | PASS — USER_BASH_STREAM_GATE_OK |
+| thinking-pins | AC5 | PASS | PASS — THINKING_PINS_OK |
+| hermeticity | AC5 | PASS | PASS — HERMETICITY_OK |
+| lock-deps | AC5 | FAIL (exit 13) | ENV-CONDITIONED — the `env -u FAST_COMPLETIONS_PATH bundle install` leg cannot resolve the relative gem path at worktree depth; Gemfile.lock byte-identical (diff 0); re-run at canonical depth post-integrate |
+| zai-data | AC5 | PASS | PASS — ZAI_DATA_OK |
+| threads-budget | AC5 | PASS | PASS — THREADS_BUDGET_OK, no new Thread.new in lib |
+| wire-delta | AC5 | FAIL | DEPTH ARTIFACT — instruction sha `58ac97d1…` (the documented s9-family wrap: the instruction embeds the absolute sandbox cwd); canonical-depth post-integrate run is the truth |
+| session-golden | AC5 | PASS | PASS — SESSION_GOLDEN_OK 7/7 |
+| scope | AC6 | FAIL (vacuous) | STRUCTURAL — `1a8ea77..HEAD` is empty pre-integrate (builders never commit); working-tree form = exactly the 13 declared files (judge-verified); re-run post-integrate |
+
+Post-integrate canonical-depth re-run recorded in the integrate record.
+
+## PHASE 0 rulings (every item the builders raised)
+
+- **Deviation 1 (s13 gate unsatisfiable for the cured port) — ACCEPT,
+  RATIFIED** (the D4 precedent): premise judge-falsified live at base and
+  in the lane; the cure is the deliverable, the letter encoded the bug's
+  request count. Amendment recorded above; not improvised.
+- **Deviation 2 (s12 gate's pi arm) — ACCEPT, RATIFIED**: falsified by the
+  oracle's own wire serialization; mechanical normalization recorded.
+- **Deviation 3 (outer break realized as consume-and-HOLD) — ACCEPT,
+  RATIFIED**: the frozen letter `break if steering_messages.empty? &&
+  follow_up_messages.empty?` calls the DRAINING method — it would EAT a
+  follow-up in the wind-down window (builder observed live: no delivery).
+  The realized form is pi's pendingMessages hold (agent-loop.ts :295→
+  :212-220, :302-308); the I03-locked pin stayed green unmodified.
+- **Deviation 4 (submit_follow_up expands skills/templates) — ACCEPT**:
+  Spec §2.4 omitted it, but pi's prompt() expands before queueing
+  (agent-session.ts:2005-2010) and alt+enter routes through it; the builtin
+  dispatch/thinking gate/!-bash intercept correctly skip (pi's
+  handleFollowUp skips the if-chain).
+- **Deviation 5 (I13-era pin REPLACED: test_slash_text_while_running_steers_
+  like_any_message) — ACCEPT**: the pin asserted the exact behavior this
+  iteration removes ("/compact mid-turn steers"); it HANGS under the new
+  law (the interrupt path means request 2 never arrives). Coverage replaced
+  by the two defers pins + the thinking-busy pin. Itemized, not silent.
+- **Deviation 6 (InterruptKernel load order) — ACCEPT**: cosmetic.
+- **Exception items (mock one-method cap held: +7 lines exactly;
+  models.rb untouched; gates landed verbatim, never edited to pass) —
+  VERIFIED.**
+
+## The four frozen open questions (Grounds §6/§7)
+
+- **OQ-1 (/compact + /new interrupt-then-re-dispatch) — ACCEPT.** The port
+  has no await-abort seam on its fiber kernel; `busy_command_arm` →
+  `interrupt_work!` + stored text → `:agent_end` re-dispatch through the
+  EXACT idle paths (kernel.async, wind-down skipped) is the faithful
+  realization of pi's abort-then-act (session.compact :2764-2765, runtime
+  :167-178). Both defers pins green; nothing ever reaches the model.
+- **OQ-2 (drain-all vs pi's one-at-a-time QueueMode) — ACCEPT the recorded
+  reduction.** pi's steeringMode/followUpMode are SETTINGS (default
+  one-at-a-time) the port has not ported; porting them is settings-scope
+  creep (Grounds non-goal). Arrival order preserved; delivery-point
+  property pinned.
+- **OQ-3 (idle-submit echo at submit-time) — ACCEPT.** Observably
+  equivalent for idle (event lands within one frame); the busy path — the
+  actual finding-5 surface — echoes AT DELIVERY exactly like pi. Keeps the
+  stub-agent test family intact.
+- **OQ-4 ("Option+Up" spelling cut) — ACCEPT.** The port targets Linux
+  (pi's darwin spelling is a keybinding-hints concern); D7 froze the
+  startup-help rows out, so the queue block's `↳ Alt+Up …` hint is the
+  discoverable surface. No runtime key-spelling registry in scope.
+
+## AC scores
+
+- **AC1 PASS** — steering-units green; mid-round delivery (2 requests, no
+  second agent_start, steering = request 2's trailing user message AFTER
+  the tool result), follow-up timing (3 requests, none on the complete
+  answer), delivery-point JSONL roles [user, assistant, tool, user,
+  assistant], clear_queues/snapshots, I03-locked deviation un-regressed.
+- **AC2 PASS** — /thinking off busy EXECUTES + queues nothing (unit) and
+  lives clean (s13: 1 request, zero leak, `Thinking level: off` rendered);
+  /compact + /new abort-first deferral pinned both; compaction submit
+  steers + flashes pi's text; expansion before queue.
+- **AC3 PASS** — the pending block (blank + dim Steering/Follow-up rows +
+  dim hint) renders between dock spacer and editor; transcript yields,
+  editor/footer never move (pinned geometry); delivery removes + echoes;
+  alt+enter busy=idle split; alt+up restore via set_text; newline keys
+  re-pinned; s12 settled screens IDENTICAL (rig exit 0).
+- **AC4 PASS with the two ratified gate deviations** (above); the
+  discriminations D11 designed (old 3-vs-2 for s12; old leak for s13) are
+  live-verified by the judge at base.
+- **AC5 PASS** — every standing gate green cold in the lane-conditioned
+  run; the three mechanical FAILs (lock-deps, wire-delta, scope) are
+  worktree-depth/pre-integrate artifacts, re-verified at canonical depth
+  post-integrate (see the integrate record).
+- **AC6 PASS** — exactly the 13 declared files; Gemfile.lock byte-identical;
+  no existing scenario/golden/fixture/registry/differ/probe touched; README
+  = the three keybinding rows only; mock = the ONE additive method.
+
+## Residual risks
+
+- The s13-parity gate stays RED in any future cold battery until the
+  amendment lands (recorded above — owner decision on option a/b/c).
+- pi's slash-autocomplete interception of mid_run_keys Enter: any future
+  scenario driving a pi slash-command mid-run needs Escape-before-Enter
+  (or char-paced keys) — recorded for the rig's scenario authors.
+- Dequeue while a suggestion list is open leaves the stale list (the
+  surface/editor seam split; pi cancels inside setText) — itemized by the
+  builder, unfixed per the frozen split; minor UX edge.
+- The wire-delta/session-golden gates remain depth-sensitive (instruction
+  embeds the absolute cwd); canonical-depth runs are the truth (both
+  provided by the builder; re-run post-integrate by the judge).
+
+VERDICT: **CONTINUE** — integrate lane `core`.

@@ -2198,7 +2198,7 @@ project:
     ordinal: 54
     file: architecture/I54-steering-queue.md
     freeze_sha: 0b03de52c820669a19fe0df9a8090371f20007ca
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
@@ -2216,6 +2216,13 @@ project:
       - gems/tui-split-rig/scenarios/s12_steering_mid_round.yml
       - gems/tui-split-rig/scenarios/s13_command_while_streaming.yml
       - README.md
+      base_sha: 1a8ea775f79c2e38330f7124daff58750d62277a
+      worktree: build/I54-steering-queue-core/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: 1f653eeb2d22b27b39112050b9aaa1d483de9467e07107c4f609eb3164f2ac48
       at: '2026-10-14T06:18:35-06:00'
