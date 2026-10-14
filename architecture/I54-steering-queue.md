@@ -1160,10 +1160,126 @@ fix before freeze.
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I54-steering-queue-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section steering-queue prompt --append --lane <lane> --from build/I54-steering-queue-<lane>/prompt.md`. -->
+# Builder Prompt — I54 steering-queue, lane `core`
+
+You are lane `core` of iteration I54 (steering-queue), freeze
+`0b03de5`, repo **tart** (your worktree; branch
+`lane/I54-steering-queue-core`). The frozen iteration file is
+`architecture/I54-steering-queue.md` in the space — Grounds,
+Specification, Acceptance Criteria are read-only truth; § cites below
+are that file's. Identical space-staged copies sit at
+`build/I54-steering-queue-core/{grounds,specification,
+acceptance-criteria}.md`.
+
+## Mission
+
+Close the owner's live-run findings 4, 5, 7 (problems.md): slash
+commands dispatch busy-or-not (`/thinking` while streaming executes,
+never queues to the model — today the `!busy?` gates at
+lib/tart/render/chat.rb:961-962 make EVERY command fall through to
+`push_message`); queued messages render as pi's dim
+`Steering:`/`Follow-up:` rows above the editor with the
+`↳ Alt+Up to edit all queued messages` hint; steering delivers INSIDE
+the tool round (after the batch, before the next LLM call of the SAME
+run — pi agent-loop.ts:295 + :212-220, the Grounds §2 trace
+verification) instead of at round end. Plus pi's followUp mode
+(delivered only at full completion), alt+enter/alt+up keybinds, and the
+compaction-time submit disposition. The queue splits into steer +
+followUp in the agent layer; session recording carries queued messages
+as user messages at their actual delivery points.
+
+## THE LAWS YOU MUST INTERNALIZE (Grounds + Specification, condensed)
+
+1. **No golden moves.** NOT ONE wire byte of the existing scenarios may
+   change; new behaviors get NEW scenarios (s12/s13) and their fresh
+   baselines, NEVER edits to s1–s10/probes/registry/differ/fixtures.
+   The wire-delta + session-golden gates are byte-frozen (I52's exact
+   literals — copy them verbatim; the AC block already does).
+2. **The drain points are frozen 1:1 to pi's** (Spec §1.3): the NEW
+   tool-batch arm drains AFTER the terminate-ledger consult; the
+   complete? arm stays; the no-prompt opening drains steer-else-
+   followUp; the outer break checks both. The I03-locked pre-run
+   deviation (push-then-prompt = second request) is NOT reopened — its
+   pin must stay green unmodified.
+3. **pi's submit order** (Spec §2): expansion BEFORE queue; the
+   `/thinking` gate and dispatch run busy-or-not; `/compact` and `/new`
+   while busy take the abort-first arm (interrupt_work! + the deferred
+   re-dispatch at agent_end — Spec §2.2/§2.6, the port's realization of
+   pi's session.compact/newSession aborts); everything else dispatches
+   immediately.
+4. **The surface mirror is pi's two-level shape** (Spec §3): mirror
+   arrays on the surface + the loop's queues; delivery removes by
+   first-index text match at :message_start user-role and echoes the
+   user submission AT DELIVERY (the idle submit keeps today's
+   submit-time echo — Spec D5); alt+enter flips from newline to
+   followUp (idle = submit, pi interactive-mode.ts:4497-4504; the
+   existing alt+enter-newline pin is re-pinned); alt+up restores
+   queued-then-current joined "\n\n" via the NEW `Editor#set_text`
+   (pi setText discipline, cursor at end, undo snapshot) and NEVER
+   aborts.
+5. **The startup-help hint rows are FROZEN OUT** (Grounds D7): adding
+   `to queue follow-up`/`to edit all queued messages` rows to the
+   expanded help would move s9's settled-screen golden. Do not touch
+   motd.rb.
+6. **Rig determinism** (Spec §6): s12's tool call itself sleeps
+   (`sleep 1.5 && echo …`) — that is the steering window; s13 rides
+   `:slow_stream` (0.1 s/char). The runner's `mid_run_keys` knob polls
+   the mock's NEW non-draining `request_count`; `captured_request_logs`
+   semantics are untouched. Old-port discrimination is the request
+   COUNT (3 vs 2).
+7. `/thinking off` (NOT another level) in s13: the rig's mock-1 is
+   reasoning:false, so both apps' gates offer only `off` (pi
+   models.ts:1224-1226) — the command EXECUTES in both apps.
+
+## Boundaries (frozen — the lane's whole touch set)
+
+May touch ONLY: `lib/tart/agent/loop.rb`, `lib/tart/render/chat.rb`,
+`lib/tart/render/editor.rb`, `lib/tart/commands.rb` (comment accuracy
+only, Spec §5), `test/support/mock_llm_server.rb` (ONE additive method),
+`test/agent_loop_test.rb`, `test/chat_test.rb`,
+`test/render/editor_test.rb`,
+`gems/tui-split-rig/lib/tui_split_rig/{scenario,runner}.rb`,
+`gems/tui-split-rig/scenarios/s12_steering_mid_round.yml` (NEW),
+`gems/tui-split-rig/scenarios/s13_command_while_streaming.yml` (NEW),
+`README.md` (keybinding rows only, Spec §8). Must NOT touch: existing
+scenarios/registry/differ/probes, the wire/session digest fixtures and
+assertions, `lib/tart/agent/chat.rb` + `message.rb`, transcript.rb,
+session/print/subagents/herdr/hooks/mcp/tools/settings/models, bin/tart,
+motd.rb, repos/fast-llm, repos/pi. No new `Thread.new` in lib.
+
+## Verification (run cold, from your worktree root)
+
+- `bundle install --quiet && bundle exec rake` — the suite (with the
+  §7 re-pins: chat_test :1404/:2976 stubs `push_message`→`steer`,
+  :4104-4120 alt+enter).
+- `bundle exec ruby bench/seam_bench.rb | tail -1` → SEAM_BENCH_OK.
+- Rig, per scenario:
+  `env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/<name>.yml --out tmp/<dir>`
+  — s1–s10 exit 0, s1_tart exits 1 by design (assert TART_MODE_OK per
+  the AC gate), s12/s13 exit 0 BOTH apps with the request-log
+  assertions the AC gates encode. Baseline s12/s13 fresh (first green
+  captures are the goldens).
+- Both probes `--gate`. The full AC gate list is the frozen ```gates
+  block — your lane's own cold pre-report run should mirror it.
+- s9 in your LANE WORKTREE may exit 1 with the KNOWN deep-path
+  staged-path wrap artifact (12+ precedents: pristine base fails
+  identically at a same-depth path; the canonical-depth run is the
+  truth). Do not chase it in-lane; report it.
+
+## Report + discipline
+
+Report at `build/I54-steering-queue-core/report.md`: per-AC results
+with exact commands + tail outputs, the s12/s13 out dirs, the re-pin
+list with reasons, deviations itemized with pi cites, residuals.
+Builders NEVER commit — leave the work in the worktree; the integrator
+commits. If you hit a frozen-contract contradiction you cannot resolve
+inside your touch set, STOP and write `build/loop/exception-<UTC
+timestamp>.md` with raw facts (never silent improvisation). Give every
+long command an explicit timeout; do not block on contact_supervisor.
+
+Effort: high — the loop rework, the surface seams, and the rig
+extension are one coupled change; the frozen net is heavy; precision
+beats speed.
 
 ## Builder Report
 
