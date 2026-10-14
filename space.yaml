@@ -67,7 +67,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: fast-completions-gem
+  current_iteration: fast-completions-integration
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -2075,4 +2075,10 @@ project:
     rehearsal:
       gates_digest: 26b0f7b47113237e3034d5043bcd708eb6f431088eb46888c65dd88df142acdf
       at: '2026-10-13T20:25:49-06:00'
+  - name: fast-completions-integration
+    ordinal: 52
+    file: architecture/I52-fast-completions-integration.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: main
