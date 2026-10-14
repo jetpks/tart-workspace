@@ -2134,12 +2134,13 @@ project:
       - test/render/transcript_test.rb
       - README.md
       base_sha: fb830d60c62feb24e3d141d0b6ca6f678c2cc285
-      worktree: build/I52-fast-completions-integration-core/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 2dceef30090f34ac04df7bdba0b0ab35c2464868
     rehearsal:
       gates_digest: beb106ef26e668ca61ec2920d04a4551987e76f300f6dea3df69b4fad6f70a22
       at: '2026-10-13T23:42:23-06:00'
