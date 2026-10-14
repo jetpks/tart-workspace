@@ -1694,3 +1694,31 @@ surfaced.
    `after_ids == %w[c1]` — ratified (it pins the OQ-4/OQ-1 ruling);
    strictly stronger than the letter, not weaker.
 5. Docs are not in the .gem (OQ-3) — the human's landing-time call.
+
+### Integrate record (judge, appended post-integration)
+
+- Integrated BOTH lanes in declaration order: `concurrency` (lane commit
+  `1ca319f` merged `--no-ff` as `14e5650`), then `docs` (lane commit
+  `886e30a` merged `--no-ff` as `d0349ec` = the iteration tip).
+  Teardown complete (both lane worktrees + lane branches removed;
+  prompt/report provenance retained under build/).
+- **Integration-target correction (honest history, the I50/I52 class):**
+  the lanes' `integration_branch` was left EMPTY at provision, so the
+  integrator fell back to the project-level default and created a
+  `project/pi-port` branch in fast-llm. The owner's branch is `main`
+  (the 4736ddc README commit sits on it; I51's lane recorded
+  `integration_branch: main` explicitly). Judge correction: fast-llm
+  `main` fast-forwarded to `d0349ec` (identical topology), the side
+  branch deleted, space.yaml's two I53 lane entries set to `main`
+  (space commit `455b0ea`). Lane integrate_shas unchanged.
+- Post-integrate cold gate re-run on the integrated tree: **11/11 PASS**
+  (identical to the pre-verdict integrated-equivalent run); scope
+  SCOPE_OK 19 files; full suite 133/0. One JUDGE FIX committed on main
+  (`33571e1`): tools.md documents the ArgumentError dispatch-boundary
+  carve-out (the OQ-2/D-3 ruling — the page had said any other
+  StandardError isolates); docs-links re-run green after it.
+- fast-llm `main` after integrate: **`33571e1`** (d0349ec + the judge
+  fix). Nothing pushed — publish/push/release tags stay the human's.
+- Program close: **GEM POLISH COMPLETE** (its single entry judged
+  CONTINUE + integrated). Next program per the owner's ruled order:
+  live-run rev3 (notes/plan-20261014T031751Z.md).
