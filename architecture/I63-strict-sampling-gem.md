@@ -9,11 +9,185 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section strict-sampling-gem grounds --from <file>`. -->
+**The defect (owner live-run, root-caused 2026-10-15; `problems.md` @ 1b69ddb).**
+A live tart session ran `architect looplog 2>&1 | head -20` and hung forever —
+looplog is follow-forever and the quiescent space never produces 20 lines. The
+first-blush theory ("tart's bash tool lacks pi's default timeout") is FALSE:
+neither harness has a default bash timeout (pi `resolveTimeoutMs(undefined)`
+→ undefined, verified in installed 1.1.0/1.2.0 and `repos/pi`; empirical pi-SDK
+`sleep 320` with no timeout ran to 320.0s). The real parity gap: **pi's
+constrained-sampling (strict tools) wire layer is unimplemented in
+tart/fast-llm.** pi tags its bash tool `constrainedSampling {type:"json_schema",
+strict:"prefer"}`; zai glm-5.3's compat carries `supportsStrictMode: true`
+(`repos/pi/packages/ai/src/providers/data/zai.json` — both glm-5.3 compat
+shapes), so pi's `makeStrictJsonSchema` rewrites every declared tool schema to
+force property emission (ALL properties required; optionals wrapped
+`anyOf:[property,{type:"null"}]`; `additionalProperties:false`) and `strict:
+true` rides the tool — glm MUST emit `timeout` on every bash call. A/B
+evidence: same model+command via `pi -p` emitted `timeout:60`, died at 60s, and
+the model recovered with bounded re-runs (140s total); the live tart session
+(2026-10-15T22-13-25) omitted `timeout` on 8/8 bash calls. Today the gem sends
+parameters VERBATIM with no strict key (protocol.rb `apply_tools` :72-87, by
+design since I51) and the Tool DSL has no constrained-sampling seam. Blast
+radius: every optional parameter of every tool on strict-capable providers
+(read `offset`/`limit`, …), not just bash `timeout`. This iteration is the
+fix's substance on the gem side; BRIEF §7.8 exact-parity bar, §8
+itemize-and-defend for every deviation.
+
+**The pi source of record (`repos/pi` @ `f1b2e77f5`; the installed
+pi-coding-agent 1.2.0 dist verified identical for this surface during
+root-causing).**
+
+- `packages/ai/src/api/constrained-sampling.ts` (entire file, 298 lines — the
+  JSON-schema half; the grammar half is OUT, see Boundaries):
+  - `UNSUPPORTED_STRICT_SCHEMA_KEYS` — exactly 20 keys, frozen order: `$ref`,
+    `$defs`, `definitions`, `allOf`, `oneOf`, `patternProperties`,
+    `dependentSchemas`, `dependencies`, `unevaluatedProperties`,
+    `propertyNames`, `contains`, `prefixItems`, `not`, `if`, `then`, `else`.
+    A node carrying ANY of them (value `!== undefined`) throws
+    `<key> schemas are unsupported` (first present key in list order).
+  - `schemaAllowsNull(schema)` — true when `type` is/contains `"null"`, or
+    `const === null`, or `enum` (array) contains `null`, or `anyOf` (array)
+    has any variant that allows null.
+  - `makeJsonSchemaNodeStrict` (recursive, IN PLACE on the cloned node;
+    check order is observable through which message throws first): (1) a node
+    that is not a plain object (boolean schemas, null, arrays, scalars)
+    throws `boolean schemas are unsupported`; (2) unsupported keys (above);
+    (3) the optional provider-keyword hook `isUnsupportedKeyword` (NOT
+    ported — pi's own call site passes none; see Specification R2);
+    (4) `anyOf` must be a non-empty array (else `anyOf must contain at least
+    one schema`), every variant must be NON-structured (`isStructuredSchema`:
+    type includes `"object"` or `"array"`, or `properties`/`items` defined —
+    else `object and array unions are unsupported`) and recurses; (5) `items`
+    must not be an array (else `tuple schemas are unsupported`) and recurses;
+    (6) `properties` defined without `type === "object"` throws `properties
+    require type object`; non-object-typed nodes RETURN here; (7)
+    `additionalProperties` defined and not `false` throws `schema-valued or
+    true additionalProperties is unsupported`; (8) `properties` defined and
+    not a plain object throws `object properties must be a schema map`;
+    (9) `required` defined and not an all-string array throws `object
+    required must be a string array`; (10) every `required` entry must name a
+    property (else `required contains an unknown property`); (11) per
+    property: recurse FIRST, then if the property is not required and does
+    not allow null, wrap it `{"anyOf": [property, {"type": "null"}]}`
+    (reassignment keeps the key's hash position in both JS and Ruby);
+    (12) finally `required` = ALL property names (existing key keeps its
+    position) and `additionalProperties = false` (absent key appends).
+  - `makeStrictJsonSchema` — `structuredClone` FIRST (the caller's schema
+    object is NEVER mutated), then a non-plain-object root throws `root
+    schema must have type object` (note: at ROOT the message differs from
+    the nested `boolean schemas…` arm), node-strict recursion, then the
+    root's `type` must equal `"object"` (same message).
+  - `resolveJsonSchemaStrictSampling(tool, supportsStrictMode)` — config
+    absent or not `json_schema` → undefined; on a strict-capable provider:
+    try the strict rewrite → `true`; on `UnsupportedStrictJsonSchemaError`:
+    `strict !== "require"` → undefined (silent loose fallback), `require` →
+    raises `Tool "<name>" requires JSON-schema constrained sampling, but
+    <reason>.` (the inner reason has no trailing period; the template adds
+    it); on a non-strict provider: `require` → raises `Tool "<name>"
+    requires JSON-schema constrained sampling, but strict tools are
+    unsupported.` (trailing period), else undefined. Only the unsupported-
+    schema class is caught — any other error propagates.
+- `packages/ai/src/api/openai-completions.ts` `convertTools` :1483-1518: per
+  function tool, `strict = resolveJsonSchemaStrictSampling(tool,
+  compat.supportsStrictMode !== false)`; `parameters = getJsonSchemaToolParameters`
+  (strict === true → the strict rewrite, else the declared schema VERBATIM);
+  the function object carries `strict: strict ?? false` — the EXPLICIT key
+  on EVERY function tool when the provider supports strict mode (declared →
+  `true`, undeclared/loose → `false`), and NO strict key ever otherwise
+  ("Some reject unknown fields"). Key order in the function object: name,
+  description, parameters, strict.
+- `detectCompat` :1670-1680: default `supportsStrictMode: false` —
+  "OpenAI compatibility alone does not imply strict JSON-schema tool
+  support"; `getCompat` :1334 merges `model.compat.supportsStrictMode ??
+  detected.supportsStrictMode` (the catalog declares it per model; zai's
+  glm-5.3 compat shapes carry `true`).
+- `packages/ai/src/types.ts` :736-754: `ConstrainedSamplingConfig` = `{
+  type: "json_schema", strict: "prefer" | "require" }`; `Tool.
+  constrainedSampling?: false | ConstrainedSamplingConfig` (optional,
+  explicit `false` allowed).
+- The four core tools pi tags (`bash.ts:260`, `read.ts:101`, `edit.ts:156`,
+  `write.ts:57` — all `{type:"json_schema", strict:"prefer"}`) are ENTRY 2's
+  tart-side consumption, NOT this iteration's.
+
+**Fresh evidence captured this session (the two frozen wire fixtures).** The
+I51 capture discipline re-run hermetically against the installed pi-ai dist
+(1.2.0 — same compiled-wire class the parity rig runs; driver at
+`tmp/i63-spec/capture/CAPTURE-STRICT.mjs`, modeled line-for-line on
+`spec/fixtures/wire/CAPTURE.mjs`, mock provider + explicit
+`compat.supportsStrictMode: true`, the same §12.3 read tool):
+- `zai_strict_tool` — read declared `{type:"json_schema", strict:"prefer"}`:
+  wire tools = `[{"type":"function","function":{"name":"read","description":
+  "Read file contents.","parameters":{"type":"object","required":["path",
+  "offset"],"properties":{"path":{"type":"string"},"offset":{"anyOf":[{"type":
+  "number"},{"type":"null"}]}},"additionalProperties":false},"strict":true}}]`
+  — SHA256 `d7470202a2f66216b3d0381bb18d3c5c29082e5c334b7fb87c2410d65ce824a8`.
+- `zai_strict_undeclared` — same dialect, undeclared tool: parameters
+  VERBATIM (`required:["path"]`, bare `offset`), `"strict":false` — SHA256
+  `fead3755e34689d502cbb865d6d424ccc84b4453d8724aa8fee713f9516a60c9`.
+Fixture bytes live at `tmp/i63-spec/capture/out/` (committed by the builder
+into `spec/fixtures/wire/` with the provenance driver).
+
+**Gem seams at base (fast-llm `main` @ `6ceba1f`; base suite measured this
+session: 174 examples, 0 failures).**
+
+- `lib/fast/completions/dialects.rb` — the CLOSED 13-key `VOCABULARY`
+  (insertion order = canonical `to_h` order), defaults = the plain arm,
+  unknown keys/values raise `ArgumentError` at declaration; the shipped trio
+  `:zai`/`:deepseek`/`:fireworks` as declarations; `:zai` carries the I46
+  five-key subset + store suppression. `supports_strict_mode` enters the
+  vocabulary (default `false`, boolean) as the 14th key; `:zai` gains
+  `supports_strict_mode true`; `:deepseek`/`:fireworks`/the default stay
+  false.
+- `lib/fast/completions/tool.rb` — class-level DSL `description` /
+  `tool_name` / `parameters` (default `{"type"=>"object","properties"=>{}}`);
+  gains `constrained_sampling` (default nil; `false` or the mirrored
+  `{type:"json_schema", strict:"prefer"|"require"}` shape; anything else
+  raises at declaration time — the fail-loud discipline).
+- `lib/fast/completions/protocol.rb` `apply_tools` :72-87 — the wire seam;
+  today's §9.8 comment ("parameters VERBATIM — the consumer's schema is the
+  bytes") is AMENDED deliberately, not deleted: verbatim stays the default
+  for undeclared tools and non-strict dialects.
+- `lib/fast/completions/errors.rb` — the §8 tree; two new classes (the
+  internal unsupportable-schema raise and the public require-raise, R3).
+- Facade `lib/fast/completions.rb` — one `require_relative` for the new
+  `constrained_sampling.rb` (pi's file name; the JSON-schema half only).
+- Gate homes: `spec/fast/completions/{protocol,wire_parity,tool,dialects}
+  _spec.rb` + a NEW `constrained_sampling_spec.rb`; `docs/reference/
+  {dialects,tools,errors}.md`; `CHANGELOG.md` (Unreleased — 0.3.0 is the
+  released head; 0.4.0 is cut by the OWNER at landing, never in-lane).
+
+**Token-collision greps at base (house convention; all RED as required):**
+`strict` in protocol_spec.rb — 0 matches; `supports_strict_mode` in
+dialects_spec.rb — 0; `constrained` in tool_spec.rb — 0; `zai_strict` in
+wire_parity_spec.rb — 0; `constrained` in CHANGELOG.md — 0;
+`supports_strict_mode` under docs/ — 0; `ConstrainedSamplingError` in
+errors.md — 0; `^## Unreleased` in CHANGELOG.md — 0. Measured `-e` forms at
+base all report `0 examples, 0 failures` (the `[1-9][0-9]* examples?, 0
+failures` requirement makes them RED); a missing spec file also reports 0
+examples (I61 lesson). `-O /dev/null` still resolves `require
+"fast/completions"` (the gemspec path dep puts lib/ on the load path —
+verified this session).
+
+**README constraint (I53 owner-prose gate, `docs_links_spec.rb`):** the gem
+README is preserved against the byte-frozen `owner-4736ddc.md` fixture —
+removals outside the Error-taxonomy section and non-definition additions
+beyond the one ≤6-line errors pointer FAIL the suite. README.md carries
+"vocabulary is closed (13 keys)" at :86 and CANNOT be edited in-lane; it
+stays untouched (the plan's gate homes list excludes it). The stale count is
+a DECLARED residual: the canonical inventory is `docs/reference/dialects.md`
+(13 → 14 there), and the README count is the owner's next-pass call.
+
+**Previous handoff honored** (`notes/spec-digest-20261015T195930Z.md`, I62):
+token-collision grep BEFORE freezing any `-e` gate (done above); `-O
+/dev/null` for single-spec gates; docs-gate markers single-line-safe;
+freeze mechanics (commit space.yaml first, clean arch file → empty freeze
+commit, freeze_sha = HEAD); `architect verify` materializes worktrees and
+the lane integration_branch must be hand-set to `main` for fast-llm
+(I53/I61/I62 precedent); the rehearsal's scope-asymmetry advisory
+is possible when a gate word pre-exists elsewhere ("strict" today appears
+ONLY in lib comments — client.rb:254 (I62's x-should-retry commentary) and
+types.rb:16 ("restricted") — never in a spec file).
 
 ## Specification
 
