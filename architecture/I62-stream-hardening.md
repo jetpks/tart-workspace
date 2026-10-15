@@ -1084,6 +1084,86 @@ No disagreements with the frozen Specification found. Itemized notes for the jud
 
 STATUS: COMPLETE
 
+### data
+
+# I62 stream-hardening — lane `data` report (builder output, RAW RESULTS)
+
+Worktree: `build/I62-stream-hardening-data/wt` (repo fast-llm, branch `lane/I62-stream-hardening-data`, base `43ea169`). Nothing committed; nothing staged; tree carries the 6 modified files only. `PI_PACKAGE_DIR PI_MODEL PI_PROVIDER PI_CONTEXT_WINDOW` unset before every run.
+
+## 1. Spec files changed with run counts
+
+| File | Added | Run count (gate cmd, verbatim) | Result |
+|---|---|---|---|
+| `gems/completions/spec/fast/completions/codec_spec.rb` | describe `outgoing-string scrub (I62 — pi sanitizeSurrogates)` (5 examples) | `bundle exec rspec -O /dev/null gems/completions/spec/fast/completions/codec_spec.rb -e "scrub"` | `5 examples, 0 failures` |
+| `gems/completions/spec/fast/completions/codec_spec.rb` | describe `stop_reason skip on replay (I62 — pi :196-206)` (5 examples) | `bundle exec rspec -O /dev/null gems/completions/spec/fast/completions/codec_spec.rb -e "stop_reason"` | `5 examples, 0 failures` |
+| `gems/completions/spec/fast/completions/protocol_spec.rb` | describe `index-map backfill (I62 — pi :536-539)` (3 examples) | `bundle exec rspec -O /dev/null gems/completions/spec/fast/completions/protocol_spec.rb -e "index-map"` | `3 examples, 0 failures` |
+
+Scrub examples: (1) defect-class × position matrix (4 classes × 8 positions + arguments deep leaves, `JSON.generate` no-raise + valid_encoding + no U+FFFD), (2) pi deletion observable `"Text \u{D83D} here"` → `"Text  here"` for all 4 classes, (3) exact scrubbed value per emission position, (4) byte-identical no-op (ASCII/multibyte/emoji/em-dash), (5) byte-identical no-op over every canonical fixture body string (all `spec/fixtures/wire/*.json`, via `Codec.scrub_text`). Defect classes built per the frozen pins: `%w[eda0bd edb0a9 eda0bdedb8ba ff].map { |hex| [hex].pack("H*").force_encoding("UTF-8") }`.
+
+stop_reason examples: (1) to_h/from_h round-trip (key absent nil / present set; factory accepts; no vocabulary validation — `:provider_weird` passes), (2) `:error` + `:aborted` assistants skipped ENTIRELY (their tool calls never orphan), (3) previous valid assistant's orphan still synthesizes + surrounding system/user unaffected (roles `[:assistant, :tool_result, :system, :user]`), (4) `:stop` assistant passes through carrying its reason, (5) stop_reason-free history byte-identical to a literal captured at base `43ea169` (verbatim JSON string pin).
+
+Backfill examples: (1) frozen R1 shape frag1 `{id,name}` → frag2 `{id,index,arguments}` → frag3 `{index,arguments}` = ONE block, arguments `{"path"=>"a.rb", "mode"=>"r"}`, `[race: [:done, :tool_use]]`; (2) first-index-wins (later same-id frag with index 5 does not rebind; bare index-5 frag opens a fresh block — pi parity, 2 blocks); (3) no scratch keys on blocks (`contain_exactly(:type, :id, :name, :arguments)` on blocks and `tool_call_end` payloads). Standing pins protocol_spec :217 (index-then-id) and :249 (empty-id backfill) pass UNMODIFIED (in full suite).
+
+## 2. Full suite line
+
+```
+$ unset PI_PACKAGE_DIR PI_MODEL PI_PROVIDER PI_CONTEXT_WINDOW
+$ bundle exec rspec        # worktree root
+159 examples, 0 failures
+```
+(Base measured 146 examples, 0 failures; +13 = the new lane examples. Exit status 0.)
+
+## 3. Wire-parity result
+
+```
+$ bundle exec rspec -O /dev/null gems/completions/spec/fast/completions/wire_parity_spec.rb
+12 examples, 0 failures
+```
+12 = 1 fixture-table pin ("carries the 11 frozen fixtures: shape, request_path, digest") + the 11 canonical byte pins (fireworks_plain, openai_ladder_on, openai_ladder_off, zai_on, zai_off, deepseek_on, tool_roundtrip, thinking_replay, reasoning_details_replay, cross_model_thinking_replay, budget_field) — 11/11 byte-identical + digests. The `parity` GATE command (no `-O`) runs the whole pattern: `159 examples, 0 failures`.
+
+## 4. Mock-server spec-type additions
+
+NONE (per kit: "lane `data` needs no mock change"). `spec/support/mock_llm_server.rb` zero-diff.
+
+## 5. File list touched (exactly the declared lane touch set)
+
+```
+ gems/completions/CHANGELOG.md                      |  30 ++++
+ gems/completions/lib/fast/completions/codec.rb     |  62 ++++++--
+ gems/completions/lib/fast/completions/protocol.rb  |  12 +-
+ gems/completions/lib/fast/completions/types.rb     |  17 ++-
+ gems/completions/spec/fast/completions/codec_spec.rb  | 162 ++++++++++++++++++++-
+ gems/completions/spec/fast/completions/protocol_spec.rb |  66 +++++++++
+ 6 files changed, 329 insertions(+), 20 deletions(-)
+```
+`git status --porcelain`: the same 6 `M` entries, nothing else, nothing staged. Must-not paths (fixtures/wire, wire_parity_spec, dialects.rb, chat.rb, tool.rb, cancellation.rb, sse.rb, malformed_wire_spec.rb, client-lane files, repos/tart): zero-diff (`frozen` gate below). `protocol.rb` diff confined to `consume_tool_call` (verified against `git diff 43ea169`): the creation-site `@tool_by_index[index] = block if index` moved into the unified post-resolution bind (identical outcome — a freshly created block is never pre-bound) + the backfill block; `@tool_index_bound` initializes lazily INSIDE `consume_tool_call` (identity-keyed hash, mirroring `@args_scratch`) because the kit freezes the method's rest including `initialize`.
+
+## 6. PHASE 0 disagreement table
+
+NONE — zero disagreements with the frozen Specification. Every cited line verified before coding: no `scrub` hits in `lib/` at base; `Message` has no `stop_reason` (types.rb:150-230); `Codec.normalize` replays every assistant (codec.rb:22-29); `consume_tool_call` wrote `@tool_by_index` only at creation (protocol.rb:396-423) and the R1 shape mis-assembled at base (traced); `transform_message` has exactly one caller (`normalize`) so the nil-return + `filter_map` skip is safe; `-O /dev/null` gate shape verified working at base.
+
+## 7. Gate outcomes (frozen `gates` block, run cold from worktree root)
+
+| Gate | Raw result | Verdict |
+|---|---|---|
+| `suite` | `159 examples, 0 failures` | GREEN |
+| `parity` | `159 examples, 0 failures` (file alone: 12/0 = 11/11 fixtures) | GREEN |
+| `frozen` | `FROZEN_OK` | GREEN |
+| `retry` | `0 examples, 0 failures` (filtered out) | RED — sibling lane `client`, by design |
+| `salvage` | `0 examples, 0 failures` (filtered out) | RED — sibling lane `client`, by design |
+| `backfill` | `3 examples, 0 failures` | GREEN |
+| `scrub` | `5 examples, 0 failures` | GREEN |
+| `stop-reason` | `5 examples, 0 failures` | GREEN |
+| `docs` | DOCS_OK not printed (`errors.md`/`stream-events.md` are client-lane files, untouched; `Unreleased` exists in CHANGELOG) | RED — sibling lane `client`, by design |
+
+## 8. Disclosed judgment calls (judge rules; raw facts only)
+
+1. **Scrub-safety of three pre-emission predicates (codec.rb, lane file).** The new matrix pin exposed `Encoding::CompatibilityError` (NOT GeneratorError) crashes BEFORE the emission-point scrub: `String#strip` inside `text_block_texts`'s `non_whitespace` filter (base codec.rb:363 `invalid byte sequence in UTF-8` — the assistant joined-text position died in the pipeline), the `non_empty_thinking` reject (`b[:thinking].to_s.strip.empty?`) in `wire_assistant`, and the empty-predicate `block[:thinking].strip.empty?` in `normalize_thinking_block` (the reasoning-field text's transform-pass gate; reached for same-model unsigned / cross-model thinking). Fixed by routing those three predicates through the same `scrub { "" }` deletion (`scrub_text` in `text_block_texts`; `to_s.scrub { "" }` in the two predicates) with why-comments. Without them, AC3's property fails for the reasoning-field and assistant-text positions (the build dies before emitting). Byte-neutrality: scrub is a no-op on valid strings, and the predicates' outcomes for valid inputs are unchanged — parity 11/11 + suite green confirm. Also added an unsigned same-model thinking block to the matrix history so the `normalize_thinking_block` path is pinned.
+2. **`text_block_texts` now returns scrubbed texts**, so `wire_tool_result`/`wire_assistant` joins are joins of already-valid strings; the explicit emission-point `scrub_text` calls remain (spec's §3 list unchanged).
+3. **`scrub_text` passes non-Strings through** (`str.is_a?(String) ? str.scrub { "" } : str`) — matches the defensive `.to_s` style already at the system/user branches; no type coercion introduced.
+
+STATUS: COMPLETE
+
 ## Verdict
 
 <!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
