@@ -239,51 +239,98 @@ byte-neutrality constraint; not a routine lane.
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse wire-tolerance` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze wire-tolerance` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+Property-level, each independently judgeable. The frozen ```gates block
+below is the machine-checkable form. Base = fast-llm `main` @ `33571e1`
+(I53 tip). Measured at base this session: `suite` and `parity` GREEN
+(controls), `malformed` RED (file absent — rspec exits 1, "No examples
+found"), `docs` RED (the retired claim still present, counted once at
+errors.md), `fixtures-frozen` GREEN (trivial — no diff at base).
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC1 — chunk-seam parse-with-repair.** An SSE payload that is structurally
+complete JSON except for raw control characters inside string values (raw
+newline delivered via a spec-correct multi-`data:`-line event; raw tab)
+parses after repair and flows downstream exactly as if the wire had been
+well-formed: no raise, no drop, the assembled content/arguments intact, the
+stop reason the natural mapped one. (pi `parseJsonWithRepair` semantics at
+the chunk seam; the existing `repair_json` port is the implementation.)
 
-**AC1.** ...
+**AC2 — SSE continuation rejoin.** The observed malformation shape — a
+coalesced delta whose JSON is cut mid-string by a raw newline with the
+remainder arriving on the following UNPREFIXED line — is salvaged: the
+continuation line rejoins the open payload, repair escapes the raw control
+characters, the payload parses, the tool arguments assemble byte-intact, and
+the stream completes with its natural mapped stop reason. Known SSE fields
+(`event:`/`id:`/`retry:`) and comment lines keep today's ignore semantics;
+healthy wires carry no such lines (all 11 canonical fixtures + the mock
+prove it).
+
+**AC3 — drop-and-continue.** A payload still unparseable after rejoin +
+repair is dropped (counted, never raised); the stream continues to its
+natural terminal. `StreamError` no longer originates from chunk parsing.
+The terminal discipline (§10.5) is unchanged — in particular the
+missing-finish error path still covers a dropped finish-carrying chunk, and
+the cancel ladder is untouched.
+
+**AC4 — healthy-wire byte-neutrality.** The canonical wire-parity control —
+`spec/fixtures/wire/**` and `wire_parity_spec.rb` — passes byte-identical
+(frozen: zero edits to those paths), and the full gem suite is green. The
+deviation is invisible on healthy wires.
+
+**AC5 — documented.** `docs/reference/errors.md` retires the "A malformed
+stream chunk raises `StreamError`" claim, documents the tolerant class
+(repair → drop-and-continue) and the missing-finish residual; a CHANGELOG
+entry lands; `docs/reference/stream-events.md` stays consistent wherever it
+names `StreamError`.
+
+**AC6 — scope.** Exactly the declared touch set (Specification lanes block);
+`spec/fixtures/wire/**`, `wire_parity_spec.rb`, `dialects.rb`, `codec.rb`,
+`chat.rb`, `tool.rb`, `cancellation.rb`, and all of `repos/tart` untouched.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse wire-tolerance` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC4
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec 2>&1 | tail -2
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: parity
+  ac: AC4
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec gems/completions/spec/fast/completions/wire_parity_spec.rb 2>&1 | tail -2
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: malformed
+  ac: AC1
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec gems/completions/spec/fast/completions/malformed_wire_spec.rb 2>&1 | tail -2
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: docs
+  ac: AC5
+  cwd: repos/fast-llm
+  cmd: |-
+    ! grep -q "A malformed stream chunk raises" gems/completions/docs/reference/errors.md && grep -qi "drop" gems/completions/docs/reference/errors.md && grep -qiE "malformed|tolerant" gems/completions/CHANGELOG.md && echo DOCS_OK
+  expect:
+    exit_code: 0
+    stdout_match: DOCS_OK
+
+- id: fixtures-frozen
+  ac: AC6
+  cwd: repos/fast-llm
+  cmd: |-
+    git diff --quiet 33571e1 -- gems/completions/spec/fixtures/wire gems/completions/spec/fast/completions/wire_parity_spec.rb && echo FIXTURES_FROZEN
+  expect:
+    exit_code: 0
+    stdout_match: FIXTURES_FROZEN
 ```
 
 ## Builder Prompt
