@@ -2519,7 +2519,7 @@ project:
       - gems/completions/docs/reference/errors.md
       - gems/completions/CHANGELOG.md
       base_sha: 6ceba1f45db00f423317111f4a5189a9e7bb70dd
-      worktree: build/I63-strict-sampling-gem-strict/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
