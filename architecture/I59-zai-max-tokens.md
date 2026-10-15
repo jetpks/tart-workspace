@@ -464,6 +464,14 @@ units + render-perf-probe promoted standing per the digest convention;
 threads-budget rebased 41f0a5f→9b04d0d); every new gate is declared-new
 with its RED-at-base reason MEASURED this session, not asserted.
 
+**Declared mechanical correction to the 25 STANDING gates' `ac:`
+labels:** I58's frozen block labels its battery gates `ac: AC5` (and
+render-perf-units `AC4` / render-perf-probe `AC3`) after I58's own AC
+map; I59's battery AC is **AC4**. The assembled block relabels all 25
+to `ac: AC4` — COMMANDS byte-verbatim, only the label moves to match
+this iteration's AC numbering (the I58 thinking-pins extractor
+correction precedent: semantics unchanged, itemized, never silent).
+
 **The declared deviation, restated as the contract (Grounds §2/§4; the
 I52 delta-audited bar):** the `max_completion_tokens` VALUE in existing
 rig scenarios moves toward pi's byte (s1 measured: tart 27841/27842 →
@@ -537,7 +545,7 @@ this tree.
 
 ```gates
 - id: suite
-  ac: AC5
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     bundle install --quiet && bundle exec rake && echo SUITE_OK
@@ -547,7 +555,7 @@ this tree.
 
 
 - id: bench
-  ac: AC5
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
@@ -557,7 +565,7 @@ this tree.
 
 
 - id: s1-parity
-  ac: AC5
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/parity-gate-s1
@@ -566,7 +574,7 @@ this tree.
 
 
 - id: s2-parity
-  ac: AC5
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s2_tool_turn.yml --out tmp/parity-gate-s2
@@ -575,7 +583,7 @@ this tree.
 
 
 - id: s3-parity
-  ac: AC5
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s3_tool_turn_files.yml --out tmp/parity-gate-s3
@@ -584,7 +592,7 @@ this tree.
 
 
 - id: s4-parity
-  ac: AC5
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s4_bash_variants.yml --out tmp/parity-gate-s4
@@ -593,7 +601,7 @@ this tree.
 
 
 - id: s5-parity
-  ac: AC5
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s5_bash_truncation.yml --out tmp/parity-gate-s5
@@ -602,7 +610,7 @@ this tree.
 
 
 - id: s6-parity
-  ac: AC5
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s6_long_calls.yml --out tmp/parity-gate-s6
@@ -611,7 +619,7 @@ this tree.
 
 
 - id: s7-parity
-  ac: AC5
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s7_compaction.yml --out tmp/parity-gate-s7
@@ -620,7 +628,7 @@ this tree.
 
 
 - id: s8-parity
-  ac: AC5
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s8_zero_usage_compaction.yml --out tmp/parity-gate-s8
@@ -629,7 +637,7 @@ this tree.
 
 
 - id: s9-parity
-  ac: AC5
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s9_startup_help.yml --out tmp/parity-gate-s9
@@ -638,7 +646,7 @@ this tree.
 
 
 - id: s10-parity
-  ac: AC5
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s10_editor_wrap.yml --out tmp/parity-gate-s10
@@ -647,7 +655,7 @@ this tree.
 
 
 - id: s1-tart-mode
-  ac: AC5
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_tart.yml --out tmp/parity-gate-s1tart; ec=$?; if [ "$ec" -gt 1 ]; then exit 1; fi; ruby -rjson -e 's = JSON.parse(File.read("tmp/parity-gate-s1tart/summary.json"))["runs"][0]["apps"]["tart"]; abort "tart incomplete" unless s["completed"] && s["requests"] == s["expected_requests"]; puts "TART_MODE_OK"'
@@ -657,7 +665,7 @@ this tree.
 
 
 - id: tool-pending-gate
-  ac: AC5
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     gems/tui-split-rig/bin/tool-pending-probe --gate --out tmp/i54-tp
@@ -667,7 +675,7 @@ this tree.
 
 
 - id: user-bash-stream-gate
-  ac: AC5
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     test -x gems/tui-split-rig/bin/user-bash-stream-probe && gems/tui-split-rig/bin/user-bash-stream-probe --gate --out tmp/i54-ubs
@@ -677,7 +685,7 @@ this tree.
 
 
 - id: thinking-pins
-  ac: AC5
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     bundle install --quiet
@@ -696,7 +704,7 @@ this tree.
 
 
 - id: hermeticity
-  ac: AC5
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     bundle install --quiet
@@ -715,7 +723,7 @@ this tree.
 
 
 - id: lock-deps
-  ac: AC5
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     set -e
@@ -731,7 +739,7 @@ this tree.
 
 
 - id: zai-data
-  ac: AC5
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     bundle install --quiet
@@ -747,7 +755,7 @@ this tree.
 
 
 - id: threads-budget
-  ac: AC5
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     added=$(git diff 9b04d0d -- lib | grep -E "^\+[^+].*Thread\.new" || true)
@@ -759,7 +767,7 @@ this tree.
 
 
 - id: wire-delta
-  ac: AC5
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     rm -rf tmp/i54-wire && env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/i54-wire >/dev/null 2>&1; ec=$?; [ "$ec" -eq 0 ] || { echo "FAIL: s1 rig ec=$ec"; exit 1; }
@@ -770,7 +778,7 @@ this tree.
 
 
 - id: session-golden
-  ac: AC5
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     bundle install --quiet && bundle exec ruby -Ilib -e 'require "tart"; require "tmpdir"; require "json"; require "digest"; FakeMsg = Struct.new(:role, :attrs) do def to_h = attrs end; VOLATILE = %w[id parentId timestamp parentSession cwd firstKeptEntryId].freeze; normalize = lambda do |obj|; case obj; when Hash then obj.each_with_object({}) { |(k, v), h| h[k] = VOLATILE.include?(k) && !v.nil? ? "<#{k}>" : normalize.call(v) }; when Array then obj.map { |v| normalize.call(v) }; else obj; end; end; digest_lines = lambda { |path| Digest::SHA256.hexdigest(File.readlines(path).map { |l| JSON.generate(normalize.call(JSON.parse(l))) }.join("\n")) }; out = {}; Dir.mktmpdir do |dir|; root = File.join(dir, "agent"); plain = Tart::Agent::Session::Recorder.new(cwd: dir, root: root); plain.append_message(FakeMsg.new(:user, {role: "user", content: "list the files"})); plain.append_message(FakeMsg.new(:assistant, {role: "assistant", content: nil, tool_calls: [{id: "call_1", name: "ls", arguments: {path: "."}}]})); plain.append_message(FakeMsg.new(:tool, {role: "tool", tool_call_id: "call_1", content: "fixture.txt"})); plain.append_message(FakeMsg.new(:assistant, {role: "assistant", content: "the listing is above"})); rec = Tart::Agent::Session::Recorder.new(cwd: dir, root: root); rec.append_message(FakeMsg.new(:user, {role: "user", content: "list the files"})); rec.append_message(FakeMsg.new(:assistant, {role: "assistant", content: nil, tool_calls: [{id: "call_1", name: "ls", arguments: {path: "."}}]})); rec.append_message(FakeMsg.new(:tool, {role: "tool", tool_call_id: "call_1", content: "fixture.txt"})); rec.append_message(FakeMsg.new(:assistant, {role: "assistant", content: "the listing is above"})); rec.append_bash_execution(Tart::Agent::Session.bash_execution_message(command: "echo hi", output: "hi", exit_code: 0, cancelled: false, truncated: false, full_output_path: nil)); rec.append_compaction(summary: "Earlier turns summarized.", first_kept_entry_id: nil, tokens_before: 15, details: "auto"); forked = Tart::Agent::Session::Recorder.new(cwd: dir, root: root, parent_session: rec.path); forked.append_message(FakeMsg.new(:user, {role: "user", content: "after the fork"})); out[:plain] = digest_lines.call(plain.path); out[:plain_context] = Digest::SHA256.hexdigest(JSON.generate(Tart::Agent::Session.context_messages(plain.path))); out[:plain_roles] = Tart::Agent::Session.context_messages(plain.path).map { |m| m[:role] }.inspect; out[:primary] = digest_lines.call(rec.path); out[:forked] = digest_lines.call(forked.path); out[:context] = Digest::SHA256.hexdigest(JSON.generate(Tart::Agent::Session.context_messages(rec.path))); out[:fork_roles] = Tart::Agent::Session.context_messages(forked.path).map { |m| m[:role] }.inspect; end; want = {plain: "928183de7736e9ad59237d6eb4bf7eb0215f8933ac1e1c2c4d8cb0e61ca38728", plain_context: "d3c1574f049f9688309656a21d42100e32b0203025f77f8afbed70819cb228ee", plain_roles: "[:user, :assistant, :tool, :assistant]", primary: "cb29e42e1ba9ecc29e28ce3d833e68fbd8f17ddfa2700b02b1b6bd98b24baa29", forked: "3a5f6d606f5952fd2e0e25bf085d442c386d18bb0d60a4bdd7c43b04b203ae8d", context: "f75f99b4516b3e69f41d847bb5266d7cac897e3fd320190f588d83e26497a029", fork_roles: "[:user, :user]"}; bad = want.keys.select { |k| out[k] != want[k] }; abort "session bytes moved: #{bad.map { |k| [k, out[k]] }.inspect}" unless bad.empty?; puts "SESSION_GOLDEN_OK"'
@@ -780,7 +788,7 @@ this tree.
 
 
 - id: s17-parity
-  ac: AC5
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     rm -rf tmp/parity-gate-s17 && env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tui-split-rig run gems/tui-split-rig/scenarios/s17_edit_tool_bg.yml --out tmp/parity-gate-s17; ec=$?
@@ -801,7 +809,7 @@ this tree.
 
 
 - id: render-perf-probe
-  ac: AC3
+  ac: AC4
   cwd: repos/tart
   cmd: |-
     if [ ! -x gems/tui-split-rig/bin/render-perf-probe ]; then echo "FAIL render-perf-probe: bin missing (declared-new)"; exit 1; fi
