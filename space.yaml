@@ -2354,7 +2354,23 @@ project:
   - name: zai-max-tokens
     ordinal: 59
     file: architecture/I59-zai-max-tokens.md
-    freeze_sha:
+    freeze_sha: b0f6366ee8c25da72874fe7f612a550cd189f1c4
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - bin/tart
+      - lib/tart/agent/chat.rb
+      - lib/tart/agent/loop.rb
+      - lib/tart/models.rb
+      - lib/tart/print.rb
+      - lib/tart/render/chat.rb
+      - test/agent_loop_test.rb
+      - test/chat_test.rb
+      - test/launcher_smoke_test.rb
+      - test/models_test.rb
+    rehearsal:
+      gates_digest: 712c32102ff0fece2efe67252e9438450155cf0f46c3d4ff4ee4e973ffd87e90
+      at: '2026-10-14T19:59:48-06:00'
   integration_branch: project/pi-port
