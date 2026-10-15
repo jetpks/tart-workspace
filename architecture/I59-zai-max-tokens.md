@@ -1009,11 +1009,222 @@ The frozen sections follow verbatim.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I59-zai-max-tokens-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence zai-max-tokens --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# I59 zai-max-tokens — lane `core` builder report
+
+Worktree `build/I59-zai-max-tokens-core/wt`, branch `lane/I59-zai-max-tokens-core`, base
+`9b04d0d`. No commits, no git write commands, no pushes, space repo untouched (verified
+clean; only gitignored `tmp/` artifacts added under `repos/tart/tmp/` for the base-drift
+proof). Final tree diff = exactly the 10 frozen files, +310/−21 (scope below). No live
+z.ai credits burned; no rig/gem/settings/session file touched.
+
+## Per-AC outcomes
+
+**AC1 — the catalog facts reach the wire on every construction path: PASS.**
+- D1 `Models.entry_context_window` / `Models.entry_max_tokens` + frozen constants
+  `DEFAULT_ENTRY_CONTEXT_WINDOW = 128_000` / `DEFAULT_ENTRY_MAX_TOKENS = 16_384`
+  (pi provider-composer.ts:242-243 cites in the comments) landed in `lib/tart/models.rb`.
+- D2 ctor: `max_tokens: nil` kwarg (after `context_window:`), stored `@max_tokens`,
+  threaded beside the resolved window into the ctor's `apply_facts`; the window
+  expression (`resolved_context_window || Settings::MODEL_CONTEXT_WINDOWS.fetch(...)`)
+  byte-unchanged; `@param max_tokens` doc follows the house shape. D5 `switch_model`:
+  `max_tokens: nil` after `context_window:`, stored, threaded into BOTH `apply_facts`
+  calls; window threading byte-unchanged (I30 pins pass unmodified).
+- D3/D4 bin/tart: BOTH boots resolve the entry ONCE via `resolve_boot_entry` into a
+  local and thread `context_window: Settings.resolve_context_window(...) ||
+  Models.entry_context_window(entry)` + `max_tokens: Models.entry_max_tokens(entry)`;
+  interactive `compat:` now rides the hoisted local (`compat: entry&.compat` — the
+  frozen D3 snippet's exact shape); print `compat:` stays byte-identical via `**thinking`.
+  Print.run gained `max_tokens: nil` forwarded to the Loop; both print-path comments
+  updated to the new truth (env still wins — resolve folds it first).
+- D6 `apply_model_selection` adds `max_tokens: Models.entry_max_tokens(entry)`;
+  `context_window: entry.context_window` stays RAW (the declared boot/switch asymmetry).
+- D7 `summary_chat` threads `max_tokens: @facts.max_tokens` (one line). Suite summary
+  pins 6/8 (zai rename + compat-nil shapes) pass unmodified.
+- Pins: P1 (boot-shaped ctor → wire 131072/131072; request max == the gem's own
+  `Protocol.clamp_max_tokens` on the request's own inputs; > 1); P4 (switch cap → wire
+  carries the pair; clamped send ≤ 131072, > 1, == the gem clamp); P3-i (real
+  `bin/tart -p`, staged catalog: max = **126149** ∈ (120_000, 131_072] — never 1);
+  P3-ii (no-entry boot: max == **1**, the declared fallback, at the real boot).
+- All new pins carry `zai_max_tokens`; filter verified EMPTY at base
+  (`grep -rn zai_max_tokens test/` → no matches, exit 1).
+
+**AC2 — the rulings hold: PASS.**
+- Precedence (Grounds §4-a): P2-i pins `PI_CONTEXT_WINDOW=120000` (no entry kwargs) →
+  wire window 120_000, wire max 120_000 (wire_model's window fallback), clamped send
+  ≤ 120_000 − 4_096. Env tier still sits above the catalog (the `||` in both boots).
+- No-entry chain (§4-b): P2-ii pins wire 0/0 → request sends exactly 1 (unit seam), and
+  P3-ii pins the same at the REAL launcher boot. `Models.wire_model` untouched;
+  `Settings.resolve_context_window` untouched; known-tables/0 tiers untouched.
+- Undeclared-field defaults (§4-c): truth-table pins — declared passthrough verbatim;
+  windowless ENTRY → 128_000; capless ENTRY → 16_384 (never the window fallback); nil
+  entry → nil/nil. `Shapes::Model#to_h` DECLARED pin (shapes_test :33-56) untouched and
+  green (the loaded entry still carries the raw nil — asserted in the new models pin).
+
+**AC3 — the wire parity pin: PASS.** `ZAI_WIRE_OK tart=pi=512` — on the s1 rig artifact
+(`tmp/i59-wire/run-1/`), both apps' first request carries `max_completion_tokens == 512`
+(equal across apps, equal to the staged catalog cap). The gate's embedded rig run exits 1
+in this environment for the drift reason (E2 below) BEFORE its assertion runs; the gate's
+own assertion body was executed against the gate's artifact and passes. Measured:
+
+| wire value (s1, first request) | base `9b04d0d` | this tree | pi |
+|---|---|---|---|
+| tart `max_completion_tokens` | **27840** (fresh base run in this env; spec-time measured 27841/27842) | **512** | **512** |
+| launcher catalog leg (`bin/tart -p`, glm-5.3 131072/131072) | (n/a — Face 2 shape sends 1) | **126149** | — |
+| launcher no-entry leg | 1 (declared) | **1** (unchanged) | — |
+
+**AC4 — no byte moves beyond the declared value + scope: PASS with environment-class
+exceptions (E1–E5, all checkpointed/mechanism-proven).**
+- Scope: exactly the 10 frozen files. Worktree-adapted form: `SCOPE_OK 10`
+  (`git diff --name-only 9b04d0d` + untracked). The VERBATIM gate command
+  (`git diff --name-only 9b04d0d...HEAD`) prints
+  `FAIL scope: extra=[] missing=[...all 10...]` in any uncommitted worktree (three-dot
+  diff of HEAD==base is empty) — I58 deviation E1 precedent; it is integrator-side by
+  construction. Raw output recorded above.
+- Suite: GREEN cold (run A: **1154 runs, 5408 assertions, 0 failures, 0 errors,
+  1 pre-existing skip, RAKE_EXIT=0**, log `/tmp/i59-suite.log`). Run B hit ONE failure of
+  the documented environment class (E4) — zero failures in any lane surface; the 8
+  `zai_max_tokens` pins and the D8 re-pin passed in every run.
+- Unit/probe gates green: bench `SEAM_BENCH_OK`; thinking-pins 18/9 (≥11/8);
+  hermeticity 10/4; lock-deps `LOCK_DEPS_OK` + `GEM_LOAD_OK`; zai-data `ZAI_DATA_OK`
+  (2 runs); threads-budget OK (no new `Thread.new` in lib); render-perf-units 7 runs;
+  zai-max-tokens-units 4/2/2 runs; render-perf-probe `RENDER_PERF_OK` (BP1 2.62 ≤ 3.0,
+  BP2 246.5 ≤ 250, BP3 9.3 ≤ 25, BP4 21.9 ≤ 35, BP5 9.7 ≤ 40; anti-vacuity all PASS:
+  window 141.9s, marker observed, requests 3, frames 3057, live 44677, rows 12538).
+- Byte-freeze anchors: wire key set/order `["model","messages","stream","stream_options",
+  "store","max_completion_tokens","tools"]` EXACT; `store:false`; user message exact;
+  `stream_options {"include_usage"=>true}` EXACT; tools digest
+  `7360fd1e…c23707` EXACT (verified equal base↔lane); instruction bytes identical
+  base↔lane modulo the checkout-depth sandbox path (the frozen `2faaf667…` literal is
+  environment-moved at BASE too — E3); session-golden `SESSION_GOLDEN_OK` (all seven
+  digests); s17 `S17_PARITY_OK` (exit 0, full assertion body incl. replay captures).
+- s7/s8 tiny-window anchor: first request sends `1` from BOTH apps before and after
+  (measured on both trees); the compaction one-shot's `0`-vs-`nil` max shape is
+  byte-identical at base (measured, base s7 run) — pre-existing, not this lane's.
+- Parity rig gates s1–s10 exit 1 with the drift signature PROVEN byte-identical at the
+  clean base checkout (E2). Functional parity holds in every scenario: both apps
+  completed with exactly the expected request counts, zero boot/reply timeouts:
+  s1 1/1, s2 2/2, s3 3/3, s4 3/3, s5 2/2, s6 3/3, s7 2/2, s8 2/2, s9 1/1, s10 1/1,
+  s17 4/4. s1-tart-mode `TART_MODE_OK` (exit-code-tolerant gate; tart completed,
+  requests == expected). tool-pending `TOOL_PENDING_GATE_OK`; user-bash-stream
+  `USER_BASH_STREAM_GATE_OK`.
+
+## Re-pin inventory (D8 — grep-first, every change itemized)
+
+1. **RE-PINNED** `test/chat_test.rb` `test_model_menu_enter_switches_the_model_and_refreshes_the_surface`
+   (the :2667 exact-kwargs double): the `switch_model` double's signature gains
+   `max_tokens: nil`; the expected hash gains
+   `max_tokens: Models.entry_max_tokens(model_catalog.model_entries.first)` (= 16_384 —
+   the capless glm-5.3 catalog entry rides pi's definition default); the assertion
+   message states the I59 D8 re-pin. Screen assertions (footer segment, "Model: glm-5.3"
+   status) stay verbatim.
+2. **VERIFIED NO CHANGE** — `test/chat_test.rb` :2896 `switching_agent` spy: `do |*|`
+   absorbs any kwargs and asserts call ORDER only; it cannot carry and does not assert
+   an expected value (the D8 letter names it; a cosmetic edit would be change-worship).
+3. **VERIFIED NO CHANGE** — `test/settings_test.rb` `wire_model` helper (:31-36):
+   `Models.wire_model` is untouched; the no-entry fallback shape stands.
+4. **VERIFIED NO CHANGE** — `test/print_test.rb` forwarding pin: fetch-based key asserts
+   (`captured.fetch(:context_window)` etc.); `Print.run`'s added `max_tokens:` kwarg is
+   transparent to it.
+5. **VERIFIED NO CHANGE** — `test/agent_loop_test.rb` summary pins 6/8: they assert the
+   one-shot's max KEY NAME and shapes, never its VALUE; in those constructions
+   `@facts.max_tokens` equals the same window-fallback value (14) the fallback produced
+   before, so the wire is byte-identical.
+6. Grep inventory run first: `switch_model` (test/ → chat_test, agent_loop_test only),
+   `Agent::Loop.new` construction pins, `Print.run` call sites, `summary_chat` (no test
+   references), `max_completion_tokens`/`:max_tokens` value assertions — no other pin
+   asserts the boot/switch construction kwargs or the wire max VALUE.
+
+## New pins (all `zai_max_tokens`-named)
+
+- `test/models_test.rb`: 2 runs / 9 assertions — D1 truth tables (declared passthrough;
+  windowless → 128_000 == the constant; capless → 16_384 == the constant; nil entry →
+  nil/nil; no catalog-load defaulting).
+- `test/agent_loop_test.rb`: 4 runs / 17 assertions — P1 boot-shaped ctor (wire pair +
+  gem-clamp equality + > 1); P2-i env tier (120000 → 120_000/120_000, clamp ≤ 115_904);
+  P2-ii no-entry (wire 0/0 → sends 1); P4 switch cap (pair on the wire; ≤ 131_072, > 1,
+  gem-clamp equality). P1/P4 read the clamp inputs from the captured request body (the
+  D9 letter's "the request's instructions, the request's messages"); P4 reads the max
+  key dialect-aware (`max_tokens` under `zai_compat` rename, per existing pin 6).
+- `test/launcher_smoke_test.rb`: 2 subprocess runs / 7 assertions — P3-i staged-catalog
+  boot (max 126149 ∈ (120_000, 131_072]); P3-ii no-entry boot (== 1). New `wire_env`
+  helper scrubs the model-shaping env (PI/TART MODEL/PROVIDER/CONTEXT_WINDOW) because
+  Process.spawn MERGES the parent env — discovered live: this agent session's own parent
+  env carries `PI_MODEL`/`PI_PROVIDER`, which leaked into the first pin run.
+
+## Deviations & incidents (all environment-class; none touch the frozen letter)
+
+- **E1 scope-gate form** — verbatim `9b04d0d...HEAD` is vacuous in an uncommitted
+  worktree; worktree-adapted equivalent used (`SCOPE_OK 10`). I58 deviation E1 precedent.
+- **E2 pi v1.2.0 environment drift (checkpointed)** — this environment's `pi --version`
+  is 1.2.0 (tart oracle banner pinned `ORACLE_VERSION = "1.1.0"`, rig registry has no
+  class for the banner/Extensions delta). s1–s10 parity gates exit 1 with
+  `unknown-candidate` classes. PROVEN PRE-EXISTING: the identical rig command from the
+  clean base checkout (`repos/tart` @ 9b04d0d, `git status` clean) produces the
+  byte-identical drift signature (s1: same 8 candidates, same class counts). Checkpoint:
+  `build/loop/exception-2026-10-15T03:30:00Z.md`. Artifacts: lane
+  `wt/tmp/parity-gate-s1/`, base `repos/tart/tmp/i59-base-drift-s1/` (+ base s7). The
+  integrator's judge environment needs pi pinned 1.1.0, or a registry class, or accepts
+  the identical-signature proof.
+- **E3 wire-delta instruction digest** — the frozen `2faaf667…` literal is unattainable
+  in this environment AT BASE AND LANE: the harness prompt's `<docs>` section embeds the
+  pi v1.2.0 install's doc paths/content; base and lane instruction bytes are IDENTICAL
+  modulo the checkout-depth sandbox path (diff shown: 1 line, the out-dir prefix). Every
+  other wire-delta assertion passes on the lane tree (key set/order, store, user message,
+  stream_options, tools digest `7360fd1e…`, max positive; max = 512).
+- **E4 Gemfile.lock flip-flop / suite flake class** — lane worktree runs export
+  `FAST_COMPLETIONS_PATH=<space>/repos/fast-llm/gems/completions` (matches the COMMITTED
+  lock's absolute remote); the worktree's `../fast-llm` is a symlink I created OUTSIDE
+  the repo (`build/I59-zai-max-tokens-core/fast-llm` — I58 protocol). bin/tart's own
+  `Bundler.setup` + env-scrubbed boot children re-lock through the symlink to the
+  RELATIVE remote; exported bundle installs re-lock to ABSOLUTE (bundler compares the
+  Gemfile path LEXICALLY — the native repos/tart layout matches textually and is
+  immune). Consequence: one suite run failed on `test_leg_c_steer_reaches_a_running_child`
+  + `test_foreground_delegation_end_to_end` and a later run on
+  `test_leg_e_print_parent_intercom_shape` — all the SAME class: a boot child printed
+  `Resolving dependencies...` into asserted stdout during a re-lock. Run A (green,
+  RAKE_EXIT=0) is the gate evidence; no failure ever touched a lane surface. An early
+  broken-lock state (before the protocol was in place) also produced the same class.
+  `Gemfile.lock` RESTORED to committed bytes; final `git status` = the 10 files exactly.
+  The rig's panes run under `BUNDLE_FROZEN` and cannot rewrite the lock (mismatch =
+  loud abort — observed once as the render-perf-probe "can't find pane" when the lock
+  was in the absolute form; the probe passed with the lock in the relative form).
+- **E5 s9 known artifact** — `staged-path-wrap-fragment` ×6 (the brief's known
+  lane-worktree deep-path class): reported, not chased.
+- **D8 :2896 note** — the letter's ":2896 gains the kwarg" is recorded as verified-no-
+  change (order-spy, `|*|`); itemized above rather than cosmetically edited.
+
+## Gate ledger (28 frozen gates)
+
+| gate | result |
+|---|---|
+| suite | PASS (run A: 1154 runs, 0 failures, RAKE_EXIT=0; run B: 1 environment-class failure, E4) |
+| bench | PASS (`SEAM_BENCH_OK`) |
+| s1–s10-parity | RED-in-this-environment at base AND lane, byte-identical drift signature (E2); functional parity exact (per-scenario completion table above) |
+| s1-tart-mode | PASS (`TART_MODE_OK`) |
+| tool-pending-gate | PASS (`TOOL_PENDING_GATE_OK`) |
+| user-bash-stream-gate | PASS (`USER_BASH_STREAM_GATE_OK`) |
+| thinking-pins | PASS (18/9 runs) |
+| hermeticity | PASS (10/4 runs) |
+| lock-deps | PASS (`LOCK_DEPS_OK` + `GEM_LOAD_OK`) |
+| zai-data | PASS (`ZAI_DATA_OK`, 2 runs) |
+| threads-budget | PASS (no new `Thread.new` in lib) |
+| wire-delta | all assertions PASS except the instruction-digest literal (E3 — environment-moved at base too); max=512 |
+| session-golden | PASS (`SESSION_GOLDEN_OK`) |
+| s17-parity | PASS (`S17_PARITY_OK`, exit 0, full assertion body) |
+| render-perf-units | PASS (7 runs) |
+| render-perf-probe | PASS (`RENDER_PERF_OK`, all budgets + anti-vacuity) |
+| zai-max-tokens-units | PASS (4/2/2 runs; 0 at base — filter verified empty) |
+| zai-max-tokens-wire | PASS (`ZAI_WIRE_OK tart=pi=512`) |
+| scope | verbatim form vacuous-red in the uncommitted worktree (raw output recorded); worktree-adapted form `SCOPE_OK 10` |
+
+Offline repros (space tmp/, run clean, deterministic): `repro_max_tokens_20261014.rb`
+(window fallback 995895 vs capped 131072), `repro5_wire.rb` (wire 0/0 → sends 1),
+`repro6_workaround.rb` (env 120000 → 105516 LEGAL).
+
+Worktree left UNCOMMITTED for the integrator; branch `lane/I59-zai-max-tokens-core`;
+`git status` = the 10 declared files exactly.
 
 ## Verdict
 
