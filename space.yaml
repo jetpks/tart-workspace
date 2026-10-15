@@ -2465,11 +2465,12 @@ project:
       - gems/completions/CHANGELOG.md
       base_sha: 43ea16978ea9de4c293106cd802b0679c9b10b16
       worktree: build/I62-stream-hardening-client/wt
-      integration_branch: main
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: a39e4c8741a9b9ef6fef2e6b305bfd54e4054750
     - name: data
       repo: fast-llm
       touch_set:
