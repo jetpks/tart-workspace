@@ -884,10 +884,128 @@ this tree.
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I59-zai-max-tokens-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section zai-max-tokens prompt --append --lane <lane> --from build/I59-zai-max-tokens-<lane>/prompt.md`. -->
+### core
+
+### core
+
+You are the builder for iteration `zai-max-tokens` (I59), lane `core`.
+Work ONLY in the provisioned worktree on branch `lane/I59-zai-max-tokens-core`
+(base `9b04d0d`); NEVER commit (the integrator lands your tree), NEVER
+touch the space repo, NEVER push. The full iteration contract is the
+frozen Grounds/Specification/Acceptance Criteria in this file (verbatim
+below) — read them first; this header is the lane's operating brief.
+
+THE TASK IN ONE PARAGRAPH: thread the catalog entry's context_window +
+max_tokens into the WIRE MODEL on every construction path — the
+interactive boot (bin/tart), the print boot (Print.run), and the
+/model switch seam — with pi's precedence (env → settings → CATALOG →
+known-tables → 0) and pi's undeclared-field defaults (window 128_000,
+cap 16_384, ONLY where an entry exists). This closes both faces of the
+owner's live outage: the plain boot's window 0/0 → `max_tokens: 1`
+one-token responses (Face 2), and the /model switch's uncapped
+window-fallback ≈ 985K z.ai 400 (Face 1). Screen bytes, session bytes,
+wire KEY set/order, and every frozen digest anchor hold; the ONE
+declared byte-level move is the max VALUE in existing rig scenarios
+TOWARD pi's byte (s1: tart 27841/27842 → 512 = pi's 512) — do NOT try
+to preserve 27841; the 512 move is the deliverable, gated by
+zai-max-tokens-wire.
+
+TOUCH SET (exactly 10 files; the scope gate enforces):
+- lib/tart/models.rb — the D1 helpers `Models.entry_context_window`
+  / `Models.entry_max_tokens` + the two frozen constants (pi
+  provider-composer.ts :242-243 cites in the comments). Defaults ride
+  the threading seam ONLY — never catalog load (`Shapes::Model#to_h`
+  DECLARED pin holds), never `Settings.resolve_context_window`.
+- lib/tart/agent/loop.rb — ctor gains `max_tokens: nil` (stored,
+  threaded into the ctor's `apply_facts` beside the resolved window —
+  the window expression byte-unchanged); `switch_model` gains
+  `max_tokens: nil` threaded into BOTH its `apply_facts` calls (the
+  WINDOW threading byte-unchanged — raw kwarg + the re-resolution
+  ladder, its I30 pins hold).
+- lib/tart/agent/chat.rb — `summary_chat` threads
+  `max_tokens: @facts.max_tokens` beside `context_window:
+  @facts.context_window` (ONE line; `apply_facts` already accepts the
+  kwarg — no signature change).
+- lib/tart/print.rb — `Print.run` gains `max_tokens: nil` forwarded to
+  the Loop ctor; the print-path comment updates to the new truth (env
+  still wins — resolve folds it first).
+- bin/tart — BOTH boots resolve the entry ONCE via the existing
+  `resolve_boot_entry` helper and thread
+  `context_window: Settings.resolve_context_window(settings:, model: chat.model, identity:) || Models.entry_context_window(entry)`
+  + `max_tokens: Models.entry_max_tokens(entry)` (+ keep `compat:`
+  threading byte-identical). The interactive site is the Agent::Loop.new
+  call (:448-465); the print site is the Print.run call (:278-309).
+- lib/tart/render/chat.rb — `apply_model_selection` adds
+  `max_tokens: Models.entry_max_tokens(entry)` to the
+  `@agent&.switch_model` call; `context_window: entry.context_window`
+  stays RAW (the declared boot/switch asymmetry, Specification D6).
+- test/models_test.rb — NEW pins (filter token `zai_max_tokens`):
+  the D1 helper truth table (declared passthrough; windowless →
+  128_000; capless entry → 16_384; nil entry → nil/nil). ≥2 runs.
+- test/agent_loop_test.rb — NEW pins (filter token `zai_max_tokens`):
+  P1 boot-shaped (placeholder chat + Loop ctor with the threaded pair →
+  wire model attrs + request max == the gem's own
+  `Protocol.clamp_max_tokens` on the same inputs, > 1); P2 no-entry
+  (env tier 120000 → wire 120_000/max fallback/clamp ≤ 115_904; and no
+  tier at all → wire 0/0 → request sends 1 — the DECLARED fallback);
+  P4 switch cap (switch_model with the pair → clamped send ≤ 131_072,
+  never ~985K). ≥4 runs.
+- test/launcher_smoke_test.rb — NEW subprocess pins (filter token
+  `zai_max_tokens`, real `bin/tart -p`, staged HOME, MockLLMServer):
+  catalog leg (staged ~/.tart/models.json, glm-5.3 window 131_072 cap
+  131_072, default "mock/glm-5.3", NO context-window env → request max
+  Integer in (120_000, 131_072] — never 1); no-entry leg (no
+  models.json, PI_MODEL=custom-x PI_PROVIDER=openai, no window env →
+  request max == 1). The harness prompt's estimate is
+  checkout-depth-sensitive — pin the RANGE on the catalog leg, never an
+  exact number. ≥2 runs.
+- test/chat_test.rb — the declared D8 re-pins: the switch-family agent
+  doubles' `switch_model` signatures gain the `max_tokens:` kwarg with
+  the expected `Models.entry_max_tokens` value; screen assertions stay
+  verbatim. grep the suite for other pins on the construction kwargs /
+  wire max value FIRST; re-pin per the standing discipline and itemize
+  every re-pin in the report (D8 also lists settings_test's wire_model
+  helper as verified-NO-change, not a re-pin).
+
+MUST-NOT: no repos/fast-llm change of ANY kind (owner ruling — the gem
+clamp arithmetic is the ORACLE, reproduce with
+`Fast::Completions::Protocol.clamp_max_tokens`, never modify it); no
+gems/tui-split-rig changes (runner/scenarios/registry — the rig already
+stages the catalog both sides); no new wire keys or key-order change;
+no `Settings.resolve_context_window` reorder (env/settings stay ABOVE
+the catalog — the workaround + rig staging + subagent children depend
+on it); no `Models.wire_model` fallback change (the no-entry chain);
+no catalog-load defaulting; no lib/tart/agent/session.rb changes
+(ENTRY B's surface); no new runtime deps; no Thread.new; the I46 compat
+threading and thinking-facts seams byte-unchanged.
+
+OPERATING DISCIPLINE:
+- Run the battery cold from the worktree (the 28 gates in the frozen AC
+  block; s9's known deep-path artifact in a lane worktree = report, do
+  not chase). The two rig gates (wire-delta, zai-max-tokens-wire) each
+  run s1 (~40 s); render-perf-probe takes ~3 min — budget your runs.
+- The repros are OFFLINE and deterministic (tmp/repro_max_tokens_
+  20261014.rb, tmp/repro5_wire.rb, tmp/repro6_workaround.rb in the
+  SPACE repo — read them from the worktree's parent). Do NOT burn live
+  z.ai credits: a live rig/live-API check is NOT required; the owner
+  already paid for the evidence.
+- If a frozen ruling fights reality (e.g. a pin you cannot satisfy
+  without touching a MUST-NOT file), STOP and checkpoint
+  build/loop/exception-<UTC>.md with the raw facts; never silently
+  re-freeze, never widen scope.
+- The zai-max-tokens-wire gate is RED at base BY DESIGN (tart 27842 ≠
+  pi 512 — the measured defect). Your cure turns it GREEN; if your tree
+  leaves it RED, the threading is wrong — re-read Grounds §1, do not
+  touch the gate.
+- Report at build/I59-zai-max-tokens-core/report.md (the staged
+  architecture file's Builder Report section is transcribed from it):
+  per-AC outcomes, the measured wire before/after values, the re-pin
+  inventory (every re-pin itemized), deviations, incidents.
+- Children never block on contact_supervisor; escalation only via
+  build/loop/exception-*.md. bg_wait abort with "Still active" →
+  RE-ISSUE the wait.
+
+The frozen sections follow verbatim.
 
 ## Builder Report
 
