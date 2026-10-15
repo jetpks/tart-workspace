@@ -2403,12 +2403,13 @@ project:
       - test/render/transcript_test.rb
       - test/session_test.rb
       base_sha: 24e89bacbc07c9e6cc15c8c158c9ee91d216cb9a
-      worktree: build/I60-error-transcript-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 9f1ae569214794af587bdc7bf9c0f016b7e106a7
     rehearsal:
       gates_digest: b2ef643cb54b0fe40efb8689f3534a43fc1b01cb6b62e006af447d0f9e8c2c60
       at: '2026-10-14T23:05:43-06:00'
