@@ -2450,7 +2450,7 @@ project:
     ordinal: 62
     file: architecture/I62-stream-hardening.md
     freeze_sha: b36915e53438164e708b2394f3a229cc9e5374c2
-    verdict: pending
+    verdict: continue
     lanes:
     - name: client
       repo: fast-llm

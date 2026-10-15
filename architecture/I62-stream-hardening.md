@@ -1166,15 +1166,142 @@ STATUS: COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section stream-hardening verdict --from <file>`. -->
+# Verdict — I62 stream-hardening (judged in a fresh session, cold)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify stream-hardening`)?
+Judge: never built nor graded this work. Mechanical post-flight first, by
+command: `architect verify stream-hardening` ALL-PASS both lanes ((a) frozen
+untouched, (b) no builder commits, (c) reports exist, (d) in-bounds);
+`git diff b36915e HEAD -- architecture/I62-stream-hardening.md` EMPTY (frozen
+region byte-identical since freeze); `git log 43ea169..` EMPTY in both lane
+worktrees (builders committed nothing). Evidence transcribed verbatim
+(commits 2e925b01 client, b6762019 data) before any judgment.
+
+Gates re-run COLD on the INTEGRATED-EQUIVALENT overlay (repos/fast-llm clean
+@ 43ea169 + both lanes' diffs applied client→data; the CHANGELOG conflict
+resolved per the declared semantics — one `## Unreleased`, client bullets
+then data bullets), per the I53 precedent: **9/9 PASS** — suite 174/0
+(146 base + 15 client + 13 data), parity (the gate's full-pattern form
+174/0; standalone 12/0 = 11/11 fixtures byte-identical), frozen FROZEN_OK,
+retry 11/0, salvage 4/0, backfill 3/0, scrub 5/0, stop-reason 5/0, docs
+DOCS_OK. Stability: two further cold full-suite runs 174/0 (plus the
+builder's ×3 seeds) — zero flake. The solo-worktree sibling-gate REDs are
+the disclosed parallel-lane shape (0 matching examples), judged on the
+integrated union as the AC section directs.
+
+## Plan-letter refinements R1–R5 (left for this ruling by the spec digest)
+
+- **R1 — the row-14 binding fragment carries the id. ACCEPT.** The plan's
+  literal shape (a purely id-less frag2 after an id-only frag1) cannot be
+  "found by id" — pi itself opens a second block for it (:536-539 routes by
+  id or index only); the pi-cured shape is frag2 `{id, index, …}`, exactly
+  what the frozen pin encodes, and the builder's pin proves ONE block while
+  the standing two-block shapes stay pinned both sides.
+- **R2 — retry default frozen at 1 vs pi's library default 0. ACCEPT.**
+  Consumer-controlled via `max_retries:` (pi's shape; `0` restores the
+  single attempt), the deviation recorded in Grounds before freeze, and the
+  hardening observable on the daily-driver surface; pi's harness passes the
+  consumer setting unset, so pi's 0 is a library default the owner never
+  rides explicitly.
+- **R3 — the mock server joins lane `client`'s touch set. ACCEPT.** The
+  plan's own "extend, don't reinvent" requires it; the additions are exactly
+  the two sanctioned shapes (`headers:` on `:error`, `abort:` on `:stream`
+  closing without the terminating chunk), framing through `write_chunk`
+  only, `raw_frames` untouched.
+- **R4 — "non-2xx mid-stream" read at creation. ACCEPT.** async-http has no
+  mid-stream status change; the implementation lands the reading exactly
+  (creation non-2xx → retry decision → `:error` event → mapped raise;
+  genuinely-mid-stream = the network family during body read → salvage).
+- **R5 — docs ownership split. ACCEPT.** Only client's behaviors change
+  documented error/event behavior; `CHANGELOG.md` resolved in the declared
+  client→data order (verified in the overlay).
+
+- **Salvage-keeps-raise-after-event (the recorded deviation from pi's
+  stream-end). ACCEPT.** The gem's taxonomy is load-bearing — tart's I60
+  ladder keys on the raise class; the spec froze "then re-raises" and the
+  code and pins deliver event-then-raise.
+
+## Lane `client` PHASE 0 items (4) — rulings
+
+- **N1 ECONNREFUSED not count-observable. ACCEPT.** Nothing listening
+  leaves no capturable request; the pin asserts the literal observables
+  (`ConnectionError /Errno::ECONNREFUSED/` after `[:error]`, no `:start`);
+  the count discipline for the statusless class rides the response-bearing
+  pins (exactly-2 on 429/409/5xx/header-true) and `max_retries: 0`
+  (exactly-1).
+- **N2 TTFB retry proven by outcome, not server count. ACCEPT.** The pool
+  makes internal requests (3 server reads for 2 client attempts), so
+  server-side counts are not a client-attempt proxy; success after a
+  first-attempt deadline fire is impossible without BOTH the retry and the
+  per-attempt `fired` reset (a stale flag raises at the post-stream guard) —
+  the pin discriminates the behavior, which is what the AC demands.
+- **N3 mid-stream read-inactivity = Async::Cancel path → TimeoutError, no
+  terminal event, no retry. ACCEPT.** This is the frozen letter itself
+  (§1 exempts Async::Cancel with "the rescue ladder order is untouched";
+  §2 scopes the TTFB trigger to "before the response"), not a deviation —
+  the standing D5 pin passes unmodified.
+- **N4 the standing 429 §8-mapping pin amended to `max_retries: 0`.**
+  ACCEPT. The frozen default legitimately changes that scenario (a single
+  scripted 429 would retry into the queue's next script); the pin's subject
+  — the §8 status mapping — keeps its exact assertions; `client_spec.rb`
+  carries no additive-only restriction (only `stream_cancel_spec.rb` does);
+  disclosed and why-commented; the retry behavior is separately pinned, so
+  nothing is weakened.
+
+## Lane `data` §8 disclosed judgment calls (3) — rulings
+
+- **D1 the three scrub-guarded predicates (`text_block_texts`' whitespace
+  filter, `non_empty_thinking` reject, `normalize_thinking_block`'s empty
+  predicate). ACCEPT.** The matrix pin exposed that `String#strip` raises
+  `Encoding::CompatibilityError` on defect bytes BEFORE the emission-point
+  scrub runs — the build dies pre-emission, so AC3's property
+  (`JSON.generate` never raises from message content) fails for the
+  assistant-text and reasoning-field positions without routing those
+  predicates through the same `scrub { "" }` deletion. In-lane (codec.rb),
+  the identical deletion semantics, byte-neutral on valid strings
+  (predicate outcomes unchanged — parity 11/11 + suite green prove it).
+  This is the frozen property's own build-path requirement, not a widened
+  scope: no new emission position, the pre-emission filters just stop dying
+  on the same strings §3 owns.
+- **D2 `text_block_texts` returns scrubbed texts. ACCEPT.** Joins of
+  already-valid strings; the explicit emission-point scrubs remain; same
+  no-op-on-valid guarantee.
+- **D3 `scrub_text` passes non-Strings through. ACCEPT.** Matches the
+  defensive `.to_s` house style without introducing coercion; every frozen
+  scrub position is a String.
+
+## Acceptance Criteria
+
+Frozen sections unchanged since freeze (`architect verify` (a) PASS; the
+freeze diff is empty): YES.
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | salvage 4/0; mid-body abort pin `[start…block events, :error(partial + usage)]`, no post-failure end events, then `ConnectionError /EOFError/`; creation-429 `:error`(empty, no `:start`)→`RateLimitError`; thinking-signature serialization pin; StandardError re-raise pin; `stream_cancel_spec` 4/0 with ZERO edits; ladder order preserved in code (Async::Cancel first); raise-only paths gone | Spec §1 | PASS |
+| AC2 | retry 11/0; full trigger matrix pinned (429→success exactly-2; header-true-on-400; header-false-on-429 FINAL 1-request; plain-400 final; 5xx; 409; ECONNREFUSED; TTFB re-arm outcome-proven; bound exactly-2; `max_retries: 0` exactly-1; post-2xx abort exactly-1 + salvage; Integer≥0 validation); header strict "true"/"false" precedence; never-after-2xx; cancellation never retried; immediate; gemspec untouched | Spec §2 | PASS |
+| AC3 | scrub 5/0; 4 defect classes × 8 positions + deep arguments leaves `JSON.generate` clean, valid, no U+FFFD; pi's `"Text  here"` deletion observable exact; byte-identical ASCII/multibyte/emoji + all 11 fixture bodies; parity 12/0 standalone | Spec §3 | PASS |
+| AC4 | stop-reason 5/0; round-trip absent/present; factory; no vocabulary validation; `:error`/`:aborted` skipped entirely (no orphan synthesis) while a previous valid assistant's orphan still synthesizes; `:stop` carried through; byte-identical base-captured literal | Spec §4 | PASS |
+| AC5 | backfill 3/0; frozen R1 shape ONE block, args accumulated frag2+frag3, natural `:tool_use`; first-index-wins (different index → fresh block, pi parity); no scratch keys (`contain_exactly`); standing pins :217/:249 unmodified; `protocol.rb` diff confined to `consume_tool_call` | Spec §5 | PASS |
+| AC6 | docs DOCS_OK; `errors.md` :18 claim retired + "Mid-stream salvage" + "Request retry" (trigger set, header precedence, one-retry default, `max_retries:`); `stream-events.md` `:error` row + salvage partial; CHANGELOG `## Unreleased` both lanes' bullets | Spec §6 | PASS |
+| AC7 | suite 174/0 cold ×3 (gate + judge ×2; builder ×3 seeds); 11/11 fixtures byte-identical; FROZEN_OK (zero-diff vs 43ea169 on every must-not path); integrated diff exactly the 12-file declared union (client 7 ⊂ 8, data 6 = 6); no new runtime deps | Spec §7 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+## Residuals (recorded, none blocking)
+
+- `reasoning_details` replay strings are outside the frozen scrub-position
+  list and unscrubbed (pi's own call sites don't cover the details array
+  either); provider-sourced valid-UTF-8 JSON makes the entry path
+  implausible — named edge for any future scrub widening.
+- Connection-pool hygiene nit: a FINAL non-2xx attempt's response is read
+  (`raise_api_error`) but never `finish`ed (retryable discards are
+  `finish_quietly`'d); cosmetic, no behavioral pin.
+- Row 19's LIVE half closes fully only with the named tart-side
+  `stop_reason` threading follow-up (owner's call; repos/tart untouched —
+  gem-side skip and field are in place).
+- The mock's `respond_error` reason phrase stays "Bad Request" for every
+  status (pre-existing; the client keys on the numeric status).
+
+## Iteration
+
+**CONTINUE** — the diff is faithful to the frozen Specification end to end
+(all five ports pi-precedented and pinned, every control green cold, the
+healthy wire proven byte-identical), every disclosure adjudicated ACCEPT
+with none silent; integrate both lanes in order client → data.
