@@ -9,11 +9,80 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section wire-tolerance grounds --from <file>`. -->
+**The defect (owner live-run, 2026-10-15).** A tart-hosted architect session
+(`~/.tart/sessions/--Users-eric-architect-spaces-20261009-pi-port--/2026-10-15T17-38-57-977Z_01a140a5-4f39-71dc-b4a8-ee18d178463a.jsonl`)
+lost two consecutive assistant turns to `StreamError: malformed stream chunk:
+unexpected end of input, expected closing " at line 1 column 1031` (turn 25,
+17:40:50Z) and `… column 432` (turn 27, 17:43:35Z) — both turns recorded
+`finish_reason: "error"` with the message persisted via
+`tart/lib/tart/agent/loop.rb` `synthesize_failure_message` (the pi-shaped
+failure trace). Both failing turns are exactly the ones streaming an **edit
+tool call with multi-line arguments** — the first multi-line tool arguments of
+the session; all prior tool-call turns (rg/grep/read/bash, single-line args)
+streamed clean. Model: `zai/glm-5.3` direct (`api.z.ai/api/coding/paas/v4`),
+`zaiToolStream: true` — the daily-driver request shape.
+
+**The raise site and the parse seam.** The error is raised at
+`gems/completions/lib/fast/completions/client.rb:143` — `feed_stream` runs
+`JSON.parse(item)` on every dispatched SSE payload and converts
+`JSON::ParserError` into a terminal `StreamError` (`stop_reason: :error`),
+killing the turn.
+
+**Mechanism proof (this session, tool-verified).** Ruby's JSON error message
+discriminates the malformation class exactly:
+
+- truncated mid-string → `unexpected end of input, expected closing " at line 1 column N` — **the observed message**
+- intact string with raw `\n` → `invalid ASCII control character in string: …` — a DIFFERENT message
+- trailing garbage → `unexpected token at end of stream` — a DIFFERENT message
+
+The gem's `SSE` (`gems/completions/lib/fast/completions/sse.rb`) is
+byte-boundary-correct (verified live: multibyte-across-chunk splits, CRLF,
+multi-`data:`-line joins all round-trip — `ruby -Ilib` harness this session).
+It dispatches ONLY complete lines at event boundaries, and `handle_line`
+silently DROPS any line that is not `data:`-prefixed, empty, or a comment
+("anything else: not on this wire; ignored"). Therefore a dispatched payload
+can only end mid-string if **the wire itself terminated the data line inside a
+JSON string** — i.e. the server emitted raw control characters (a newline)
+inside the SSE JSON. The dropped remainder was the unprefixed continuation
+line.
+
+**The provider malformation class is known to pi.** pi carries a dedicated
+repair utility — `repos/pi/packages/ai/src/utils/json-parse.ts`:
+`repairJson` "Repairs malformed JSON string literals by: escaping raw control
+characters inside strings; doubling backslashes before invalid escape
+characters", `parseJsonWithRepair` (try → repair → re-parse). pi applies it at
+every seam where IT parses SSE itself (anthropic-messages, mistral,
+pi-messages, bedrock). On the openai-completions path pi delegates parsing to
+the OpenAI SDK — and the resolved SDK vintage (`packages/ai` → openai 7.19.0,
+`node_modules/openai/core/streaming.js`) **throws** `SyntaxError('Error
+reading response: malformed server-sent event JSON.')` on the same wire bytes.
+So pi's openai path dies exactly like tart does; pi simply wrote the cure for
+its own-parse seams and tolerates the SDK limitation. No pi session on this
+machine shows a genuine occurrence (the two `rg` hits are echoes: SDK source
+display + this investigation's own transcript).
+
+**Precedent in-tree.** The gem already ports `repair_json` verbatim from pi's
+`repairJson` (`gems/completions/lib/fast/completions/protocol.rb:198-215`,
+OQ-4) — used at the tool-arguments finalize seam only. The chunk seam
+(`client.rb feed_stream`) has no repair.
+
+**Live probe (this session, 9 runs).** `tmp/zai-wire-probe.rb` +
+`tmp/zai-wire-probe2.rb` (raw Net::HTTP, parser-free, byte-accurate log;
+thinking on/off variants, the failing note text with multibyte punctuation):
+9/9 runs clean — healthy zai wire = ~225-byte `data:` deltas (max 380), all
+newlines correctly `\\n`-escaped, zero dropped lines, zero parse failures.
+Logs: `tmp/zai-wire-probe/run-N.log`. The failing payloads (1031/432 chars)
+are 3–4.5× the largest healthy payload — zai occasionally emits COALESCED
+large deltas, and the malformation rides that rare mode (not reproduced live
+in 9 tries; it is load/batching-dependent server behavior). The fix therefore
+gates on FIXTURE-reproduced wire bytes (the four malformed shapes below), not
+on a live repro.
+
+**Why this is a defect worth an iteration, not an acceptable provider quirk:**
+the failure mode kills entire turns of the owner's daily driver, mid-edit, and
+retries also die (turn 27). pi's own utility tree demonstrates the intended
+cure class for this exact malformation; the port applies it at the one seam
+that still hard-fails.
 
 ## Specification
 
