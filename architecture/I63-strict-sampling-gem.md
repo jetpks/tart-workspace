@@ -191,35 +191,253 @@ types.rb:16 ("restricted") — never in a spec file).
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section strict-sampling-gem specification --from <file>`. -->
+### Objective
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+Port pi's JSON-schema constrained-sampling machinery into the fast-completions
+gem so the wire layer can send strict-mode tool schemas (the fix's substance
+for `problems.md` @ 1b69ddb): a tool declared `constrained_sampling
+{type:"json_schema", strict:"prefer"|"require"}` on a dialect declaring
+`supports_strict_mode` ships the STRICT REWRITE of its parameters (all
+properties required; non-required properties not allowing null wrapped
+`anyOf:[property,{type:"null"}]`; `additionalProperties:false`) with
+`"strict":true` on the function object; every OTHER function tool on a
+strict dialect ships `"strict":false` with parameters verbatim; tools on
+non-strict dialects carry NO strict key ever, parameters verbatim — the
+today-wire. "prefer" falls back silently to loose when the schema is
+unsupportable or the dialect lacks strict support; "require" raises with
+pi's exact message bytes. BRIEF §7.8 exact-parity bar; §8 itemize-and-defend.
+
+### The ported contract (one lane)
+
+**D1 — Dialect vocabulary (dialects.rb).** `supports_strict_mode` enters the
+CLOSED vocabulary as the 14th key (appended after `session_affinity_format`):
+default `false`, free boolean, same declaration/DSL/validation machinery
+(unknown keys still raise `ArgumentError` at declaration time — the key is IN
+the vocabulary, not around it). `to_h` gains the key in canonical position
+(14 keys). The shipped `:zai` declaration gains `supports_strict_mode true`
+(pi's zai glm-5.3 compat `supportsStrictMode:true`); `:deepseek`,
+`:fireworks`, and the anonymous default stay `false` (pi detectCompat's
+default: OpenAI compatibility alone does not imply strict support).
+
+**D2 — Tool DSL (tool.rb).** A `constrained_sampling` class-level declaration
+mirroring pi's `Tool.constrainedSampling?: false | {type:"json_schema",
+strict:"prefer"|"require"}`:
+- default `nil` (undeclared — today's behavior, no strict participation);
+- `constrained_sampling false` — the explicit opt-out, wire-equivalent to nil;
+- `constrained_sampling({"type" => "json_schema", "strict" => "prefer"})` (or
+  `"require"`) — string keys mirroring pi's shape, readable from instances
+  and classes like `parameters`;
+- ANY other shape raises `ArgumentError` AT DECLARATION TIME — unknown
+  `type` (including `"grammar"` — the named exclusion, nothing
+  half-anticipates grammar), unknown `strict` value, missing keys,
+  non-Hash/non-false values. Fail loud, never silently mistranslate.
+
+**D3 — The rewrite engine (NEW lib/fast/completions/constrained_sampling.rb;
+facade gains ONE `require_relative "completions/constrained_sampling"`
+immediately before the protocol require).** A module port of pi's
+JSON-schema half, semantics frozen to Grounds' reading (check order =
+throw-order observability):
+
+- `UNSUPPORTED_STRICT_SCHEMA_KEYS` — pi's 20 keys, frozen order.
+- `make_strict_json_schema(schema)` — DEEP-COPY FIRST (the caller's schema
+  — nested included — is never mutated); root not a Hash → raise `root
+  schema must have type object`; node rewrite; root `type` must equal
+  `"object"` → else the same message. Returns the rewritten copy.
+- `make_json_schema_node_strict(node)` — pi's recursion exactly: non-Hash
+  node → `boolean schemas are unsupported`; first present unsupported key
+  (list order) → `<key> schemas are unsupported`; `anyOf` non-array/empty →
+  `anyOf must contain at least one schema`, structured variant (type
+  includes "object"/"array", or `properties`/`items` present) → `object and
+  array unions are unsupported`, variants recurse; `items` array → `tuple
+  schemas are unsupported`, else recurses; `properties` without
+  `type == "object"` → `properties require type object`, non-object nodes
+  return; `additionalProperties` present and not `false` → `schema-valued
+  or true additionalProperties is unsupported`; `properties` not a Hash →
+  `object properties must be a schema map`; `required` present and not an
+  all-String array → `object required must be a string array`; a `required`
+  entry naming no property → `required contains an unknown property`; per
+  property recurse-then-wrap (non-required and not null-allowing →
+  `{"anyOf"=>[property, {"type"=>"null"}]}`, key position preserved);
+  finally `required` = all property names, `additionalProperties` = false.
+  `schema_allows_null`: `type` is/contains "null", `const` nil, `enum`
+  includes nil, or any `anyOf` variant allows null.
+- `resolve_json_schema_strict_sampling(tool, supports_strict_mode)` →
+  `true` (strict) or `nil` (loose): config nil/false or non-json_schema →
+  nil; strict dialect: rewrite succeeds → true, unsupportable →
+  `strict != "require"` ? nil : raise `ConstrainedSamplingError` with
+  `Tool "<name>" requires JSON-schema constrained sampling, but <reason>.`
+  (pi's template: inner reason has no trailing period, the template adds
+  it); non-strict dialect: `require` → raise `ConstrainedSamplingError`
+  `Tool "<name>" requires JSON-schema constrained sampling, but strict
+  tools are unsupported.`; prefer → nil. Only the unsupportable-schema
+  class is caught — any other error propagates (pi's rethrow).
+- Errors (errors.rb): `UnsupportedStrictJsonSchemaError < Error` — the
+  internal raise (pi's inner reasons verbatim), never escapes the
+  resolver; `ConstrainedSamplingError < Error` — the public require-raise.
+  Message bytes are the parity observable (English literals identical to
+  pi's).
+
+**D4 — The wire seam (protocol.rb `apply_tools`).** Per function tool:
+`strict = resolve_json_schema_strict_sampling(tool, dialect.
+supports_strict_mode)`; `parameters` = strict == true ? the rewrite : the
+declared schema VERBATIM (object-identity emission — today's `equal?` pin
+holds for every non-strict path); the function object gains `"strict" =>
+(strict || false)` IMMEDIATELY AFTER `parameters` (pi's key order: name,
+description, parameters, strict) when `dialect.supports_strict_mode` —
+declared-strict `true`, undeclared/loose `false` — and NO strict key ever
+otherwise. The §9.8 comment is AMENDED deliberately (strict rewrite +
+strict-key emission on strict dialects; VERBATIM remains the discipline for
+undeclared tools and non-strict dialects) — never deleted. `tool_stream`,
+the `tools: []` fallback, and declaration order are untouched. Nothing else
+in protocol.rb/codec/client/chat changes beyond what this seam needs.
+
+**D5 — Wire-parity fixtures (wire_parity_spec.rb + spec/fixtures/wire/).**
+The two fresh pi captures (Grounds) land as `zai_strict_tool.json` +
+`zai_strict_undeclared.json` (bytes at `tmp/i63-spec/capture/out/`, provenance
+driver `CAPTURE-STRICT.mjs` committed beside `CAPTURE.mjs`); the scenario
+table gains a `StrictReadTool` (same §12.3 parameters +
+`constrained_sampling` declaration) and the two zai-strict model rows
+(dialect `:zai`, thinking high); the FROZEN_DIGESTS table grows to 13
+(`zai_strict_tool` → `d7470202a2f66216b3d0381bb18d3c5c29082e5c334b7fb87c
+2410d65ce824a8`, `zai_strict_undeclared` → `fead3755e34689d502cbb865d6d424
+ccc84b4453d8724aa8fee713f9516a60c9`); the fixture-fidelity example re-pins
+11 → 13 (the count line is the spec's own bookkeeping). The existing 11
+scenarios stay byte-identical (no regression to fireworks/deepseek/openai
+wire — the non-strict path emits no strict key).
+
+**D6 — Unit gate (NEW spec/fast/completions/constrained_sampling_spec.rb).**
+Pi-derived fixtures pin the rewrite + resolution semantics: the full rewrite
+on a nested schema (required-before-properties key ordering, nested objects,
+arrays via items, anyOf passthrough with null-variant, enum/const null
+allowance); every throw class with pi's EXACT message bytes (boolean schema,
+each unsupported-key family, structured anyOf, tuple items, properties
+without type object, truthy additionalProperties, non-map properties,
+non-string-array required, unknown required, root-not-object ×2); prefer →
+silent nil on unsupportable schema AND unsupported dialect; require → both
+message templates verbatim; the no-mutation property (declared parameters
+deep-equal a pre-call snapshot AFTER a strict build; the emitted strict
+parameters are NOT the declared object); non-json_schema/false/nil configs
+resolve nil.
+
+**D7 — Docs + CHANGELOG.** `docs/reference/dialects.md`: 13→14-key vocabulary
+text + table row (`supports_strict_mode | false | boolean`) + the `:zai`
+declaration block gains the key + a strict-mode paragraph (default false =
+pi's detectCompat; the shipped :zai mirrors glm-5.3 compat).
+`docs/reference/tools.md`: the DSL table gains the `constrained_sampling`
+row; the "Parameters are emitted VERBATIM" section is AMENDED deliberately —
+verbatim remains the default; a strict-declared tool on a strict dialect
+ships the forced-emission rewrite with `strict:true`, undeclared tools
+`strict:false`, non-strict dialects no key and verbatim (the §9.8-parallel).
+`docs/reference/errors.md`: ONE taxonomy row for `ConstrainedSamplingError`
+(strict-"require" tools whose schema cannot be strict-rewritten, or require
+tools on dialects without `supports_strict_mode`). `CHANGELOG.md`: a NEW
+`## Unreleased` section (0.3.0 is the released head) carrying the
+strict-sampling bullets. `gems/completions/README.md` stays UNTOUCHED (the
+I53 owner-prose gate forbids the edit — its "13 keys" line is a declared
+residual, R8).
+
+**D8 — Re-pins (itemized, not silent).** `dialects_spec.rb`: the two
+"13-key" strings (header comment + the CLOSED-vocabulary example
+description) become 14-key; the defaults example gains
+`supports_strict_mode` false; the `:zai` describe block gains the
+`supports_strict_mode true` assertion. `protocol_spec.rb`'s existing VERBATIM
+example (§9.2) keeps holding — its scope is the undeclared tool; new
+strict-emission examples (token `strict`) carry the strict cases:
+declared-strict → rewrite + `strict:true` (hash key order: parameters then
+strict); undeclared on strict dialect → `strict:false`, `equal?` verbatim
+identity; declared on non-strict dialect (prefer) → NO strict key, verbatim,
+byte-equal to the undeclared build; require-raise surfaces through
+`build_request`. Nothing else re-pins.
+
+### Named exclusions (Constraints, itemized)
+
+- NO grammar-constrained sampling: `resolveGrammarConstrainedSampling`,
+  grammar tool input buffers, `type:"grammar"` configs (raise at
+  declaration, D2), `supportsOpenAIGrammarTools` — nothing in the gem
+  half-anticipates grammar.
+- NO provider detection/catalog/base-URL logic in the gem — the consumer
+  declares via Dialect (standing D2/D4 house rule); `supports_strict_mode`
+  is data, not detection.
+- NO codec/client/chat/cancellation/types changes beyond `apply_tools`'
+  needs; NO version bump or release in-lane (the owner cuts 0.4.0 at
+  landing); builders never commit.
+- The optional `isUnsupportedKeyword` provider hook is NOT ported (pi's own
+  call site passes none; adding it would grow the Dialect vocabulary around
+  the closed set). Recorded as R2; if a provider ever needs it, that is a
+  future vocabulary decision.
+
+### Output format
+
+The lane reports raw results only: the spec files added/changed with run
+counts (examples/failures per file), the full suite line (`bundle exec
+rspec` examples/failures/exit), the wire-parity digest table result (13
+fixtures pass/fail), the two new fixtures' SHA256s as landed, file list
+touched, and the PHASE 0 disagreement table (if any) with file:line cites.
+
+### Tool guidance
+
+- Repo: `repos/fast-llm` (gem `gems/completions`). Suite: `bundle exec
+  rspec` from the repo root (174 examples, 0 failures at base `6ceba1f`).
+  Single-spec runs: `bundle exec rspec -O /dev/null <spec> [-e "<token>"]`.
+- Wire-parity harness: `spec/fast/completions/wire_parity_spec.rb` — the 11
+  existing fixtures must stay byte-identical (GREEN at base); the two new
+  scenarios reproduce the Grounds digests. The fixture bytes + driver are
+  PRE-MADE at `tmp/i63-spec/capture/{out,CAPTURE-STRICT.mjs}` — copy them
+  in verbatim; do not re-capture.
+- pi source of record: `repos/pi` @ `f1b2e77f5`
+  `packages/ai/src/api/constrained-sampling.ts` (JSON-schema half only),
+  `openai-completions.ts` convertTools :1483-1518 / detectCompat :1670-1680
+  / getCompat :1334, `types.ts` :736-754. Cite line numbers in code
+  comments as the existing files do.
+- Ruby semantics notes: Hash reassignment preserves key position (the
+  wrap/required-assignment ordering mirrors JS objects by construction);
+  deep-copy = your deep_dup (frozen string literals dup clean); `nil`
+  property values hit the non-Hash node arm (JS `undefined` equivalence).
+- Mock server: unchanged this iteration (the strict scenarios replay the
+  standard `:stream` script).
+
+### Boundaries
+
+- Lane may touch (repo `fast-llm`): the 18 files of the lanes block below.
+  `gems/completions/README.md` is FROZEN (owner-prose gate);
+  `spec/fixtures/readme/**`, `docs_links_spec.rb`, `spec/support/
+  mock_llm_server.rb`, `codec.rb`, `client.rb`, `chat.rb`, `types.rb`,
+  `cancellation.rb`, `sse.rb`, and all of `repos/tart` are out of bounds.
+- The existing 11 wire fixtures and their digests are frozen bytes — no
+  edits, no re-capture.
+
+### Lane plan
+
+One lane — one seam, one gem, one engine file.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision strict-sampling-gem`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: strict
+  repo: fast-llm
+  touch:
+    - gems/completions/lib/fast/completions/constrained_sampling.rb
+    - gems/completions/lib/fast/completions.rb
+    - gems/completions/lib/fast/completions/dialects.rb
+    - gems/completions/lib/fast/completions/tool.rb
+    - gems/completions/lib/fast/completions/protocol.rb
+    - gems/completions/lib/fast/completions/errors.rb
+    - gems/completions/spec/fast/completions/constrained_sampling_spec.rb
+    - gems/completions/spec/fast/completions/protocol_spec.rb
+    - gems/completions/spec/fast/completions/wire_parity_spec.rb
+    - gems/completions/spec/fast/completions/tool_spec.rb
+    - gems/completions/spec/fast/completions/dialects_spec.rb
+    - gems/completions/spec/fixtures/wire/zai_strict_tool.json
+    - gems/completions/spec/fixtures/wire/zai_strict_undeclared.json
+    - gems/completions/spec/fixtures/wire/CAPTURE-STRICT.mjs
+    - gems/completions/docs/reference/dialects.md
+    - gems/completions/docs/reference/tools.md
+    - gems/completions/docs/reference/errors.md
+    - gems/completions/CHANGELOG.md
 ```
+
+### Effort call
+
+`high` — a byte-parity wire change with a recursive rewrite engine, exact
+error-message parity, and frozen fixture digests; not a routine lane.
 
 ## Acceptance Criteria
 
