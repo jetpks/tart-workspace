@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- LaunchAgent for the pi-port model window: ticks bin/model-window.fish
+     every 5 minutes (plus at load) so the z.ai peak-window provider switch
+     (zai <-> openrouter/z-ai, Mon-Fri 14:00-18:00 Asia/Shanghai) applies and
+     self-heals. Install:
+       cp bin/com.jetpks.pi-port.model-window.plist ~/Library/LaunchAgents/
+       launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.jetpks.pi-port.model-window.plist
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <key>Label</key>
+    <string>com.jetpks.pi-port.model-window</string>
+    <key>ProgramArguments</key>
+    <array>
+        <string>/opt/homebrew/bin/fish</string>
+        <string>/Users/eric/architect/spaces/20261009-pi-port/bin/model-window.fish</string>
+    </array>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StartInterval</key>
+    <integer>300</integer>
+    <key>WorkingDirectory</key>
+    <string>/Users/eric/architect/spaces/20261009-pi-port</string>
+    <key>StandardOutPath</key>
+    <string>/Users/eric/architect/spaces/20261009-pi-port/tmp/model-window.launchd.out</string>
+    <key>StandardErrorPath</key>
+    <string>/Users/eric/architect/spaces/20261009-pi-port/tmp/model-window.launchd.err</string>
+</dict>
+</plist>
