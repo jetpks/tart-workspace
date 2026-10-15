@@ -492,11 +492,115 @@ The frozen sections follow verbatim.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I61-wire-tolerance-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence wire-tolerance --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### wire
+
+# I61 wire-tolerance — Builder Report (lane: wire)
+
+Worktree: `build/I61-wire-tolerance-wire/wt`, branch `lane/I61-wire-tolerance-wire`, base fast-llm `main` @ `33571e1` (clean; nothing committed — the integrator lands the tree). Offline throughout: every malformed-wire claim is fixture/mock-based against the gem's own `MockLLMServer`; no live z.ai probes.
+
+## Spec files added/changed (run counts per file)
+
+| File | Status | Run |
+|---|---|---|
+| `gems/completions/spec/fast/completions/malformed_wire_spec.rb` | NEW | **5 examples, 0 failures** |
+| `gems/completions/spec/fast/completions/sse_spec.rb` | extended (pure additions; 9 base pins untouched) | **15 examples, 0 failures** |
+| `gems/completions/spec/fast/completions/client_spec.rb` | extended (+2 examples; 12 base pins untouched) | **14 examples, 0 failures** |
+| `gems/completions/spec/fast/completions/protocol_spec.rb` | untouched (control; OQ-4 repair pins stay green) | 32 examples, 0 failures |
+| `gems/completions/spec/fast/completions/stream_cancel_spec.rb` | NOT touched (only-if: no drop-path interaction with cancellation exists — a drop never raises and the cancel ladder is untouched) | green in suite |
+
+Per-file counts measured with `-O /dev/null` (bypasses the `.rspec` `--pattern` fan-out; see gate note below).
+
+The five frozen malformed shapes covered in `malformed_wire_spec.rb`:
+
+1. **Observed shape** — coalesced tool-call delta cut mid-string by a raw `\n`, remainder on the next line UNPREFIXED; the delta also carries a raw `\t` (its payload-level escape lost). Rejoin restores the cut byte-exactly; chunk-seam repair escapes the tab; the args text then carries a raw control char that the existing OQ-4 tolerant finalize repairs; final arguments `{path: "edit.rb", content: "alpha\nbeta\tgamma"}` assemble byte-intact (real `\n` and `\t` in the content value), `dropped_chunks == 0`, natural mapped stop `:tool_use`, no `:error` event.
+2. **Cut, NO continuation** — truncated payload (open string, unbalanced braces, no control chars) → dropped (`dropped_chunks == 1`), stream completes `:tool_use`; the surviving tool-call block finalizes with the tolerant OQ-4 empty args `{}` — no raise.
+3. **Intact payload, raw `\n`+`\t` inside a string value** delivered via the spec-correct multi-`data:`-line event (parser joins with `"\n"`) → repair → parses → text flows downstream byte-intact (`"alpha\nbeta\tgamma"`), `dropped_chunks == 0`, natural `:stop`.
+4. **Unrepairable for a non-control-char reason** — truncated object, no continuation, unbalanced braces → dropped (`dropped_chunks == 1`), stream completes `:stop`, `final.content == []`.
+5. (residual, AC3 §10.5) **Dropped finish-carrying chunk** — the missing-finish terminal discipline is unchanged: `:error` event emitted FIRST, then `StreamError /finish_reason/` raised; `dropped_chunks == 1`.
+
+Plus SSE-level rejoin pins (6 new in `sse_spec.rb`): no-separator append to the open payload; multi-continuation chaining; `event:`/`id:`/`retry:` still ignored mid-payload; comments still ignored mid-payload; stray unprefixed line with NO open payload still ignored (unchanged); a `data:` line after a continuation opens the next data line (data lines still join with `"\n"`).
+
+Plus client-level pins (2 new in `client_spec.rb`): repaired control-char payload flows downstream without a drop; `dropped_chunks` counts and RESETS per stream (two consecutive streams each report 1, not 2).
+
+## Full suite line
+
+```
+bundle exec rspec   (from the worktree root; .rspec pattern gems/completions/spec/fast/**)
+146 examples, 0 failures   — exit status 0
+```
+
+(Base @ `33571e1`: 133 examples, 0 failures. Δ = +13 examples, all new pins; zero base examples modified or removed.)
+
+## Wire-parity digest table (AC4 control)
+
+`spec/fast/completions/wire_parity_spec.rb`: **12 examples, 0 failures** — all 11 canonical fixtures PASS byte equality + frozen SHA256 digest:
+
+| fixture | result |
+|---|---|
+| budget_field | PASS |
+| reasoning_details_replay | PASS |
+| openai_ladder_on | PASS |
+| zai_off | PASS |
+| deepseek_on | PASS |
+| openai_ladder_off | PASS |
+| thinking_replay | PASS |
+| cross_model_thinking_replay | PASS |
+| zai_on | PASS |
+| tool_roundtrip | PASS |
+| fireworks_plain | PASS |
+
+(The 12th example is the umbrella shape/request_path/digest pin.) Byte-neutrality on healthy wires holds — the deviation is invisible there.
+
+## Mock-server spec-type additions
+
+`spec/support/mock_llm_server.rb`: new raw-bytes response spec `{type: :stream, raw_frames: [String, ...]}` — array of strings written VERBATIM through the chunked writer (`write_chunk`, `format("%x\r\n%s\r\n", …)`), comment lines included; NO usage chunk and NO `[DONE]` are appended (the frames carry exactly what the wire should say — the `[DONE]` sentinel is part of the scripted frames where wanted). Documented in the mock's script-vocabulary header. No bare writes into the chunked stream (the mock's framing-discipline comment honored). All existing spec types (`:stream`, `:chunks`, `:slow_stream`, `:message`, `:error`) and the usage/`[DONE]` behavior for non-raw types are unchanged.
+
+## File list touched (9 of the 12 declared; zero outside)
+
+- `gems/completions/lib/fast/completions/sse.rb` — continuation rejoin in `handle_line`: a non-empty, non-comment, non-`data:` line that is not a known SSE field (`event:`/`id:`/`retry:`), arriving with a data payload open, is appended to it with NO separator; known fields and comments keep today's ignore semantics; no-open-payload behavior unchanged. All existing rules (comment ignore, CR strip, multi-data-line `"\n"` join, `[DONE]` sentinel, chunk-boundary buffering) preserved.
+- `gems/completions/lib/fast/completions/client.rb` — `feed_stream` parse seam: `parse_chunk` (parse → on `JSON::ParserError` one repair pass → re-parse) + `parse_repaired` (still unparseable → dropped, `@dropped_chunks += 1`, nil; the stream continues). The `raise StreamError` from chunk parsing is GONE. `attr_reader :dropped_chunks` added (reset per stream in `feed_stream`). Terminal discipline, cancel ladder, watchdog untouched.
+- `gems/completions/lib/fast/completions/errors.rb` — StreamError docstring note only: not the malformed-chunk path since I61; what remains is a provider error finish_reason or a missing finish. Shape/behavior unchanged.
+- `gems/completions/spec/support/mock_llm_server.rb` — `raw_frames` spec type (above).
+- `gems/completions/spec/fast/completions/sse_spec.rb` — +6 pins (above).
+- `gems/completions/spec/fast/completions/client_spec.rb` — +2 pins (above).
+- `gems/completions/spec/fast/completions/malformed_wire_spec.rb` — NEW, 5 examples (above).
+- `gems/completions/docs/reference/errors.md` — retired claim removed ("A malformed stream chunk raises `StreamError` mid-stream instead", was errors.md :55); StreamError section now documents the tolerant class (SSE rejoin → chunk-seam repair → drop-and-continue counted on `Client#dropped_chunks`) and the two already-tolerant residuals (missing-finish still raises; lost args fragment → partial args → clean tool error).
+- `gems/completions/CHANGELOG.md` — `## Unreleased` entry describing the tolerance.
+
+Declared-but-untouched (with reasons):
+
+- `gems/completions/lib/fast/completions/protocol.rb` — ZERO changes needed: `repair_json` is already a `module_function` on `Protocol` (protocol.rb :18 + :213), callable from `client.rb` in the existing house style (`Protocol.build_request` et al. are consumed the same way). Verified at runtime before deciding. The smallest surface change that fits the house style is no change; the spec freezes behavior, not layout.
+- `gems/completions/spec/fast/completions/stream_cancel_spec.rb` — only-if not met: a dropped payload produces no exception, so there is no drop/cancel interaction to pin; the cancel ladder is untouched.
+- `gems/completions/docs/reference/stream-events.md` — its only `StreamError` mention (the `:error` row: "the failed terminal — `StreamError` raises right after") remains exactly true post-I61; consistent by construction.
+
+Must-not respected: zero edits to `spec/fixtures/wire/**`, `wire_parity_spec.rb`, `dialects.rb`, `codec.rb`, `chat.rb`, `tool.rb`, `cancellation.rb`, `repos/tart`; no request-construction changes (outbound wire frozen); no new runtime dependencies; no refactors beyond the task.
+
+## PHASE 0 disagreement table
+
+**None.** No disagreements with the frozen Specification/Grounds/AC were found while reading or implementing. Two construction notes for the judge (rulings not required):
+
+1. `protocol.rb` was declared touchable but ended untouched — see rationale above; AC6's "exactly the declared touch set" is satisfied as a subset (the two files the Specification itself marks "only if" are likewise legitimately skipped).
+2. Shape 1's byte-intactness ladder: a tool-arguments value is doubly encoded, so a raw control char that survives rejoin inside it cannot round-trip through the chunk-seam repair alone (it parses to a raw control char inside the args TEXT, which the existing OQ-4 finalize then repairs — the final ARGUMENTS HASH is what must be, and is, byte-intact). The frozen shape-1 bullet ("rejoin + repair → payload parses, tool arguments assemble byte-intact") is satisfied exactly; the fixture constructs the cut as a spurious framing newline (rejoin removes it byte-exactly) plus the tab's lost payload-level escape (chunk repair restores it; OQ-4 repairs the args text).
+
+## Frozen gates (run cold from the worktree root; PI_PACKAGE_DIR/PI_MODEL/PI_PROVIDER/PI_CONTEXT_WINDOW unset)
+
+| gate | raw outcome | verdict |
+|---|---|---|
+| `suite` | `146 examples, 0 failures` (grep `examples?, 0 failures`), exit 0 | GREEN |
+| `parity` | `146 examples, 0 failures`, exit 0 | GREEN |
+| `malformed` | `146 examples, 0 failures` (matches `[1-9][0-9]* examples?, 0 failures`), exit 0 | GREEN |
+| `docs` | `DOCS_OK`, exit 0 | GREEN |
+| `fixtures-frozen` | `FIXTURES_FROZEN`, exit 0 | GREEN |
+
+Base verdicts measured this session before the work: suite/parity GREEN (`133 examples, 0 failures`), malformed RED (`0 examples, 0 failures, 1 error occurred outside of examples` — fails the `[1-9]` guard as the AC documents), docs RED (retired claim present), fixtures-frozen GREEN. Matches the frozen AC's base verdicts exactly.
+
+Gate note (pre-documented in the AC rehearsal): the repo `.rspec` carries a global `--pattern gems/completions/spec/fast/**/*_spec.rb`, so every named-file invocation (parity, malformed) fans out to the whole suite — the summary line reads 146, not a per-file count. The frozen gate commands are run verbatim regardless; per-file counts in this report were measured with `-O /dev/null`.
+
+## Deviation-beyond-pi record
+
+pi's openai-completions path dies on exactly this wire: the resolved SDK vintage (openai 7.19.0, `node_modules/openai/core/streaming.js`) throws `SyntaxError('Error reading response: malformed server-sent event JSON.')` on a mid-stream SSE payload that fails `JSON.parse`, and pi's retry machinery covers request creation, not mid-stream parse errors — the two tart turns of 2026-10-15 died the same way. The port deliberately exceeds pi here, as sanctioned by the frozen deviation ruling: pi's own `parseJsonWithRepair` (`packages/ai/src/utils/json-parse.ts`) is the in-tree precedent for precisely this malformation class, applied at every seam where pi owns the parse (anthropic-messages, mistral, pi-messages, bedrock), and the gem — which owns its parse at the chunk seam — now applies the same cure there: SSE continuation rejoin → `repair_json` (the verbatim pi port, already in-tree at protocol.rb for OQ-4) → drop-and-continue for the unrepairable residue. The deviation is kept safe by the hard constraint of healthy-wire byte-neutrality, which holds: all 11 canonical fixtures byte-identical, full suite green. Recorded, not re-litigated.
+
+STATUS: COMPLETE
 
 ## Verdict
 
