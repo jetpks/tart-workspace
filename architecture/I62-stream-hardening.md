@@ -165,35 +165,299 @@ verification gate stays `bundle exec rspec` from the fast-llm repo root.
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section stream-hardening specification --from <file>`. -->
+# I62: stream-hardening — Specification
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+## Objective
+
+Close the five PORT-class parity gaps from the 2026-10-15 audit
+(`notes/scout-20261015T1845Z-openai-completions-parity.md` rows 14/15/16/17/19;
+Grounds above) in the fast-completions gem, two disjoint lanes: the gem
+currently loses streamed work on mid-stream failures, retries nothing, can die
+outside its own error taxonomy on malformed output strings, replays errored
+turns, and mis-assembles one tool-call fragment shape. All five ports are
+pi-precedented, all inbound/replay-side (the outbound wire is frozen — row 18
+parked), all invisible on healthy wires (byte-neutrality, the I61 bar). Row
+19 is LIVE since I60: tart sessions record errored turns and the gem's
+`Codec.normalize` replays every assistant today.
+
+Lane `client` owns the wire/transport pair (salvage + retry); lane `data`
+owns the codec/protocol triple (scrub + stop_reason skip + index backfill).
+The lanes are independent by file — parallel dispatch, integrate in order
+`client` → `data` (no dependency; the order fixes CHANGELOG merge direction).
+
+### 1. Mid-stream failure salvage (lane `client`; audit row 16; pi :707-728)
+
+Any failure of the stream now reaches the consumer through the documented
+error-terminal channel BEFORE the raise — the discipline `deliver_terminal`'s
+`StreamError` arm already has (`client.rb:175-185`):
+
+- **Streaming phase (a 2xx status has been received):** ANY exception raised
+  while streaming — the `*NETWORK_ERRORS` family mid-body (socket reset, EOF
+  mid-chunk, …) or any other `StandardError` — EXCEPT `Async::Cancel`
+  (cancellation keeps its no-terminal-event discipline; the rescue ladder
+  order is untouched) yields `Event.new(type: :error, reason: :error,
+  message: accumulator.partial)` where `accumulator.partial` is the live
+  Message carrying EVERY streamed block and the usage accumulated so far —
+  then re-raises: the network family mapped to `ConnectionError` (today's
+  class and message form preserved), anything else re-raised unchanged.
+  pi catch-all parity in the observable shape: NO block-end events
+  (`text_end`/`thinking_end`/`tool_call_end`) after the failure — the ONE
+  `:error` event is the terminal; and the salvage applies the same
+  finalization pi's catch applies to scratch: a thinking block whose
+  `reasoning_details` streamed before the failure gets them serialized into
+  its `:signature` exactly as `finalize_blocks` would, so a salvaged partial
+  replays like a completed one's.
+- **Creation phase (the POST resolves non-2xx, or fails at connection):**
+  after the retry decision (§2) — retries exhausted or class non-retryable —
+  the raise is preceded by the SAME `:error` terminal event (the accumulator
+  is empty or partial; `:start` is still NOT emitted for a failed creation —
+  `errors.md:18`'s claim is amended, not silently inverted). `raise_api_error`
+  (`client.rb:187-190`) and the bare `rescue *NETWORK_ERRORS → ConnectionError`
+  conversion (`client.rb:98-99`) as RAISE-ONLY paths are gone.
+- I61's parse-drop path (repair → drop-and-continue) and the §10.5 terminal
+  discipline (error finish / missing finish → `:error` then `StreamError`)
+  are unchanged — `deliver_terminal` remains the natural-terminal path.
+
+### 2. Request-creation retry, trigger classes only (lane `client`; row 15; pi provider-retry)
+
+The POST attempt — creation through status receipt, structurally
+pre-first-body-byte (pi wraps `client.chat.completions.create(...)`, whose
+promise resolves at headers; Grounds R4) — is retried BOUNDED times exactly on
+pi's trigger set:
+
+- **Bound (frozen):** ONE retry (two attempts) as the `Client` default, via a
+  `max_retries:` constructor kwarg (integer ≥ 0, default 1; `0` restores
+  today's no-retry behavior — pi's consumer-control shape; pi's library
+  default 0 is the recorded deviation, Grounds R2). Retries are IMMEDIATE —
+  backoff/delay policy is out of scope.
+- **Trigger set (pi `provider-retry.ts:25-38`, exact):**
+  1. response header `x-should-retry: true` → retry, regardless of status;
+  2. response header `x-should-retry: false` → FINAL, regardless of status
+     (honored even on 429/5xx);
+  3. statusless errors — `*NETWORK_ERRORS` raised during the POST, and a
+     watchdog `TimeoutError` that fires before the response (TTFB) → retry;
+  4. status 408 / 409 / 429 / 5xx → retry;
+  5. every other status (400, 401, 403, 404, …) → final.
+- **Never after a 2xx is received** — once the response resolves 2xx the
+  attempt is committed to streaming; any later failure is §1 salvage, never a
+  retry. Cancellation is never retried (it is not a failure). Every
+  non-network exception that is neither a non-2xx status nor `TimeoutError`
+  propagates untouched by the retry machinery.
+- Each attempt is a fresh POST on the same client; attempt count is
+  observable through the mock's captured requests (the frozen pins).
+- No new runtime dependencies; the watchdog's cancel-vs-fired discipline
+  (D5/D8) is preserved — a retried TTFB timeout re-arms per attempt and the
+  final failure still surfaces `TimeoutError`, never `CancelledError`.
+
+### 3. Outgoing-string surrogate scrub (lane `data`; row 17; pi sanitizeSurrogates)
+
+Every string the codec emits onto the wire params passes through a scrub that
+makes it `JSON.generate`-safe, applied at the EMISSION points (pi scrubs at
+its own emission sites, Grounds row 3):
+
+- `to_wire_messages`: the leading `instructions` string and system-message
+  content; `wire_user`: string content and text-part texts; `wire_assistant`:
+  the joined text, the reasoning-field text, and the STRING VALUES inside
+  tool-call `arguments` hashes (deep — the live-parsed arguments are message
+  content too); `wire_tool_result`: the joined content (the "(no tool
+  output)" placeholder needs no scrub).
+- Frozen semantics: invalid-encoding sequences are DELETED — pi's
+  `sanitizeSurrogates` observable (`"Text \u{D83D} here"` → `"Text  here"`);
+  the sanctioned mechanism is `String#scrub { "" }`, which covers Ruby's
+  broader class (lone high/low surrogates, CESU-8 pairs, any other invalid
+  bytes — Grounds row 3 live verification). NOT U+FFFD replacement.
+- Property: `JSON.generate` over `Protocol.build_request(...)` output NEVER
+  raises `JSON::GeneratorError` from message content, for any history
+  carrying the defect classes in the scrubbed positions.
+- Byte-neutrality: valid strings pass BYTE-IDENTICAL (scrub is a no-op on
+  valid encodings — the 11 canonical fixtures plus direct no-op pins prove
+  it).
+
+### 4. `stop_reason` on Message + errored-turn skip on replay (lane `data`; row 19; pi transform-messages :196-206)
+
+- `Message` gains `stop_reason` (nil default; `to_h` emits the key only when
+  set; `from_h` round-trips it; the `Message.assistant` factory accepts it).
+  No vocabulary validation — the expected values are the stream's mapped
+  reasons plus `:aborted`; consumers (tart's follow-up) may carry their own.
+- `Codec.normalize` SKIPS assistant messages whose `stop_reason` is `:error`
+  or `:aborted` entirely, with pi's exact pass semantics: the skip happens in
+  the transform pass (pass 1), so pass 2 (`insert_orphan_synthetic_results`)
+  never sees their tool calls — they never become pending orphans and never
+  synthesize results; a PREVIOUS valid assistant's unanswered calls still
+  synthesize (pi runs `closePendingToolCalls` BEFORE the skip); user/system
+  messages around a skipped assistant are unaffected. Non-errored assistants
+  carry `stop_reason` through the transform unchanged.
+- Byte-neutrality: histories without errored/aborted rows produce
+  byte-identical wire params (the fixtures prove it; none carry the key).
+
+### 5. Tool-call index-map backfill (lane `data`; row 14; pi :536-539)
+
+In `consume_tool_call`: when an entry resolves a block (by index, by id, or
+by creation) AND carries an `index` that block has never bound, the block is
+bound into `@tool_by_index` — first index wins, one index per block, ever
+(pi's `block.streamIndex === undefined` guard). The mechanism must NOT leak
+scratch keys onto the message blocks (pi deletes its `streamIndex` scratch at
+finalize; the gem's blocks ARE message content — track boundness however fits
+the house style, e.g. an accumulator-side identity map).
+
+- Frozen pin shape (Grounds R1): [frag1 `{id, name}` no index → frag2
+  `{id, index, arguments}` (found by id → BACKFILL binds index) → frag3
+  `{index, arguments}` no id (routed by the backfilled map)] assembles ONE
+  tool_call block, arguments accumulated across frag2+frag3, natural
+  `:tool_use` terminal, zero spurious blocks.
+- Existing fragment shapes unchanged: index-at-creation routing and the
+  empty-id backfill (protocol_spec's standing pins, :217/:249) stay green
+  unmodified; the id-less-frag2-after-id-only-frag1 shape stays two-block
+  (pi parity, Grounds R1).
+
+## Output format
+
+The lane reports raw results only: the spec files added/changed with run
+counts (examples/failures), the full suite line (`bundle exec rspec`
+examples/failures/exit status), the wire-parity result (11/11 fixtures), the
+mock-server spec-type additions, the file list touched, and the PHASE 0
+disagreement table (if any) with file:line cites.
+
+## Tool guidance
+
+- Repo: `repos/fast-llm` (gem `gems/completions`). Suite: `bundle exec rspec`
+  from the repo root. Wire-parity harness:
+  `spec/fast/completions/wire_parity_spec.rb` (11 canonical request bodies,
+  frozen SHA256 digests — zero edits, must stay green).
+- Mock server (`spec/support/mock_llm_server.rb`, lane `client` only —
+  Grounds R3): extend, don't reinvent. Needed additions: (a) the `:error`
+  spec type accepts a `headers:` map written onto the error response (for
+  `x-should-retry: true/false`); (b) a mid-body abort — e.g. `abort: true`
+  (or an `:abort_after` frame count) on a `:stream` spec — writes the
+  scripted deltas through the chunked writer then closes the socket WITHOUT
+  the terminating `0\r\n\r\n` chunk, so the client's body read raises a
+  NETWORK_ERRORS-class exception mid-stream; (c) multi-attempt scripts
+  already work (the shifting script queue serves one spec per request).
+  Follow the existing framing discipline: everything through `write_chunk`,
+  never bare bytes.
+- Frozen test-name tokens (the gates key on these substrings; keep the
+  describe strings EXACT): lane `client` adds to `client_spec.rb` the
+  describe blocks `request retry (I62 — pi provider-retry trigger classes)`
+  and `mid-stream salvage (I62 — pi :707-728 catch-all)`; lane `data` adds to
+  `protocol_spec.rb` `index-map backfill (I62 — pi :536-539)` and to
+  `codec_spec.rb` `outgoing-string scrub (I62 — pi sanitizeSurrogates)` and
+  `stop_reason skip on replay (I62 — pi :196-206)`.
+- Retry pin coverage (lane `client`): the trigger matrix — 429-without-header
+  retries; `x-should-retry: true` on a 400 retries; `x-should-retry: false`
+  on a 429 is FINAL; plain 400 final; ECONNREFUSED (nothing listening)
+  retries; TTFB-timeout retries when attempts remain; the bound — TWO
+  scripted failures then the raise with exactly 2 captured requests
+  (default); `max_retries: 0` restores single-attempt; a failure after a 2xx
+  (mid-body abort) is NOT retried (exactly 1 request) and salvages (§1).
+- Salvage pin coverage (lane `client`): a mid-body abort after ≥2 text
+  deltas yields `[:start, …block events…] + :error(reason: :error)` where
+  the event's `message` is the partial carrying the streamed text (and a
+  usage chunk if one arrived), NO block-end events after the failure, then
+  `ConnectionError`; a creation-phase 429 (exhausted) yields the `:error`
+  event (empty partial, no `:start`) then `RateLimitError`; a thinking
+  stream with `reasoning_details` deltas aborted mid-stream carries the
+  serialized signature on the salvaged thinking block; the existing
+  `stream_cancel_spec` pins pass UNMODIFIED (cancel still raises
+  `CancelledError` with NO terminal event).
+- Scrub pin coverage (lane `data`): for each defect class (lone high
+  surrogate bytes, lone low, CESU-8 pair, invalid non-surrogate bytes —
+  built with `.pack("H*").force_encoding("UTF-8")`, the live entry path),
+  `Codec.to_wire_messages` output `JSON.generate`s clean, with the surrogate
+  class DELETED (pi's observable); valid strings (ASCII, multibyte, emoji,
+  the fixture bodies) emerge BYTE-IDENTICAL; the scrub covers instructions,
+  system content, user string/parts, assistant text, reasoning-field text,
+  tool_result content, and arguments string values.
+- stop_reason pin coverage (lane `data`): `to_h`/`from_h` round-trip (key
+  absent when nil, present when set); an `:error`/`:aborted` assistant is
+  skipped from `normalize` output (with a prior valid tool-calling
+  assistant's orphan still synthesizing); a `:stop` assistant passes
+  through carrying its reason; a history without errored rows is
+  byte-identical to base.
+- Backfill pin coverage (lane `data`): the frozen R1 shape assembles ONE
+  block with accumulated arguments and `:tool_use`; the first-index-wins
+  property (a later same-id fragment carrying a DIFFERENT index does not
+  rebind); the standing index/id pins unmodified.
+- Docs (lane `client` owns `errors.md` + `stream-events.md`; both lanes add
+  their own `CHANGELOG.md` `## Unreleased` bullets — Grounds R5):
+  `errors.md` retires the "raises before the first `:start` event — an
+  error reply never yields stream events" claim (:18) and documents the
+  amended creation-phase discipline, the salvage class (network failures
+  mid-body emit `:error` carrying the partial before the mapped raise), and
+  the retry trigger set (header precedence, status classes, statusless, the
+  one-retry default, `max_retries:` control); `stream-events.md`'s `:error`
+  row updates (it now also precedes `ConnectionError`/ApiError raises, and
+  carries the salvage partial).
+- Search before implementing: read `client.rb` (`stream`/`feed_stream`/
+  `parse_chunk`/`deliver_terminal`/`raise_api_error`, the Watchdog),
+  `errors.rb` (the taxonomy), `protocol.rb` (`consume_tool_call`,
+  `finalize_blocks`, `StreamAccumulator`), `codec.rb` (`normalize`,
+  `to_wire_messages`, the `wire_*` family), `types.rb` (`Message`), the
+  mock server, and the standing specs' pin conventions BEFORE writing.
+
+## Boundaries
+
+- Lane `client` may touch (repo `fast-llm`):
+  `gems/completions/lib/fast/completions/client.rb`,
+  `gems/completions/lib/fast/completions/errors.rb` (only docstring/comment
+  notes the salvage/retry shapes need),
+  `gems/completions/spec/support/mock_llm_server.rb`,
+  `gems/completions/spec/fast/completions/client_spec.rb`,
+  `gems/completions/spec/fast/completions/stream_cancel_spec.rb` (additive
+  pins only — never weaken a standing pin),
+  `gems/completions/docs/reference/errors.md`,
+  `gems/completions/docs/reference/stream-events.md`,
+  `gems/completions/CHANGELOG.md`.
+- Lane `data` may touch (repo `fast-llm`):
+  `gems/completions/lib/fast/completions/protocol.rb` (`consume_tool_call`
+  only — its rest is frozen), `gems/completions/lib/fast/completions/codec.rb`,
+  `gems/completions/lib/fast/completions/types.rb`,
+  `gems/completions/spec/fast/completions/protocol_spec.rb`,
+  `gems/completions/spec/fast/completions/codec_spec.rb`,
+  `gems/completions/CHANGELOG.md`.
+- `CHANGELOG.md` is the ONE shared file (each lane its own Unreleased
+  bullets); integration order `client` → `data` resolves it. Everything
+  else is disjoint by file.
+- Must NOT touch (both lanes): `spec/fixtures/wire/**`,
+  `wire_parity_spec.rb`, `dialects.rb`, `chat.rb`, `tool.rb`,
+  `cancellation.rb`, `sse.rb` (I61 fresh — the rejoin seam is not
+  re-litigated), `malformed_wire_spec.rb` (I61's pins stand unmodified), all
+  of `repos/tart`. No new runtime dependencies. No outbound-wire changes
+  beyond the scrub's no-op-on-valid guarantee. No refactors beyond the task.
+  The frozen region of `architecture/I62-stream-hardening.md` is read-only
+  for builders.
+
+### Lane plan
+
+Two lanes, disjoint by file, parallel dispatch, integrate in order
+`client` → `data`.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision stream-hardening`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: client
+  repo: fast-llm
+  touch:
+    - gems/completions/lib/fast/completions/client.rb
+    - gems/completions/lib/fast/completions/errors.rb
+    - gems/completions/spec/support/mock_llm_server.rb
+    - gems/completions/spec/fast/completions/client_spec.rb
+    - gems/completions/spec/fast/completions/stream_cancel_spec.rb
+    - gems/completions/docs/reference/errors.md
+    - gems/completions/docs/reference/stream-events.md
+    - gems/completions/CHANGELOG.md
+- name: data
+  repo: fast-llm
+  touch:
+    - gems/completions/lib/fast/completions/protocol.rb
+    - gems/completions/lib/fast/completions/codec.rb
+    - gems/completions/lib/fast/completions/types.rb
+    - gems/completions/spec/fast/completions/protocol_spec.rb
+    - gems/completions/spec/fast/completions/codec_spec.rb
+    - gems/completions/CHANGELOG.md
 ```
+
+### Effort call
+
+`high` for both lanes — wire-precision work with frozen trigger semantics
+and a byte-neutrality constraint on every behavior; not routine lanes.
 
 ## Acceptance Criteria
 
