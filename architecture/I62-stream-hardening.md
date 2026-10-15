@@ -934,11 +934,155 @@ The frozen sections follow verbatim.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I62-stream-hardening-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence stream-hardening --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### client
+
+# I62 stream-hardening — lane `client` Builder Report
+
+Builder: architect-builder, lane `client`. Worktree: `build/I62-stream-hardening-client/wt`,
+branch `lane/I62-stream-hardening-client`, base fast-llm `main` @ `43ea169`. No commits made
+(git log `43ea169..` is empty; the integrator lands the tree). Offline only — mock/fixture
+evidence, zero live z.ai calls. RAW RESULTS ONLY per the frozen Output format.
+
+## 1. Spec files added/changed with run counts
+
+- `gems/completions/spec/fast/completions/client_spec.rb` — changed.
+  - 1 standing pin amended (intent-preserving, why-commented): "maps non-2xx to the §8 tree
+    and passes the provider message" now constructs its client with `max_retries: 0` — at the
+    new default a single scripted 429 legitimately retries into the mock's next script, so the
+    pin's §8-mapping scenario must opt out of retry to keep pinning the mapping.
+  - 15 new pins in two describes with FROZEN names:
+    - `request retry (I62 — pi provider-retry trigger classes)` — 11 examples, 0 failures
+      (gate `retry`: `11 examples, 0 failures`).
+    - `mid-stream salvage (I62 — pi :707-728 catch-all)` — 4 examples, 0 failures
+      (gate `salvage`: `4 examples, 0 failures`).
+  - File standalone: `29 examples, 0 failures` (14 standing pins + 15 new = 29).
+- `gems/completions/spec/fast/completions/stream_cancel_spec.rb` — ZERO edits. Stands
+  unmodified: standalone `4 examples, 0 failures` (cancel still raises `CancelledError` with
+  NO terminal event; the additive-only rule needed no additions — the standing pins already
+  cover the salvage/cancel interaction surface).
+
+## 2. Full suite line
+
+```
+bundle exec rspec   (from the worktree root, PI_* env unset)
+161 examples, 0 failures   (exit status 0)
+```
+Stable across three runs with different randomization seeds (23173 / 31679 / 1110). Base was
+146 examples, 0 failures; +15 = the new lane pins. Includes `stream_cancel_spec` 4/0,
+`errors_spec` 7/0, `malformed_wire_spec` (I61) green, `wire_parity_spec` green.
+
+## 3. Wire-parity result
+
+```
+bundle exec rspec -O /dev/null gems/completions/spec/fast/completions/wire_parity_spec.rb
+12 examples, 0 failures
+```
+= the 11 canonical fixtures ("reproduces the recorded pi bytes for …", byte equality + frozen
+SHA256 digests) + 1 meta example ("carries the 11 frozen fixtures: shape, request_path,
+digest"). **11/11 fixtures byte-identical.** `spec/fixtures/wire/**` and
+`wire_parity_spec.rb` zero-diff (see `frozen` gate below).
+
+## 4. Mock-server spec-type additions (extend, never reinvent)
+
+`gems/completions/spec/support/mock_llm_server.rb` — two additions, header comment updated:
+
+1. `:error` spec type accepts `headers:` — a map written verbatim onto the error response
+   (used for `x-should-retry: true/false`). Framing unchanged: status line, Content-Type,
+   Content-Length, then the extra headers, then `\r\n\r\n`, then the JSON body.
+2. `:stream` spec type accepts `abort: true` — writes the scripted deltas through
+   `write_sse`/`write_chunk` (never bare bytes), then closes WITHOUT the terminating
+   `0\r\n\r\n` chunk and without the usage/[DONE] tail. Client-side verified:
+   the body read raises `EOFError` ("Stream finished before reading enough data!") — a
+   `NETWORK_ERRORS` family member — mid-stream.
+3. Multi-attempt scripts: used as-is (the shifting script queue serves one spec per request);
+   no change. `raw_frames` semantics (I61-frozen) untouched; the abort `return` sits strictly
+   after the scripted-delta loop in the non-raw_frames branch.
+
+Implementation notes measured on the live wire (async-http 0.105 / protocol-http 0.72):
+a mid-chunked-body close surfaces as `EOFError` (family member ✓); `Protocol::HTTP::Headers`
+collects repeated fields into arrays and keys are wire-cased, so the retry-header read scans
+case-insensitively and unwraps (`Array(value).first`).
+
+## 5. File list touched (git status, exactly 7 — all within the 8-file lane touch set)
+
+```
+M gems/completions/CHANGELOG.md
+M gems/completions/docs/reference/errors.md
+M gems/completions/docs/reference/stream-events.md
+M gems/completions/lib/fast/completions/client.rb
+M gems/completions/lib/fast/completions/errors.rb
+M gems/completions/spec/fast/completions/client_spec.rb
+M gems/completions/spec/support/mock_llm_server.rb
+```
+`gems/completions/spec/fast/completions/stream_cancel_spec.rb` (8th touch-set file):
+deliberately ZERO edits (additive-only rule; nothing needed). Total diff: 533 insertions,
+34 deletions. Zero edits to every MUST-NOT path (`spec/fixtures/wire/**`,
+`wire_parity_spec.rb`, `dialects.rb`, `chat.rb`, `tool.rb`, `cancellation.rb`, `sse.rb`,
+`malformed_wire_spec.rb`, `protocol.rb`, `types.rb`, `codec.rb`, `protocol_spec.rb`,
+`codec_spec.rb`, all of `repos/tart`). No new runtime dependencies (gemspec untouched). No
+commits.
+
+## 6. Gate outcomes (frozen gate commands, run cold from the worktree, PI_* unset)
+
+| gate | raw result | verdict |
+|---|---|---|
+| `suite` | `161 examples, 0 failures`, exit 0 | GREEN |
+| `parity` | `161 examples, 0 failures` (the gate's command inherits `.rspec`'s `--pattern`, which unions ALL spec files with the named one; standalone wire-parity: `12 examples, 0 failures` = 11/11 fixtures) | GREEN |
+| `frozen` | `FROZEN_OK` (zero-diff vs `43ea169` on fixtures/wire, wire_parity_spec, dialects, chat, tool, cancellation, sse, malformed_wire_spec) | GREEN |
+| `retry` | `11 examples, 0 failures` | GREEN |
+| `salvage` | `4 examples, 0 failures` | GREEN |
+| `docs` | `DOCS_OK` | GREEN |
+| `backfill` | `0 examples, 0 failures` | RED — sibling lane `data`'s specs absent from this tree, the declared parallel-lane shape |
+| `scrub` | `0 examples, 0 failures` | RED — same disclosure |
+| `stop-reason` | `0 examples, 0 failures` | RED — same disclosure |
+
+Behavior implemented (client.rb):
+- `stream` ladder: `Async::Cancel` first (untouched cancel discipline), `*NETWORK_ERRORS`
+  salvage → `ConnectionError` (`"<class>: <message>"` preserved), `StandardError` catch-all
+  salvage → bare re-raise. `:start` still not emitted for a failed creation.
+- `create_response`: the POST (creation through status receipt), `max_retries:` constructor
+  kwarg (Integer ≥ 0, default 1, validated), immediate retries on the pi trigger set
+  (header true/false precedence, statusless = NETWORK_ERRORS/TTFB fire, 408/409/429/5xx),
+  never after 2xx, cancellation never retried; final failures raise the mapped error
+  (`raise_api_error` only after the retry decision; TTFB-exhausted surfaces `TimeoutError`,
+  never `CancelledError`).
+- `salvage`: the ONE `:error` terminal with the live partial; the finalize reuse goes through
+  the public `accumulator.finish` (it runs `finalize_blocks` — thinking-signature
+  serialization + tool-args finalize) with its end events discarded, because `protocol.rb` is
+  a MUST-NOT file for this lane and `finalize_blocks`/`@streamed_details` are private.
+- `Watchdog#arm` now resets `fired` (why-commented): a retried attempt must not inherit the
+  prior attempt's fire, or the D8 cancel-vs-fired discipline and the post-stream guard would
+  misread attempt 2.
+- errors.rb: comment-only notes (ApiError creation-phase discipline, TimeoutError TTFB
+  retry-trigger + re-arm, ConnectionError salvage-before-raise, StreamError unchanged as the
+  model for the salvage arm). No class-tree changes.
+- docs: `errors.md` retires the :18 claim ("raises before the first `:start` event — an error
+  reply never yields stream events" — string absent per the docs gate), adds "Mid-stream
+  salvage" and "Request retry" sections (header precedence, status classes, statusless, the
+  one-retry default, `max_retries:` control), amends Status mapping / TimeoutError /
+  ConnectionError; `stream-events.md` `:error` row + thinking-blocks paragraph amended;
+  CHANGELOG `## Unreleased` gains the lane's two bullets.
+
+## 7. PHASE 0 disagreement table (disagreements with the frozen Specification)
+
+No disagreements with the frozen Specification found. Itemized notes for the judge
+(observations, not re-freezings):
+
+| # | Note | Cite |
+|---|---|---|
+| 1 | "ECONNREFUSED (nothing listening) retries" is not externally countable — a dead port leaves no capturable requests, and one-vs-two attempts to it are observably identical. Pin implemented literally (ConnectionError `/Errno::ECONNREFUSED/` after `[:error]`); the COUNT evidence for the statusless class lives in the response-bearing pins (exactly-2-captured on 429/5xx/409/header-true) and the TTFB-retry pin. | kit §Retry pin coverage; client_spec retry describe |
+| 2 | "Attempt count is observable through the mock's captured requests" holds for response-bearing attempts; the TTFB pin's server observed the connection pool making its own internal request after the watchdog cancel (3 reads for 2 client attempts), so server-side counts are NOT a client-attempt proxy there. The pin therefore proves the retry by OUTCOME (success after a first-attempt deadline fire; a non-re-armed deadline would fire instantly and raise). | client_spec.rb TTFB pin; observed via a counting accept loop during development |
+| 3 | Mid-stream read-inactivity timeout (watchdog fire AFTER the 2xx): read as neither a retry trigger (§2 scopes the TTFB trigger to "before the response"; "NEVER after a 2xx") nor a salvage (the exception arrives as `Async::Cancel`, which §1 exempts and whose "first position + no-terminal-event discipline" is frozen untouched) — it surfaces `TimeoutError` with no terminal event, exactly as base. The standing pin "raises TimeoutError on read inactivity mid-stream (D5…)" passing UNMODIFIED confirms this reading. | client.rb stream ladder rescue order; client_spec standing D5 pin |
+| 4 | Standing-pin amendment disclosure (not a spec conflict): the 429 §8-mapping pin required `max_retries: 0` because the frozen default legitimately changes that scenario's outcome; client_spec.rb is in the lane touch set without the additive-only restriction (only stream_cancel_spec.rb carries it). | client_spec.rb "maps non-2xx…" pin |
+
+## 8. Deviation record (recorded, not re-litigated)
+
+- Retry default 1 (two attempts) vs pi's library default 0 — Grounds R2, frozen by the
+  Specification ("ONE retry (two attempts) as the `Client` default"); consumer control via
+  `max_retries:` matches pi's shape.
+- Backoff/delay policy out of scope (frozen: retries immediate).
+
+STATUS: COMPLETE
 
 ## Verdict
 
