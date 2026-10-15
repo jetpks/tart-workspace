@@ -461,52 +461,188 @@ and a byte-neutrality constraint on every behavior; not routine lanes.
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse stream-hardening` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze stream-hardening` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# I62: stream-hardening — Acceptance Criteria
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+Property-level, each independently judgeable. The frozen ```gates block
+below is the machine-checkable form. Base = fast-llm `main` @ `43ea169`
+(the post-I61-release tip; Grounds first-act verification). Measured at base
+this session: `suite`/`parity`/`frozen` GREEN (146 examples 0 failures; the
+11 fixtures byte-identical; the must-not paths zero-diff); the six behavior
+gates (`retry`, `salvage`, `backfill`, `scrub`, `stop-reason`, `docs`) RED by
+design — declared-new (0 matching examples at base; the docs markers absent).
+The gates are name-token filters (`rspec -e`) against the frozen describe
+strings (Specification Tool guidance) — a lane that renames its describe
+blocks fails its own gates.
 
-**AC1.** ...
+**Parallel-lane disclosure (standing for judge and rehearsal reads):** the two
+lanes are independent by file. In ANY single lane's worktree the sibling
+lane's behavior gates remain RED (0 matching examples — the sibling's specs
+are not in that tree's diff yet); `suite` may also report sibling-context
+failures only where a lane's own edits break standing examples. The gates are
+calibrated to pass together on the INTEGRATED UNION, integrated in lane order
+`client` → `data` (the I53 precedent: integrated-equivalent overlay
+pre-verdict, true integrated tree post-integrate).
+
+**AC1 — mid-stream salvage (lane `client`).** A failure of the stream after a
+2xx status is received — a mid-body connection abort (NETWORK_ERRORS class)
+or any other mid-stream exception except cancellation — reaches the consumer
+as the existing error-terminal event FIRST (`type: :error`, `reason:
+:error`, `message:` the live partial Message carrying every streamed block
+and the usage so far), with NO block-end events after the failure, and THEN
+the raise (`ConnectionError` for the network family, message form preserved;
+other exceptions re-raised unchanged). A salvaged thinking block carries the
+serialized reasoning-details signature a completed finalize would produce.
+Creation-phase failures (non-2xx after retries, network errors with retries
+exhausted) yield the same `:error` event (empty/partial accumulator, still no
+`:start`) before their mapped raise. The cancel ladder is untouched:
+`stream_cancel_spec` passes unmodified — cancellation still raises
+`CancelledError` with NO terminal event; I61's drop-and-continue and the
+§10.5 terminal discipline are unchanged.
+
+**AC2 — retry trigger classes (lane `client`).** The POST (creation through
+status receipt) retries at most `max_retries` times — default 1 (frozen), 0
+restores single-attempt — exactly on pi's trigger set: `x-should-retry: true`
+(any status), statusless errors (NETWORK_ERRORS at POST; TTFB watchdog
+`TimeoutError`), 408/409/429/5xx. `x-should-retry: false` is FINAL even on a
+retryable status; other 4xx statuses are final; cancellation is never
+retried. NEVER after a 2xx is received: a mid-body failure (AC1 shape) makes
+exactly ONE request. Retries are immediate (no backoff). Attempt counts are
+mock-observable; the final failure of an exhausted class raises the mapped
+error after the AC1 event. No new runtime dependencies.
+
+**AC3 — outgoing-string scrub (lane `data`).** For every scrubbed emission
+position (instructions, system content, user string/parts, assistant text,
+reasoning-field text, tool_result content, tool-call arguments string
+values), a string carrying the defect classes (lone high surrogate, lone low
+surrogate, CESU-8 surrogate pair, invalid non-surrogate bytes) is scrubbed to
+a `JSON.generate`-safe string with the surrogate class DELETED (pi's
+`"Text  here"` observable — deletion, not U+FFFD), and `JSON.generate` over
+the built request never raises `GeneratorError` from message content. Valid
+strings pass BYTE-IDENTICAL (the 11 canonical fixtures plus direct no-op
+pins).
+
+**AC4 — errored-turn skip on replay (lane `data`).** `Message` carries
+`stop_reason` — nil default, `to_h` omits it when nil and emits it when set,
+`from_h` round-trips it, the assistant factory accepts it. `Codec.normalize`
+skips `:error`/`:aborted` assistants entirely with pi's pass semantics (their
+tool calls never become pending orphans; a previous valid assistant's
+unanswered calls still synthesize; surrounding user/system messages
+unaffected), and non-errored assistants carry `stop_reason` through
+unchanged. Histories without errored rows produce byte-identical wire params
+(`parity` + `frozen` gates).
+
+**AC5 — index-map backfill (lane `data`).** The frozen R1 shape — frag1
+`{id, name}` no index, frag2 `{id, index, arguments}` (found-by-id →
+backfill), frag3 `{index, arguments}` no id — assembles ONE tool_call block
+with arguments accumulated across frag2+frag3 and the natural `:tool_use`
+terminal. First index wins (a later same-id fragment with a different index
+does not rebind), no scratch keys leak onto message blocks, and the standing
+fragment-shape pins (index-at-creation, empty-id backfill) pass unmodified.
+
+**AC6 — documented.** `errors.md` retires the "raises before the first
+`:start` event — an error reply never yields stream events" claim and
+documents the amended creation-phase discipline, the salvage class, and the
+retry trigger set (header precedence, status classes, statusless, the
+one-retry default and `max_retries:` control); `stream-events.md`'s `:error`
+row reflects the salvage semantics; `CHANGELOG.md` gains an `## Unreleased`
+section with each lane's bullets.
+
+**AC7 — healthy-wire byte-neutrality + scope.** The full suite is green;
+`wire_parity_spec.rb` and `spec/fixtures/wire/**` are byte-identical
+(zero edits); each lane's diff is a subset of its declared touch set
+(Specification lanes block); the must-not paths (`dialects.rb`, `chat.rb`,
+`tool.rb`, `cancellation.rb`, `sse.rb`, `malformed_wire_spec.rb`, all of
+`repos/tart`) are zero-diff; no new runtime dependencies.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse stream-hardening` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC7
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec 2>&1 | grep -E "examples?, 0 failures"
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: parity
+  ac: AC7
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec gems/completions/spec/fast/completions/wire_parity_spec.rb 2>&1 | grep -E "examples?, 0 failures"
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: frozen
+  ac: AC7
+  cwd: repos/fast-llm
+  cmd: |-
+    git diff --quiet 43ea169 -- gems/completions/spec/fixtures/wire gems/completions/spec/fast/completions/wire_parity_spec.rb gems/completions/lib/fast/completions/dialects.rb gems/completions/lib/fast/completions/chat.rb gems/completions/lib/fast/completions/tool.rb gems/completions/lib/fast/completions/cancellation.rb gems/completions/lib/fast/completions/sse.rb gems/completions/spec/fast/completions/malformed_wire_spec.rb && echo FROZEN_OK
+  expect:
+    exit_code: 0
+    stdout_match: FROZEN_OK
+
+- id: retry
+  ac: AC2
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec -O /dev/null gems/completions/spec/fast/completions/client_spec.rb -e "retry" 2>&1 | grep -E "[1-9][0-9]* examples?, 0 failures"
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: salvage
+  ac: AC1
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec -O /dev/null gems/completions/spec/fast/completions/client_spec.rb -e "salvage" 2>&1 | grep -E "[1-9][0-9]* examples?, 0 failures"
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: backfill
+  ac: AC5
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec -O /dev/null gems/completions/spec/fast/completions/protocol_spec.rb -e "index-map" 2>&1 | grep -E "[1-9][0-9]* examples?, 0 failures"
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: scrub
+  ac: AC3
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec -O /dev/null gems/completions/spec/fast/completions/codec_spec.rb -e "scrub" 2>&1 | grep -E "[1-9][0-9]* examples?, 0 failures"
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: stop-reason
+  ac: AC4
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec -O /dev/null gems/completions/spec/fast/completions/codec_spec.rb -e "stop_reason" 2>&1 | grep -E "[1-9][0-9]* examples?, 0 failures"
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: docs
+  ac: AC6
+  cwd: repos/fast-llm
+  cmd: |-
+    ! grep -q "raises before the first" gems/completions/docs/reference/errors.md && grep -qi "x-should-retry" gems/completions/docs/reference/errors.md && grep -qi "salvage" gems/completions/docs/reference/stream-events.md && grep -q "Unreleased" gems/completions/CHANGELOG.md && echo DOCS_OK
+  expect:
+    exit_code: 0
+    stdout_match: DOCS_OK
 ```
+
+Base verdicts (measured this session, base `43ea169`): `suite` GREEN
+(146/0), `parity` GREEN, `frozen` GREEN, `retry` RED (0 examples), `salvage`
+RED (0 examples), `backfill` RED (0 examples), `scrub` RED (0 examples),
+`stop-reason` RED (0 examples), `docs` RED (the `:18` claim present, the
+markers absent). Every RED is the declared-new shape: the gate turns GREEN
+only when its lane's behavior + pins + docs exist.
 
 ## Builder Prompt
 
