@@ -1007,11 +1007,300 @@ The frozen sections follow verbatim.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I60-error-transcript-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence error-transcript --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# Builder Report — I60 error-transcript, lane `core`
+
+Branch `lane/I60-error-transcript-core` @ base `24e89ba`, worktree
+`build/I60-error-transcript-core/wt`. Tree left UNCOMMITTED (integrator
+lands it). `git log 24e89ba..` = empty (no git writes). Final
+`git status --porcelain` = exactly the frozen 12-file touch set (11 M +
+1 new scenario); Gemfile.lock restored to committed bytes (E4 protocol;
+the `../fast-llm` symlink lives outside the repo at
+`build/I60-error-transcript-core/fast-llm`). Working-tree scope check:
+`SCOPE_OK_WORKTREE 12`.
+
+Battery run cold from the worktree with the standing environment
+directive: `PATH=<space>/bin:$PATH`, `PI_PACKAGE_DIR PI_MODEL
+PI_PROVIDER PI_CONTEXT_WINDOW` unset, `FAST_COMPLETIONS_PATH=<space>/repos/fast-llm/gems/completions`
+exported (the rig passes it through to the staged panes — the committed
+lock's path-gem remote is the absolute space path; without the export
+the frozen-mode check kills the tart pane at boot, 0 requests), rig env
+prefix `env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH
+-u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID` on every rig
+call. No live z.ai credits used anywhere (the mock's scripted 400 is the
+whole evidence chain).
+
+## PHASE 0 disagreements / interpretations (for the judge)
+
+1. **D2 "locals" vs the frozen one-arg signatures.** The prose says the
+   step's chunks accumulate "into locals", but the normative D2 code
+   block freezes `record_terminal_error(error)` /
+   `synthesize_failure_message(error)` at one parameter each; a separate
+   method cannot see the caller's locals. Resolved for the code block:
+   step-scoped instance state (`@step_streamed_text` /
+   `@step_streamed_thinking`), reset at `step_on_reactor` entry, written
+   by the same block the chunks flow through. Single-fiber (the gem's
+   stream runs inline on the reactor fiber).
+2. **`Message.error_failure(thinking:)` takes the accumulated thinking
+   String**; empty buffer means "no delta preceded" → nil (a truthy-`""`
+   would emit a `thinking: ""` recorded key and break the D1 byte
+   family). Wrapping is the letter's exact
+   `Thinking.new(text:, signature: "reasoning_content")`.
+3. **The synthesized `message_start` carries the Message** (not a Chunk
+   as the chunk arm emits) — pi agent-loop.ts:443-448 "emits
+   message_start with the FINAL error message". The render's
+   :message_start arm treats a non-custom/non-user start as a buffer
+   reset only.
+4. **The live error-row read is `message.respond_to?(:finish_reason) &&
+   message.finish_reason == "error"`** — the footer's existing
+   usage-read idiom. Required: `render_perf_test.rb`'s `Msg` double
+   (out-of-scope file, standing gate `render-perf-units`) carries no
+   `finish_reason`; the unconditional letter-read would have Redden a
+   standing gate from an out-of-touch-set file. Real loop events always
+   carry the reader; reader-less doubles stay inert.
+
+## Per-AC outcomes
+
+### AC1 — the failure message is synthesized and persisted exactly once (D1, D2) — SATISFIED
+
+- Gate `error-transcript-units`: **GREEN** (agent-loop runs=5 ≥ 4,
+  session runs=2 ≥ 2, both ec=0).
+- Pre-stream 400 → `Message.error_failure` synthesized: role :assistant,
+  content "", tool_calls {}, finish_reason "error", error_message =
+  "400: The max_tokens parameter is illegal." (the exception's message),
+  tokens nil. Runs message_start (pre-stream only — mid-stream keeps its
+  own; pin: `events.count{message_start ∧ ¬user} == 1` with a thinking +
+  text delta streamed first) → message_end (no `error:` flag) →
+  `record` → the chat history (`add_message`) → new_messages →
+  turn_end/agent_end carry it (pins assert each by identity).
+- Recorded bytes measured (s18 tart session line 3, verbatim):
+  `{"type":"message","id":"6876d998","parentId":"c4067035","timestamp":"…","message":{"role":"assistant","content":"","tool_calls":{},"finish_reason":"error","error_message":"400: The max_tokens parameter is illegal."}}`
+  — the D1 family, error_message adjacent to finish_reason, no token
+  keys. The frozen no-tool-calls pin is untouched for error-free
+  messages (the key rides only when present).
+- Wire-neutral seeding measured twice: the next turn's request after a
+  failure carries roles `[user, user]`; the overflow retry payload roles
+  `[user, user]` (Grounds §4).
+- The with-assistant-message arm byte-identical (pin: a batch-executor
+  raise after the assistant recorded → exactly one normal message_end +
+  one `error: true` message_end, NO synthesis, no duplicate record).
+- The cancel ladder synthesizes nothing (pin: CancelledError → nil
+  return, no assistant events, last_error nil; Async::Cancel interrupt →
+  new_messages stays `[user]`, no assistant message_end).
+- The overflow latch survives both syntheses (pin: 3 requests, second
+  failure surfaces as ContextLengthExceededError, new_messages
+  `[user, assistant, assistant]`).
+- **DEVIATION (judge item E-1, exception file):** pi's overflow arm
+  OMITS the failed attempt from the context before the recovery
+  compaction (`_omitRecoveryAttempt`, agent-session.ts:3039-3043/:1237
+  — measured in the oracle source). Without mirroring it, the seeded
+  failure message becomes the chat's trailing tool-call-less assistant,
+  `Chat#complete?` (MUST-NOT) reads the turn finished, and the overflow
+  retry silently dies (measured: 2 requests, error swallowed,
+  last_error nil). `omit_recovery_attempt` added in loop.rb's
+  `recover_overflow?` (public `messages=`, the run_compaction seam):
+  the chat history drops the just-synthesized failure message; the
+  trace stays recorded + in new_messages. All frozen AC1 overflow
+  letters hold as a result. Residual: the recorder keeps the entry
+  (pi's file keeps it too) but the port has no context-edit projection,
+  so the `:compaction` payload / post-compaction rebuild include it
+  where pi's projection excludes it — this breaks
+  `test_compaction_event_carries_the_kept_replay_entries`
+  (agent_loop_test.rb:1233, an undeclared third re-pin). Itemized in
+  the exception file; NOT re-pinned (D6 allows exactly two).
+
+### AC2 — the error row live and on replay, no double render (D3, D4) — SATISFIED
+
+- Gate `error-transcript-render-units`: **GREEN** (chat runs=4 ≥ 3,
+  transcript runs=3 ≥ 2, both ec=0).
+- Live: the :message_end assistant arm enqueues, after the normal flush,
+  `[Panel.blank_line, *Panel.padded_fg_rows("Error: #{message.error_message}", viewport_width, fg: Theme[:error])]`
+  — pinned pad-led, error-fg (`fg_cell?` reads Theme[:error] on the "E"),
+  wrapped at width 40 (tail row "parameter is illegal." below), ONE row,
+  after the streamed partial.
+- The surface flag: set by that arm, cleared at :agent_start (and
+  initialized false). The agent_end error arm skips its
+  `error: <msg>` scrollback line when set (pin: no
+  `"error: 400: boom"` line, the row renders ONCE) but keeps
+  `finalize_pending_as_error` (pin: the orphaned pending still settles,
+  no pending-bg survives). Flag-UNSET case byte-identical (pin: today's
+  `error: boom` line present, no pad-led row). Interrupted arm untouched
+  (pin: interrupt after a rendered row still carries "interrupted").
+- Replay (D4): `has_error = finish_reason == "error" &&
+  error_message.is_a?(String) && !empty?`; the guard gains `|| has_error`;
+  the same region shape after the content/thinking rows. Pins: a
+  content-carrying failure entry renders content then the row (index
+  ordered); the empty-content entry (the s18 shape) renders the row
+  alone; a `finish_reason "error"` WITHOUT the key (pre-I60) and a
+  plain assistant render exactly as before (no error row, no error fg).
+- Live s18 evidence (both apps): one `Error: 400: …` row each, pad-led;
+  styled rows carry `\e[38;2;234;127;129m` (tart verbatim:
+  `^[[49m ^[[38;2;234;127;129mError: 400: The max_tokens parameter is illegal.^[[39m`).
+  Replay captures re-render the row (tart's replay: `hello`, blank,
+  blank, ` Error: 400: …`, `Resumed session` — the base defect's bare
+  `Resumed session` is dead).
+
+### AC3 — both apps measured, both files pinned (D5) — SUBSTANTIALLY SATISFIED; gate RED by one judge item
+
+- Gate `s18-error-transcript`: **RED** — rig exit 1 (want 0) with
+  exactly ONE unknown candidate; every other assertion of the gate's
+  inline ruby PASSES (run verbatim-minus-precondition:
+  `S18_PAYLOAD_OK`).
+- Measured: both apps `completed: true`, exactly 1 request each (the
+  scripted 400; no retry on either side). Live rows: one pad-led
+  `Error: 400: …` per app; styled rows carry the error fg; BOTH replay
+  captures re-render the row. pi's session file carries the oracle
+  failure entry (stopReason "error", errorMessage `400: {"message":"The
+  max_tokens parameter is illegal.","type":"invalid_request_error"}` —
+  verbatim above). tart's session file is EXACTLY 3 lines with the D1
+  byte family third (verbatim above) — Grounds §1's two-line defect is
+  dead.
+- The two declared registry classes classify exactly the declared
+  divergences: `error-transcript-row-tail: 2` (both Error-row tails),
+  `pi-bug-report-hint: 1` (pi's hint line); footer/run-path classes
+  cover the footer lines as at base.
+- **Residue (judge item E-3, exception file):** one unclassifiable
+  `ins ''` — tart has one more trailing blank because pi spends a pane
+  row on the /bug hint line the port cuts (OQ-1). D5 authorizes exactly
+  two classes; a blank-matching pattern would mask blank-line diffs in
+  every scenario. Judge options itemized in the exception file.
+
+### AC4 — no byte moves beyond the declared set + scope — SATISFIED at lane state (gate verdict as declared)
+
+- 24 gates GREEN (ledger below); 3 standing environment-class REDs
+  reproduced and NOT chased: `suite` (launcher/system-prompt pins),
+  `hermeticity` (launcher pins standalone; e2e_session ec=0 runs=4),
+  `wire-delta` (instruction sha `f37d4d11…` ≠ the `2faaf667…` literal —
+  the shim's no-`<docs>` consequence; note the hash is also
+  worktree-prefix-dependent, which is why the I59 ruling's operative
+  proof is base-vs-lane identity modulo the one cwd line — same
+  worktree here, so identity holds trivially). `scope` reads the
+  declared vacuous-at-lane state (`missing=[…12]`, HEAD == 24e89ba —
+  builders never commit); the working-tree check is
+  `SCOPE_OK_WORKTREE 12` with zero extra files.
+- No scenario, golden, registry class (beyond the two declared new
+  ones), wire byte, or session byte moved: s1–s10 + s17 GREEN, the
+  session-golden digests GREEN, wire key order
+  `["model","messages","stream","stream_options","store","max_completion_tokens","tools"]`
+  unchanged, max_completion_tokens tart=pi=512 GREEN.
+- Exactly the 12 declared files changed. The compaction.rb change is
+  comment-only (`git diff` shows no code delta — the premise truthing
+  per D6).
+- **Inside `suite` (already RED for the standing env class), two NEW
+  failures are disclosed as judge items**: E-1 (the undeclared third
+  re-pin forced by the oracle's omission arm — above) and E-2
+  (`test_seed_registry_contains_only_path_or_sandbox_classes`: D5's
+  frozen class names vs the seed pin's `/path|sandbox/` rule; the
+  sanctioned-list mechanism lives in the out-of-scope
+  gems/tui-split-rig/test/registry_test.rb — chose scope, itemized in
+  the exception file for the integrator's one-line ratification).
+
+## The gate ledger (31 gates, cold, worktree)
+
+| gate | verdict | evidence |
+|---|---|---|
+| suite | RED (env-class + 2 judge items) | 1168 runs, 4 failures + 1 error: 3 standing pins (SystemPromptTest#test_pi_docs_paths_resolve_pis_install NoMethodError; LauncherSmokeTest#test_print_boot_wires_the_composed_harness_prompt missing `<docs>`; LauncherSmokeTest#test_footer_data… "Expected: high / Actual: xhigh") + NEW test_compaction_event_carries_the_kept_replay_entries (E-1) + NEW TuiSplitRig::RegistryTest#test_seed_registry_contains_only_path_or_sandbox_classes (E-2) |
+| bench | GREEN | `SEAM_BENCH_OK` |
+| s1-parity | GREEN | rig ec=0 |
+| s2-parity | GREEN | rig ec=0 |
+| s3-parity | GREEN | rig ec=0 |
+| s4-parity | GREEN | rig ec=0 |
+| s5-parity | GREEN | rig ec=0 |
+| s6-parity | GREEN | rig ec=0 |
+| s7-parity | GREEN | rig ec=0 (send 1 from both apps — standing class, gate-internal, unaffected) |
+| s8-parity | GREEN | rig ec=0 (as s7) |
+| s9-parity | GREEN | rig ec=0 |
+| s10-parity | GREEN | rig ec=0 |
+| s1-tart-mode | GREEN | rig ec=1 (by design), `TART_MODE_OK` |
+| tool-pending-gate | GREEN | `TOOL_PENDING_GATE_OK` |
+| user-bash-stream-gate | GREEN | `USER_BASH_STREAM_GATE_OK` |
+| thinking-pins | GREEN | agent-loop ec=0 runs=18 (≥11); settings ec=0 runs=9 (≥8) |
+| hermeticity | RED (env-class) | launcher smoke ec=1 runs=10 (the 2 standing pins); e2e session ec=0 runs=4 |
+| lock-deps | GREEN | `LOCK_DEPS_OK` + `GEM_LOAD_OK` (E4: lock restored to committed bytes after the gate's `env -u` install) |
+| zai-data | GREEN | dialect runs=2 ec=0; `ZAI_DATA_OK` |
+| threads-budget | GREEN | `THREADS_BUDGET_OK` (no Thread.new added in lib) |
+| wire-delta | RED (env-class) | s1 rig ec=0; instruction sha `f37d4d1177e074df7ce3c8e2ed8721376a2b75796517b3c10676ffe88856ad3c` ≠ `2faaf667…` (`<docs>` absent; worktree-prefix-dependent hash — see AC4 note) |
+| session-golden | GREEN | `SESSION_GOLDEN_OK` (all 7 digests) |
+| s17-parity | GREEN | rig ec=0; `S17_PARITY_OK` (live+replay, inverse, success-bg, no generic defect row) |
+| render-perf-units | GREEN | 7 runs, 0 failures |
+| render-perf-probe | GREEN | `RENDER_PERF_OK`; BP2 245.8 ≤ 250 (two earlier idle-hostile runs read 252.3/250.9 — load noise from concurrent battery work, recorded as a flake note; final run idle) |
+| zai-max-tokens-units | GREEN | agent-loop runs=4, models runs=2, launcher runs=2, all ec=0 |
+| zai-max-tokens-wire | GREEN | `ZAI_WIRE_OK tart=pi=512` |
+| error-transcript-units | GREEN (declared-new) | `ERROR_TRANSCRIPT_UNITS_OK` (agent-loop runs=5 ≥ 4; session runs=2 ≥ 2; filter was EMPTY at base) |
+| error-transcript-render-units | GREEN (declared-new) | `ERROR_TRANSCRIPT_RENDER_UNITS_OK` (chat runs=4 ≥ 3; transcript runs=3 ≥ 2; filter was EMPTY at base) |
+| s18-error-transcript | RED (single judge item) | rig ec=1; `S18_PAYLOAD_OK` on every other assertion; classes tail=2 hint=1; ONE unknown candidate = the hint-cut blank (E-3) |
+| scope | vacuous-at-lane (declared) | gate ruby reads HEAD-vs-24e89ba = empty → `missing=[…12]`; working-tree check `SCOPE_OK_WORKTREE 12` |
+
+Tally: 24 GREEN, 3 standing env-class RED, s18 RED by the single E-3
+candidate, scope vacuous-at-lane as the frozen register declares.
+
+## Re-pin inventory (complete)
+
+1. test/agent_loop_test.rb:122 (now :126) — `test_worker_error_terminates_the_run_bounded`:
+   `%i[user]` → `%i[user assistant]` (DECLARED).
+2. test/flow_test.rb:42 — `test_worker_http_error_classifies_as_bad_request`:
+   `%i[user]` → `%i[user assistant]` (DECLARED).
+No other existing assertion moved. Verified by hunk inspection:
+flow_test.rb = exactly one hunk; agent_loop_test.rb = the :122 hunk + the
+new error_transcript section (179 added lines, all `test_error_transcript_*`
+pins). The error-path pin family holds unchanged: last_error classes
+(worker_http/context_length/dead_endpoint in BOTH files), agent_end[:error]
+kinds, the overflow retry wire roles (`%w[user user]`), the interrupt arms
+(no `error: true` message_end, interrupted bookkeeping), the orphan-finalize
+chat pin (`test_error_finalizes_the_orphaned_pending_block_with_the_message`),
+the frozen recorded-assistant byte pins, the session-golden digests.
+
+## New pins landed (all under the `error_transcript` filter)
+
+- test/agent_loop_test.rb (5): pre-stream synthesis + D1 bytes +
+  machinery + wire-neutral reseed; mid-stream accumulation + no second
+  message_start (thinking + text deltas); cancel ladder (CancelledError
+  nil + Async::Cancel interrupt, no synthesis); overflow synthesis does
+  not reset the latch (+ retry-wire neutrality); with-message arm
+  `error: true` byte-identical.
+- test/session_test.rb (2): the failure entry round-trips (3-line file,
+  D1 bytes, leaf chain, context readback); the seed side
+  (from_seed_hash reads no error_message; pre-I60 unaffected).
+- test/chat_test.rb (4): live pad-led wrapped error-fg row after a
+  partial; agent_end guard (no double render, finalize kept); flag-unset
+  case byte-identical; interrupted arm untouched.
+- test/render/transcript_test.rb (3): replay row after content;
+  empty-content row alone; pre-I60 files byte-identical.
+
+## Deviations / incidents
+
+1. **E-1 (deviation, pi-sourced):** `omit_recovery_attempt` in
+   `recover_overflow?` (loop.rb) — pi agent-session.ts:3039-3043/:1237.
+   Forced by the measured complete?-defeat; rescues the frozen AC1
+   overflow letters; leaves ONE existing test failing
+   (test_compaction_event_carries_the_kept_replay_entries) that D6 did
+   not declare re-pinnable. Exception file E-1.
+2. **E-2 (conflict, chose scope):** the two D5 registry classes trip
+   gems/tui-split-rig/test/registry_test.rb:37 (seed pin). The
+   sanctioned-list extension lives out-of-scope. Exception file E-2.
+3. **E-3 (plan gap):** s18's rig diff carries one blank-line candidate
+   (the OQ-1 cut's shape) beyond the two declared classes. Exception
+   file E-3.
+4. **Incident, resolved:** the lock-deps gate's `env -u
+   FAST_COMPLETIONS_PATH bundle install` rewrote Gemfile.lock's path-gem
+   remote (E4 flip-flop) and — with the export absent — the rig's staged
+   tart pane died at boot under BUNDLE_FROZEN (0 requests, two s1
+   fails). Cure: keep `FAST_COMPLETIONS_PATH` exported for every pane
+   bearing step, run lock-deps with the outside-repo `../fast-llm`
+   symlink present, restore the lock to committed bytes afterward. Final
+   lock = committed bytes (0-line diff).
+5. **Incident, resolved:** Ruby 4.0 `define_method` blocks reject
+   `yield` ("Invalid yield") — the mid-stream/with-message chat
+   instruments pass the step block explicitly (`|&step_block|` +
+   `step_block.call`).
+6. **Flake note:** render-perf-probe BP2 is load-sensitive; two
+   concurrent-battery runs read 252.3/250.9 (>250), the idle run read
+   245.8 (PASS). Timing gates should run last on an idle host.
+
+## Status
+
+STATUS: COMPLETE_WITH_CONCERNS
 
 ## Verdict
 
