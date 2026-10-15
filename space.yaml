@@ -2385,7 +2385,7 @@ project:
     ordinal: 60
     file: architecture/I60-error-transcript.md
     freeze_sha: ef75324a03cfb272dd47afff665672fa04a3adee
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
