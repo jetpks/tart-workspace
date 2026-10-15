@@ -1,26 +1,35 @@
 # architect.yaml — space-architect loop routing for this space (pi-port).
 # Space-local values override ~/.config/space-architect/architect.yaml (global).
 # Model ids are pi provider/model ids; `thinking` is the pi effort level.
-# Builder routing follows the owner's standing directive (builders zai/glm-5.3-flash);
+# Builder routing follows the owner's standing directive (builders openrouter/z-ai/glm-5.3-flash);
 # spec/judge carry the strong-reasoning model; the coordinator only tends, so it rides flash.
+#
+# PEAK WINDOW (owner 2026-10-14): z.ai direct doubles token cost Mon–Fri
+# 14:00–18:00 Asia/Shanghai (== Mon–Fri 00:00–04:00 America/Denver under MDT).
+# bin/model-window.fish flips every role below zai/* <-> openrouter/z-ai/* on that
+# schedule (launchd tick, idempotent; see this file's git history + bin/). The
+# provider prefix below is whatever the window says RIGHT NOW — don't hand-edit
+# one side of the pair.
 version: 1
 roles:
   architect:
-    model: zai/glm-5.3
+    model: openrouter/z-ai/glm-5.3
     thinking: high
   spec:
-    model: zai/glm-5.3
+    model: openrouter/z-ai/glm-5.3
     thinking: high
   judge:
-    model: zai/glm-5.3
+    model: openrouter/z-ai/glm-5.3
     thinking: high
   builder:
-    model: zai/glm-5.3-flash
+    model: openrouter/z-ai/glm-5.3-flash
     thinking: high
   coordinator:
-    model: zai/glm-5.3-flash
+    model: openrouter/z-ai/glm-5.3-flash
     thinking: high
-  # narrator routing lives in .pi/agents/architect-narrator.md (flash/low,
-  # baked in at the I05 rollout): architect-loop.ts's validator knows only the
-  # five roles above, and under pi 1.2.0's loader a yaml `narrator` entry
-  # fails the whole extension load (2026-10-15).
+  narrator:
+    model: openrouter/z-ai/glm-5.3-flash
+    thinking: low
+  # narrator restored 2026-10-14: space-architect 9.1.1 + the fresh
+  # architect-loop extension both route it natively again (the 03c4ad8 drop
+  # was the 9.1.0-era loader workaround; narrator thinking stays low).
