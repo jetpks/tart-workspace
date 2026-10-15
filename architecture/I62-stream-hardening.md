@@ -140,6 +140,13 @@ session; none silent):**
   and both need multi-attempt scripts (the shifting script queue already
   serves that). The mock is client-lane territory (retry/salvage only touch
   it); lane `data` needs no mock change.
+- **R5 — docs ownership split.** The plan lists docs for both lanes, but only
+  lane `client`'s behaviors change documented error/event behavior
+  (errors.md:18's no-stream-events claim, the `:error` row in
+  stream-events.md). Lane `data`'s changes are codec guarantees with no
+  errors.md/stream-events.md surface. Frozen: errors.md + stream-events.md
+  are CLIENT-lane files; `CHANGELOG.md` is the one shared file (each lane its
+  own Unreleased bullets; integration order client → data resolves).
 - **R4 — "non-2xx mid-stream" read at creation.** A non-2xx status is known
   when the POST resolves (headers), pre-body — async-http gives no
   mid-stream status change. The plan's phrase lands as: creation-phase
