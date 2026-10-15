@@ -67,7 +67,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: stream-hardening
+  current_iteration: strict-sampling-gem
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -2491,4 +2491,10 @@ project:
     rehearsal:
       gates_digest: 7f54be8f75002c5ff04e4185f59f1d811d9f5ed4f21231e79889145f5ec19b1f
       at: '2026-10-15T13:55:10-06:00'
+  - name: strict-sampling-gem
+    ordinal: 63
+    file: architecture/I63-strict-sampling-gem.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
