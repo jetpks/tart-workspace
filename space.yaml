@@ -2386,5 +2386,23 @@ project:
     file: architecture/I60-error-transcript.md
     freeze_sha:
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - gems/tui-split-rig/registry.yml
+      - gems/tui-split-rig/scenarios/s18_error_transcript.yml
+      - lib/tart/agent/loop.rb
+      - lib/tart/agent/message.rb
+      - lib/tart/compaction.rb
+      - lib/tart/render/chat.rb
+      - lib/tart/render/transcript.rb
+      - test/agent_loop_test.rb
+      - test/chat_test.rb
+      - test/flow_test.rb
+      - test/render/transcript_test.rb
+      - test/session_test.rb
+    rehearsal:
+      gates_digest: b2ef643cb54b0fe40efb8689f3534a43fc1b01cb6b62e006af447d0f9e8c2c60
+      at: '2026-10-14T23:05:43-06:00'
   integration_branch: project/pi-port
