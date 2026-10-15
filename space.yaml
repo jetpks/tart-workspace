@@ -2449,9 +2449,29 @@ project:
   - name: stream-hardening
     ordinal: 62
     file: architecture/I62-stream-hardening.md
-    freeze_sha:
+    freeze_sha: b36915e53438164e708b2394f3a229cc9e5374c2
     verdict: pending
-    lanes: []
+    lanes:
+    - name: client
+      repo: fast-llm
+      touch_set:
+      - gems/completions/lib/fast/completions/client.rb
+      - gems/completions/lib/fast/completions/errors.rb
+      - gems/completions/spec/support/mock_llm_server.rb
+      - gems/completions/spec/fast/completions/client_spec.rb
+      - gems/completions/spec/fast/completions/stream_cancel_spec.rb
+      - gems/completions/docs/reference/errors.md
+      - gems/completions/docs/reference/stream-events.md
+      - gems/completions/CHANGELOG.md
+    - name: data
+      repo: fast-llm
+      touch_set:
+      - gems/completions/lib/fast/completions/protocol.rb
+      - gems/completions/lib/fast/completions/codec.rb
+      - gems/completions/lib/fast/completions/types.rb
+      - gems/completions/spec/fast/completions/protocol_spec.rb
+      - gems/completions/spec/fast/completions/codec_spec.rb
+      - gems/completions/CHANGELOG.md
     rehearsal:
       gates_digest: 7f54be8f75002c5ff04e4185f59f1d811d9f5ed4f21231e79889145f5ec19b1f
       at: '2026-10-15T13:55:10-06:00'
