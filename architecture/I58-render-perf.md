@@ -794,11 +794,75 @@ The frozen sections follow verbatim.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I58-render-perf-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence render-perf --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# I58 render-perf — lane `core` builder report
+
+Worktree: `build/I58-render-perf-core/wt` (branch `lane/I58-render-perf-core`, base `41f0a5f`). No commits, no git write commands. Tree diff = exactly the 7 frozen files (`SCOPE_OK 7`, worktree-adapted form — see Deviations E1).
+
+## Per-AC outcomes
+
+**AC1 — the burn is gone (D1): PASS.**
+- `render_frame`'s 60 Hz re-arm (`@kernel.animate(duration: BUSY_FRAME_SECONDS) if busy? || user_bash_streaming?`) deleted; the sink-tail animate (:627) replaced by `@kernel.request_draw` (one paint per agent event — the wind-down and the delta/tool/compaction dirty marks in one edit).
+- `grep -rn '\.animate(' lib/` → 0 callers. `draw_frame`'s `@dirty || animating?` gate and the animate-window mechanism byte-unchanged (loop_test's `test_animation_window_deadline_paces_frames` and all pacing pins pass UNMODIFIED).
+- Spinner tick: `Loop#tick(interval)` (additive, absolute-schedule, `Task#stop`-cancellable, setInterval first-fire-after-interval semantics) armed at `:agent_start` / user-bash stream start, cancelled at `:agent_end` (direct `@user_bash_stream` read — the arm holds the mutex; `user_bash_streaming?` would deadlock) / stream end / loop teardown (Loop#run's ensure stops all reactor tasks). Glyph stays time-derived (`spinner_frame(anchor)` math unchanged).
+- `BUSY_FRAME_SECONDS` deleted with its last call sites (sanctioned either way); `SPINNER_INTERVAL_SECONDS` kept (now also the tick's dwell).
+- Measured cadence proof: probe BP4 paints/s = **21.9** vs pi's measured 22.2 on the identical stream (base tart: 58.8).
+
+**AC2 — the live-region cache (D2): PASS.**
+- `assistant_live_lines` keyed on exactly `[width, @live.bytesize, @reasoning.bytesize]`; same-key frames re-serve the cached rows object (pinned by object identity, `test_render_perf_live_cache_recomputes_only_when_the_key_changes`); returns a dup (the caller `live_lines` concats into the result).
+- Reset-site clearing at all three `@live`/`@reasoning` reset sites (`:message_start` arm, `complete` (:message_end), `wipe_transcript`) — this is REQUIRED for AC2's own reset-cycle exactness: without it a later message colliding on a cached (size,width) with different content would serve stale rows. Pinned: `test_render_perf_live_cache_rows_are_byte_identical_across_sizes_and_reset_cycles` (cached chat drawn at every step vs a fresh chat's single uncached compose; fingerprint = per-span content + fg/bg/modifiers) — byte-identical across sizes, reasoning on/off, and a same-size different-content reset cycle.
+- `user_bash_live_rows` NOT cached (time/toggle-dependent) — untouched. `display_lines`/`build_widget`/`transcript.rb`/`markdown.rb`/`viewport.rb` untouched.
+- Screen bytes: s1–s8, s10, s17 parity gates green (settled captures diff-clean); probe anti-vacuity shows max live bytes 44,677 and max transcript rows 12,535 — the base peaks, byte-for-byte reachable.
+
+**AC3 — the probe (D3): PASS — `RENDER_PERF_OK`, exit 0** (verbatim gate command, foreground; artifacts `tmp/render-perf-gate/tart/`).
+Measured budget table (tart, gate shape, streaming window 143.8 s; base numbers from the frozen Grounds §2 calibration):
+
+| budget | base (41f0a5f) | measured (this tree) | frozen budget | verdict |
+|---|---|---|---|---|
+| BP1 median frame_ms | 10.34 | **0.50** | ≤ 3.0 | PASS (20.6×) |
+| BP2 render-ms/s | 605.8 | **111.6** | ≤ 250 | PASS (5.4×) |
+| BP3 md conversions/s | 58.4 | **9.1** | ≤ 25 | PASS (6.4×) |
+| BP4 paints/s | 58.8 | **21.9** | ≤ 35 | PASS (pi anchor 22.2) |
+| BP5 burst→top-row-change ms | 18.4 | **9.7** | ≤ 40 | PASS (pi anchor 10.1) |
+
+Anti-vacuity: window 143.8 s (≥120); frames 3090 (≥1500); max live bytes 44,677 (≥30,000); max transcript rows 12,535 (≥11,000); marker observed; requests 3 == 3. Verbatim gate stdout: `AV window: PASS 143.8s`, `AV marker: PASS observed`, `AV requests: PASS 3`, `AV frames: PASS 3090`, `AV live-bytes: PASS 44677`, `AV transcript-rows: PASS 12535`, `BP1: PASS 0.50`, `BP2: PASS 111.6`, `BP3: PASS 9.1`, `BP4: PASS 21.9`, `BP5: PASS 9.7`, `RENDER_PERF_OK`.
+Analyzer fidelity check: the committed bin's analyzer, run against the BASE calibration artifacts (`repos/tart/tmp/render-perf-calib/stage-gate/{tart,pi}`), reproduces Grounds §2 EXACTLY — tart: window 142.4, paints/s 58.8, median frame 10.34, p95 19.43, render-ms/s 605.8, md/s 58.4, top-change 18.4 ms, live 44,677 B, rows 12,535, frames 8328; pi: paints/s 22.2, top-change 10.1 ms. (At base, BP1–BP4 measure RED as declared.)
+p95 frame_ms measured 19.8 ≈ base 19.43 — as designed: the cure makes conversions RARER (per delta, not per frame), not cheaper; BP1 is the median per the frozen letter.
+
+**AC4 — the unit discipline (D4): PASS** (`render-perf-units`: 7 runs, 29 assertions, 0 failures; filter verified non-empty).
+- Cache exactness + reset cycles + recompute-iff-key-changes (identity pins) — `test_render_perf_live_cache_*`.
+- Dirty marks: `test_render_perf_agent_events_each_request_exactly_one_draw` (delta, tool start, tool end, compaction start, compaction — each exactly +1).
+- Wind-down: `test_render_perf_agent_end_paints_once_via_request_draw` (+1 draw, `animate_calls` empty).
+- Tick: armed at agent_start at `SPINNER_INTERVAL_SECONDS`; compaction re-anchor does NOT double-arm; cancels at agent_end; user-bash stream arms/cancels + per-chunk draw; `test_render_perf_spinner_tick_fires_at_the_spinner_interval` fires at ~80 ms against the REAL kernel (Loop takes no injected clock — the pin rides the real monotonic clock at the spinner dwell; documented in the test).
+- chat_test re-pin: `test_bash_loader_glyph_advances_across_draws_without_busy` — glyph-on-TIME assertions VERBATIM (`t += SPINNER_INTERVAL_SECONDS; draw; ⠙; ⠹`); the animate-window assertions re-pinned to the tick discipline (armed at the stream start at the dwell, handles live mid-flight, all stopped at stream end), comment cites I58.
+
+**AC5 — no byte moves + scope: PASS with two environment-class exceptions (checkpointed).**
+- Scope: exactly 7 files (see Deviations E1 for the check form).
+- Green cold: suite (`bundle exec rake` — 1146 runs, 5375 assertions, 0 failures, 1 pre-existing skip), bench (`SEAM_BENCH_OK`), s1–s8, s10 parity, s1-tart-mode (`TART_MODE_OK`), tool-pending-gate (`TOOL_PENDING_GATE_OK`), user-bash-stream-gate (`USER_BASH_STREAM_GATE_OK`), thinking-pins (runs 14/9 ≥ 11/8, corrected extractor), hermeticity (8/4), lock-deps (`LOCK_DEPS_OK`+`GEM_LOAD_OK`), zai-data (`ZAI_DATA_OK`), threads-budget (no new `Thread.new` in lib), s17-parity (`S17_PARITY_OK`), render-perf-units, render-perf-probe.
+- NOT green in this lane environment, with raw facts in `build/loop/exception-2026-10-15T00:06:00Z.md`:
+  - `s9-parity` EC=1: the DECLARED known lane-worktree deep-path artifact (diff classes `parity-run-path`×6, `staged-path-wrap-fragment`×4 over the deep `build/I58-render-perf-core/wt/...` sandbox path; both apps completed 1/1). Reported, not chased.
+  - `wire-delta`: instruction digest root-bound — the `<cwd>` line embeds `<repo-root>/tmp/i54-wire/run-1/sandbox/tart`; the gate normalizes only the `tmp/...` tail. Byte-identical modulo repo root (sha `bc03246c…` both trees); tools digest matches the frozen `7360fd1e…` EXACTLY in the worktree; all other assertions (keys, store, max_completion_tokens, user message, stream_options) exact. Verbatim gate PASSES at the pristine integrated freeze (verified live). Checkpointed.
+  - `session-golden`: RED AT THE FREEZE ITSELF in this environment — deterministic on two checkouts (integrated tree at 41f0a5f fails identically); `plain`/`plain_context`/`plain_roles` match the frozen literals; `primary`/`forked`/`context`/`fork_roles` do not. Mechanism: the fork is content-complete (copies every non-header parent entry; `Recorder` persists synchronously), so `fork_roles` is 6 entries vs the frozen `[:user, :user]` — the frozen digests encode a pre-fork-copy recording era (header `"version":3` present today). NOT caused by the lane diff (`lib/tart/agent/**` byte-identical; verified `diff -rq` worktree vs integrated lib = only my 2 declared lib files). Never gate-edited. Checkpointed.
+
+## Deviations from the frozen letter (itemized, none silent)
+
+- **C1 (code, inside AC2's own letter):** reset-site cache clearing added — the D2 parenthetical ("size-keyed invalidation is exact for every mutation site") is true only WITH reset clearing (same-size different-content collisions across message generations). Key shape, touch set, and byte-exactness unchanged; AC2's reset-cycle clause demands it.
+- **C2 (code):** the tick cancel lives in the `:agent_end` arm reading `@user_bash_stream` directly (the sink holds the mutex; the public `user_bash_streaming?` would deadlock). An earlier draft cancelled in the sink tail — caught by the render-perf pins (it cancelled the tick armed by the same event) before any gate run.
+- **C3 (tests):** IdleKernel gained `tick`/`ticks`/`tick_handles` + `TickHandle` (the real code's new seam); RecordingKernel additionally records `draws`. Tick bodies are deliberately never run synchronously in the double (a `loop { sleep }` body would hang `drain_runs`); fire/cadence pins use the real kernel.
+- **C4 (tests, re-pin):** `test_enter_submits_and_starts_a_turn_when_idle` — the transcript read raced the reply's enqueue and the retired burn's per-frame mutex contention no longer delays the agent fiber; the fast mock's reply now reliably lands before the stop. Re-pinned to assert the echo rows as the LEADING rows (`transcript_lines.first(3)`), comment cites I58. Echo bytes/padding semantics unchanged.
+- **C5 (bin):** the scenario is constructed via `TuiSplitRig::Scenario.new(path, data)` from a Ruby Hash (no YAML file — `:pause` can't ride safe_load; the D3 letter's "mock specs built in RUBY" taken to its clean form); `stamp.rb` is generated into the out dir at runtime (no extra repo file); `Runner::HARD_CAP` raised to 150 in-process (the scratch precedent; gems lib untouched).
+- **C6 (bin):** AV `requests` (and the rendering-shape preconditions) bind to the budgeted (tart) run only — pi's calibration leg logged 4 requests for 3 prompts (its own retry on the 12K seed); pi is the reference, not the deliverable. `--app pi` prints anchor records.
+- **C7 (bin):** `REPO_ROOT` needed THREE ups from `gems/tui-split-rig/bin` (`../../..`), not two — the two-up version pointed RUBYOPT at `<root>/gems/test/...`, killing the pane pre-instrument (found by pane-stderr capture during bring-up, fixed, gate green after).
+- **D1 (visual, transient):** manual `/compact` from idle emits no `:agent_start`, so its summarize window gets one paint per compaction event rather than a tick-paced spinner (base re-armed a 0.25 s window per event — also static beyond it). Frozen arm sites kept verbatim (no scope addition); settled bytes unchanged; s7/s8 green.
+- **E1 (environment, not tree):** the scope check runs `git diff --name-only 41f0a5f...HEAD` post-integration; in the uncommitted lane worktree I verified the equivalent form (`git diff --name-only 41f0a5f` + untracked) → `SCOPE_OK 7`. Lane runs exported `FAST_COMPLETIONS_PATH=<space>/repos/fast-llm/gems/completions` (matches the COMMITTED lock's absolute remote — without it the rig panes abort under BUNDLE_FROZEN; the runner scrubs only `PI_*`/`TART_*`); the worktree's `../fast-llm` is a symlink I created OUTSIDE the repo (`build/I58-render-perf-core/fast-llm`). An early `bundle install` rewrote `Gemfile.lock`; it was RESTORED to base bytes (`git show 41f0a5f:Gemfile.lock > Gemfile.lock` — no git write command); final `git status` = the 7 files exactly.
+
+## Incidents
+
+- Probe bring-up: two crashed runs (EC=1) from C7 + one from the pre-restore lock state; both diagnosed with pane-stderr captures, fixed, then green twice (gate3 + the verbatim final run).
+- s2–s6 initial EC=2: caused by the Gemfile.lock rewrite + missing env export (E1), NOT the diff — all green after the restore with the identical tree bytes.
+
+STATUS: COMPLETE_WITH_CONCERNS
 
 ## Verdict
 
