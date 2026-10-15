@@ -2370,6 +2370,13 @@ project:
       - test/chat_test.rb
       - test/launcher_smoke_test.rb
       - test/models_test.rb
+      base_sha: 9b04d0def7c799d8b540665aec027697300e7eb0
+      worktree: build/I59-zai-max-tokens-core/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: 712c32102ff0fece2efe67252e9438450155cf0f46c3d4ff4ee4e973ffd87e90
       at: '2026-10-14T19:59:48-06:00'

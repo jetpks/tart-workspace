@@ -1,0 +1,10 @@
+#!/usr/bin/env fish
+# pi oracle shim — the rig's parity oracle, built from the space's repos/pi
+# checkout (pinned at f1b2e77f, 1.1.0) so the oracle stops drifting with the
+# owner's global `pi update` upgrades. Ruling: notes/ruling-2026-10-15-oracle-pin.md
+# Rebuild: cd repos/pi && npm ci && npm run build:offline
+# (packages/ai data comes from the published pi-ai@1.1.0 tarball, not live
+# models.dev hydration — see the ruling note.)
+# The absolute node path deliberately bypasses mise shims: under the rig's
+# staged HOME a mise shim would prompt for config trust inside the pane.
+exec /Users/eric/.local/share/mise/installs/node/24.18.0/bin/node /Users/eric/architect/spaces/20261009-pi-port/repos/pi/packages/coding-agent/dist/bundle/cli.js $argv
