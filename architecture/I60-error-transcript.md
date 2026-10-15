@@ -177,34 +177,196 @@ here).
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section error-transcript specification --from <file>`. -->
+- **Objective** — close live-run rev4 ENTRY B: an API failure that kills
+  a turn must leave the SAME trace pi leaves — a pi-shaped failure
+  assistant message persisted to the session jsonl, rendered live, and
+  rendered again on resume (BRIEF §8's indistinguishability bar at the
+  error surface; the exact-parity program's settled-screen discipline
+  extends to the failure row). Grounds §1's measured two-line file is
+  the defect; pi's six-line file with the failure entry is the shape.
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+- **Output format** — source changes in repos/tart (12-file touch set);
+  new unit pins under the `error_transcript` filter token; ONE new rig
+  scenario (`s18_error_transcript.yml`) + TWO new registry classes; the
+  measurement artifacts stay archived at `repos/tart/tmp/i60-spec-base/`
+  (gitignored) with the space-side scratch scenario at
+  `tmp/i60-spec/s18_error_base.yml`.
+
+### The contract, decision by decision
+
+**D1 — the failure message (agent/message.rb).**
+`Tart::Agent::Message` gains an `error_message` reader (kwarg
+`error_message: nil`, String/nil). `assistant_to_h` emits
+`out[:error_message] = error_message if error_message` immediately
+AFTER `finish_reason` (pi's errorMessage adjacency to stopReason). The
+frozen no-tool-calls key pin (`{"role","content","tool_calls",
+"finish_reason","input_tokens","output_tokens","cache_write_tokens"}`)
+is UNCHANGED for every message without an error (the key rides only
+when present). The synthesis factory lives on Message as
+`Message.error_failure(error_message:, content: "", thinking: nil)` —
+role :assistant, `content:` the accumulated partial ("" pre-stream),
+`tool_calls: {}`, `finish_reason: "error"`, `error_message:`,
+`tokens: nil` (the port's unreported-usage convention drops every token
+key; pi's EMPTY_USAGE zeros are pi's own file format — the port's
+recorded byte family governs, Grounds §3). `thinking:` is
+`Thinking.new(text:, signature: "reasoning_content")` when a thinking
+delta preceded the failure, else nil.
+
+**D2 — the synthesis (agent/loop.rb, the plan's named seam).**
+`step_on_reactor` accumulates the step's streamed chunks (text into a
+local String, thinking deltas into a local String — the chunks the
+`@chat.step` block already receives) and `record_terminal_error`
+becomes the synthesis point, pi handleRunFailure/agent.ts:532-548's
+shape on the no-message arm:
+
+```ruby
+def record_terminal_error(error)
+  @last_error = error
+  message = @last_message
+  if message&.role == :assistant
+    emit(type: :message_end, message:, error: true) # frozen arm, byte-identical
+  else
+    synthesize_failure_message(error) # D2's new arm
+  end
+end
+```
+
+`synthesize_failure_message(error)`: builds `Message.error_failure`
+with the accumulated partials; emits `message_start` with it ONLY when
+`@stream_started` is false (pi agent-loop.ts:443-448/:459-468 — the
+no-partial case; a mid-stream failure already had its message_start);
+runs `handle_item({type: :step, message:})`-equivalent bookkeeping —
+`@last_message = message`, `@new_messages << message`,
+`emit(type: :message_end, message:)`, `record(message)`, and
+`@chat.add_message(message)` (pi pushes the failure message into agent
+state AND the loop context at message_end — the in-session retry's
+context mirrors pi) — but does NOT reset `@overflow_recovery_attempted`
+(pi's reset is clean-response-only, agent-session.ts:1168-1171; a
+synthesis during the overflow arm must not defeat the latch). The
+existing ladder order above record_terminal_error is untouched:
+Async::Cancel re-raises (no synthesis — OQ-2's declared divergence),
+CancelledError returns nil (no synthesis), StandardError synthesizes.
+`stopped_on_error?` then carries the failure message on turn_end and
+new_messages on agent_end exactly as pi's loop return does
+(agent-loop.ts:245-256) — no change needed there once @last_message is
+set.
+
+**D3 — the live render (render/chat.rb).**
+The `:message_end` assistant arm gains the error row: when
+`message.finish_reason == "error"` (the Message reader), after the
+normal `complete`/`enqueue_message` flush, enqueue ONE region
+`[Panel.blank_line, *Panel.padded_fg_rows("Error: #{message.error_message}",
+viewport_width, fg: Theme[:error])]` — pi assistant-message.ts:184-198
+(the Spacer(1) + `Error: ${errorMsg}` error-fg row, outputPad; the
+measured pi row is ` ` + error-fg text; Panel.padded_fg_rows is the
+port's pad-led wrapped error-fg row family — Grounds §1's measured
+layout `[hello, blank, blank, Error]` matches row-for-row). A
+surface-level flag (set by this arm, cleared at `:agent_start`) guards
+the agent_end error arm: when set, the agent_end error arm SKIPS its
+`error: <msg>` scrollback line (pi's agent_end renders no error text —
+the component owns the row; without the guard the failure would
+double-render) but KEEPS `finalize_pending_as_error` (defense). The
+agent_end arm WITHOUT the flag set (the with-message failure case, no
+synthesized message_end — pinned today by
+test_error_finalizes_the_orphaned_pending_block_with_the_message)
+renders today's line byte-identically. The interrupted arm is
+untouched.
+
+**D4 — the replay render (render/transcript.rb).**
+`replay_assistant` gains the error arm: `has_error =
+message["finish_reason"] == "error" && message["error_message"].is_a?
+(String) && !message["error_message"].empty?`; the early-return guard
+becomes `return unless has_content || has_reasoning || tool_calls.any?
+|| has_error`; after the content/thinking rows (same order as the
+component: content, then the error row), enqueue the SAME region shape
+as D3. Pre-I60 session files (no `error_message` key) render exactly as
+before (has_error false → the old guard). The live `:compaction` arm's
+rebuild path (chat.rb:601) needs no change — it replays entries through
+this same replay machinery, so a kept failure entry re-renders its row
+(pi's rebuild renders it too, renderSessionEntries → the component).
+
+**D5 — the rig instrument.**
+`gems/tui-split-rig/scenarios/s18_error_transcript.yml`: name
+`s18_error_transcript`, prompt "hello", `expected_requests: 1`,
+`replay: true`, ONE response `{type: error, status: 400, message: "The
+max_tokens parameter is illegal."}` (the owner's live failure shape;
+the mock's existing error spec — no mock/runner change). TWO registry
+classes, pinned with reasons: `error-transcript-row-tail` (pattern
+`Error: \d{3}: ` — the tails are each app's frozen provider-error
+formatting: pi's raw-body SDK message vs the gem's §8 extracted
+message) and `pi-bug-report-hint` (pattern `If this looks like a pi
+bug` — the /bug machinery cut, OQ-1). No other registry/scenario/
+runner change. The gate asserts BOTH apps' live + replay rows, the
+error-fg styled row, the padded row, and BOTH session files (pi's
+oracle entry stopReason "error"; tart's 3rd line
+`{"role"=>"assistant","content"=>"","tool_calls"=>{},
+"finish_reason"=>"error","error_message"=>"400: …"}` — Grounds §1's
+measured bytes).
+
+**D6 — the declared re-pins (frozen letters that encode the old
+no-trace behavior).** Exactly TWO: agent_loop_test.rb:122 and
+flow_test.rb:42 — `assert_equal %i[user], agent.new_messages.map(&:role)`
+→ `%i[user assistant]`. Everything else in the error-path pin family
+(last_error classes, agent_end[:error], the overflow retry wire roles,
+the interrupted arms) holds UNCHANGED (Grounds §4). compaction.rb:194-
+198's comment premise is truthed (comment-only: the recorded
+finish_reason CAN now carry "error"; the nil-tokens guard is the
+operative skip).
+
+- **Boundaries** — MAY TOUCH exactly the 12 files in the ```lanes
+  block. MUST NOT: repos/fast-llm (any change — the gem's error
+  formatting and empty-assistant wire-skip are the ORACLE, reproduce,
+  never modify); lib/tart/agent/session.rb (the recorder persists
+  Message#to_h generically — no recorder change; Grounds §3);
+  lib/tart/agent/chat.rb (add_message already public; the wire-neutral
+  skip is the gem's); bin/tart, lib/tart/print.rb (print's
+  error_exit/EXIT_ERROR is already pi's print-mode tail — the
+  synthesized message changes nothing there; verified at Grounds §2/
+  print-mode read); the frozen rescue-ladder order in step_on_reactor
+  (Cancel first, CancelledError second, StandardError third); the
+  agent_end interrupted arm; Settings/Models/any wire key; any
+  existing scenario, golden, or session digest (the failure path
+  exists in NONE of them — the standing no-move letter holds
+  absolutely here, no delta-audited exception is claimed). OUT OF
+  SCOPE: the abort-path recording (OQ-2), the length-stop row (OQ-3),
+  the /bug hint row (OQ-1), gem error-format changes.
+
+- **Tool guidance** — the battery + new gates are in the frozen AC
+  block (assembled programmatically by `build/i60-spec/assemble-gates.rb`
+  from I59's frozen block: 27 standing verbatim — zai-max-tokens-units/
+  wire promoted standing — threads-budget rebased 9b04d0d→24e89ba, ac:
+  labels moved to AC4 commands byte-verbatim; 4 new). The rig env
+  prefix (`env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u
+  HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID`) is mandatory
+  on every rig invocation; the pinned-oracle PATH prepend
+  (`<space>/bin` first) is the gate-shell standing rule. Base
+  measurement artifacts: `repos/tart/tmp/i60-spec-base/` (both apps'
+  captures + session files at 24e89ba). Do NOT burn live z.ai credits
+  — the mock's 400 is the whole evidence chain.
+
+- **Effort** — model zai/glm-5.3-flash, effort HIGH (a
+  failure-path contract change across the agent/render/recorder-call
+  seams with frozen arm-preservation bars and a new both-apps rig
+  gate; the mid-stream/no-stream discrimination and the no-double-
+  render guard need the care).
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision error-transcript`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - gems/tui-split-rig/registry.yml
+    - gems/tui-split-rig/scenarios/s18_error_transcript.yml
+    - lib/tart/agent/loop.rb
+    - lib/tart/agent/message.rb
+    - lib/tart/compaction.rb
+    - lib/tart/render/chat.rb
+    - lib/tart/render/transcript.rb
+    - test/agent_loop_test.rb
+    - test/chat_test.rb
+    - test/flow_test.rb
+    - test/render/transcript_test.rb
+    - test/session_test.rb
+  effort: high
 ```
 
 ## Acceptance Criteria
