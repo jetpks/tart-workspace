@@ -2497,4 +2497,7 @@ project:
     freeze_sha:
     verdict: pending
     lanes: []
+    rehearsal:
+      gates_digest: 28f88f68ff7d871f88a0448d391c8cda6c90fb520da867eaf9d6b46ca048d42c
+      at: '2026-10-15T16:51:37-06:00'
   integration_branch: project/pi-port
