@@ -794,6 +794,144 @@ OPERATING DISCIPLINE:
 
 The frozen sections follow verbatim.
 
+### data
+
+You are the builder for iteration `stream-hardening` (I62), lane `data`.
+Work ONLY in the provisioned worktree on branch
+`lane/I62-stream-hardening-data` (base fast-llm `main` @ `43ea169`); NEVER
+commit (the integrator lands your tree), NEVER touch the space repo, NEVER
+push. The full iteration contract is the frozen
+Grounds/Specification/Acceptance Criteria in this file (verbatim below) —
+read them first; this header is the lane's operating brief. Your SIBLING
+lane `client` (transport salvage + retry) runs in parallel — do NOT touch
+its files even where a test tempts you; the lanes are disjoint by file and
+integrate in order client → data.
+
+THE TASK IN ONE PARAGRAPH: the gem's data seam hardens with pi's three
+data fixes. (3) OUTGOING-STRING SCRUB (pi sanitize-unicode :24-27, call
+sites openai-completions.ts :1259/:1265/:1274/:1305/:1326/:1426): every
+string the codec emits onto the wire params passes through a scrub that
+makes it `JSON.generate`-safe — `to_wire_messages`'s leading instructions
+and system content, `wire_user`'s string content and text-part texts,
+`wire_assistant`'s joined text + reasoning-field text + the STRING VALUES
+inside tool-call `arguments` hashes (deep), `wire_tool_result`'s joined
+content. Frozen semantics: invalid-encoding sequences are DELETED (pi's
+observable — `"Text \u{D83D} here"` → `"Text  here"`); the sanctioned
+mechanism is `String#scrub { "" }`, which covers Ruby's broader class
+(lone high/low surrogates, CESU-8 pairs, any invalid bytes — Grounds row
+3). NOT U+FFFD replacement. The property: `JSON.generate` over
+`Protocol.build_request(...)` output NEVER raises `GeneratorError` from
+message content. Valid strings pass BYTE-IDENTICAL — the 11 canonical
+fixtures stay byte-identical. (4) STOP_REASON + ERRORED-TURN SKIP (pi
+transform-messages :196-206): `Message` gains `stop_reason` (nil default;
+`to_h` emits the key only when set; `from_h` round-trips; the
+`Message.assistant` factory accepts it; NO vocabulary validation), and
+`Codec.normalize` skips assistants whose `stop_reason` is `:error` or
+`:aborted` ENTIRELY — pi's pass semantics: the skip happens in the
+transform pass so their tool calls never become pending orphans and never
+synthesize results, while a PREVIOUS valid assistant's unanswered calls
+still synthesize and surrounding user/system messages are unaffected;
+non-errored assistants carry `stop_reason` through unchanged. (5)
+TOOL-CALL INDEX-MAP BACKFILL (pi :536-539): in `consume_tool_call`, when
+an entry resolves a block (by index, by id, or by creation) AND carries an
+`index` that block has never bound, bind the block into `@tool_by_index`
+— FIRST index wins, one index per block, ever; track boundness WITHOUT
+leaking scratch keys onto the message blocks (pi deletes its streamIndex
+scratch at finalize; the gem's blocks ARE message content — e.g. an
+accumulator-side identity map).
+
+BYTE-NEUTRALITY ON HEALTHY WIRES IS THE HARD CONSTRAINT: valid strings and
+errored-row-free histories produce byte-identical params — the 11 canonical
+wire fixtures stay byte-identical (the `frozen` gate diffs vs `43ea169`)
+and the full suite stays green.
+
+TOUCH SET (exactly 6 files; the frozen lanes block enforces):
+- gems/completions/lib/fast/completions/protocol.rb — `consume_tool_call`
+  ONLY (its rest is frozen): the index-map backfill.
+- gems/completions/lib/fast/completions/codec.rb — the scrub helper + its
+  calls at every emission point (§3's list), the `:error`/`:aborted` skip
+  in the transform pass, `stop_reason` carried through `transform_message`.
+- gems/completions/lib/fast/completions/types.rb — `Message#stop_reason`
+  (reader, constructor kwarg, `to_h`/`from_h`, the assistant factory).
+- gems/completions/spec/fast/completions/protocol_spec.rb — the backfill
+  pins. The describe string is FROZEN (the gate filters on the substring):
+  `index-map backfill (I62 — pi :536-539)`.
+- gems/completions/spec/fast/completions/codec_spec.rb — the scrub + skip
+  pins. The describe strings are FROZEN: `outgoing-string scrub (I62 — pi
+  sanitizeSurrogates)` and `stop_reason skip on replay (I62 — pi
+  :196-206)`.
+- gems/completions/CHANGELOG.md — your lane's `## Unreleased` bullets
+  (scrub + stop_reason + backfill). Lane `client` adds its own bullets to
+  the same section; integration order client → data resolves the merge.
+
+MUST-NOT: zero edits to `gems/completions/spec/fixtures/wire/**`,
+`wire_parity_spec.rb`, `dialects.rb`, `chat.rb`, `tool.rb`,
+`cancellation.rb`, `sse.rb`, `malformed_wire_spec.rb`, `client.rb`,
+`errors.rb`, `spec/support/mock_llm_server.rb`, `client_spec.rb`,
+`stream_cancel_spec.rb` (the sibling lane `client` owns those), the docs
+tree (errors.md/stream-events.md are client-lane files — Grounds R5); zero
+edits under `repos/tart`; no new runtime dependencies; no outbound-wire
+changes beyond the scrub's no-op-on-valid guarantee; no refactors beyond
+the task; the space repo's architecture/I62-stream-hardening.md is
+read-only for you.
+
+PIN COVERAGE (the frozen Tool guidance enumerates it; the discriminators):
+- scrub — for EACH defect class (lone high surrogate bytes `eda0bd`, lone
+  low `edb0a9`, CESU-8 pair `eda0bdedb8ba`, invalid non-surrogate bytes —
+  built with `.pack("H*").force_encoding("UTF-8")`, the live entry path):
+  the codec's output `JSON.generate`s clean and the surrogate class is
+  DELETED (pi's `"Text  here"` observable); valid strings (ASCII,
+  multibyte, emoji `🙈`, the fixture bodies) emerge BYTE-IDENTICAL; every
+  scrubbed position covered (instructions, system, user string/parts,
+  assistant text, reasoning-field text, tool_result content, arguments
+  string values).
+- stop_reason — `to_h`/`from_h` round-trip (key absent when nil, present
+  when set); an `:error`/`:aborted` assistant is skipped from `normalize`
+  output while a prior valid tool-calling assistant's orphan still
+  synthesizes its result; a `:stop` assistant passes through carrying its
+  reason; a history without errored rows is byte-identical to base.
+- backfill — the frozen R1 shape (frag1 `{id,name}` no index → frag2
+  `{id,index,arguments}` → frag3 `{index,arguments}` no id) assembles ONE
+  block, arguments accumulated across frag2+frag3, natural `:tool_use`;
+  first-index-wins (a later same-id fragment with a DIFFERENT index does
+  not rebind); no new keys appear on any emitted message block; the
+  standing index/id pins (protocol_spec :217/:249) pass unmodified.
+
+OPERATING DISCIPLINE:
+- Search before implementing: read `codec.rb` end-to-end (`normalize`,
+  `transform_message`, `insert_orphan_synthetic_results`,
+  `to_wire_messages`, the `wire_*` family), `types.rb` (`Message`,
+  `to_h`/`from_h`, the factories, the frozen-message discipline),
+  `protocol.rb` (`consume_tool_call`, `finalize_blocks`,
+  `StreamAccumulator`), and the standing `codec_spec`/`protocol_spec` pin
+  conventions BEFORE writing.
+- OFFLINE ONLY — pure-data work; no live z.ai credit burn, no live wire
+  probes.
+- Run the frozen gates cold from the worktree after the work (the ```gates
+  block below). IN YOUR WORKTREE the sibling lane's gates (`retry`,
+  `salvage`) and `docs` stay RED by design — they need lane `client`'s
+  files. YOUR lane is judged on: `backfill`, `scrub`, `stop-reason` GREEN +
+  the controls `suite`, `parity`, `frozen` GREEN. Suite = `bundle exec
+  rspec` from the worktree root. If a gate shell inherits PI_PACKAGE_DIR
+  PI_MODEL PI_PROVIDER PI_CONTEXT_WINDOW, unset them first.
+- If a frozen ruling fights reality (e.g. a pin you cannot satisfy without
+  touching a MUST-NOT file), STOP and checkpoint
+  build/loop/exception-<UTC>.md with the raw facts; never silently
+  re-freeze, never widen scope.
+- Report at `build/I62-stream-hardening-data/report.md` (space-relative;
+  OUTSIDE the worktree). RAW RESULTS ONLY per the frozen Output format:
+  spec files changed with run counts, the full suite line, the wire-parity
+  result (11/11), the mock-server additions (none expected from this
+  lane), the file list touched, and the PHASE 0 disagreement table (if
+  any) with file:line cites — PHASE 0 = disagreements with the frozen
+  Specification discovered while reading it; itemize them, the judge rules
+  them. Add the gate outcomes and a final `STATUS:` line (COMPLETE /
+  COMPLETE_WITH_CONCERNS / BLOCKED).
+- Children never block on contact_supervisor; escalation only via
+  build/loop/exception-*.md.
+
+The frozen sections follow verbatim.
+
 ## Builder Report
 
 <!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
