@@ -433,7 +433,8 @@ battery (27 gates: suite, bench, s1–s10, s1-tart-mode, both probes,
 thinking-pins, hermeticity, lock-deps, zai-data, threads-budget rebased
 to 24e89ba, wire-delta, session-golden, s17-parity, render-perf-units,
 render-perf-probe, zai-max-tokens-units, zai-max-tokens-wire) is green
-cold; NO existing scenario, golden, registry class, wire byte, or
+cold EXCEPT the three standing environment-class gates disclosed below;
+NO existing scenario, golden, registry class, wire byte, or
 session byte moves (this entry claims NO delta-audited exception — the
 error path exists in no frozen artifact); exactly the 12 declared files
 change (the TWO declared re-pins — agent_loop_test.rb:122,
@@ -441,12 +442,36 @@ flow_test.rb:42, `%i[user]`→`%i[user assistant]` — land inside them;
 the compaction.rb comment truthing is comment-only). Judge: the battery
 + scope (non-vacuous at the lane's 12-file diff, base 24e89ba).
 
+**The standing environment-class gates (this session's rehearsal
+vector: 24 GREEN + 7 RED, every RED accounted).** Under the pinned-
+oracle environment directive (space `bin/` first on PATH, PI_* unset),
+THREE standing gates run RED at the CLEAN BASE for the I59-adjudicated
+environment classes — re-verified this session at 24e89ba, pin
+identities exact: `suite` (SystemPromptTest#test_pi_docs_paths_resolve_
+pis_install NoMethodError + LauncherSmokeTest#test_print_boot_wires_
+the_composed_harness_prompt missing `<docs>` — the shim's
+no-package-dir consequence — plus LauncherSmokeTest#test_footer_data_
+clamps_the_boot_level_but_keeps_the_badge_source_raw "Expected: high"
+— unset-PI_MODEL + the owner's real ~/.tart catalog in footer_data),
+`hermeticity` (the same launcher pins standalone), and `wire-delta`
+(the E3 instruction literal: measured `b7debb5a…` — the `<docs>`
+section absent; the operative proof is base-vs-lane instruction
+identity modulo the ONE cwd line, the I59 ruling). These are the
+coordinator-declared standing classes — do NOT re-litigate; the
+builder reports them, never chases them. Every OTHER standing gate
+was GREEN in this session's own rehearsal at the clean base (incl.
+s1–s10, s17, both probes, and both promoted zai gates).
+
 RED-at-freeze register: error-transcript-units + error-transcript-
 render-units = runs 0 (filters verified EMPTY at base —
-`grep -rn error_transcript test/` → nothing); s18-error-transcript =
-RED at base (scenario file absent; tart's row + entry absent —
-Grounds §1's measurement IS the red evidence); scope = vacuous empty
-diff at base + the 12 missing files.
+`grep -rn error_transcript test/` → nothing; rehearsal read
+`FAIL agent-loop pins runs=0 (want >=4; 0 = filter empty,
+declared-new)`); s18-error-transcript = RED at base (rehearsal read
+`FAIL s18 rig ec=2` — the scenario file lands with the lane; tart's
+row + entry absent — Grounds §1's measurement IS the red evidence);
+scope = vacuous empty diff at base + the 12 missing files (rehearsal
+read `extra=[] missing=[…12]`). The three standing environment-class
+REDs are disclosed above (suite, hermeticity, wire-delta).
 
 ```gates
 - id: suite
