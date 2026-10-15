@@ -1,7 +1,7 @@
 # architect.yaml — space-architect loop routing for this space (pi-port).
 # Space-local values override ~/.config/space-architect/architect.yaml (global).
 # Model ids are pi provider/model ids; `thinking` is the pi effort level.
-# Builder routing follows the owner's standing directive (builders openrouter/z-ai/glm-5.3-flash);
+# Builder routing follows the owner's standing directive (builders zai/glm-5.3-flash);
 # spec/judge carry the strong-reasoning model; the coordinator only tends, so it rides flash.
 #
 # PEAK WINDOW (owner 2026-10-14): z.ai direct doubles token cost Mon–Fri
@@ -13,22 +13,22 @@
 version: 1
 roles:
   architect:
-    model: openrouter/z-ai/glm-5.3
+    model: zai/glm-5.3
     thinking: high
   spec:
-    model: openrouter/z-ai/glm-5.3
+    model: zai/glm-5.3
     thinking: high
   judge:
-    model: openrouter/z-ai/glm-5.3
+    model: zai/glm-5.3
     thinking: high
   builder:
-    model: openrouter/z-ai/glm-5.3-flash
+    model: zai/glm-5.3-flash
     thinking: high
   coordinator:
-    model: openrouter/z-ai/glm-5.3-flash
+    model: zai/glm-5.3-flash
     thinking: high
   narrator:
-    model: openrouter/z-ai/glm-5.3-flash
+    model: zai/glm-5.3-flash
     thinking: low
   # narrator restored 2026-10-14: space-architect 9.1.1 + the fresh
   # architect-loop extension both route it natively again (the 03c4ad8 drop
