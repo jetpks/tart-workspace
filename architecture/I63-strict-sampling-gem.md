@@ -685,11 +685,177 @@ disagreement table if any.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I63-strict-sampling-gem-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence strict-sampling-gem --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### strict
+
+# I63 strict-sampling-gem — builder report (REPLACEMENT builder, lane `strict`)
+
+Worktree: `build/I63-strict-sampling-gem-strict/wt` · branch `lane/I63-strict-sampling-gem-strict` · base fast-llm `main` @ `6ceba1f`
+Kit: `prompt-src.md` (sha256 below) · pi source of record: `repos/pi` @ `f1b2e77f5` (verified: `git rev-parse HEAD` = `f1b2e77f5b13b2a199b1052cb79c235451afe7d7`)
+
+```
+$ shasum -a 256 prompt-src.md
+(built from canonical prompt.md; frozen Grounds/Specification/AC read in full before any work)
+```
+
+## 0. Audit of the inherited uncommitted state (done FIRST, before any edit)
+
+`git -C <wt> status --short` (verbatim):
+
+```
+ M gems/completions/CHANGELOG.md
+ M gems/completions/docs/reference/dialects.md
+ M gems/completions/docs/reference/errors.md
+ M gems/completions/docs/reference/tools.md
+ M gems/completions/lib/fast/completions.rb
+ M gems/completions/lib/fast/completions/dialects.rb
+ M gems/completions/lib/fast/completions/errors.rb
+ M gems/completions/lib/fast/completions/protocol.rb
+ M gems/completions/lib/fast/completions/tool.rb
+ M gems/completions/spec/fast/completions/dialects_spec.rb
+ M gems/completions/spec/fast/completions/protocol_spec.rb
+ M gems/completions/spec/fast/completions/tool_spec.rb
+ M gems/completions/spec/fast/completions/wire_parity_spec.rb
+?? gems/completions/lib/fast/completions/constrained_sampling.rb
+?? gems/completions/spec/fast/completions/constrained_sampling_spec.rb
+?? gems/completions/spec/fixtures/wire/CAPTURE-STRICT.mjs
+?? gems/completions/spec/fixtures/wire/zai_strict_tool.json
+?? gems/completions/spec/fixtures/wire/zai_strict_undeclared.json
+```
+
+- 13 modified + 5 new = exactly the declared 18-file touch set; zero commits (`git log 6ceba1f..` prints nothing; HEAD = `6ceba1f`).
+- `git diff` reviewed file by file against the frozen Specification D1–D8: **no out-of-bounds file, no half-finished hunk found.** Every hunk maps to a spec letter (D1 dialects.rb 14th key + `:zai true`; D2 tool.rb `constrained_sampling` DSL w/ UNSET sentinel + fail-loud validation; D3 new engine file + facade require immediately before the protocol require; D4 `apply_tools` seam w/ amended §9.8 comment; D5 wire_parity rows + FROZEN_DIGESTS@13; D6 new unit spec; D7 docs + `## Unreleased`; D8 re-pins).
+- AC6 frozen set untouched (verified by the scope gate + absence from status): `README.md`, 11 existing fixture JSONs, `CAPTURE.mjs`, `docs_links_spec.rb`, `mock_llm_server.rb` — `git diff --quiet 6ceba1f` on all four paths passes.
+- Both new fixtures are BYTE-IDENTICAL to the space pre-made artifacts (`cmp` vs `tmp/i63-spec/capture/out/{zai_strict_tool,zai_strict_undeclared}.json` — silent pass on both), and both reproduce the Grounds' frozen wire digests from their `request_body` bytes:
+
+```
+zai_strict_tool:       d7470202a2f66216b3d0381bb18d3c5c29082e5c334b7fb87c2410d65ce824a8
+zai_strict_undeclared: fead3755e34689d502cbb865d6d424ccc84b4453d8724aa8fee713f9516a60c9
+```
+
+- Landed fixture FILE sha256s (files, not wire bytes):
+  - `zai_strict_tool.json` = `ee40a1e098063cd6e71289c26f51da0fa1f701e25f2a86bb8637d7609b07727d`
+  - `zai_strict_undeclared.json` = `70df5cc951d9f8935247a4f3b2635d863a56f8eb45ac4bd456ad05f432f35419`
+
+## 1. PHASE 0 — pi cross-read and disagreement table
+
+Read `packages/ai/src/api/constrained-sampling.ts` in full (298 lines) at `f1b2e77f5`; diffed arm-by-arm against Specification D3 and the ported engine. Check order (boolean-schema arm → unsupported keys in list order → anyOf → items → properties-requires-object → non-object return → additionalProperties → properties-map → required-string-array → required⊆properties → recurse-then-wrap → required=all+additionalProperties=false), both `root schema must have type object` arms, deep-copy-first, the resolver's catch-only-Unsupported + rethrow, both raise templates, and the `const === null` (key-present) subtlety all MATCH pi exactly.
+
+| # | Frozen claim | pi @ f1b2e77f5 | Resolution |
+|---|---|---|---|
+| 1 | Grounds/Spec: "`UNSUPPORTED_STRICT_SCHEMA_KEYS` — exactly **20** keys" (prompt-src.md:125, :324) | The array at `constrained-sampling.ts:17-34` holds **16** keys; the Grounds' own enumeration on the next lines lists the same 16 in the same order. The numeral 20 is internally inconsistent with its own enumeration. | Implemented 16 per pi (pi is the oracle per PHASE 0 protocol). Predecessor documented it in the engine header (`constrained_sampling.rb:14`: "16 keys — the frozen order IS the first-present-key-wins order… the count numeral in the brief is wrong, pi is the oracle"). I concur. No other disagreement found. |
+
+## 2. Superseded-era ruling (cited verbatim; binds this lane)
+
+> Option A — the lib stays 100% faithful to D1–D4/pi @ f1b2e77f5; the two pi-ai 1.1.0 capture rows (zai_on/zai_off) get a HARNESS-LOCAL `:zai_1_1` dialect declared inside wire_parity_spec.rb ONLY (never in dialects.rb's shipped registry; shipped trio stays :zai/:deepseek/:fireworks); the why-comment at that declaration carries capture generation (pi-ai 1.1.0 vs 1.2.0), the byte delta (,"strict":false — 501B vs 516B), and zai_strict_undeclared (sha fead3755…) as proof pi changed the wire between capture generations; all 13 fixture JSONs stay byte-identical; AC6 untouched; the D5-letter deviation (two scenario rows' dialect assignment — spec-side, not AC6 frozen bytes) is itemized + defended in your Builder Report with the ruling cited.
+
+Ruling mechanics verified in the inherited tree:
+
+- `grep -rn "zai_1_1" gems/completions/lib/` → **no matches** (exit 1). `Dialects.declare` sites in dialects.rb: `:zai` (:153), `:deepseek` (:163), `:fireworks` (:172) — shipped trio unchanged.
+- `:zai_1_1` is declared inside `wire_parity_spec.rb` via `Fast::Completions.dialect(:zai_1_1)` (consumer-side declaration = data, not detection), = `:zai` minus `supports_strict_mode`.
+- The why-comment at that declaration carries all three required evidences: capture generation ("The zai_on/zai_off fixtures are pi-ai 1.1.0 captures, from BEFORE strict emission existed on this surface: pi 1.2.0 — the generation the two I63 captures come from"), the byte delta ("emits ,\"strict\":false on exactly this wire … 501B → 516B"), and the proof SHA ("fixture zai_strict_undeclared, SHA256 fead3755e34689d502cbb865d6d424ccc84b4453d8724aa8fee713f9516a60c9").
+- All 13 fixture JSONs byte-identical: 11 existing untouched (not in git status); 2 new byte-identical to `tmp/i63-spec/capture/out/` (§0).
+- Byte-delta claim independently re-measured this session (request_body bytes / `tools` substring bytes):
+
+```
+zai_on:                request_body=501B tools=210B   (pi-ai 1.1.0 capture, thinking high)
+zai_off:               request_body=453B tools=210B   (pi-ai 1.1.0 capture, thinking off)
+zai_strict_undeclared: request_body=516B tools=225B   (pi-ai 1.2.0 capture, thinking high)
+zai_strict_tool:       request_body=581B tools=290B   (pi-ai 1.2.0 capture, thinking high)
+```
+
+  Like-for-like pair (both thinking high, same undeclared read tool): 501B vs 516B — delta exactly 15B = `,"strict":false`. Confirmed.
+- pi-side corroboration: `packages/ai/src/providers/data/zai.json` — every glm compat shape carries `"supportsStrictMode":true` (incl. glm-5.3); `openai-completions.ts` convertTools `:1500` `const strict = resolveJsonSchemaStrictSampling(tool, compat.supportsStrictMode !== false);`, key order name/description/parameters/strict, `...(compat.supportsStrictMode !== false && { strict: strict ?? false })`; detectCompat `:1675` `// OpenAI compatibility alone does not imply strict JSON-schema tool support.` `supportsStrictMode: false`.
+
+## 3. D5-letter deviation — itemized + defended
+
+**Deviation:** Specification D5's letter reads "The existing 11 scenarios stay byte-identical". In the inherited diff, the two scenario ROWS `zai_on`/`zai_off` had their model kwargs' `dialect:` re-pointed from `:zai` to the harness-local `:zai_1_1` (wire_parity_spec.rb SCENARIOS table). The scenario WIRE BYTES, fixture files, and frozen digests are unchanged — the deviation is strictly the harness-side dialect assignment of those two rows.
+
+**Why it is unavoidable under the frozen letters alone:** D1 mandates the shipped `:zai` gains `supports_strict_mode true`; D4 then makes every function tool on `:zai` carry a strict key. The `zai_on`/`zai_off` fixtures are pi-ai **1.1.0** captures (per CAPTURE.mjs provenance) recorded before strict emission existed: replaying them through the re-defined `:zai` yields 501B+15B bodies and breaks the frozen digests (AC2/AC4). The three exits were: (a) regress shipped `:zai` to `false` — violates D1/pi zai.json (`supportsStrictMode:true`); (b) re-capture the two fixtures against 1.2.0 — violates the frozen-bytes rule (11 fixtures byte-frozen); (c) harness-local capture-era compat — changes nothing shipped, nothing frozen. The architect ruled (c). Defended: shipped lib stays 100% faithful to D1–D4/pi; all 13 digest assertions stay byte-exact; AC6 frozen set untouched; the deviation is visible in exactly two harness lines, each carrying an inline pointer comment to the `:zai_1_1` declaration.
+
+## 4. Verification — fresh runs this session (raw output)
+
+Environment: ruby 4.0.7 (2026-09-15 revision 229531a6cf) +PRISM [arm64-darwin23], bundler 4.0.22. All commands run from the repo root with explicit timeouts, nothing in background.
+
+| gate (frozen form) | fresh output | exit |
+|---|---|---|
+| suite: `bundle exec rspec` | `210 examples, 0 failures` (RSPEC_EXIT=0) | 0 |
+| parity: `bundle exec rspec -O /dev/null gems/completions/spec/fast/completions/wire_parity_spec.rb` | `14 examples, 0 failures` | 0 |
+| strict-wire: `… wire_parity_spec.rb -e "zai_strict"` | `2 examples, 0 failures` | 0 |
+| strict-unit: `… constrained_sampling_spec.rb` | `21 examples, 0 failures` | 0 |
+| strict-dialect: `… dialects_spec.rb -e "supports_strict_mode"` | `3 examples, 0 failures` | 0 |
+| strict-tool: `… tool_spec.rb -e "constrained"` | `3 examples, 0 failures` | 0 |
+| strict-emission: `… protocol_spec.rb -e "strict"` | `7 examples, 0 failures` | 0 |
+| docs: the 5-grep chain | `STRICT_DOCS_OK` | 0 |
+| scope: frozen diff-scope chain | `SCOPE_OK` | 0 |
+
+Per-spec run counts (single-spec `-O /dev/null`, all 0 failures):
+
+| spec file | examples |
+|---|---|
+| constrained_sampling_spec.rb (NEW) | 21 |
+| wire_parity_spec.rb (13 scenarios + 1 fidelity) | 14 |
+| protocol_spec.rb (+7 strict-emission) | 42 |
+| tool_spec.rb (+3 constrained_sampling) | 8 |
+| dialects_spec.rb (+3 supports_strict_mode) | 13 |
+| docs_links_spec.rb (untouched; README owner-prose gate) | 5 |
+
+Suite delta: 210 − 174 (base) = **+36 examples** (= 21+2+7+3+3).
+
+RED-at-base spot-checks (read-only `git grep -c <token> 6ceba1f -- <path>`): `strict` in protocol_spec 0; `supports_strict_mode` in dialects_spec 0; `constrained` in tool_spec 0; `zai_strict` in wire_parity_spec 0; `supports_strict_mode` under docs/ 0; `^## Unreleased` in CHANGELOG 0 — every new gate was 0-example RED at base as the kit declares.
+
+### Wire-parity digest table (13 rows — all PASS in the single parity run; each row asserts SHA256(request_body) == frozen digest, twice: fixture-fidelity example + per-scenario example)
+
+| # | tag | frozen digest (SHA256 of request_body) | result |
+|---|---|---|---|
+| 1 | fireworks_plain | 0b9da927d3cab0b8b41ecb634fde099729e03f817ef6ba3aba26720df2130d93 | PASS |
+| 2 | openai_ladder_on | b05b45aeb3a4f7bdfa12d142e839882855688a246ead4d016fbe474188dfaed2 | PASS |
+| 3 | openai_ladder_off | 60914406494e2e8403de6b932f01cd5d901c9ae4c4de75e283b25656fa6304b1 | PASS |
+| 4 | zai_on | 9a23aee6b115cce0bd6a608465f2c56332123e47a0f22c491793c0a4d0e45c13 | PASS |
+| 5 | zai_off | 88dd5af69ceb68bbc41aad9ddfbc4dcb36e0dd66fec3563054d484cc0f727f7c | PASS |
+| 6 | deepseek_on | ce98edaee2ecb634dcd4461e3e56cfc4f973cd37026fc390b63ac2bdfbfec5f5 | PASS |
+| 7 | tool_roundtrip | 940d8f5b262f59a3db7b27a70471ac96a40c170264edc83219bef83dce1e9038 | PASS |
+| 8 | thinking_replay | c9259d5da9ca8c63186522c24b9bdfd1fe81aa0903187b0f50634b56eb3c7e6c | PASS |
+| 9 | reasoning_details_replay | c21da08d520e246652b33bedf76d89db581692a7775de5181dc8c63013a0ae4e | PASS |
+| 10 | cross_model_thinking_replay | 809a9b7ecc99399379031524ed5810677e31c22cac2f64eb6e728602ea5939fc | PASS |
+| 11 | budget_field | fb29e70650e9708f394c319d3c8ecacb840c134d214f9ce2747151356b86d1b7 | PASS |
+| 12 | zai_strict_tool | d7470202a2f66216b3d0381bb18d3c5c29082e5c334b7fb87c2410d65ce824a8 | PASS |
+| 13 | zai_strict_undeclared | fead3755e34689d502cbb865d6d424ccc84b4453d8724aa8fee713f9516a60c9 | PASS |
+
+Full 13-example reproduction run (documentation format, all names):
+
+```
+  carries the 13 frozen fixtures: shape, request_path, digest
+  reproduces the recorded pi bytes for fireworks_plain (byte equality + frozen digest)
+  reproduces the recorded pi bytes for openai_ladder_on (byte equality + frozen digest)
+  reproduces the recorded pi bytes for openai_ladder_off (byte equality + frozen digest)
+  reproduces the recorded pi bytes for zai_on (byte equality + frozen digest)
+  reproduces the recorded pi bytes for zai_off (byte equality + frozen digest)
+  reproduces the recorded pi bytes for deepseek_on (byte equality + frozen digest)
+  reproduces the recorded pi bytes for tool_roundtrip (byte equality + frozen digest)
+  reproduces the recorded pi bytes for thinking_replay (byte equality + frozen digest)
+  reproduces the recorded pi bytes for reasoning_details_replay (byte equality + frozen digest)
+  reproduces the recorded pi bytes for cross_model_thinking_replay (byte equality + frozen digest)
+  reproduces the recorded pi bytes for budget_field (byte equality + frozen digest)
+  reproduces the recorded pi bytes for zai_strict_tool (byte equality + frozen digest)
+  reproduces the recorded pi bytes for zai_strict_undeclared (byte equality + frozen digest)
+```
+
+(`14 examples, 0 failures` for the file.)
+
+## 5. Files touched (exactly the declared 18; nothing else vs base 6ceba1f)
+
+Modified (13): `gems/completions/CHANGELOG.md`, `docs/reference/{dialects,errors,tools}.md`, `lib/fast/completions.rb`, `lib/fast/completions/{dialects,errors,protocol,tool}.rb`, `spec/fast/completions/{dialects,protocol,tool,wire_parity}_spec.rb` — New (5): `lib/fast/completions/constrained_sampling.rb`, `spec/fast/completions/constrained_sampling_spec.rb`, `spec/fixtures/wire/{CAPTURE-STRICT.mjs,zai_strict_tool.json,zai_strict_undeclared.json}`.
+
+Zero commits: `git log 6ceba1f..` empty; no git write command run by this builder (only status/diff/log/grep reads).
+
+## 6. Residual observations (no action taken; itemized per §8 discipline)
+
+- R2 (named exclusion, by spec): the `isUnsupportedKeyword` provider hook is NOT ported; commented at the port site (`constrained_sampling.rb`).
+- R8 (declared residual, by spec): `gems/completions/README.md` still says "13 keys" at its :86 line — FROZEN by the I53 owner-prose gate (docs_links_spec 5/0 green); canonical inventory is docs/reference/dialects.md (14 there).
+- Tool DSL accepts a valid `{"type","strict"}` Hash carrying EXTRA keys (validation checks the two required keys' values; extra keys never reach the wire — the resolver reads only `config["type"]`/`config["strict"]`). No spec letter enumerates extra keys as a raise case; left as inherited.
+- The Grounds "20 keys" numeral (§1): resolved per pi = 16; the frozen text itself remains internally inconsistent (numeral vs its own enumeration) — owner-side doc nit for any future brief re-issue.
+
+STATUS: COMPLETE
 
 ## Verdict
 
