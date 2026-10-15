@@ -2494,9 +2494,30 @@ project:
   - name: strict-sampling-gem
     ordinal: 63
     file: architecture/I63-strict-sampling-gem.md
-    freeze_sha:
+    freeze_sha: 4c4322d81bc3cae110ed248bbd092765bf2fb6b6
     verdict: pending
-    lanes: []
+    lanes:
+    - name: strict
+      repo: fast-llm
+      touch_set:
+      - gems/completions/lib/fast/completions/constrained_sampling.rb
+      - gems/completions/lib/fast/completions.rb
+      - gems/completions/lib/fast/completions/dialects.rb
+      - gems/completions/lib/fast/completions/tool.rb
+      - gems/completions/lib/fast/completions/protocol.rb
+      - gems/completions/lib/fast/completions/errors.rb
+      - gems/completions/spec/fast/completions/constrained_sampling_spec.rb
+      - gems/completions/spec/fast/completions/protocol_spec.rb
+      - gems/completions/spec/fast/completions/wire_parity_spec.rb
+      - gems/completions/spec/fast/completions/tool_spec.rb
+      - gems/completions/spec/fast/completions/dialects_spec.rb
+      - gems/completions/spec/fixtures/wire/zai_strict_tool.json
+      - gems/completions/spec/fixtures/wire/zai_strict_undeclared.json
+      - gems/completions/spec/fixtures/wire/CAPTURE-STRICT.mjs
+      - gems/completions/docs/reference/dialects.md
+      - gems/completions/docs/reference/tools.md
+      - gems/completions/docs/reference/errors.md
+      - gems/completions/CHANGELOG.md
     rehearsal:
       gates_digest: 28f88f68ff7d871f88a0448d391c8cda6c90fb520da867eaf9d6b46ca048d42c
       at: '2026-10-15T16:51:37-06:00'
