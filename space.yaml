@@ -67,7 +67,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: error-transcript
+  current_iteration: wire-tolerance
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -2413,4 +2413,10 @@ project:
     rehearsal:
       gates_digest: b2ef643cb54b0fe40efb8689f3534a43fc1b01cb6b62e006af447d0f9e8c2c60
       at: '2026-10-14T23:05:43-06:00'
+  - name: wire-tolerance
+    ordinal: 61
+    file: architecture/I61-wire-tolerance.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
