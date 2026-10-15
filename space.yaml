@@ -2465,7 +2465,7 @@ project:
       - gems/completions/CHANGELOG.md
       base_sha: 43ea16978ea9de4c293106cd802b0679c9b10b16
       worktree: build/I62-stream-hardening-client/wt
-      integration_branch: project/pi-port
+      integration_branch: main
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
@@ -2487,6 +2487,7 @@ project:
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 1e37477e794bfa73082538b4888d0a4ee6610f6e0
     rehearsal:
       gates_digest: 7f54be8f75002c5ff04e4185f59f1d811d9f5ed4f21231e79889145f5ec19b1f
       at: '2026-10-15T13:55:10-06:00'
