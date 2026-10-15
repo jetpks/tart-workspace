@@ -2384,7 +2384,7 @@ project:
   - name: error-transcript
     ordinal: 60
     file: architecture/I60-error-transcript.md
-    freeze_sha:
+    freeze_sha: ef75324a03cfb272dd47afff665672fa04a3adee
     verdict: pending
     lanes:
     - name: core
