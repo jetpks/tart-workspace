@@ -241,10 +241,15 @@ byte-neutrality constraint; not a routine lane.
 
 Property-level, each independently judgeable. The frozen ```gates block
 below is the machine-checkable form. Base = fast-llm `main` @ `33571e1`
-(I53 tip). Measured at base this session: `suite` and `parity` GREEN
-(controls), `malformed` RED (file absent — rspec exits 1, "No examples
-found"), `docs` RED (the retired claim still present, counted once at
-errors.md), `fixtures-frozen` GREEN (trivial — no diff at base).
+(I53 tip). Measured at base this session (first rehearsal transcript
+`build/rehearse/I61-wire-tolerance-20261015T120653.058704.md` caught two
+gate-authoring defects, corrected here): rspec prints the summary BEFORE
+the `Randomized with seed` line (`tail -2` misses it), and a MISSING spec
+file still exits 0 reporting `0 examples, 0 failures` — so the malformed
+gate requires ≥1 example via `[1-9][0-9]* examples?, 0 failures`. Base
+verdicts with the corrected block: `suite`/`parity` GREEN (controls),
+`malformed` RED (0 examples), `docs` RED (the claim present, counted once
+at errors.md), `fixtures-frozen` GREEN.
 
 **AC1 — chunk-seam parse-with-repair.** An SSE payload that is structurally
 complete JSON except for raw control characters inside string values (raw
@@ -291,7 +296,7 @@ names `StreamError`.
   ac: AC4
   cwd: repos/fast-llm
   cmd: |-
-    bundle exec rspec 2>&1 | tail -2
+    bundle exec rspec 2>&1 | grep -E "examples?, 0 failures"
   expect:
     exit_code: 0
     stdout_match: 0 failures
@@ -300,7 +305,7 @@ names `StreamError`.
   ac: AC4
   cwd: repos/fast-llm
   cmd: |-
-    bundle exec rspec gems/completions/spec/fast/completions/wire_parity_spec.rb 2>&1 | tail -2
+    bundle exec rspec gems/completions/spec/fast/completions/wire_parity_spec.rb 2>&1 | grep -E "examples?, 0 failures"
   expect:
     exit_code: 0
     stdout_match: 0 failures
@@ -309,7 +314,7 @@ names `StreamError`.
   ac: AC1
   cwd: repos/fast-llm
   cmd: |-
-    bundle exec rspec gems/completions/spec/fast/completions/malformed_wire_spec.rb 2>&1 | tail -2
+    bundle exec rspec gems/completions/spec/fast/completions/malformed_wire_spec.rb 2>&1 | grep -E "[1-9][0-9]* examples?, 0 failures"
   expect:
     exit_code: 0
     stdout_match: 0 failures
