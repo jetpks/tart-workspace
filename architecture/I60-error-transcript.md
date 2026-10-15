@@ -9,11 +9,171 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section error-transcript grounds --from <file>`. -->
+ENTRY B of live-run fixes rev4 (notes/plan-20261014T195224Z.md — ENTRY A
+closed by I59). Base `24e89ba` (I59's integrated tip on project/pi-port,
+verified clean this session). Serial after I59 — this entry owns
+agent/loop.rb's error arm; I59 touched its boot/switch arms only. The
+oracle is the space-pinned shim (`bin/pi` → repos/pi @ f1b2e77f, 1.1.0);
+every rig invocation below ran with `<space>/bin` first on PATH and
+PI_*/TART_* scrubbed (the standing environment directive).
+
+### 1. The defect (measured this session, offline, mock)
+
+The owner's failing live session (the plan's exhibit): an API failure
+that kills a turn leaves NO trace in the session jsonl — the file holds
+exactly two lines (header + user message); `--resume` shows a clean
+session with a dangling user turn. Reproduced against BOTH apps at base
+with the rig (scenario `tmp/i60-spec/s18_error_base.yml` in the space —
+one scripted HTTP 400 on the first request, `replay: true`; artifacts
+archived `repos/tart/tmp/i60-spec-base/`, gitignored):
+
+- pi settles `[hello, blank, blank, " Error: 400: {json}", " If this
+  looks like a pi bug, /bug sends a report…"]` live; its session file
+  holds SIX lines whose last is `{type: "message", …, message:
+  {role: "assistant", content: [], …, stopReason: "error",
+  errorMessage: "400: {…}", …}}`; its resume (`--continue`) renders
+  `hello` + the error row again.
+- tart settles `[hello, blank, "error: 400: …"]` live (the unpadded,
+  lowercase agent_end scrollback line); its session file holds TWO
+  lines (header + user); its resume (`-r`) renders `hello` +
+  `Resumed session` — no error anywhere.
+
+Both apps made exactly ONE request (pi's auto-retry does not fire for a
+plain 400 — "400" is absent from RETRYABLE_PROVIDER_ERROR_PATTERN,
+pi-ai utils/retry.ts:30-56; enabled/maxRetries defaults are irrelevant
+here).
+
+### 2. pi's contract (why pi records it)
+
+- The stream layer NEVER throws for request/model failures — the
+  StreamFn contract (packages/agent/src/types.ts:26-33): failures are
+  encoded as a final AssistantMessage with `stopReason "error"` +
+  `errorMessage`. openai-completions.ts:707-731 is the live arm: the
+  catch sets `output.stopReason = "error"` (content = whatever blocks
+  streamed, `[]` pre-stream) and `output.errorMessage =
+  formatProviderError(normalizeProviderError(error))` (utils/
+  error-body.ts:128-140 — `"<status>: <body>"`, the openai SDK message
+  carrying the raw body).
+- agent-loop.ts streamAssistantResponse :443-468: the `done`/`error`
+  case takes the stream's final message; when NO partial was added
+  (pre-stream failure — no `start` event ever fired) it emits
+  `message_start` with the FINAL error message, then `message_end` —
+  so a pre-stream 400 still gets message_start + message_end.
+- Persistence is the generic message_end arm: agent-session.ts
+  :1144-1163 → `sessionManager.appendMessage(event.message)` — ANY
+  assistant message, including the failure message, lands as a
+  SessionMessageEntry (session-manager.ts:1204-1215) whose `message`
+  carries `stopReason`/`errorMessage` verbatim (the measured pi file
+  above). The loop then returns through turn_end/agent_end carrying
+  the failure message (agent-loop.ts:245-256).
+- A SECOND, older arm exists for executor-level throws:
+  agent.ts:532-548 `handleRunFailure` — synthesizes `{role:
+  "assistant", content: [{type:"text",text:""}], usage: EMPTY_USAGE,
+  stopReason: "error", errorMessage: error.message, timestamp}` and
+  runs it through message_start + message_end + turn_end + agent_end
+  (types.ts:31 documents the contract). Same persistence, same render.
+- Render (assistant-message.ts:184-198): an assistant message with
+  `stopReason === "error"` and no tool calls appends `Spacer(1)` +
+  `Error: ${errorMessage}` in `error` fg (after any partial content);
+  `stopReason === "aborted"` renders the abort message; `=== "length"`
+  renders "Response was truncated before completion." — this one
+  component serves live AND replay (resume renders through
+  renderSessionEntries → the same component).
+- The interactive agent_end arm renders NO error text — it only clears
+  the status indicator and drops the streaming component
+  (interactive-mode.ts:3653-3668); the error row comes from the
+  assistant component at message_end. The separate muted
+  `If this looks like a pi bug, /bug sends a report to the developers.`
+  row (interactive-mode.ts:2168-2179 suggestBugReport, fired from
+  maybeSuggestBugReport :2181-2186 for non-retryable errors, once per
+  session) is the /bug machinery's surface — it does NOT re-render on
+  resume (a live-session flag).
+
+### 3. tart today (why the file never hears about it)
+
+- step_on_reactor's rescue ladder (lib/tart/agent/loop.rb:667-694):
+  `rescue Async::Cancel` re-raises (the interrupt arm), `rescue
+  Fast::Completions::CancelledError` returns nil (defensive), `rescue
+  StandardError => e` → `record_terminal_error(e)` — the gem RAISES
+  API errors (Fast::Completions §8; Chat#step has no error rescue —
+  chat.rb:208-237), so the loop's rescue IS the failure boundary.
+- record_terminal_error (loop.rb:684-689) sets `@last_error` and emits
+  `message_end` only `if message&.role == :assistant` — `@last_message`
+  was nil'd at step entry (loop.rb:668) and only a COMPLETED step sets
+  it, so a pre-stream OR mid-stream API failure emits NOTHING; the
+  error rides turn_end/agent_end only (stopped_on_error?, loop.rb
+  :691-695).
+- The recorder persists ONLY through `record(message)` →
+  `Recorder#append_message` (session.rb:429-443, called from
+  handle_item's :step arm and add_user_message — loop.rb:406-415,
+  :807-818). No message, no entry — the file keeps the dangling user
+  turn. `agent/session.rb` itself needs NO change: append_message
+  serializes `Message#to_h` generically; the missing piece is the
+  failure MESSAGE, not recorder plumbing (the plan's "recorder seam"
+  phrasing resolves to the recording CALL SEAM in loop.rb, not a
+  session.rb edit).
+- Render: the surface's agent_end error arm (render/chat.rb:622-626)
+  enqueues the unpadded lowercase `error: <msg>` scrollback line +
+  finalizes pending tool blocks; replay_assistant (render/
+  transcript.rb:711-744) returns early unless content/thinking/tool
+  calls exist — an error entry would render nothing today even if it
+  existed.
+
+### 4. Facts that shape the design (all verified this session)
+
+- The gem's codec SKIPS empty assistant messages on the wire
+  (fast-llm codec.rb wire_assistant tail — pi openai-completions.ts
+  :1394-1402 verbatim, "This handles aborted assistant responses that
+  got no content"): seeding the failure message into the chat history
+  is WIRE-NEUTRAL by pi's own rule. Measured corollary: the overflow
+  retry pin `assert_equal %w[user user], retry_payload roles`
+  (agent_loop_test.rb:1404) HOLDS with the failure message seeded.
+- Message#to_h's recorded assistant shape (agent/message.rb
+  assistant_to_h) is the frozen byte family; `finish_reason` is the
+  recorded stop-reason key (String spellings pass through
+  normalize_finish_reason — "error" needs no map entry). `error_message`
+  is a NEW key that rides ONLY when present — no existing recorded
+  byte moves.
+- from_seed_hash (message.rb) reads declared fields only — a resumed
+  failure message seeds as content ""/finish_reason "error";
+  error_message stays display-side (replay renders from the RAW entry
+  hash, not the seeded Message — transcript.rb:659+).
+- compaction.rb:194-198's comment premise ("a recorded finish_reason
+  never carries aborted/error") becomes stale under this iteration —
+  assistant_usage's nil-tokens guard already skips the failure message
+  (pi getAssistantUsage's error-skip, equivalent net).
+- The mock ALREADY scripts `{type: :error, status: 400, message: …}`
+  (test/support/mock_llm_server.rb:189-196, respond_error writes the
+  openai-shaped `{error: {message, type}}` body) and the rig hands
+  scenario `responses` verbatim to it (scenario.rb:90-96) — the s18
+  scenario needs NO mock/runner change; the `replay:` knob (I57) is
+  the resume instrument.
+- Measured pi-vs-tart divergences that will NOT close this iteration
+  (both pinned as registry classes + itemized): the error-message TAIL
+  (pi keeps the raw JSON body via the SDK message; the gem's frozen §8
+  extracts `error.message` — "400: The max_tokens parameter is
+  illegal." vs pi's "400: {json}"), and pi's /bug hint row (the port
+  cuts the /bug machinery; rendering a hint for a nonexistent command
+  would lie — the plan's scope is "the error row").
+
+### 5. Open questions (judge)
+
+- OQ-1: the two new s18 registry classes (`error-transcript-row-tail`,
+  `pi-bug-report-hint`) — ratify as sanctioned divergences (the gem's
+  frozen §8 formatting; the /bug cut) or order more (a gem error-format
+  change is OUT of scope here; the hint row could be ported as a dead
+  hint on owner demand).
+- OQ-2: the abort path (escape/ctrl+c interrupt) stays divergent — pi
+  records the partial + `stopReason "aborted"` message (the stream's
+  abort catch) and renders "Operation aborted"; tart's Async::Cancel
+  arm records NOTHING (the D3 cancel conversion eats the partial at
+  the gem seam — no message object survives to record). Declared
+  out-of-scope divergence, reopenable on owner pain (backlog
+  candidate: a cancel-carrying partial would need gem cooperation).
+- OQ-3: pi's `stopReason === "length"` row ("Response was truncated
+  before completion.") stays unported (pre-existing, unpinned,
+  orthogonal to the error row; backlog candidate with the length
+  family).
 
 ## Specification
 
