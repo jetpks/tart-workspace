@@ -67,7 +67,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: render-perf
+  current_iteration: zai-max-tokens
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -2351,4 +2351,10 @@ project:
     rehearsal:
       gates_digest: 5ce47fe2bcc197fdbb7d97ebbd4f409310f6261ffcb3c8cf3530d5a93145a0c5
       at: '2026-10-14T17:20:40-06:00'
+  - name: zai-max-tokens
+    ordinal: 59
+    file: architecture/I59-zai-max-tokens.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
