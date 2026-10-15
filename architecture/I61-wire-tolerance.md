@@ -340,10 +340,155 @@ names `StreamError`.
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I61-wire-tolerance-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section wire-tolerance prompt --append --lane <lane> --from build/I61-wire-tolerance-<lane>/prompt.md`. -->
+### wire
+
+You are the builder for iteration `wire-tolerance` (I61), lane `wire`.
+Work ONLY in the provisioned worktree on branch
+`lane/I61-wire-tolerance-wire` (base fast-llm `main` @ `33571e1`); NEVER
+commit (the integrator lands your tree), NEVER touch the space repo, NEVER
+push. The full iteration contract is the frozen
+Grounds/Specification/Acceptance Criteria in this file (verbatim below) —
+read them first; this header is the lane's operating brief.
+
+THE TASK IN ONE PARAGRAPH: the fast-completions chunk seam must survive
+z.ai's malformed coalesced-delta wire — the provider occasionally emits a
+`data:` JSON payload cut mid-string by a raw newline; today the SSE parser
+drops the unprefixed remainder, `JSON.parse` fails on the truncated half,
+and `client.rb` `feed_stream` converts the parse failure into a terminal
+`StreamError` that kills the whole assistant turn (two owner daily-driver
+turns died this way 2026-10-15; RCA
+notes/rca-20261015T1740Z-zai-wire-malformation.md). Three ADDITIVE,
+pi-precedented behaviors land at the INBOUND seam:
+(1) CHUNK-SEAM PARSE-WITH-REPAIR — on `JSON::ParserError` in `feed_stream`,
+run the existing `repair_json` port (protocol.rb; pi
+`parseJsonWithRepair` semantics) and re-parse. Repaired chunks flow
+downstream exactly as if the wire had been well-formed.
+(2) SSE CONTINUATION REJOIN — in `sse.rb` `handle_line`, a non-empty line
+that is not `data:`-prefixed, not a comment (`:`-prefix), and not a known
+SSE field (`event:`/`id:`/`retry:`), arriving while a data payload is open
+(mid-event), is APPENDED to the open payload as a continuation of the last
+data line (rejoin with NO separator). Known SSE fields and comments keep
+today's ignore semantics; healthy wires carry no such lines (all 11
+canonical fixtures + the mock prove it), so the rejoin is invisible on
+them.
+(3) DROP-AND-CONTINUE — a payload still unparseable after rejoin + repair
+is DROPPED (counted, never raised); the stream continues to its natural
+terminal. `StreamError` no longer originates from chunk parsing. The
+terminal discipline (§10.5) is UNCHANGED — the missing-finish error path
+still covers a dropped finish-carrying chunk; the cancel ladder is
+untouched; a lost arguments fragment yields partial args that the existing
+OQ-4 tolerant finalize and the consumer's input validation handle as a
+clean tool error (the model re-calls the tool).
+
+BYTE-NEUTRALITY ON HEALTHY WIRES IS THE HARD CONSTRAINT: the deviation is
+invisible there — the 11 canonical wire fixtures stay byte-identical (the
+fixtures-frozen gate diffs vs `33571e1`) and the full suite stays green.
+
+TOUCH SET (exactly 12 files; the frozen lanes block enforces):
+- gems/completions/lib/fast/completions/sse.rb — the continuation rejoin
+  in `handle_line`/event flush.
+- gems/completions/lib/fast/completions/client.rb — repair +
+  drop-and-continue at the `feed_stream` `JSON.parse` seam.
+- gems/completions/lib/fast/completions/protocol.rb — expose/move
+  `repair_json` ONLY (smallest surface change that fits the house style,
+  e.g. a shared module both seams call); its existing behavior is FROZEN
+  (protocol_spec pins it).
+- gems/completions/lib/fast/completions/errors.rb — ONLY if the
+  StreamError docstring/shape needs the tolerant-class note.
+- gems/completions/spec/support/mock_llm_server.rb — add a raw-bytes spec
+  type (e.g. `raw_frames:` — array of strings written verbatim through the
+  chunked writer, comment lines included) so malformed wire bytes are
+  fixture-reproducible.
+- gems/completions/spec/fast/completions/sse_spec.rb — extend (never
+  weaken) the healthy-wire pins.
+- gems/completions/spec/fast/completions/client_spec.rb — extend for the
+  repair/drop paths.
+- gems/completions/spec/fast/completions/stream_cancel_spec.rb — only if
+  a drop-path interaction with cancellation exists.
+- gems/completions/spec/fast/completions/malformed_wire_spec.rb — NEW:
+  the four malformed-wire shapes (below).
+- gems/completions/docs/reference/errors.md — retire the "A malformed
+  stream chunk raises `StreamError`" claim (errors.md :55); document the
+  tolerant class (repair → drop-and-continue) and the missing-finish
+  residual.
+- gems/completions/docs/reference/stream-events.md — stay consistent
+  wherever it names `StreamError`.
+- gems/completions/CHANGELOG.md — an entry under Unreleased.
+
+MUST-NOT: zero edits to `gems/completions/spec/fixtures/wire/**` and
+`wire_parity_spec.rb` (the canonical regression control); zero edits to
+`dialects.rb`, `codec.rb`, `chat.rb`, `tool.rb`, `cancellation.rb`; zero
+edits under `repos/tart`; NO change to the request-construction path (the
+outbound wire is frozen program-wide — inbound-stream-only iteration); no
+new runtime dependencies; no refactors beyond the task; the space repo's
+architecture/I61-wire-tolerance.md is read-only for you (the frozen
+sections in this file are your contract; the coordinator transcribes your
+report into it).
+
+THE FOUR MALFORMED-WIRE SHAPES (as specs in the NEW
+`malformed_wire_spec.rb`; raw frames in spec code is the natural home —
+these are stream-side, not fixtures/*.json):
+1. Coalesced delta cut by a raw `\n`, remainder on the NEXT line
+   UNPREFIXED (the observed shape) → rejoin + repair → payload parses, tool
+   arguments assemble byte-intact, stream completes with the natural mapped
+   stop reason.
+2. Coalesced delta cut, NO continuation (next event boundary arrives) →
+   chunk dropped, stream completes, downstream sees partial args (assert
+   the tolerant finalize behavior, no raise).
+3. Intact payload containing raw `\n`/`\t` inside a string value delivered
+   via the spec-correct multi-`data:`-line event (the parser joins data
+   lines with `"\n"`) → repair → parses; flows downstream intact.
+4. A payload unrepairable for a NON-control-char reason (e.g. a truncated
+   object with no continuation AND unbalanced braces) → dropped, stream
+   completes.
+
+OPERATING DISCIPLINE:
+- Search before implementing: read `client.rb` `feed_stream`, `sse.rb`,
+  the protocol.rb repair seam (`parse_streaming_json`/`repair_json`),
+  `mock_llm_server.rb`, and the existing `sse_spec.rb`/`client_spec.rb`
+  pin conventions BEFORE writing. The gem's SSE is byte-boundary-correct
+  (multibyte across chunks, CRLF, multi-data-line joins) — extend, never
+  weaken: comment lines ignored, CR stripped, multi-data-line join with
+  `"\n"`, the `data: [DONE]` sentinel, and chunk-boundary safety all stay
+  pinned.
+- OFFLINE ONLY — every malformed-wire claim is fixture/mock-based; no
+  live z.ai credit burn, no live wire probes.
+- Mock additions ride the existing chunked-framing discipline: raw frames
+  go through `write_chunk` (`format("%x\r\n%s\r\n", …)`) — NEVER bare
+  writes into the chunked stream (bare bytes corrupt the chunk-size lines;
+  the mock's keepalive comment documents this).
+- Run the five frozen gates cold from the worktree after the work (the
+  ```gates block below): `suite`, `parity`, `malformed`, `docs`,
+  `fixtures-frozen`. Suite = `bundle exec rspec` from the fast-llm repo
+  root (the worktree root; `.rspec` points at
+  gems/completions/spec/fast/**). `malformed` requires ≥1 example
+  (`[1-9][0-9]* examples?, 0 failures` — a MISSING spec file still exits 0
+  reporting `0 examples, 0 failures`; that is a RED, not a pass). If a
+  gate shell inherits PI_PACKAGE_DIR PI_MODEL PI_PROVIDER
+  PI_CONTEXT_WINDOW, unset them first.
+- If a frozen ruling fights reality (e.g. a pin you cannot satisfy without
+  touching a MUST-NOT file), STOP and checkpoint
+  build/loop/exception-<UTC>.md with the raw facts; never silently
+  re-freeze, never widen scope.
+- Report at `build/I61-wire-tolerance-wire/report.md` (space-relative;
+  OUTSIDE the worktree — one level up from it; the architecture file's
+  Builder Report section is transcribed VERBATIM from it). RAW RESULTS
+  ONLY, per the frozen Output format: the spec files added/changed with
+  run counts (examples/failures per file), the full suite line (`bundle
+  exec rspec` examples/failures + exit status), the wire-parity digest
+  table result (pass/fail per fixture), the mock-server spec-type
+  additions, the file list touched, and the PHASE 0 disagreement table (if
+  any) with file:line cites — PHASE 0 = disagreements with the frozen
+  Specification discovered while reading it; itemize them, the judge rules
+  them. Add the five gate commands' raw outcomes, the deviation-beyond-pi
+  record (one paragraph, per the frozen Specification's deviation ruling:
+  pi's openai path dies on this wire via SDK 7.19.0; the tolerance is the
+  sanctioned, recorded deviation — recorded, not re-litigated), and a
+  final `STATUS:` line (COMPLETE / COMPLETE_WITH_CONCERNS / BLOCKED).
+- Children never block on contact_supervisor; escalation only via
+  build/loop/exception-*.md.
+
+The frozen sections follow verbatim.
 
 ## Builder Report
 
