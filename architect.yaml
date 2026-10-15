@@ -20,6 +20,7 @@ roles:
   coordinator:
     model: zai/glm-5.3-flash
     thinking: high
-  narrator:
-    model: zai/glm-5.3-flash
-    thinking: low
+  # narrator routing lives in .pi/agents/architect-narrator.md (flash/low,
+  # baked in at the I05 rollout): architect-loop.ts's validator knows only the
+  # five roles above, and under pi 1.2.0's loader a yaml `narrator` entry
+  # fails the whole extension load (2026-10-15).
