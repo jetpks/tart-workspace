@@ -2435,13 +2435,14 @@ project:
       - gems/completions/docs/reference/stream-events.md
       - gems/completions/CHANGELOG.md
       base_sha: 33571e19cf284ea1a16d61c3ee7c8a75d27bd6d1
-      worktree: build/I61-wire-tolerance-wire/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
       dispatched_at: '2026-10-15T12:36:01-06:00'
+      integrate_sha: e63b8a6ce2dd059e430748307d6073fe2732df32
     rehearsal:
       gates_digest: 5a6f7081d375a8e226967165731483d336f4f2915a02f7d88b098c5758b661f3
       at: '2026-10-15T12:08:12-06:00'
