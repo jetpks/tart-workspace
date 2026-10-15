@@ -2416,7 +2416,25 @@ project:
   - name: wire-tolerance
     ordinal: 61
     file: architecture/I61-wire-tolerance.md
-    freeze_sha:
+    freeze_sha: 733eb24f190524f9f83bec5b5b34948048c91aa3
     verdict: pending
-    lanes: []
+    lanes:
+    - name: wire
+      repo: fast-llm
+      touch_set:
+      - gems/completions/lib/fast/completions/sse.rb
+      - gems/completions/lib/fast/completions/client.rb
+      - gems/completions/lib/fast/completions/protocol.rb
+      - gems/completions/lib/fast/completions/errors.rb
+      - gems/completions/spec/support/mock_llm_server.rb
+      - gems/completions/spec/fast/completions/sse_spec.rb
+      - gems/completions/spec/fast/completions/client_spec.rb
+      - gems/completions/spec/fast/completions/stream_cancel_spec.rb
+      - gems/completions/spec/fast/completions/malformed_wire_spec.rb
+      - gems/completions/docs/reference/errors.md
+      - gems/completions/docs/reference/stream-events.md
+      - gems/completions/CHANGELOG.md
+    rehearsal:
+      gates_digest: 5a6f7081d375a8e226967165731483d336f4f2915a02f7d88b098c5758b661f3
+      at: '2026-10-15T12:08:12-06:00'
   integration_branch: project/pi-port
