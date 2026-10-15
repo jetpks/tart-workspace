@@ -441,51 +441,154 @@ error-message parity, and frozen fixture digests; not a routine lane.
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse strict-sampling-gem` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze strict-sampling-gem` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+Property-level, each independently judgeable. The frozen ```gates block
+below is the machine-checkable form. Base = fast-llm `main` @ `6ceba1f`
+(base suite measured this session: 174 examples, 0 failures). Measured at
+base: `suite`/`parity` GREEN (controls); `strict-wire`, `strict-unit`,
+`strict-dialect`, `strict-tool`, `strict-emission`, `docs` RED (0 examples
+/ 0 matches — the digest's every-new-gate-RED-at-base convention); `scope`
+GREEN (vacuously — the empty diff changes nothing outside the set; it bites
+post-lane).
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC1 — declarations.** `supports_strict_mode` is INSIDE the closed Dialect
+vocabulary (14 keys, default `false`, free boolean): unknown dialect keys
+still raise `ArgumentError` at declaration time; `to_h` carries the key in
+canonical position; the shipped `:zai` declares `true`; `:deepseek`,
+`:fireworks`, and the anonymous default are `false`. The Tool DSL declares
+`constrained_sampling`: default `nil`; `false` accepted; the mirrored
+`{"type"=>"json_schema","strict"=>"prefer"|"require"}` shape accepted,
+readable from class and instance; any other shape — including
+`type:"grammar"`, unknown `strict`, missing keys — raises `ArgumentError` at
+declaration time.
 
-**AC1.** ...
+**AC2 — wire emission (byte parity).** Through the public
+Chat→Client→Protocol path against the mock, the two fresh pi captures
+reproduce BYTE-EXACT (string equality + frozen SHA256):
+`zai_strict_tool` = `d7470202a2f66216b3d0381bb18d3c5c29082e5c334b7fb87c
+2410d65ce824a8` (declared-strict read tool on the zai dialect: parameters
+are the strict rewrite — `required` = ALL property names, `offset` wrapped
+`anyOf:[{"type"=>"number"},{"type"=>"null"}]`, `additionalProperties:false`
+— and the function object carries `"strict"=>true` immediately after
+`"parameters"`); `zai_strict_undeclared` = `fead3755e34689d502cbb865d6d424
+ccc84b4453d8724aa8fee713f9516a60c9` (same dialect, undeclared tool:
+parameters verbatim, `"strict"=>false`). On non-strict dialects NO function
+tool ever carries a strict key, parameters verbatim with object identity
+(today's `equal?` pin keeps holding for every non-strict path — including
+undeclared tools ON strict dialects).
+
+**AC3 — engine semantics (unit).** The rewrite and resolution are pinned by
+pi-derived unit fixtures: every recursion rule (anyOf non-empty + variants
+non-structured + recurse; items rejects tuples + recurses; nested objects;
+`required ⊆ properties`; non-required non-null-allowing properties wrapped
+anyOf-with-null; final required=all names + additionalProperties=false);
+every unsupportable class raises with pi's EXACT message bytes (boolean
+schemas; each unsupported key; structured unions; tuple items; properties
+without type object; truthy/schema-valued additionalProperties; non-map
+properties; non-string-array required; unknown required; root not type
+object — root-level and nested-level arms both); "prefer" resolves loose
+(nil) on an unsupportable schema AND on an unsupported dialect; "require"
+raises `ConstrainedSamplingError` with BOTH pi templates verbatim; the
+declared parameters object is NEVER mutated (deep-equal snapshot after a
+strict build; the emitted strict parameters are a different object).
+
+**AC4 — regression bar.** The full gem suite is green; the 11 existing
+wire-parity fixtures stay byte-identical with their frozen digests (the
+non-strict wire is unchanged — fireworks/deepseek/openai rows).
+
+**AC5 — documented.** `docs/reference/dialects.md` (14-key vocabulary +
+table row + :zai block + strict paragraph), `docs/reference/tools.md`
+(`constrained_sampling` DSL row + the deliberately AMENDED verbatim
+section), `docs/reference/errors.md` (the `ConstrainedSamplingError` row),
+and `CHANGELOG.md` (`## Unreleased` + the strict-sampling bullets) all
+carry the new surface. `gems/completions/README.md` stays untouched (the
+I53 owner-prose gate; its "13 keys" line is the declared residual R8).
+
+**AC6 — scope.** Exactly the declared 18-file touch set (lanes block);
+nothing else changes against base `6ceba1f`. The 11 existing fixture JSONs
++ `CAPTURE.mjs`, `README.md`, `docs_links_spec.rb`, and
+`spec/support/mock_llm_server.rb` are frozen (byte-identical).
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse strict-sampling-gem` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC4
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec 2>&1 | grep -E "examples?, 0 failures"
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: parity
+  ac: AC4
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec -O /dev/null gems/completions/spec/fast/completions/wire_parity_spec.rb 2>&1 | grep -E "[1-9][0-9]* examples?, 0 failures"
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: strict-wire
+  ac: AC2
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec -O /dev/null gems/completions/spec/fast/completions/wire_parity_spec.rb -e "zai_strict" 2>&1 | grep -E "[1-9][0-9]* examples?, 0 failures"
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: strict-unit
+  ac: AC3
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec -O /dev/null gems/completions/spec/fast/completions/constrained_sampling_spec.rb 2>&1 | grep -E "[1-9][0-9]* examples?, 0 failures"
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: strict-dialect
+  ac: AC1
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec -O /dev/null gems/completions/spec/fast/completions/dialects_spec.rb -e "supports_strict_mode" 2>&1 | grep -E "[1-9][0-9]* examples?, 0 failures"
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: strict-tool
+  ac: AC1
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec -O /dev/null gems/completions/spec/fast/completions/tool_spec.rb -e "constrained" 2>&1 | grep -E "[1-9][0-9]* examples?, 0 failures"
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: strict-emission
+  ac: AC2
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec -O /dev/null gems/completions/spec/fast/completions/protocol_spec.rb -e "strict" 2>&1 | grep -E "[1-9][0-9]* examples?, 0 failures"
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: docs
+  ac: AC5
+  cwd: repos/fast-llm
+  cmd: |-
+    grep -q "supports_strict_mode" gems/completions/docs/reference/dialects.md && grep -q "constrained_sampling" gems/completions/docs/reference/tools.md && grep -q "ConstrainedSamplingError" gems/completions/docs/reference/errors.md && grep -q "^## Unreleased" gems/completions/CHANGELOG.md && grep -qi "constrained" gems/completions/CHANGELOG.md && echo STRICT_DOCS_OK
+  expect:
+    exit_code: 0
+    stdout_match: STRICT_DOCS_OK
+
+- id: scope
+  ac: AC6
+  cwd: repos/fast-llm
+  cmd: |-
+    git diff --quiet 6ceba1f -- gems/completions/README.md gems/completions/spec/fixtures/wire/CAPTURE.mjs gems/completions/spec/fast/completions/docs_links_spec.rb gems/completions/spec/support/mock_llm_server.rb && ! git diff --name-only 6ceba1f -- gems/completions/spec/fixtures/wire | grep -vE "zai_strict_tool.json|zai_strict_undeclared.json" | grep -q . && ! comm -23 <(git diff --name-only 6ceba1f | sort) <(printf '%s\n' gems/completions/CHANGELOG.md gems/completions/docs/reference/dialects.md gems/completions/docs/reference/errors.md gems/completions/docs/reference/tools.md gems/completions/lib/fast/completions.rb gems/completions/lib/fast/completions/constrained_sampling.rb gems/completions/lib/fast/completions/dialects.rb gems/completions/lib/fast/completions/errors.rb gems/completions/lib/fast/completions/protocol.rb gems/completions/lib/fast/completions/tool.rb gems/completions/spec/fast/completions/constrained_sampling_spec.rb gems/completions/spec/fast/completions/dialects_spec.rb gems/completions/spec/fast/completions/protocol_spec.rb gems/completions/spec/fast/completions/tool_spec.rb gems/completions/spec/fast/completions/wire_parity_spec.rb gems/completions/spec/fixtures/wire/CAPTURE-STRICT.mjs gems/completions/spec/fixtures/wire/zai_strict_tool.json gems/completions/spec/fixtures/wire/zai_strict_undeclared.json | sort) | grep -q . && echo SCOPE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
 
 ## Builder Prompt
