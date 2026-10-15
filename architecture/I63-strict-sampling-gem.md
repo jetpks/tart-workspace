@@ -859,15 +859,105 @@ STATUS: COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section strict-sampling-gem verdict --from <file>`. -->
+# Verdict — I63 strict-sampling-gem (judged in a fresh session, cold)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify strict-sampling-gem`)?
+Judge: never built nor graded this work. Mechanical post-flight first, by
+command: `architect verify strict-sampling-gem` ALL-PASS ((a) frozen
+untouched, (b) no builder commits, (c) report exists, (d) in-bounds);
+`git diff 4c4322d HEAD -- architecture/I63-strict-sampling-gem.md` EMPTY
+(frozen region byte-identical since freeze); `git log 6ceba1f..` EMPTY in
+the lane worktree, `rev-list --count` = 0 (builder committed nothing).
+Evidence transcribed verbatim (commit 3c57712) before any judgment.
+
+Gates run COLD twice in the lane worktree (frozen cmd blocks extracted
+programmatically from freeze_sha 4c4322d — never hand-copied, per the I58
+ruling): **9/9 PASS ×2, identical numbers, zero flake** — suite 210/0
+(base 174 + 36 additive), parity 14/0 (13 scenarios + 1 fidelity),
+strict-wire 2/0, strict-unit 21/0, strict-dialect 3/0, strict-tool 3/0,
+strict-emission 7/0, docs STRICT_DOCS_OK, scope SCOPE_OK. A base-control
+run (the canonical repos/fast-llm at base) reproduced the declared base
+colors exactly: suite/parity GREEN, the six new gates RED (0 examples),
+scope vacuously GREEN — the every-new-gate-RED-at-base convention held.
+
+## Disagreement rulings
+
+- **PHASE 0 #1 — the Grounds "exactly 20 keys" numeral vs pi's 16: ACCEPT
+  (the builder's reading; pi is the oracle).** Judge re-read pi
+  `packages/ai/src/api/constrained-sampling.ts:17-34` @ f1b2e77f5: the
+  array holds exactly **16** keys, and the Grounds' own enumeration on the
+  very next lines lists those same 16 in the same order — the numeral is
+  internally inconsistent with its own list, a spec-side transcription
+  defect in the brief (BRIEF §8 exact-parity bar: pi @ f1b2e77f5 governs
+  over the brief; PHASE 0 protocol says exactly this). The engine's 16-key
+  list matches pi key-for-key in order, carries the why-comment at the
+  port site, and the unit spec pins "each of pi's 16 frozen keys, first
+  present key in list order". Owner-side nit recorded: any future brief
+  re-issue fixes the numeral.
+- **D5-letter deviation — zai_on/zai_off re-pointed to the harness-local
+  `:zai_1_1` dialect: ACCEPT per the mid-build architect ruling (Option
+  A), all terms verified cold by this judge.** (1) `:zai_1_1` lives ONLY
+  in wire_parity_spec.rb (grep under lib/ = 0 hits); the shipped trio in
+  dialects.rb is untouched beyond D1's own additions (:zai gains
+  `supports_strict_mode true`; :deepseek/:fireworks unchanged). (2) The
+  why-comment at the harness declaration carries all three required
+  evidences: capture generation (pi-ai 1.1.0 vs 1.2.0), the byte delta,
+  and the proof SHA. (3) The 15-byte delta independently re-measured:
+  zai_on request_body = 501B, zai_strict_undeclared = 516B (wire SHA
+  fead3755… re-computed from the landed fixture) — delta exactly
+  `,"strict":false` = 15B, like-for-like (both thinking high, same
+  undeclared read tool). (4) All 13 fixture JSONs byte-identical: the 11
+  existing untouched (empty git diff on tracked fixtures), the 2 new
+  cmp-identical to `tmp/i63-spec/capture/out/` + the driver cmp-identical
+  to `tmp/i63-spec/capture/CAPTURE-STRICT.mjs`. (5) AC6 untouched — the
+  frozen-4 quiet-diff passes and the scope gate's whitelist admits only
+  the declared 18. (6) The lib stays 100% faithful to D1–D4/pi —
+  convertTools :1505-1516 (`strict ?? false`, key order
+  name/description/parameters/strict, the `!== false` compat gate,
+  "Some reject unknown fields"), detectCompat :1675, getCompat :1334, and
+  zai.json's `supportsStrictMode:true` all re-verified in pi source this
+  session. The deviation is confined to exactly two scenario-row lines,
+  each carrying an inline pointer comment — the least-deviation exit, as
+  ruled.
+- **In-lane timeout/replacement incident: ACCEPT (process discipline
+  held; no judgment impact).** Judge read both run transcripts. The
+  predecessor (43fae79d) was aborted at 29.4 min (22:55:14Z→23:24:36Z,
+  stopReason "aborted") mid-report-write — its final aborted message
+  contains the all-PASS 13-row digest table, corroborating "GREEN before
+  the kill". The replacement (15218b9f, started 94 s later) ran the
+  mandated audit FIRST (kit read + `git status`/`git log 6ceba1f..`),
+  found no out-of-bounds file and no half-finished hunk, then re-measured
+  everything fresh (full suite, every gate form, shasum + cmp of the
+  fixtures) before writing the report — its numbers are its own. The
+  judge's independent cold re-runs (9/9 ×2) are the third full
+  verification of the same tree; integrity confirmed.
+- **Builder-disclosed residual — the Tool DSL accepts a valid
+  `{"type","strict"}` Hash carrying EXTRA keys: ACCEPT as itemized.** pi's
+  runtime reads only `config.type`/`config.strict` (resolver :225-249);
+  extra keys never reach the wire; no spec letter enumerates extras as a
+  raise case. Reported, not hidden — the itemize-and-defend discipline.
+
+## Acceptance Criteria integrity
+
+Frozen sections unchanged since freeze (verify PASS, diff-from-freeze
+EMPTY). No gate was weakened, skipped, or re-authored; all nine ran in
+their frozen forms.
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | strict-dialect 3/0, strict-tool 3/0; 14-key VOCABULARY canonical-last, :zai true trio-faithful; DSL raise matrix incl. grammar | §7.8 | PASS |
+| AC2 | strict-wire 2/0 + strict-emission 7/0; wire SHA256 d7470202…/fead3755… re-computed from landed fixtures; strict:true after parameters, rewrite bytes verified in the fixture; equal? identity holds on every non-strict path | §7.8 | PASS |
+| AC3 | strict-unit 21/0; every recursion rule + every throw class with pi's exact bytes incl. both root arms; prefer→nil both ways; require both templates verbatim; catch-only-Unsupported; no-mutation snapshot | §7.8 | PASS |
+| AC4 | suite 210/0 ×2 cold; parity 14/0 ×2 — 11 existing fixtures byte-identical, frozen digests green | §7.8 | PASS |
+| AC5 | docs gate STRICT_DOCS_OK; dialects.md 14-key + row + :zai block + paragraph; tools.md row + amended VERBATIM section; errors.md row; CHANGELOG ## Unreleased; README untouched | §7.8 | PASS |
+| AC6 | scope SCOPE_OK ×2; exactly 13 M + 5 ?? = the declared 18; frozen-4 byte-identical; zero builder commits | §8 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+## Iteration
+
+**CONTINUE** — the diff is faithful to pi's constrained-sampling machinery
+arm-by-arm (16-key list, check order, both root messages, the
+const-absent null subtlety, catch-class discipline, both require
+templates), the two frozen wire digests reproduce byte-exactly through the
+public path, all 13 fixtures hold, and the single spec-letter deviation is
+the already-ruled harness-local capture-era dialect — the lib itself never
+bent. Integrate lane `strict`; ENTRY 2 (tart-side consumption of the
+landed API) can build on it.

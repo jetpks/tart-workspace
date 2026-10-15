@@ -2495,7 +2495,7 @@ project:
     ordinal: 63
     file: architecture/I63-strict-sampling-gem.md
     freeze_sha: 4c4322d81bc3cae110ed248bbd092765bf2fb6b6
-    verdict: pending
+    verdict: continue
     lanes:
     - name: strict
       repo: fast-llm
