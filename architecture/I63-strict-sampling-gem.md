@@ -593,10 +593,95 @@ nothing else changes against base `6ceba1f`. The 11 existing fixture JSONs
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I63-strict-sampling-gem-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section strict-sampling-gem prompt --append --lane <lane> --from build/I63-strict-sampling-gem-<lane>/prompt.md`. -->
+### strict
+
+You are the builder for iteration `strict-sampling-gem` (I63), lane
+`strict`. Work ONLY in the provisioned worktree on branch
+`lane/I63-strict-sampling-gem-strict` (base fast-llm `main` @ `6ceba1f`);
+NEVER commit (the integrator lands your tree), NEVER touch the space repo,
+NEVER push. The full iteration contract is the frozen
+Grounds/Specification/Acceptance Criteria in this file (verbatim below) —
+read them first; this header is the lane's operating brief. You are the
+ONLY lane; `repos/tart` is out of bounds entirely (ENTRY 2 consumes your
+landed API later).
+
+THE TASK IN ONE PARAGRAPH: port pi's JSON-schema constrained-sampling
+machinery (pi `packages/ai/src/api/constrained-sampling.ts` @ `f1b2e77f5`,
+the JSON-schema half ONLY) into the gem so the wire layer can send
+strict-mode tool schemas: a NEW `constrained_sampling.rb` engine (the
+strict rewrite `make_strict_json_schema` / node recursion / `schema_allows_
+null` / `resolve_json_schema_strict_sampling`, exact message bytes, deep-
+copy never mutating the declared parameters), a `supports_strict_mode`
+Dialect vocabulary key (14th, default false; the shipped `:zai` declares
+true), a Tool `constrained_sampling` declaration (nil/false/the mirrored
+`{"type"=>"json_schema","strict"=>"prefer"|"require"}` shape, fail-loud),
+and the `apply_tools` wire seam (declared-strict tool on a strict dialect →
+the REWRITTEN parameters + `"strict"=>true` right after `"parameters"`;
+undeclared tool on a strict dialect → verbatim + `"strict"=>false`; ANY
+tool on a non-strict dialect → NO strict key, verbatim, exactly today's
+wire). "prefer" falls back to loose silently; "require" raises with pi's
+two message templates verbatim.
+
+PRE-MADE ARTEFACTS (copy, do not re-derive): the two frozen wire fixtures
+and their provenance driver already exist in the SPACE at
+`tmp/i63-spec/capture/out/zai_strict_tool.json`,
+`tmp/i63-spec/capture/out/zai_strict_undeclared.json`, and
+`tmp/i63-spec/capture/CAPTURE-STRICT.mjs` — copy them byte-identical into
+`gems/completions/spec/fixtures/wire/` (the two JSONs + the driver).
+Frozen SHA256s (also in Grounds): `zai_strict_tool` =
+`d7470202a2f66216b3d0381bb18d3c5c29082e5c334b7fb87c2410d65ce824a8`;
+`zai_strict_undeclared` =
+`fead3755e34689d502cbb865d6d424ccc84b4453d8724aa8fee713f9516a60c9`.
+The captures were recorded hermetically against the installed pi-ai 1.2.0
+dist this spec session — if your lane tree disagrees with one BYTE, your
+emission is wrong, not the fixture.
+
+FROZEN BEHAVIOR (do not redesign; the frozen sections govern on any
+conflict):
+- The rewrite's CHECK ORDER is observable through which message throws
+  first — port pi's order exactly (Specification D3 enumerates it).
+- Message bytes are the parity observable: pi's literals, unchanged
+  (including `root schema must have type object` appearing TWICE in pi's
+  `makeStrictJsonSchema` for different arms — keep both).
+- Verbatim emission keeps OBJECT IDENTITY (`equal?(tool.parameters)`) for
+  every non-strict path — the existing protocol_spec pin must keep
+  holding; strict-rewrite emission is a DIFFERENT object (deep-copied).
+- The strict key sits in the function object AFTER `parameters` (pi key
+  order; the fixtures pin it byte-level).
+- Nothing outside `apply_tools`' needs changes in protocol.rb; codec/
+  client/chat/types/cancellation/sse are out of bounds; the mock server is
+  untouched.
+- `gems/completions/README.md` is FROZEN (the I53 owner-prose gate
+  `docs_links_spec.rb` fails on any edit) — its stale "13 keys" line stays;
+  docs land in `docs/reference/*.md` + CHANGELOG's new `## Unreleased`.
+
+BUILD FREEDOM (layout only, behavior frozen): module/method names inside
+`constrained_sampling.rb` beyond the frozen API surface, spec example
+wording (as long as the `-e` gate tokens `strict`, `supports_strict_mode`,
+`constrained`, `zai_strict` each match at least one full example
+description in their named spec files), and the deep_dup implementation.
+
+VERIFICATION (run from the repo root, exactly these forms):
+- Full suite: `bundle exec rspec` (base: 174 examples, 0 failures — your
+  additions grow it; 0 failures must hold).
+- Gate forms (frozen in Acceptance Criteria): single-spec with
+  `bundle exec rspec -O /dev/null <spec> [-e "<token>"]`; every NEW gate is
+  RED at base by design — your lane makes them GREEN.
+- Wire parity: the 11 existing fixtures must stay byte-identical (GREEN at
+  base); your two new scenarios must reproduce the frozen digests above.
+
+PHASE 0 PROTOCOL: before writing code, read pi's
+`constrained-sampling.ts` in full and diff your reading against the frozen
+Specification D3. If you believe a frozen claim misreads pi (message bytes,
+check order, resolution semantics), STOP, record the disagreement in your
+report (file:line cites both sides), implement YOUR reading of pi, and flag
+it loudly — pi @ `f1b2e77f5` is the oracle, not this brief. Same for any
+gate you believe is vacuous or mis-authored.
+
+REPORT (raw results only, no narrative): spec files added/changed with run
+counts; the full suite line; the wire-parity digest table (13 rows,
+pass/fail); the two landed fixture SHA256s; file list touched; the PHASE 0
+disagreement table if any.
 
 ## Builder Report
 
