@@ -604,15 +604,133 @@ STATUS: COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section wire-tolerance verdict --from <file>`. -->
+# I61 wire-tolerance — Verdict (architect-judge, COLD session, 2026-10-15)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify wire-tolerance`)?
+Verdict: **CONTINUE** — all six ACs PASS cold against the frozen text.
+
+Iteration: `wire-tolerance` (I61), lane `wire`, repo `fast-llm`, base `main` @
+`33571e1`. Freeze `733eb24f190524f9f83bec5b5b34948048c91aa3`. Builder
+`zai/glm-5.3-flash:high`, session `01a140d9-8c69-7570-bf04-f880065c76e3`,
+settled clean, STATUS COMPLETE (report transcribed verbatim at `e32f7fc`,
+107 lines). Judge session ran `architect verify`, the freeze diff, the lane
+log, the scope checks, and all five frozen gates itself, cold, PI_*
+unset — no builder claim was taken on prose.
+
+## Mechanical post-flight (all PASS)
+
+- `architect verify wire-tolerance`: **4/4 PASS** (frozen untouched, no
+  builder commits, report exists, in-bounds).
+- Freeze diff `733eb24f..HEAD` on architecture/I61-wire-tolerance.md:
+  ONE hunk starting at old line 340 — the Builder Prompt/Builder Report
+  region. All 9 deleted lines are exactly the two placeholder HTML
+  comments. Grounds (10–86), Specification (87–239), Acceptance Criteria
+  + ```gates (240–340) byte-untouched. Frozen integrity PASS.
+- Lane log `git -C build/I61-wire-tolerance-wire/wt log 33571e1..`:
+  **EMPTY** (builders never commit). Branch `lane/I61-wire-tolerance-wire`.
+- Scope: 9 files touched (8 M + 1 NEW malformed_wire_spec.rb), a subset of
+  the frozen 12-file lanes block. Zero diff on `protocol.rb`, `dialects.rb`,
+  `codec.rb`, `chat.rb`, `tool.rb`, `cancellation.rb`;
+  `spec/fixtures/wire/**` + `wire_parity_spec.rb` zero diff vs `33571e1`
+  (also gate-verified); worktree is fast-llm only — no `repos/tart` path
+  in status. No new runtime deps; no request-construction changes (all
+  diffs are inbound-seam, spec, docs).
+
+## Cold gate run (judge's own, five frozen commands verbatim from the worktree root, PI_* unset)
+
+| gate | raw outcome | exit | verdict |
+|---|---|---|---|
+| `suite` | `146 examples, 0 failures` | 0 | GREEN |
+| `parity` | `146 examples, 0 failures` | 0 | GREEN |
+| `malformed` | `146 examples, 0 failures` (matches `[1-9][0-9]* examples?, 0 failures`) | 0 | GREEN |
+| `docs` | `DOCS_OK` | 0 | GREEN |
+| `fixtures-frozen` | `FIXTURES_FROZEN` | 0 | GREEN |
+
+The pre-documented `.rspec` global `--pattern` fan-out holds: named-file
+invocations summarize the whole suite (146, not per-file). Per-file counts
+re-measured cold with `-O /dev/null`: malformed_wire_spec **5/0**, sse_spec
+**15/0**, client_spec **14/0**, protocol_spec **32/0** (untouched control),
+stream_cancel_spec **4/0** (untouched control) — matching the Builder
+Report's table exactly. Base contrast confirmed by the builder's own base
+run and the AC's frozen base verdicts (suite/parity GREEN 133, malformed
+RED 0, docs RED, fixtures-frozen GREEN); Δ = +13 examples, additions only.
+
+## PHASE 0 / disagreement rulings
+
+Builder declared **no PHASE 0 disagreements** — nothing to rule. Two
+construction notes offered for ruling; each ruled:
+
+1. **`protocol.rb` declared touchable but untouched — ACCEPT.** The frozen
+   Boundaries say the lane "may touch" protocol.rb "expose/move repair_json
+   only", and the Tool guidance says the lane "may expose it for reuse from
+   `client.rb` with the smallest surface change" while the spec "does NOT
+   freeze the file layout". `repair_json` is already a `module_function`
+   (protocol.rb :18, :213), callable as `Protocol.repair_json` from
+   `client.rb` in the existing house style — zero change IS the smallest
+   surface change; behavior stays frozen and pinned (protocol_spec 32/0
+   cold). AC6's "exactly the declared touch set" reads as the permission
+   envelope (Boundaries: "Lane may touch"), not an all-12 mandate — two of
+   the 12 are explicitly "only if", so a strict all-12 reading would make
+   the frozen spec self-contradictory. Subset compliance is the only
+   coherent reading; the builder is right.
+2. **Shape-1 byte-intactness ladder — ACCEPT.** The frozen AC2 bullet trio
+   (rejoin with NO separator / repair escapes the raw control characters /
+   arguments assemble byte-intact) is jointly satisfiable only when the
+   cutting newline is spurious framing rather than a content-bearing
+   degraded escape — a no-separator rejoin cannot resurrect a content
+   newline byte, under any implementation. The observed receive-side
+   evidence (payload truncated mid-string at columns 1031/432, remainder
+   unprefixed and dropped — Grounds' mechanism proof) is byte-identical
+   under both provider-side stories, so the frozen spec already committed
+   to the framing model. The fixture is an honest instance of the frozen
+   bullet: block-form `sub` inserts the framing newline before the intact
+   `\\n` escape and degrades the `\\t` escape to a raw tab; rejoin removes
+   the framing byte byte-exactly; chunk-seam repair escapes the surviving
+   raw tab; the delta parses; and the final ARGUMENTS HASH — the right
+   level for "byte-intact" on the doubly-encoded tool-args path — comes
+   out `{"path"=>"edit.rb","content"=>"alpha\nbeta\tgamma"}` with real
+   newline and tab, `dropped_chunks == 0`, natural mapped `:tool_use`.
+
+## Acceptance Criteria
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | shape-3 + client_spec repair pins green cold (content `"alpha\nbeta\tgamma"` / `"a\nb\t c"` flows downstream, dropped_chunks 0, natural `:stop`); raw `\n` via multi-data-line join + raw `\t` both repaired at the seam | Spec Obj.1; AC1 | PASS |
+| AC2 | shape-1 green cold: rejoin (no separator) + repair → payload parses, arguments hash byte-intact, `:done`/`:tool_use`; 6 new sse_spec pins (no-separator append, chaining, `event:`/`id:`/`retry:` ignored mid-payload, comments ignored mid-payload, stray-without-open-payload still ignored, data-line-after-continuation joins with `"\n"`) | Spec Obj.2; AC2; Tool guidance shape 1 | PASS |
+| AC3 | shapes 2/4 green cold (`dropped_chunks == 1`, no raise, natural `:tool_use`/`:stop` terminals; shape-2 asserts the tolerant empty-args finalize); §10.5 residual spec green cold (`:error` FIRST then `StreamError /finish_reason/` on a dropped finish-carrying chunk); the chunk-parse `raise StreamError` is deleted — the only remaining raise is the untouched `deliver_terminal` finalize (client.rb:180); cancellation.rb untouched, stream_cancel_spec 4/0 | Spec Obj.3; AC3; §10.5 | PASS |
+| AC4 | parity + fixtures-frozen + suite gates GREEN cold; `wire_parity_spec.rb` and `spec/fixtures/wire/**` zero diff vs `33571e1`; 146/0 with all base examples intact (+13 additions only; per-file controls protocol 32/0, stream_cancel 4/0) | Spec Deviation ruling (byte-neutrality); AC4 | PASS |
+| AC5 | docs gate DOCS_OK cold; errors.md retires the claim and documents the tolerant class (rejoin → repair → drop-and-continue on `Client#dropped_chunks`) plus BOTH residuals (missing-finish still raises; lost args fragment → clean tool error); CHANGELOG `## Unreleased` entry; stream-events.md's sole StreamError mention (:20, the `:error` row) remains exactly true post-I61 — consistent without an edit | Spec Tool guidance (Docs); AC5 | PASS |
+| AC6 | 9 touched ⊆ 12 declared; every MUST-NOT verified zero-diff (fixtures/wire, wire_parity, dialects, codec, chat, tool, cancellation, repos/tart); the three declared-but-untouched files each fail their "only if" condition or need no change (ruled above) | Spec Boundaries / lanes block; AC6 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+Judge observations (non-blocking, for the record): (a) `next if json.nil?`
+in `feed_stream` conflates a counted drop with a hypothetical payload that
+legitimately parses to JSON `null` — no real wire shape emits `data: null`
+(pre-I61 behavior on it was equally degenerate), cosmetic; (b) the mock's
+`raw_frames` path appends no usage chunk and no `[DONE]` — by design, the
+frames carry exactly the wire, documented in the mock header.
+
+## Deviation-beyond-pi (echo of the Builder Report's record — recorded, not re-litigated)
+
+pi's openai-completions path dies on exactly this wire: the resolved SDK
+vintage (openai 7.19.0, `node_modules/openai/core/streaming.js`) throws
+`SyntaxError('Error reading response: malformed server-sent event JSON.')`
+on a mid-stream SSE payload that fails `JSON.parse`, and pi's retry
+machinery covers request creation, not mid-stream parse errors — the two
+tart turns of 2026-10-15 died the same way. The port deliberately exceeds
+pi here, as sanctioned by the frozen deviation ruling: pi's own
+`parseJsonWithRepair` (`packages/ai/src/utils/json-parse.ts`) is the
+in-tree precedent for precisely this malformation class, applied at every
+seam where pi owns the parse (anthropic-messages, mistral, pi-messages,
+bedrock), and the gem — which owns its parse at the chunk seam — now
+applies the same cure there: SSE continuation rejoin → `repair_json` (the
+verbatim pi port, already in-tree for OQ-4) → drop-and-continue for the
+unrepairable residue. The deviation is kept safe by the hard constraint of
+healthy-wire byte-neutrality, which holds cold: all 11 canonical fixtures
+byte-identical, full suite green.
+
+## Iteration
+
+**CONTINUE** — the diff is a minimal, additive, faithful implementation of
+the three frozen inbound-seam behaviors (rejoin / parse-with-repair /
+drop-and-continue), and every one of the six frozen ACs passes cold on the
+judge's own gate run with byte-neutrality and the §10.5 terminal
+discipline pinned intact.

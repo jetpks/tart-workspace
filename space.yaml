@@ -2417,7 +2417,7 @@ project:
     ordinal: 61
     file: architecture/I61-wire-tolerance.md
     freeze_sha: 733eb24f190524f9f83bec5b5b34948048c91aa3
-    verdict: pending
+    verdict: continue
     lanes:
     - name: wire
       repo: fast-llm
