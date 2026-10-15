@@ -866,15 +866,109 @@ STATUS: COMPLETE_WITH_CONCERNS
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section render-perf verdict --from <file>`. -->
+### Disagreement rulings (PHASE 0 — every item)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify render-perf`)?
+- **session-golden "RED at the freeze" (the exception file) — REJECT.** The builder's two recorded
+  runs of this gate (lane worktree AND pristine `repos/tart` @ 41f0a5f) are in their own session
+  transcript (`b4d6947a…`, tool_start at lines 481/485): both hand-copies of the frozen command
+  OMIT the `rec.append_compaction(summary: "Earlier turns summarized.", …)` line. I reproduced
+  their exact four "moved" digests byte-for-byte (`1fb8ba0d…`, `cfe00dc3…`, `cdefef68…`,
+  fork_roles `[:user, :assistant, :tool, :assistant, :user, :user]`) by running the frozen command
+  minus that one line. The VERBATIM gate passes: 5× at pristine 41f0a5f (fresh env ×3, full env ×1,
+  plus via the lane gate run), and cold in the lane worktree. The builder's mechanism story
+  ("frozen digests encode a pre-fork-copy era") is wrong in detail: the fork IS content-complete
+  on disk today, and `context_entries` still yields `[:user, :user]` because the COPIED COMPACTION
+  ENTRY cuts the pre-compaction messages from context exactly as pi does. Neither adjudication
+  branch (a) gate-letter stale nor (b) real regression in I54–I57 holds; the I54/I55/I56
+  attestation trail is vindicated. No gate correction, no owner escalation. Residual lesson
+  recorded below (verbatim-run discipline for hand-copied gate commands).
+- **wire-delta root-bound digest (addendum) — ACCEPT.** The instruction digest embeds the
+  sandbox's repo-root-absolute `<cwd>` line; the normalizer strips only the `tmp/…/sandbox` tail.
+  In the lane worktree the root is the deep `build/I58-render-perf-core/wt` path → digest
+  `79c85d54…` (byte-identical to the builder's report). At the canonical root I measured the
+  frozen `2faaf667…`/`7360fd1e…` EXACT (both digests, live run this session). The s9 deep-path
+  artifact family; the lane diff touches no agent-layer file (`git diff 41f0a5f -- lib/tart/agent`
+  empty). Not a byte move.
+- **s9-parity lane-worktree FAIL — ACCEPT** (declared known class; the same deep-path family; the
+  canonical-root run exits 0 — verified live this session).
+- **C1 reset-site cache clearing — ACCEPT** (inside AC2's own letter: without it a later message
+  colliding on `[width, live.bytesize, reasoning.bytesize]` serves stale rows; AC2's
+  reset-cycle exactness clause demands it).
+- **C2 tick cancel reads `@user_bash_stream` directly — ACCEPT** (the `:agent_end` arm holds the
+  surface mutex; the public predicate would re-synchronize — deadlock avoidance, no semantic
+  change; the pins cover the cancel).
+- **C3 IdleKernel `tick`/`TickHandle` test-double seam — ACCEPT** (test-only; real-kernel cadence
+  pins live in loop_test, which is purely additive).
+- **C4 `test_enter_submits…` re-pin to leading rows — ACCEPT** (the retired burn's per-frame mutex
+  contention no longer delays the agent fiber; the echo-bytes/padding semantics are pinned
+  verbatim as `transcript_lines.first(3)`; itemized with citation).
+- **C5/C6/C7 probe-bin deviations (Ruby-hash scenario, generated stamp.rb, in-process HARD_CAP
+  150, AV requests bound to the budgeted run, REPO_ROOT three-ups) — ACCEPT** (all inside the new
+  bin; rig lib/scenarios byte-untouched; pi's 4-request retry is anchor noise, correctly excluded
+  from the deliverable's assertions).
+- **D1 manual `/compact`-from-idle gets one paint per compaction event — ACCEPT** (frozen arm
+  sites kept verbatim per scope discipline; settled bytes unchanged; s7/s8 green; noted as
+  residual polish, not a defect).
+- **E1 lane env exports + lock restore — ACCEPT** (documented; the final tree is exactly the 7
+  frozen files — re-verified post-report; my own judge runs re-dirtied `Gemfile.lock` twice via
+  `bundle install` and I restored base bytes each time before integrate).
+
+### The three frozen OQs
+
+- **OQ-1 (BRIEF §4.1 "60 fps while animating" vs the busy-path pi-parity realization) — MODIFY.**
+  BRIEF §4.1's letter stands UNCHANGED for genuine animation windows: the animate-window
+  mechanism and `draw_frame`'s `@dirty || animating?` gate are byte-untouched, no lib/ caller
+  remains, and loop_test's deadline-pacing pins pass unmodified. The busy window was never an
+  animation window in pi's letter — pi renders ON REQUEST (tui.ts requestRender/scheduleRender)
+  with its Loader's own 80 ms tick, and the port's 60 Hz burn was measured at 90–97% wasted
+  render CPU (Grounds §2). The standing exact-parity bar (BRIEF §8) governs the busy path: the
+  cure lands at 21.8 paints/s vs pi's measured 22.2 on the identical stream. Recorded in
+  ARCHITECT.md as a standing note.
+- **OQ-2 (BP5 green-at-base as the regression bar) — ACCEPT.** A perf iteration needs a
+  non-regression floor, not only improvement targets; BP5 was declared GREEN-at-base (18.4 ms ≤
+  40) by design and the cure improved it to 9.5–9.7 ms (pi anchor 10.1).
+- **OQ-3 (key→marker scroll-amount confound) — ACCEPT the declared reduction.** The budgeted
+  latency metric is key→top-row-change (BP5, clean); the marker zone serves anti-vacuity only
+  ("the scroll marker observed" — scrolling actually reached history). The confounded column
+  stays in the anchor records, never in an assertion.
+
+### Mechanical-correction ratification
+
+- **I36-inherited runs-count extractor (`[0-9]+ runs, ` with trailing comma) — RATIFIED.** The old
+  `[0-9]+ runs` also matched minitest's throughput line ("1529.0007 runs/s" → "0007 runs"),
+  making the ≥8/≥11/≥4/≥2 floors luck-dependent on a fully green tree. The correction is IN the
+  frozen gates block (frozen at ef834ae, never edited after), keeps the same floors/files/
+  semantics, and passed cold this session (thinking-pins 14/9, hermeticity 8/4). The I54
+  mechanical-correction precedent applies.
+
+### Gate table (cold, judge-run)
+
+Lane worktree (`architect gate render-perf core`, this session): 20 of 26 gates PASS including
+suite (1146 runs, 5375 assertions, 0 failures), s1–s8+s10+s17 parity, session-golden,
+render-perf-units (7 runs, 29 assertions), and render-perf-probe
+(BP1 0.44 ms, BP2 101.5, BP3 9.2, BP4 21.8, BP5 9.5 ms — RENDER_PERF_OK). Three FAILs, all
+environment-class: s9-parity + wire-delta (root/deep-path-bound digests — both re-verified
+PASS at the canonical root by live judge runs), and scope (the `41f0a5f...HEAD` form is empty in
+an uncommitted worktree by construction; the worktree-adapted form counts exactly the 7 frozen
+files, and the integration-time form is re-run post-integrate below).
+
+### Acceptance Criteria integrity
+
+`architect verify render-perf`: 4/4 PASS (frozen sections untouched since ef834ae; no builder
+commits in the lane worktree; scratch report present; in-bounds). `git diff ef834ae…HEAD --
+architecture/I58-render-perf.md` on frozen sections: empty.
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | grep 0 `animate` callers in lib/; gate+pins byte-unchanged; BP4 21.8 ≈ pi 22.2 | §4.1 (as modified, OQ-1), §8 | PASS |
+| AC2 | cache keyed exactly `[width, live.bytesize, reasoning.bytesize]`; byte-identical pins incl. reset cycles; parity screens green | §8 | PASS |
+| AC3 | RENDER_PERF_OK cold: BP1–BP5 + all 6 anti-vacuity preconditions | plan ENTRY E | PASS |
+| AC4 | render-perf-units 7 runs / 29 assertions green; glyph-on-time assertions verbatim | §8 | PASS |
+| AC5 | 23 standing gates: 20 green in-worktree, 3 environment-class FAILs re-verified at canonical root; scope exactly 7 files; no wire/session/golden byte moved | §7, §8 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+### Iteration
+
+**CONTINUE** — the diff is faithful to the Specification's intent (the probe's frozen indictment
+is exactly what was cured, by pi's own discipline), every AC passes on its own letter, and the
+one filed blocker (session-golden) is disproven as a transcription artifact rather than a tree
+defect. Integrate lane `core`.

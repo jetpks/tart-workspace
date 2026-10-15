@@ -2328,7 +2328,7 @@ project:
     ordinal: 58
     file: architecture/I58-render-perf.md
     freeze_sha: ef834ae656f21b6d59a509eb97220ba1a5ddf8be
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
@@ -2340,6 +2340,13 @@ project:
       - test/render/render_perf_test.rb
       - test/support/render_perf_probe.rb
       - gems/tui-split-rig/bin/render-perf-probe
+      base_sha: 41f0a5f3a01bc98afb30b26f4c52f60befadfe97
+      worktree: build/I58-render-perf-core/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: 5ce47fe2bcc197fdbb7d97ebbd4f409310f6261ffcb3c8cf3530d5a93145a0c5
       at: '2026-10-14T17:20:40-06:00'
