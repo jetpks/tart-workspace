@@ -1228,15 +1228,16 @@ Worktree left UNCOMMITTED for the integrator; branch `lane/I59-zai-max-tokens-co
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section zai-max-tokens verdict --from <file>`. -->
+CONTINUE — all 4 AC PASS; live-run fixes rev4 ENTRY A (the owner's total outage) closed. HEADLINE: with the coordinator's oracle pin (space shim pi 1.1.0, PI_* scrubbed) every parity gate s1-s10 + s17 passed COLD in the judge's own run — the builder's drift checkpoint (exception-2026-10-15T03:30:00Z) is MOOT in mechanism: its option (a) is the operative cure, the identical-signature fallback never invoked.
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify zai-max-tokens`)?
+Post-flight (mechanical): frozen regions untouched vs b0f6366e (plan diff empty); worktree log 9b04d0d.. empty (no builder commits); tree = exactly the 10 frozen files (+308/-21); Gemfile.lock byte-clean after the full battery. Kit grounds/specification/acceptance-criteria byte-exact vs the frozen sections (section header + trailing blank only).
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+Cold gate ledger (architect gate zai-max-tokens core, shim-pinned env): 24/28 PASS raw; the 4 FAILs each adjudicated: (1) suite + (2) hermeticity — 3 failing pins (2F+1E of 1154 runs), NONE on a lane surface, proven BYTE-IDENTICAL at the clean base checkout 9b04d0d in the same judge env: <docs>-missing + pi-docs-path-nil = the shim's declared no-package-dir consequence (standing E3 class); xhigh-vs-high = judge-env artifact (unset PI_MODEL + the owner's real ~/.tart catalog, zai/glm-5.3 default with a full thinking map incl. xhigh, leaking into footer_data's catalog-default tier) — the lane pin PASSES with a map-less env model (judge-verified); the builder's wire_env scrub is the same leak family, correctly handled. (3) wire-delta — FAILS at the frozen instruction literal only (14efd89f != 2faaf667; unattainable at base under the shim); judge's own no-move proof: fresh base s1 run vs the lane gate artifact differ on EXACTLY ONE line (the cwd sandbox path), path-normalized digests IDENTICAL (d2dc07fa both); every other wire-delta assertion verified EXACT on the lane artifact (key set/order, store false, user message, stream_options, tools 7360fd1e, max 512 positive). (4) scope — the verbatim three-dot form is vacuous in an UNCOMMITTED worktree (I58 E1 precedent), integrator-side; post-flight verified exactly the 10 files.
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+Per-AC rollup: AC1 PASS (D1-D7 diff-verified at the threading seam only; zai-max-tokens-units cold 4/2/2 runs; P3-i real-boot 126149 in (120_000, 131_072]; P3-ii == 1; P1/P4 pin the gem's OWN clamp on the request's own inputs). AC2 PASS (P2-i env tier wins 120_000 -> wire 120_000/120_000, clamp <= 115_904; P2-ii no-entry 0/0 -> sends 1 at unit AND real launcher; D1 truth tables declared/128_000/16_384/nil; Shapes DECLARED + Settings ladder untouched and green). AC3 PASS (ZAI_WIRE_OK tart=pi=512 cold — the declared deviation landed exactly on pi's byte). AC4 PASS (parity battery green cold; session goldens exact; s7/s8 send 1 from BOTH apps, judge-measured on the gate artifacts; scope exactly the 10 files; lock clean post-battery).
+
+PHASE 0 rulings: E1 ACCEPT (I58 precedent, integrator-side); E2 MOOT-CURED (parity green cold under the pin; the checkpoint's CONTINUING stance was correct); E3 ACCEPT as standing environment class (judge-proven base==lane modulo the 1 cwd line); E4 ACCEPT (documented protocol, no recurrence in the judge battery); E5 ACCEPT (known lane-worktree deep-path class; s9 exit 0 cold); D8-:2896 ACCEPT (order-spy |*| — verified-no-change beats cosmetic change-worship).
+
+OQ rulings: OQ-1 RATIFY the declared wire-value deviation 27841->512 — the no-move letter yields to the I52 delta-audited bar: no frozen anchor pins the value, the move is TOWARD pi's byte, gated both-apps==512; the spec's itemization (Grounds S4 + AC preamble) is the ratification. OQ-2 RATIFY the minimal-change boot/switch asymmetry (boot threads the defaulted window, switch stays raw + re-resolution; I30 windowless-switch pins hold unmodified; pi's setModel definition-default divergence recorded, reopenable on owner pain). OQ-3 RATIFY the windowless-entry 128_000 default at boot (only where an entry EXISTS; net change confined to windowless entries with env+settings unset; the owner's live entries all declare windows; truth-table + P3-range pinned).
+
+Verdict: continue — ENTRY B error-transcript is next and unstarted; this iteration did NOT touch agent/session.rb (not in the touch set; session-golden green). Landing stays the human's.

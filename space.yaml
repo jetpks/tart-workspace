@@ -2355,7 +2355,7 @@ project:
     ordinal: 59
     file: architecture/I59-zai-max-tokens.md
     freeze_sha: b0f6366ee8c25da72874fe7f612a550cd189f1c4
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
