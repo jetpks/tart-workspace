@@ -67,7 +67,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: zai-max-tokens
+  current_iteration: error-transcript
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -2381,4 +2381,10 @@ project:
     rehearsal:
       gates_digest: 712c32102ff0fece2efe67252e9438450155cf0f46c3d4ff4ee4e973ffd87e90
       at: '2026-10-14T19:59:48-06:00'
+  - name: error-transcript
+    ordinal: 60
+    file: architecture/I60-error-transcript.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
