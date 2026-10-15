@@ -2520,11 +2520,12 @@ project:
       - gems/completions/CHANGELOG.md
       base_sha: 6ceba1f45db00f423317111f4a5189a9e7bb70dd
       worktree: build/I63-strict-sampling-gem-strict/wt
-      integration_branch: main
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 244f048a7d60179aaa8aa9cc94543f258e886ac4
     rehearsal:
       gates_digest: 28f88f68ff7d871f88a0448d391c8cda6c90fb520da867eaf9d6b46ca048d42c
       at: '2026-10-15T16:51:37-06:00'
