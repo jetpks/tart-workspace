@@ -213,35 +213,247 @@ verified); no code depends on it.
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section zai-max-tokens specification --from <file>`. -->
+### Objective
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+Close successor-rev4 ENTRY A: BOTH faces of the catalog-facts outage — the
+boot that threads NONE of the catalog entry's facts (Face 2: window 0/0 →
+`max_tokens: 1` on every request, one-token responses) and the /model
+switch seam that threads the window but drops the cap (Face 1: window
+fallback ≈ 985K → z.ai 400). The model's catalog facts (contextWindow +
+maxTokens) reach the wire model on EVERY construction path — boot
+(interactive + print) and switch — with pi's precedence and pi's
+undeclared-field defaults. Screen bytes, session bytes, wire key
+set/order, and every frozen digest anchor are unchanged; the ONE
+deliberate byte-level move is the max VALUE in existing rig scenarios
+toward pi's exact byte (Grounds §2/§4, gated).
+
+### The deliverables
+
+**D1 — the entry-facts helpers (pi's definition defaults, one seam).**
+
+`Tart::Models` gains two pure helpers over the typed entry
+(`Shapes::Model` or nil):
+
+- `Models.entry_context_window(entry)` — `entry.context_window` when the
+  entry declares one, else pi's modelFromJson default **128_000**
+  (provider-composer.ts :242) when an entry EXISTS, else **nil** (no
+  entry: the no-entry chain of Grounds §4-b owns the window).
+- `Models.entry_max_tokens(entry)` — `entry.max_tokens` when declared,
+  else pi's default **16_384** (provider-composer.ts :243) when an entry
+  EXISTS, else **nil**.
+
+The defaults ride the FACTS-THREADING seam only — NOT catalog load
+(`Shapes::Model#to_h` stays DECLARED == the parsed entry, key order
+included; shapes_test :33-56 holds) and NOT `Settings
+.resolve_context_window` (its frozen ladder + pins hold; the helper
+threads BELOW env/settings — Grounds §4-a). Constants named + frozen
+here: `DEFAULT_ENTRY_CONTEXT_WINDOW = 128_000`,
+`DEFAULT_ENTRY_MAX_TOKENS = 16_384`, with the pi cites in the comment.
+
+**D2 — `Agent::Loop` ctor threads the cap.**
+
+The ctor (agent/loop.rb :112-113) gains `max_tokens: nil`; stored
+`@max_tokens`; the ctor's `apply_facts` call (:158-162) threads
+`max_tokens: @max_tokens` beside the resolved window. The window
+expression `resolved_context_window || Settings::MODEL_CONTEXT_WINDOWS
+.fetch(@chat.model_id, 0)` is byte-unchanged (the known-tables/0 tiers
+are the no-entry chain). The kwarg doc follows the existing
+`@param context_window` shape.
+
+**D3 — the interactive boot threads the entry's pair (bin/tart).**
+
+In `start_session` (bin/tart :448-465): the entry the `compat:` arm
+already resolves (`resolve_boot_entry(models, boot)` :464) is resolved
+ONCE into a local BEFORE the `Agent::Loop.new` (one call site, same
+helper, no behavior change to the resolve), and the ctor call threads:
+
+```ruby
+context_window: Settings.resolve_context_window(settings:, model: chat.model, identity:) ||
+  Models.entry_context_window(entry),
+max_tokens: Models.entry_max_tokens(entry),
+compat: entry&.compat
+```
+
+Precedence frozen (Grounds §4-a): env → settings → CATALOG →
+known-tables → 0. `resolve_context_window` already folds env+settings;
+the catalog value threads only when both miss; the loop's fetch arm
+catches the no-entry case. `chat.model` stays the constructor
+placeholder in that call (its nil window is what makes the `||` chain
+correct).
+
+**D4 — the print boot threads the same pair.**
+
+`Tart::Print.run` (print.rb :72-79) gains `max_tokens: nil`, forwarded
+to the `Agent::Loop.new` (:86-88). The print boot (bin/tart :278-309)
+resolves the entry via the same `resolve_boot_entry` helper and threads
+the same pair as D3 (`context_window:` = `Settings
+.resolve_context_window(...) || Models.entry_context_window(entry)`).
+The frozen comment's contract ("env tier resolves
+`<IDENTITY>_CONTEXT_WINDOW` itself") is preserved in outcome — resolve
+checks the env tier FIRST, so a set env still wins; the update to the
+comment states the new truth. Subagent children (CONTEXT_WINDOW env
+passthrough, subagents/manager.rb :383) are unaffected: their env rides
+the same folded tier.
+
+**D5 — `Loop#switch_model` threads the cap (the Face-1 seam).**
+
+The signature (:302-303) gains `max_tokens: nil` (after
+`context_window:`); `@max_tokens = max_tokens`; BOTH `apply_facts` calls
+(:310-313 pre-resolve, :318-324 resolved) thread
+`max_tokens: @max_tokens`. The WINDOW threading is byte-unchanged (raw
+`context_window:` kwarg + the loop's re-resolution ladder — its I30
+known-tables pins hold).
+
+**D6 — the render switch seam passes the cap.**
+
+`apply_model_selection` (render/chat.rb :2204-2240) adds
+`max_tokens: Models.entry_max_tokens(entry)` to the
+`@agent&.switch_model(...)` call (:2233-2237); `context_window:
+entry.context_window` stays RAW (today's exact shape). Declared
+asymmetry, itemized: BOOT threads the defaulted window (windowless entry
+→ 128_000), SWITCH threads the raw window (windowless entry → the loop's
+env/known-tables re-resolution, today's behavior) — the minimal change;
+pi's setModel carries the definition's default, recorded as a declared
+divergence reopenable on owner pain (switching to a windowless ENTRY
+with no env/table row).
+
+**D7 — `Chat#summary_chat` mirrors the cap.**
+
+The compaction one-shot factory (agent/chat.rb :188-197) threads
+`max_tokens: @facts.max_tokens` beside `context_window:
+@facts.context_window` — the one-shot's wire model mirrors the session
+model exactly. `summarization_max_tokens` (loop.rb :643-647) needs NO
+change (Grounds §3.4: it is already pi's formula, and ModelFacts
+populates from the threaded facts).
+
+**D8 — declared re-pins (no assertion semantics weakened).**
+
+- test/chat_test.rb: the switch-family agent doubles' `switch_model`
+  signatures (:2667, :2896 and any sibling asserting exact kwargs) gain
+  the `max_tokens:` kwarg with the expected `Models.entry_max_tokens`
+  value; the screen assertions stay verbatim.
+- test/settings_test.rb's `wire_model` helper (:31-36) NEEDS NO change
+  (the no-entry fallback is its shape) — listed so the builder verifies
+  rather than re-pins.
+- Any further suite pin asserting the boot/switch construction kwargs or
+  the wire max value: re-pin per the standing discipline (grep inventory
+  first, itemize every re-pin in the report). Known-touched files are in
+  the touch set; anything outside it is a deviation to itemize.
+
+**D9 — the new pins (the plan's verification beyond the battery).** All
+new test names carry the `zai_max_tokens` filter token; the filter is
+verified EMPTY at base (`grep -rn zai_max_tokens test/` → nothing).
+
+- **P1 boot-shaped unit** (test/agent_loop_test.rb): a placeholder-shaped
+  `Agent::Chat` (mock client) + `Agent::Loop.new(context_window: 131_072,
+  max_tokens: 131_072, reasoning/compat kwargs)` — assert the wire model
+  (`chat`'s `@model`) carries `context_window == 131_072` and
+  `max_tokens == 131_072`; run one scripted turn; assert the captured
+  request body's max value `== Fast::Completions::Protocol
+  .clamp_max_tokens(<that wire model>, <the request's instructions>,
+  <the request's messages>, nil)` (the gem's own arithmetic on the same
+  inputs — exact, path-independent) AND `> 1`. This is the plan's pin
+  (1): `min(catalog cap, window − est − 4096) > 1`.
+- **P2 no-entry fallback unit** (test/agent_loop_test.rb): (i) env tier —
+  no entry kwargs, `PI_CONTEXT_WINDOW=120000` in ENV around construction:
+  wire window 120_000, wire max 120_000 (the window fallback), clamp
+  output ≤ 120_000 − 4_096 (the workaround's verified shape,
+  tmp/repro6_workaround.rb); (ii) no env, id in no table: wire 0/0 and
+  the request max value `== 1` — the declared no-entry fallback (the
+  Face-2 shape, now confined to entry-less boots; Grounds §4-b).
+- **P3 the Face-2 regression bar at the REAL boot**
+  (test/launcher_smoke_test.rb, real `bin/tart -p` subprocess, staged
+  HOME, MockLLMServer): (i) catalog leg — staged `~/.tart/models.json`
+  (provider `mock`, baseUrl = the mock server, model `glm-5.3`
+  contextWindow 131_072 maxTokens 131_072, `default: "mock/glm-5.3"`),
+  NO context-window env: the captured request's max value is an Integer
+  in `(120_000, 131_072]` — never 1 (the harness prompt's estimate is
+  checkout-depth-sensitive, so the range is the path-robust exact bar;
+  Face 2 sends exactly 1 — five orders of magnitude of discrimination);
+  (ii) no-entry leg — no models.json, `PI_MODEL=custom-x
+  PI_PROVIDER=openai` (env-tier boot), no context-window env: the
+  request max value `== 1` (today's chain, pinned at the real boot).
+- **P4 the Face-1 bar** (test/agent_loop_test.rb):
+  `Loop#switch_model("glm-5.3", provider: "zai", context_window:
+  131_072, max_tokens: 131_072, compat: <zai>)` → wire carries both; the
+  clamped send value `<= 131_072` (the 985K face can never recur) and
+  `> 1`.
+
+**D10 — the wire-value gate (the deliverable's parity pin).**
+
+NEW gate `zai-max-tokens-wire` (declared-RED at base with the measured
+numbers, Grounds §2): run s1 via the rig, parse BOTH apps' first request
+bodies, assert `max_completion_tokens` is EQUAL across apps AND `== 512`
+(the staged catalog cap: min(512, 32768 − est − 4096) = 512 both sides).
+At base tart sends 27841 — the gate is the defect made mechanical; after
+the cure it is the parity pin (tart's byte == pi's byte).
+
+### Boundaries
+
+MUST-NOT (the judge's tripwires): no `repos/fast-llm` change of ANY kind
+(owner ruling); no rig `runner.rb`/`scenario.rb`/`registry.yml`/golden
+edits (the rig already stages the catalog both sides); no new wire keys,
+no key-order change — the request body's key set/order is byte-frozen,
+only the existing max key's VALUE moves (the declared deviation); no
+`Settings.resolve_context_window` reorder (env/settings stay above the
+catalog; its pins hold); no `Models.wire_model` fallback change (the
+no-entry chain; settings_test's helper pin holds); no catalog-load
+defaulting (`Shapes::Model#to_h` DECLARED pin holds); no `agent/
+session.rb` recorder/session-entry changes (ENTRY B's surface); no gem
+clamp arithmetic touched; no new runtime deps; no Thread.new; the
+`compat:` threading (I46) and the thinking-facts seams stay
+byte-unchanged. Standing battery: all 25 standing gates green cold; the
+s7/s8 tiny-window scenarios send 1 from BOTH apps before and after
+(verified — the clamp floors at available), no golden moves.
+
+### Lane plan
+
+ONE lane `core` — bin/tart + agent/loop.rb + models.rb are one
+co-designed threading chain, and the re-pins touch the same files; no
+disjoint file sets are provable (I54-I58 single-lane precedent).
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision zai-max-tokens`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - bin/tart
+    - lib/tart/agent/chat.rb
+    - lib/tart/agent/loop.rb
+    - lib/tart/models.rb
+    - lib/tart/print.rb
+    - lib/tart/render/chat.rb
+    - test/agent_loop_test.rb
+    - test/chat_test.rb
+    - test/launcher_smoke_test.rb
+    - test/models_test.rb
+  effort: high
 ```
+
+### Tool guidance (exact verification)
+
+- Battery (standing 25 + 3 new gates; assembled programmatically in
+  `build/i59-spec/gates.yaml` by `build/i59-spec/assemble-gates.rb` from
+  I58's frozen block — FIRST ```gates fence only; digests comm-checked,
+  zero strays; render-perf-units + render-perf-probe promoted standing;
+  threads-budget rebased 41f0a5f→9b04d0d).
+- The spec-time measurement artifacts (base 9b04d0d, this session):
+  `repos/tart/tmp/i59-spec-wire/` — run-1 tart/pi requests jsonl (the
+  27841-vs-512 record); repros `tmp/repro_max_tokens_20261014.rb`,
+  `tmp/repro5_wire.rb`, `tmp/repro6_workaround.rb` (offline,
+  deterministic — run them; do NOT burn live z.ai credits, a live
+  rig/live-API check is NOT required).
+- NEVER hand-transcribe digest literals; gates are assembled from I58's
+  frozen block.
+- The rig gate env prefix (`env -u HERDR_ENV -u HERDR_TAB_ID -u
+  HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u
+  HERDR_PANE_ID`) is mandatory on every rig invocation.
+
+### Effort
+
+Model zai/glm-5.3-flash, effort HIGH (a boot-chain threading change with
+frozen precedence rulings, a declared wire-value deviation to defend,
+and subprocess-level regression bars; the Face-1/Face-2 discrimination
+needs the care).
 
 ## Acceptance Criteria
 
