@@ -2553,6 +2553,13 @@ project:
       - test/schemas_test.rb
       - test/shapes_test.rb
       - test/strict_sampling_test.rb
+      base_sha: 195ae97baf2e438bdc64170c618eb9a02a0b2c80
+      worktree: build/I64-strict-sampling-integration-core/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: 327b29cef7252937cc572dc89c760b99a2a25dc799f48097095bf13ba2d40291
       at: '2026-10-15T18:21:03-06:00'
