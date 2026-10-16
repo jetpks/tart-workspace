@@ -1021,11 +1021,136 @@ one-line run instruction verbatim.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I64-strict-sampling-integration-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence strict-sampling-integration --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# I64 strict-sampling-integration — lane `core` Builder Report (raw results)
+
+Worktree: `build/I64-strict-sampling-integration-core/wt` on `lane/I64-strict-sampling-integration-core`, base tart `project/pi-port` @ `195ae97`.
+Gem source: canonical `repos/fast-llm` @ `7568589` (fast-completions 0.3.0). pi source of record @ `f1b2e77f5`.
+No-commit check: `git log 195ae97..HEAD --oneline | wc -l` → `0`.
+
+## Files added/changed (15 = the declared touch set)
+
+```
+M  Gemfile                                  (pin 0.2.0 → 0.3.0; path form + comment byte-identical)
+M  Gemfile.lock                             (fast-completions (0.3.0) ×3; remote stays ../fast-llm/gems/completions; no other dep moved)
+M  gems/tui-split-rig/test/registry_test.rb (SANCTIONED_NON_PATH + error-transcript-row-tail + pi-bug-report-hint)
+M  lib/tart/models.rb                       (dialect_for zai arm threads supports_strict_mode; build_compat six keys)
+M  lib/tart/schemas/models.rb               (boolean trio → quartet incl supportsStrictMode; comment amended)
+M  lib/tart/shapes/model.rb                 (ModelCompat attribute :supports_strict_mode after zai_tool_stream)
+M  lib/tart/tools/bash.rb                   (string-keyed PARAMETERS_SCHEMA; constrained_sampling prefer)
+M  lib/tart/tools/edit.rb                   (string-keyed throughout incl items; constrained_sampling prefer)
+M  lib/tart/tools/read.rb                   (string-keyed; constrained_sampling prefer)
+M  lib/tart/tools/write.rb                  (string-keyed; constrained_sampling prefer)
+M  test/agent_loop_test.rb                  (compaction-summary mock script gains a SECOND :error 500)
+M  test/models_test.rb                      (owner-catalog + six-key partial + /dialect/ 14th-key re-pins + 3 new /strict/ tests)
+M  test/schemas_test.rb                     (reject-table supportsStrictMode line; accept rows true/false/nil)
+M  test/shapes_test.rb                      (nil-default read + set/get + to_h round-trip)
+?? test/strict_sampling_test.rb             (NEW — the D5 home: mock-wire pair, loud pins, compat-flow units)
+```
+
+## Full suite
+
+`bundle exec rake test` (repo root, `env -u FAST_COMPLETIONS_PATH` relative resolution staged — see lock-deps note):
+
+```
+1179 runs, 5591 assertions, 0 failures, 0 errors, 1 skips
+```
+
+(base was 1168 runs / 1 failure / 1 skip: +11 runs = 8 strict_sampling + 3 models /strict/; the base failure was I60's E-2 registry pin — repaired by the D6 sanction.)
+
+## New gates (frozen forms)
+
+```
+$ bundle exec ruby -Ilib -Itest test/strict_sampling_test.rb
+8 runs, 76 assertions, 0 failures, 0 errors, 0 skips
+
+$ bundle exec ruby -Ilib -Itest test/models_test.rb -n "/strict/"
+3 runs, 10 assertions, 0 failures, 0 errors, 0 skips
+```
+
+## lock-deps (rebased)
+
+```
+LOCK_DEPS_OK
+GEM_LOAD_OK
+```
+
+Command set: gemspec ruby_llm grep (absent) → Gemfile pin grep `gem "fast-completions", "0.3.0"` (hit) → path-form grep (hit) → `env -u FAST_COMPLETIONS_PATH bundle install --quiet` → lock regex `^    fast-completions \(0\.3\.0\)` (hit; ruby_llm/faraday* absent) → `require "fast/completions"; require "tart"` loadable.
+Worktree-layout staging (disclosed per kit): the relative default `../fast-llm/gems/completions` cannot resolve from a provisioned worktree; a sibling symlink `build/I64-strict-sampling-integration-core/fast-llm → repos/fast-llm` was created (scratch space, outside the repo, never committed) so the `env -u` step resolves the canonical relative default and the lock's `remote:` stays byte-identical (`../fast-llm/gems/completions`). `git diff Gemfile.lock` touches ONLY the three fast-completions version lines.
+
+## Mock-wire capture — four sha256s as landed (sha256 over JSON.generate(parameters), live capture through Agent::Chat + MockLLMServer, zai fixture w/ supportsStrictMode:true + tolerated supportsStore)
+
+```
+bash  strict=true  a6c8a972736069994badf4f85cacae7549ef564697f8fc77cc693c1b392ca254
+read  strict=true  bfce07b51dfaa08d4a4c61b22f5f4efcb8f8bb89cc49baf6e834ac67eae45ad3
+edit  strict=true  e34ab9c2d955de1b60ffb86f5caa961f15626ccdd219ca07425e8f8fecfe3b9c
+write strict=true  b0b84973437c1ee95fa804c3637831939aa776f6daead968a3621848b845833c   <-- see disagreement I-1
+ls    strict=false ad4ee18683e9c3d6bfa7969709a0683bc9f896099ed6a74db0b6c49444718a0c   (verbatim parameters)
+```
+Function-object key order on all five: `["name", "description", "parameters", "strict"]`; `tool_stream=true`.
+
+## Wire-delta smoke (s1 rig at the lane tree)
+
+```
+tools digest:       7360fd1ec6419b5f9966c3067588314cdd0d29231a78346443a0002923c23707   EXACT (raw)
+instruction digest: 2faaf667477fec9cdf0433d1ffe1cce4ee146c3b826185b5b7db3fd116b14056   EXACT (modulo checkout path)
+full checker:       WIRE_DELTA_OK (checkout-path-normalized)
+```
+The system prompt embeds the checkout cwd; the frozen instruction digest was measured at the canonical `repos/tart` path. Raw at this worktree: `6a6b75c8…`; after `.sub("<this worktree>", "<repos/tart>")`: exactly `2faaf667…`. Control at pristine base+pin (different worktree path): raw `77148cca…` — same path-dependence, unchanged by the lane. The rig process itself exits 1 on `unknown-candidate: 2` (see environment-drift note) while completing pi:ok 1/1, tart:ok 1/1.
+
+## Standing battery raw results at the lane tree
+
+```
+bench:                 SEAM_BENCH_OK
+zai-data:              ZAI_DATA_OK (dialect pins 2 runs)
+scope:                 SCOPE_OK (14 tracked files, exactly the declared set + the new test file)
+threads-budget:        THREADS_BUDGET_OK
+session-golden:        SESSION_GOLDEN_OK (all 7 digests exact)
+thinking-pins:         THINKING_PINS_OK (agent_loop=18 runs, settings=9 runs)
+hermeticity:           HERMETICITY_OK (launcher=10 runs, e2e=4 runs)
+tool-pending-gate:     TOOL_PENDING_GATE_OK
+user-bash-stream-gate: USER_BASH_STREAM_GATE_OK
+zai-max-tokens-units:  ZAI_MAX_TOKENS_UNITS_OK (4/2/2 runs)
+zai-max-tokens-wire:   ZAI_WIRE_OK tart=pi=512 (rig ec=1, drift class)
+error-transcript-units:        ERROR_TRANSCRIPT_UNITS_OK (5/2 runs)
+error-transcript-render-units: ERROR_TRANSCRIPT_RENDER_UNITS_OK (4/3 runs)
+render-perf-units:     7 runs, 29 assertions, 0 failures, 0 errors, 0 skips
+render-perf-probe:     RENDER_PERF_OK
+s1-tart-mode:          TART_MODE_OK (rig ec=1, drift class; tart completed 1/1)
+s2_tool_turn:          pi:ok2/2 tart:ok2/2, unknown-candidate:3 = banner drift
+s3_tool_turn_files:    pi:ok3/3 tart:ok3/3, unknown-candidate:4 = banner drift
+s4_bash_variants:      pi:ok3/3 tart:ok3/3, unknown-candidate:2 = banner drift
+s5_bash_truncation:    pi:ok2/2 tart:ok2/2, unknown-candidate:4 = banner drift
+s6_long_calls:         pi:ok3/3 tart:ok3/3, unknown-candidate:3 = banner drift
+s7_compaction:         pi:ok2/2 tart:ok2/2, unknown-candidate:3 = banner drift
+s8_zero_usage_compaction: pi:ok2/2 tart:ok2/2, unknown-candidate:4 = banner drift
+s9_startup_help:       pi:ok1/1 tart:ok1/1, unknown-candidate:2 = worktree-path truncation lines
+s10_editor_wrap:       pi:ok1/1 tart:ok1/1, unknown-candidate:4 = banner drift
+s17_edit_tool_bg:      S17_PARITY_OK (rig ec=1, drift class)
+s18_error_transcript:  RED as declared by AC5 (ratified hint-cut shape); pi:ok1/1 tart:ok1/1; sanctioned classes classify (error-transcript-row-tail:2, pi-bug-report-hint:1) + 4 drift unknowns
+```
+
+### Environment-drift adjudication (rig ec=1 class)
+
+Every rig exit-1 above carries `unknown-candidate` rows `["- ▀▀█  v1.2.0", "+ ▀▀█  v1.1.0"]` (s9: worktree-path truncation rows, same class). Root: the INSTALLED pi binary moved to v1.2.0 after I60; tart prints its pinned oracle version (`lib/tart/identity.rb:29 ORACLE_VERSION = "1.1.0"`; file untouched by the lane — out of bounds). CONTROL: a throwaway pristine-base worktree (195ae97 + ONLY the D1 pin bump, `build/i64-ctl/wt`) reproduces s1 identically: `ec=1`, `classes={"unknown-candidate"=>2, ...}`, same candidate rows. All app completions, request parities, styled/replay row assertions, and wire assertions hold. Env-class per the I59/I60 adjudication pattern; not lane-caused.
+
+## PHASE 0 disagreement table
+
+| # | Frozen claim | Source-of-record reading | Resolution |
+|---|---|---|---|
+| I-1 | Grounds freeze the write rewrite digest `e7565c49119b3f73f0c3f436e460d689a19a0724283ef7a11c4bdc2965416f43` (Grounds "Expected strict bytes"; AC4) | `lib/tart/tools/write.rb:23` declares `"Path to the file to write (relative or absolute)"`. The spec session's surviving probe `tmp/e2-spec/expected-rewrites.rb:24` transcribed `"Path to the file to write to (relative or absolute)"` (extra "to"). Their probe reproduces `e7565c49…`; the landed engine applied to the ACTUAL declared schema yields `b0b84973437c1ee95fa804c3637831939aa776f6daead968a3621848b845833c`. | Implemented the source-of-record reading: D4's byte-preservation of the file's descriptions governs (pinning `e7565c49…` would require CHANGING the description = a non-strict wire-byte move, a deeper freeze violation). test/strict_sampling_test.rb pins `b0b84973…` for write and carries a why-comment; bash/read/edit reproduce the frozen `a6c8a972…`/`bfce07b5…`/`e34ab9c2…` exactly. FLAGGED LOUDLY here. |
+| I-2 | Kit at-base vector: rig gates "RED for THE PIN CLASS … their bar is GREEN at the lane tree" | The pi v1.2.0 banner drift (above) postdates the kit; rig gates exit 1 at the lane tree AND at the pristine-base control for the same environmental reason. | Recorded as environment-class; every underlying assertion (completions, parity rows, wire digests) verified green. No code consequence. |
+
+No other disagreements: the four pi tags verified byte-exact (bash.ts:260, read.ts:101, edit.ts:156, write.ts:57, all `{ type: "json_schema", strict: "prefer" }`; wrapper passthrough only); the gem DSL/dialect-14th-key/apply_tools seams verified at tool.rb:40-53, dialects.rb:47-48, protocol.rb:81-97; the symbol-key silent-inert hazard reproduced (resolver → nil on symbol-keyed root, → true on string-keyed); all frozen digests/digest-legs otherwise exact.
+
+## D7 — the live A/B vehicle (owner-run; the lane never executes it)
+
+Script: space `tmp/e2-spec/repro_strict_sampling.rb`, sha256 `d2d5b8bf25202f79c0f006667b91095a69faaee4b563b7b6f8b7579f05dcfbd3` (AC6-exact; LIVE_SCRIPT_OK gate green: syntax-ok, reads env ZAI_API_KEY, no secrets, carries the CARRIES-timeout marker). Run instruction, verbatim:
+
+`cd <space>/repos/tart && ZAI_API_KEY=<key> bundle exec ruby <space>/tmp/e2-spec/repro_strict_sampling.rb`
+
+STATUS: COMPLETE_WITH_CONCERNS
 
 ## Verdict
 
