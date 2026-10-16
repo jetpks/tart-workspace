@@ -2560,6 +2560,7 @@ project:
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 01107c086cc24caa522aca188cd4d23dbe5a544e
     rehearsal:
       gates_digest: 327b29cef7252937cc572dc89c760b99a2a25dc799f48097095bf13ba2d40291
       at: '2026-10-15T18:21:03-06:00'
