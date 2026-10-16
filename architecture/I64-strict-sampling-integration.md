@@ -196,35 +196,236 @@ pre-landing — the owner-run script is the probe.
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section strict-sampling-integration specification --from <file>`. -->
+### Objective
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+Make tart consume the landed gem's strict machinery end-to-end (the consumer
+half of the `problems.md` @ 1b69ddb fix): the four pi-tagged core tools
+declare `constrained_sampling` json_schema/"prefer" with STRING-KEYED
+schemas, the registry's `supportsStrictMode` compat flows live object →
+parsed model → Dialect → wire, the strict-rewritten declarations + `strict:
+true` reach strict-capable providers while EVERY non-strict wire byte stays
+frozen, and the owner's live A/B vehicle is in place (script + instruction;
+the live run is the owner's landing step per the supervisor ruling).
+
+### The contract (one lane)
+
+**D1 — the pin bump + lock (Gemfile :12, Gemfile.lock).** `gem
+"fast-completions", "0.2.0"` → `gem "fast-completions", "0.3.0"` — the
+version the landed source declares (fast-llm project/pi-port @ 7568589;
+supervisor ruling 2026-10-16); the `path: ENV.fetch(...)` form and comment
+block stay byte-identical; `Gemfile.lock` re-locked (fast-completions 0.3.0
+path entry). NO other dependency moves. The owner's future 0.4.0 hand-cut is
+followed by their mechanical re-pin commit (out of this lane; I61 precedent).
+
+**D2 — the compat carry (schemas/models.rb, shapes/model.rb, models.rb).**
+Three edits, one flow:
+- `Schemas::Models` compat validation (schemas/models.rb :117-129): the
+  boolean trio `%w[supportsDeveloperRole supportsReasoningEffort
+  zaiToolStream]` becomes a quartet adding `supportsStrictMode` — nil passes,
+  true/false pass, anything else fails `expected a boolean` on the same
+  `compat.supportsStrictMode` key line (the enumerated reject-table shape).
+  The :104-108 comment is AMENDED (supportsStrictMode now CARRIED;
+  supportsStore remains the tolerated-and-dropped example). Unknown compat
+  keys stay tolerated (pi additionalProperties:true).
+- `Shapes::ModelCompat` (shapes/model.rb): gains `attribute
+:supports_strict_mode, Types::Strict::Bool.optional.default(nil)` — appended
+AFTER `zai_tool_stream` (the struct's declaration order is the documented
+carry order; nil default, omittable, reads nil like the five).
+- `Models.build_compat` (models.rb :272-285): gains `supports_strict_mode:
+raw["supportsStrictMode"]`; the comment's "five carried keys" arithmetic
+becomes six.
+
+**D3 — the Dialect thread (models.rb `dialect_for` :166-180).** The ZAI ARM's
+`Fast::Completions::Dialect.new(...)` gains `supports_strict_mode:
+compat.supports_strict_mode == true` (nil/false/absent → false — pi
+detectCompat's "OpenAI compatibility alone does not imply it"). The frozen
+`DEFAULT_DIALECT` singleton (:184) is UNTOUCHED — compat-less and non-zai
+models keep today's bytes verbatim. **Declared boundary (itemized):** a
+non-zai compat declaring `supportsStrictMode` is tolerated-and-dropped
+(I46's frozen only-zai-arms shape; pi's getCompat would thread it — recorded
+divergence + known unknown, no such catalog entry exists).
+
+**D4 — the four declarations + the string-key conversion
+(lib/tart/tools/{bash,read,edit,write}.rb).** Each of the four gains, beside
+its `pi_name`/`parameters` declarations: `constrained_sampling({"type" =>
+"json_schema", "strict" => "prefer"})` — EXACTLY pi's tag (bash.ts :260,
+read.ts :101, edit.ts :156, write.ts :57). Each `PARAMETERS_SCHEMA` constant
+converts to STRING keys throughout (top-level `type`/`properties`/`required`
+AND nested `type`/`description`/`items` — the gem engine reads string keys;
+symbol keys make "prefer" silently inert, Grounds). The `parameters
+PARAMETERS_SCHEMA.dup` declaration lines stay as-is. NO other tool declares
+`constrained_sampling` (Find/Grep/Ls/ContactSupervisor/Memory/Subagent/
+Mcp::Tool stay undeclared — pi tags nothing else; itemized in Grounds).
+Descriptions, property names, required lists, and key ORDER are
+BYTE-PRESERVED (JSON.generate serializes the converted constants
+identically — the non-strict wire is frozen).
+
+**D5 — the new test home (test/strict_sampling_test.rb).** One file, three
+groups:
+1. **The mock-wire pair (the recorded-wire gate).** Using `MockLLMServer` +
+   the real `Tart::Agent::Chat` stack (the chat_test pattern): a zai-shaped
+   fixture model (inline models.json JSON → `Models.load` → entry →
+   `wire_model` — the FULL flow; compat mirrors the owner's live object
+   including `supportsStrictMode: true` and a tolerated `supportsStore`) with
+   the five-tool loadout bash/read/edit/write/ls; drive one request; capture
+   the body. Pin: bash/read/edit/write function objects carry `"strict" =>
+true` with parameters EXACTLY the Grounds-frozen rewrites (hash equality +
+the four sha256s over `JSON.generate(parameters)`); `ls` carries `"strict" =>
+false` with parameters verbatim-equal to its declared (parsed) schema; the
+`strict` key sits right after `parameters` in the function-object key order;
+`tool_stream: true` rides the request (the zai arm). The control: a
+compat-less model (today's fireworks/mock shape) through the same loadout —
+NO function object carries a `strict` key; every parameters hash is
+verbatim-equal to its declared schema (the byte-freeze proof at the unit
+seam).
+2. **The loud string-key/resolution pins.** For each of the four:
+   `Fast::Completions::ConstrainedSampling.resolve_json_schema_strict_sampling(
+tool, true) == true` (returns nil on re-symbolized schemas — FAILS LOUD),
+   `parameters.keys.all?(String)`, and `parameters["type"] == "object"`.
+   Plus the untagged inventory pin: every OTHER Tart tool class enumerated
+   (Find, Grep, Ls, ContactSupervisor, Memory, Subagent) reads
+   `constrained_sampling` nil, and a fresh `Mcp::Tool` instance reads nil.
+3. **The compat-flow units.** models.json fixture with supportsStrictMode →
+   `ModelCompat#supports_strict_mode == true` → `Models.dialect_for(compat).
+   supports_strict_mode == true` → `wire_model(...).dialect.
+   supports_strict_mode == true`; absent/nil/false → false; the non-zai
+   strict boundary pinned (a `thinkingFormat: nil` compat with
+   `supports_strict_mode: true` still yields DEFAULT_DIALECT — the frozen
+   arm); `DEFAULT_DIALECT.supports_strict_mode == false`.
+
+**D6 — the re-pins (itemized, not silent).**
+- `test/models_test.rb`: the owner-catalog test (:123-143) gains
+  `assert_equal true, compat.supports_strict_mode` and its :136 message drops
+  supportsStrictMode from the "unknown" list; the five-key partial test
+  (:146-157) gains the nil assert + its name's "five" arithmetic updated;
+  the dialect tests (the `/dialect/` set the zai-data gate runs) re-pin their
+  `to_h`/Dialect expectations with the 14th key (zai arm true, default false).
+- `test/schemas_test.rb`: the compat reject table (:91-103) gains the
+  supportsStrictMode non-boolean line; an accept case (boolean passes).
+- `test/shapes_test.rb`: the ModelCompat block (:68-80) gains the
+  new-attribute nil-default read + a set/get round-trip.
+- `test/agent_loop_test.rb` :1304-1320: the compaction-summary-fails mock
+  script gains a SECOND `{type: :error, status: 500, ...}` entry (I62's
+  retry default consumes one script entry per attempt — both attempts now
+  fail; the test's assertions otherwise unchanged). The I62 retry behavior
+  itself is NOT touched (ruled gem-default at I62; `max_retries: 0` restores
+  and is NOT taken here).
+- `gems/tui-split-rig/test/registry_test.rb` :17: `SANCTIONED_NON_PATH`
+  gains `"error-transcript-row-tail"` + `"pi-bug-report-hint"` (I60's OQ-1
+  ratified classes; the deferred integrator ratification — makes the suite
+  green at freeze).
+- `test/bash_tool_test.rb`, `test/chat_test.rb`: NO changes expected (no
+  PARAMETERS_SCHEMA references exist — grep-verified; if the lane finds one,
+  PHASE 0-disclose it, don't silently bend).
+
+**D7 — the live A/B vehicle (pre-made by the spec; the lane copies NOTHING).**
+The script exists at space `tmp/e2-spec/repro_strict_sampling.rb` (spec-made,
+sha256 frozen in AC): drives TART'S OWN stack (Models.load-shaped zai model
+with the owner-catalog compat → wire_model → Agent::Chat with the four
+tagged tools), one live turn against api.z.ai reading ZAI_API_KEY from the
+env at runtime, prints the outgoing bash parameters digest + the assistant's
+tool_call arguments, exits 0 iff the bash call CARRIES a numeric `timeout`;
+ZERO secrets in any file. The lane's Builder Report carries the one-line run
+instruction verbatim; the live run is the OWNER's landing step (env-class,
+I59/I46 precedent; the verdict does not block on it).
+
+### Named exclusions (Constraints, itemized)
+
+- NO gem edits (repos/fast-llm out of bounds entirely): the lane CONSUMES the
+  landed API; if the API proves wrong, PHASE 0-disagree with the ENTRY 1/I63
+  verdict cited — never fork the machinery in-lane.
+- NO non-strict wire byte moves (the fireworks/mock parity is byte-frozen):
+  the standing wire-delta gate's `7360fd1e…` tools digest + instruction
+  `2faaf667…` + session goldens must hold EXACT; D4's conversion is
+  serialization-neutral by construction and D5's control pins it.
+- NO release, NO version bump beyond D1's pin (the 0.4.0 cut + re-pin are the
+  owner's); NO new gem dependencies; Gemfile.lock changes ONLY as the pin's
+  lock consequence.
+- NO strict emission for undeclared tools on non-strict dialects (the gem's
+  D4 discipline, untouched); NO reordering of the four schemas' keys (pi's
+  TypeBox order is a delta-audited standing divergence — reordering breaks
+  the freeze).
+- NO grammar half, NO provider detection, NO dialect vocabulary growth (gem
+  boundaries, I63); the non-zai strict arm stays dropped (D3 boundary).
+- NO changes to the rig scenarios/registry, render, session, compaction
+  behavior, subagents, MCP, or hooks beyond D6's enumerated re-pins; builders
+  never commit; the lane never touches the space repo.
+
+### Output format
+
+The lane reports raw results only: files added/changed; the full suite line
+(`bundle exec rake test` runs/assertions/failures/errors/skips); the new
+gates' outputs (strict-wire, strict-compat — runs + failures); the lock-deps
+rebased gate output; the mock-wire capture's four sha256s as landed; the
+PHASE 0 disagreement table (if any) with file:line cites both sides; and the
+D7 one-line run instruction verbatim.
+
+### Tool guidance
+
+- Repo: `repos/tart`, base `project/pi-port` @ `195ae97`; integration target
+  `project/pi-port`. Suite: `bundle exec rake test` (base measured 1168/1F —
+  the E-2 registry pin; with D1+D6 applied the lane must be FULLY green).
+- **Gem environment (load-bearing):** the canonical `repos/fast-llm` checkout
+  is ON `project/pi-port` @ 7568589 (fast-completions 0.3.0 + strict) — work
+  from the repo root with `FAST_COMPLETIONS_PATH` UNSET (the relative default
+  `../fast-llm/gems/completions` resolves it) or explicitly pointed there;
+  never at a v0.2.0-era tree (bundler fails, Grounds).
+- Single-test runs: `bundle exec ruby -Ilib -Itest <file> [-n "/token/"]`
+  (the zai-data gate form). Mock: `test/support/mock_llm_server.rb`
+  (captured request bodies on `captured_requests`/`requests`).
+- pi source of record: `repos/pi` @ `f1b2e77f5` (the four tool tags; zai.json
+  glm compat). Gem API: fast-llm @ 7568589 `constrained_sampling.rb`,
+  `tool.rb` :38-48, `dialects.rb`, `protocol.rb` :81-97 — cite line numbers
+  in code comments as the existing files do.
+- Do NOT burn live z.ai credits from the lane: D7's script is OWNER-run; the
+  lane never executes it against the live endpoint.
+
+### Boundaries
+
+- Lane may touch (repo `tart`): the 12 files of the lanes block below.
+  OUT OF BOUNDS: `repos/fast-llm` (any change), `lib/tart/mcp/**`,
+  `lib/tart/agent/**` (the Chat seam is the gem's — no tart change needed;
+  the compat threads through `wire_model` by construction), `lib/tart/
+  settings.rb`, `bin/tart`, every rig scenario + `gems/tui-split-rig/
+  registry.yml`, `test/support/mock_llm_server.rb`, all session goldens and
+  frozen digests, and the space repo.
+- The four `PARAMETERS_SCHEMA` constants' BYTES-on-the-wire are frozen: the
+  conversion must be provably serialization-neutral (D5's control + the
+  standing wire-delta gate).
+
+### Lane plan
+
+One lane — one flow, one test home, one pin.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision strict-sampling-integration`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - Gemfile
+    - Gemfile.lock
+    - gems/tui-split-rig/test/registry_test.rb
+    - lib/tart/models.rb
+    - lib/tart/schemas/models.rb
+    - lib/tart/shapes/model.rb
+    - lib/tart/tools/bash.rb
+    - lib/tart/tools/edit.rb
+    - lib/tart/tools/read.rb
+    - lib/tart/tools/write.rb
+    - test/agent_loop_test.rb
+    - test/models_test.rb
+    - test/schemas_test.rb
+    - test/shapes_test.rb
+    - test/strict_sampling_test.rb
+  effort: high
 ```
+
+### Effort call
+
+`high` — a cross-layer contract change (registry schema → shapes → dialect →
+tool declarations → wire) with a byte-freeze bar on every non-strict path, a
+mandated silent-failure-eliminating conversion, gem-behavior re-pins pulled
+in by the pin bump, and the iteration's evidence gate living in a new
+mock-wire harness — not a routine lane.
 
 ## Acceptance Criteria
 
