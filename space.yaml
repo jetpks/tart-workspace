@@ -2533,7 +2533,7 @@ project:
     ordinal: 64
     file: architecture/I64-strict-sampling-integration.md
     freeze_sha: 0333fcc7e95adc550d9dce326744b8cd0dc50ada
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart

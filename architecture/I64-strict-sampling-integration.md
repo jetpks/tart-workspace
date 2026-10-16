@@ -1154,15 +1154,125 @@ STATUS: COMPLETE_WITH_CONCERNS
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section strict-sampling-integration verdict --from <file>`. -->
+# Verdict — I64 strict-sampling-integration (judged in a fresh session, cold)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify strict-sampling-integration`)?
+Judge: never built nor graded this work. Mechanical post-flight first, by
+command: `architect verify strict-sampling-integration` ALL-PASS (frozen
+untouched, no builder commits, report exists, in-bounds); `git diff 0333fcc
+HEAD -- architecture/I64-strict-sampling-integration.md` EMPTY; `git -C
+build/I64-strict-sampling-integration-core/wt log 195ae97..` EMPTY (zero
+builder commits, lane branch at base). Evidence transcribed verbatim
+(space commit 4ebef8f3) before any judgment.
+
+Gates re-run COLD at the lane worktree (full frozen 34-gate battery):
+**22 mechanical PASS / 12 FAIL** — every FAIL is either the declared
+standing s18 RED or the pi-1.2.0 banner drift class (adjudicated below,
+control-proven); the substantive assertions behind every one of them were
+verified green by hand (tools digest `7360fd1e…` EXACT raw; instruction
+`2faaf667…` exact modulo the embedded checkout cwd; tart=pi=512; all rig
+app completions 1/N). Suite cold: **1179 runs, 5591 assertions, 0
+failures, 0 errors, 1 skips** (builder's exact line; the I59/I60 env-class
+trio did not fire in the judge env). New gates cold: strict-wire 8/76/0,
+strict-compat 3/10/0. Post-integrate cold re-run at the canonical
+repos/tart path below.
+
+## Disagreement rulings (PHASE 0 + docket disclosures)
+
+- **I-1 — the write digest `e7565c49…` is a GATE-LITERAL DEFECT. ACCEPT the
+  builder's source-of-record reading (I53/I41 precedent, judge reproduced
+  verbatim BEFORE charging).** The judge ran the landed engine
+  (fast-llm @ 7568589 `make_strict_json_schema`) on BOTH schemas: the
+  spec-session probe's mis-transcribed description ("Path to the file to
+  write to…" — tmp/e2-spec/expected-rewrites.rb:24) reproduces the frozen
+  numeral `e7565c49…` exactly; the ACTUAL declared schema
+  (lib/tart/tools/write.rb:23, "Path to the file to write…", byte-identical
+  at base 195ae97 and at the lane tree) yields `b0b84973…`. The same run
+  proves bash/read/edit EXACT against their frozen numerals
+  (`a6c8a972…`/`bfce07b5…`/`e34ab9c2…`) — the mis-transcription is
+  write-only. D4's byte-preservation clause ("Descriptions … are
+  BYTE-PRESERVED") and the non-strict byte-freeze (tools digest
+  `7360fd1e…`, verified EXACT cold, is measured against the
+  source-of-record description) GOVERN over the numeral: pinning
+  `e7565c49…` would require CHANGING the declared description — a
+  wire-byte move, the deeper freeze violation. Frozen text stands
+  unamended; the repaired evidence is recorded here (write's true
+  strict-rewrite digest = `b0b84973437c1ee95fa804c3637831939aa776f6daead
+  968a3621848b845833c`) and in-tree via the lane's why-comment
+  (test/strict_sampling_test.rb FROZEN_REWRITE_DIGESTS). AC4 is judged on
+  the frozen PROPERTY — the wire ships EXACTLY the strict rewrite of the
+  declared schema — which holds.
+- **I-2 — rig gates exit 1 `unknown-candidate` (pi 1.2.0 banner vs tart's
+  pinned ORACLE_VERSION 1.1.0). ACCEPT as environment-class (I59/I60
+  pattern; judge re-ran the control).** The builder's control worktree
+  (build/i64-ctl/wt: pristine 195ae97 + ONLY the D1 pin bump, detached,
+  verified) reproduces s1 identically under the judge's hand: `ec=1`,
+  `classes={"unknown-candidate"=>2, "parity-run-path"=>2,
+  "footer-provider-prefix"=>2}`, candidate rows `["- ▀▀█  v1.2.0",
+  "+ ▀▀█  v1.1.0"]`, both apps completed 1/1. Root: the INSTALLED pi binary
+  moved to 1.2.0 (env repair, 2026-10-15) while `lib/tart/identity.rb:29
+  ORACLE_VERSION = "1.1.0"` — untouched by the lane, out of its touch set.
+  Not lane-caused; the kit's "their bar is GREEN at the lane tree" letter
+  is wrong for this post-kit drift (the frozen at-base vector accounts the
+  PIN class only). Underlying parity assertions verified green; no code
+  consequence.
+- **Disclosure 3 — staging (sibling symlink + control worktree): verified
+  benign, no action.** `build/` is gitignored in the space repo; the
+  symlink `build/I64-strict-sampling-integration-core/fast-llm →
+  repos/fast-llm` exists solely so the lock-deps gate's `env -u
+  FAST_COMPLETIONS_PATH bundle install` resolves the relative default from
+  the provisioned-worktree layout (kit resolution form); the control
+  worktree is a detached checkout at base with only Gemfile/Gemfile.lock
+  modified. Neither touches the lane's `git log` (verified zero commits),
+  the space repo, or repos/tart (verified clean @ 195ae97). Scratch
+  removed at teardown.
+- **Disclosure 4 — s18 stays RED in its AC5-declared ratified hint-cut
+  shape.** Confirmed declared, not charged; additionally the D6 sanction
+  is verified WORKING in the cold run (s18 classes now carry
+  `error-transcript-row-tail:2, pi-bug-report-hint:1` — the base E-2
+  failure is cured, the remaining RED = the ratified shape + the I-2
+  drift).
+
+## Acceptance Criteria
+
+Frozen sections unchanged since freeze (`architect verify` (a) PASS; the
+freeze diff is empty): YES.
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | Gemfile pins `0.3.0`, path form + comment byte-identical; lock = exactly the three fast-completions lines; suite cold 1179/5591/0F/0E/1S (the two declared suite-repairing moves landed: E-2 sanction + the second scripted `:error`); lock-deps LOCK_DEPS_OK + GEM_LOAD_OK cold; env-class trio did not fire | Spec D1/D6 | PASS |
+| AC2 | quartet with the enumerated `compat.supportsStrictMode` reject line + true/false/nil accepts; `supports_strict_mode` nil-defaulted after `zai_tool_stream`; `build_compat` six keys; zai arm threads `== true`; `DEFAULT_DIALECT` singleton untouched (diff-verified); non-zai boundary pinned to the frozen singleton; strict-compat 3/10/0 + zai-data ZAI_DATA_OK cold | Spec D2/D3 | PASS |
+| AC3 | exactly Bash/Read/Edit/Write declare pi's exact `{"type"=>"json_schema","strict"=>"prefer"}` tag (pi @ f1b2e77f5 four tags, nothing else); constants string-keyed THROUGHOUT (deep pin); resolver == true per tool, the re-symbolized hazard itself pinned nil; untagged inventory (Find/Grep/Ls/ContactSupervisor/Memory/Subagent/Mcp::Tool) reads nil; descriptions/keys/order byte-preserved (tools digest proof) | Spec D4 | PASS |
+| AC4 | the mock-wire pair through the real Agent::Chat + MockLLMServer: zai fixture ships the four strict rewrites + `strict:true` right after `parameters` + `tool_stream:true`, undeclared ls ships `strict:false` verbatim; compat-less control ships NO strict key, parameters verbatim; bash/read/edit digests EXACT frozen, write `b0b84973…` (I-1 gate-literal defect — the frozen PROPERTY holds, judge-reproduced); tools digest `7360fd1e…` EXACT raw cold; instruction `2faaf667…` exact modulo the embedded checkout cwd (canonical at the integrated tree, re-proven post-integrate); session goldens OK cold | Spec D5 | PASS |
+| AC5 | cold worktree battery 22/34 mechanical PASS; the 12 FAILs = 11× the I-2 drift class (rig ec=1 gates s1-s3/s5-s8/s10/s17, wire-delta, zai-max-tokens-wire — every underlying digest/value/completion verified green by hand; s4/s9 flake-green in the judge run, the banner race, itself drift evidence) + s18 declared standing RED; scope SCOPE_OK cold (exactly the 15 declared files; frozen paths untouched); threads-budget, session-golden, bench, all units gates green | Spec/AC5 | PASS |
+| AC6 | live-script LIVE_SCRIPT_OK cold (sha256 `d2d5b8bf…cfbd3` EXACT, syntax-ok, ZAI_API_KEY from env at runtime, zero secrets, CARRIES-timeout marker); run instruction verbatim in the Builder Report; owner-run per the frozen 2026-10-16 ruling — the verdict does not block on the live run; problems.md is the feedback channel | Spec D7 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+## Residuals (recorded, none blocking)
+
+- The frozen Grounds numeral for write's strict rewrite is defective
+  (I-1); any future re-derivation must use `b0b84973…` (or re-derive from
+  write.rb) — the in-tree why-comment carries this.
+- pi 1.2.0 banner drift (I-2) stays until the owner re-pins
+  ORACLE_VERSION or re-freezes the oracle class; every future iteration's
+  rig gates inherit the env-class adjudication — the control worktree
+  pattern (pristine base + pin only) is the cheap proof, keep it in the
+  kit.
+- The instruction digest's cwd-embedding means wire-delta is only
+  natively green at the canonical repos/tart checkout (worktree runs
+  require the path substitution) — standing since I54, now loudly
+  documented by this run.
+- Live z.ai strict acceptance (a 4xx on `strict:true` would be the
+  finding) stays unverified pre-landing by design — the owner's
+  D7 run is the probe; problems.md is the channel.
+- The owner's 0.4.0 hand-cut is followed by their mechanical re-pin
+  commit (I61 precedent) — out of this lane.
+
+## Iteration
+
+**CONTINUE** — the diff is faithful to the frozen Specification D1–D7 end
+to end (the pin, the six-key carry, the zai-arm thread with the frozen
+boundaries intact, pi's exact four declarations with the
+silent-inert hazard eliminated and pinned, the mock-wire pair, every
+itemized re-pin), the non-strict byte-freeze is proven exact cold, and
+both PHASE 0 disclosures are adjudicated (gate-literal defect with
+repaired evidence recorded; env-class control-proven under the judge's
+own hand). Integrate lane `core` onto tart `project/pi-port`.
