@@ -67,7 +67,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: strict-sampling-gem
+  current_iteration: strict-sampling-integration
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -2529,4 +2529,10 @@ project:
     rehearsal:
       gates_digest: 28f88f68ff7d871f88a0448d391c8cda6c90fb520da867eaf9d6b46ca048d42c
       at: '2026-10-15T16:51:37-06:00'
+  - name: strict-sampling-integration
+    ordinal: 64
+    file: architecture/I64-strict-sampling-integration.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
