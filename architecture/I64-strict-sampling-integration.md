@@ -904,10 +904,120 @@ finding).
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I64-strict-sampling-integration-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section strict-sampling-integration prompt --append --lane <lane> --from build/I64-strict-sampling-integration-<lane>/prompt.md`. -->
+### core
+
+You are the builder for iteration `strict-sampling-integration` (I64), lane
+`core`. Work ONLY in the provisioned worktree on branch
+`lane/I64-strict-sampling-integration-core` (base tart `project/pi-port` @
+`195ae97`); NEVER commit (the integrator lands your tree), NEVER touch the
+space repo, NEVER push, NEVER touch `repos/fast-llm` (the gem is the landed
+oracle — consume, never modify). The full iteration contract is the frozen
+Grounds/Specification/Acceptance Criteria in this file (verbatim below) —
+read them first; this header is the lane's operating brief. You are the
+ONLY lane.
+
+THE TASK IN ONE PARAGRAPH: make tart consume the landed gem's strict
+machinery end-to-end — (D1) the Gemfile pin `0.2.0` → `0.3.0` + re-lock
+(the landed source's declared version; the lane's FIRST act, nothing runs
+without it); (D2) `supportsStrictMode` CARRIED through the compat chain
+(schema validation boolean, `Shapes::ModelCompat#supports_strict_mode`
+nil-defaulted 6th attribute, `build_compat` picks it); (D3) `dialect_for`'s
+ZAI arm threads `supports_strict_mode:` into the Dialect (`compat.
+supports_strict_mode == true`; the frozen `DEFAULT_DIALECT` singleton and
+the non-zai arm UNTOUCHED); (D4) `Tart::Tools::{Bash,Read,Edit,Write}`
+declare `constrained_sampling({"type" => "json_schema", "strict" =>
+"prefer"})` with their `PARAMETERS_SCHEMA` constants converted to STRING
+KEYS THROUGHOUT (the gem engine reads string keys — symbol keys make
+"prefer" SILENTLY INERT, never ship that); (D5) the new
+`test/strict_sampling_test.rb` (the mock-wire pair + the loud pins + the
+compat-flow units); (D6) the six itemized re-pins (models/schemas/shapes
+tests, the agent_loop compaction-summary mock's SECOND `:error` entry, the
+registry_test `SANCTIONED_NON_PATH` one-liner); (D7) nothing — the live
+script is pre-made, you only carry its run instruction into your report.
+
+GEM ENVIRONMENT (load-bearing): the worktree's Gemfile resolves
+fast-completions through `FAST_COMPLETIONS_PATH` — export it pointing at
+the CANONICAL checkout `/Users/eric/architect/spaces/20261009-pi-port/
+repos/fast-llm/gems/completions` (fast-completions 0.3.0 + the strict
+machinery, branch `project/pi-port` @ 7568589) on EVERY bundle/rake/ruby
+invocation, or run from the repo root with it unset IF your cwd layout
+resolves `../fast-llm/gems/completions` there (a provisioned worktree does
+NOT — export it). Do NOT pin or point at any v0.2.0-era tree.
+
+PRE-MADE ARTEFACT (read-only for you): the live A/B script exists at space
+`tmp/e2-spec/repro_strict_sampling.rb` (sha256 `d2d5b8bf…cfbd3`, frozen in
+AC6) — you NEVER run it (no z.ai credits from the lane), NEVER copy it into
+the repo, NEVER edit it; its one-line run instruction goes VERBATIM into
+your Builder Report:
+`cd <space>/repos/tart && ZAI_API_KEY=<key> bundle exec ruby <space>/tmp/e2-spec/repro_strict_sampling.rb`
+
+FROZEN EXPECTATIONS (do not redesign; the frozen sections govern on any
+conflict):
+- The four strict-rewritten parameter shapes are PRE-COMPUTED and frozen in
+  Grounds (bash `a6c8a972…`, read `bfce07b5…`, edit `e34ab9c2…`, write
+  `e7565c49…`, sha256 over `JSON.generate(parameters)`); your wire test
+  pins hash equality AND those digests. Key order after the rewrite is
+  `[type, properties, required, additionalProperties]` (tart's declared
+  order preserved — do NOT reorder to pi's TypeBox order; that would break
+  the non-strict byte-freeze).
+- Non-strict wire bytes are FROZEN: the compat-less model ships NO strict
+  key with parameters verbatim; the standing wire-delta digest
+  `7360fd1e…` + instruction `2faaf667…` + session goldens must hold EXACT
+  at your tree. The string-key conversion is serialization-neutral by
+  construction — prove it with D5's control, don't assume it.
+- The untagged inventory is ITEMIZED (Grounds): Find/Grep/Ls/
+  ContactSupervisor/Memory/Subagent/Mcp::Tool stay undeclared — pin that
+  they read nil; do not "helpfully" tag anything else (pi tags exactly the
+  four).
+- The non-zai strict boundary is FROZEN (D3): a non-zai compat declaring
+  supportsStrictMode still rides DEFAULT_DIALECT (I46's only-zai-arms
+  shape) — pin it as a test, don't "fix" it.
+- I62's retry default (`max_retries: 1`) is NOT touched: the compaction
+  test re-pin adds a second scripted `:error` — take that path, never
+  `max_retries: 0`.
+- NO gem edits, NO new dependencies, NO rig scenario/registry changes, NO
+  changes to lib/tart/agent/** (the compat threads through `wire_model` by
+  construction — if you believe you need an agent/ change, that is a PHASE
+  0 disagreement, record it, don't do it).
+
+BUILD FREEDOM (layout only, behavior frozen): test example wording inside
+test/strict_sampling_test.rb (the file must contain the mock-wire pair, the
+loud pins, and the compat-flow units — group names yours), fixture shape
+inside the test (inline JSON or test/fixtures file — if you add a fixture
+file it enters the touch set via PHASE 0 disclosure), and the mock script
+driving details.
+
+VERIFICATION (run from the repo root with FAST_COMPLETIONS_PATH exported):
+- Full suite: `bundle exec rake test` — base is UNBUNDLABLE (the pin
+  defect — Grounds); at YOUR tree it must be FULLY green (0 failures, 0
+  errors — D6's two suite-repairing re-pins are in your touch set).
+- New gates (frozen forms): `bundle exec ruby -Ilib -Itest
+  test/strict_sampling_test.rb` and `bundle exec ruby -Ilib -Itest
+  test/models_test.rb -n "/strict/"` — both must report
+  `[1-9][0-9]* runs, … 0 failures, 0 errors`.
+- lock-deps (rebased): the 0.3.0 pin grep + lock regex + `env -u
+  FAST_COMPLETIONS_PATH bundle install` — note the `env -u` means the
+  canonical relative path must resolve from YOUR worktree: if it does not
+  (worktree layout), run that install step with the canonical checkout
+  staged so the relative default resolves — disclose which in the report.
+- Smoke the standing wire-delta gate (`gems/tui-split-rig/bin/tui-split-rig
+  run gems/tui-split-rig/scenarios/s1_text_turn.yml --out tmp/i54-wire` +
+  the digest ruby one-liner from the frozen block) at your tree before
+  reporting — the `7360fd1e…` digest is the byte-freeze proof.
+
+PHASE 0 PROTOCOL: before writing code, re-read the frozen Specification
+D1–D7 against the repos (tart @ 195ae97, fast-llm @ 7568589, pi @
+f1b2e77f5). If you believe a frozen claim misreads a source (the four pi
+tags, the gem DSL shape, the compat chain, the frozen digests), STOP,
+record the disagreement in your report (file:line cites both sides),
+implement YOUR reading of the source of record, and flag it loudly. Same
+for any gate you believe is vacuous or mis-authored.
+
+REPORT (raw results only, no narrative): files added/changed; the full
+suite line (runs/assertions/failures/errors/skips); the new gates' outputs;
+the lock-deps output; the mock-wire capture's four sha256s as landed; the
+wire-delta smoke result; the PHASE 0 disagreement table if any; and the D7
+one-line run instruction verbatim.
 
 ## Builder Report
 
