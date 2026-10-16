@@ -2532,7 +2532,28 @@ project:
   - name: strict-sampling-integration
     ordinal: 64
     file: architecture/I64-strict-sampling-integration.md
-    freeze_sha:
+    freeze_sha: 0333fcc7e95adc550d9dce326744b8cd0dc50ada
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - Gemfile
+      - Gemfile.lock
+      - gems/tui-split-rig/test/registry_test.rb
+      - lib/tart/models.rb
+      - lib/tart/schemas/models.rb
+      - lib/tart/shapes/model.rb
+      - lib/tart/tools/bash.rb
+      - lib/tart/tools/edit.rb
+      - lib/tart/tools/read.rb
+      - lib/tart/tools/write.rb
+      - test/agent_loop_test.rb
+      - test/models_test.rb
+      - test/schemas_test.rb
+      - test/shapes_test.rb
+      - test/strict_sampling_test.rb
+    rehearsal:
+      gates_digest: 327b29cef7252937cc572dc89c760b99a2a25dc799f48097095bf13ba2d40291
+      at: '2026-10-15T18:21:03-06:00'
   integration_branch: project/pi-port
