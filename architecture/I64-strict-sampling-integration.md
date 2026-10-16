@@ -837,7 +837,7 @@ finding).
     stdout_match: ERROR_TRANSCRIPT_UNITS_OK
 
 - id: error-transcript-render-units
-  ac: AC2
+  ac: AC5
   cwd: repos/tart
   cmd: |-
     bundle install --quiet
