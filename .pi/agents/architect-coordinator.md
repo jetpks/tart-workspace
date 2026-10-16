@@ -2,7 +2,7 @@
 name: architect-coordinator
 description: "Drives the space-architect loop: per iteration, spec, provision, builders, judge — until the plan is done or killed."
 tools: subagent, bg_wait, read, grep, find, ls, bash
-model: zai/glm-5.3-flash
+model: openrouter/z-ai/glm-5.3-flash
 thinking: high
 systemPromptMode: replace
 inheritProjectContext: true
