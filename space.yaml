@@ -2574,7 +2574,21 @@ project:
   - name: render-correctness
     ordinal: 65
     file: architecture/I65-render-correctness.md
-    freeze_sha:
+    freeze_sha: 6db5bcb263485fa7e96bf41750c8d0ef5ffec2cf
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - bin/tart
+      - lib/tart/render/chat.rb
+      - lib/tart/render/markdown.rb
+      - lib/tart/render/transcript.rb
+      - test/chat_test.rb
+      - test/launcher_smoke_test.rb
+      - test/markdown_test.rb
+      - test/render/transcript_test.rb
+    rehearsal:
+      gates_digest: d8d423d0191a66255ca15db17b55f7cbfa9985d5850656e8a8fc2ee417e57a6b
+      at: '2026-10-16T19:39:53-06:00'
   integration_branch: project/pi-port
