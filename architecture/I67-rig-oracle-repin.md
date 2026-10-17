@@ -422,22 +422,32 @@ labels re-mapped (suite/bench → AC6; every other carried member → AC5 —
 I66's AC1/AC2/AC3-labeled defect gates collapse onto AC5 as standing
 regression guards over the landed work).
 
-**The measured at-base vector (pre-declared; every member accounted).**
-GREEN at base: `suite` (measured this session), `bench` (measured), the
-20 I66-carried unit members (measured by the I66 landing at `25adab9` —
-the four I66 defect gates GREEN at base since their cures landed),
-`oracle-pin-state` (the pin performed by this spec session — a GUARD,
-not a lane deliverable), `s1-tart-mode` (the tolerant form: rig ec=1 by
-design + TART_MODE_OK — the pi pane completes under any oracle), and
-`scope` vacuous at the lane tree (HEAD == base). RED at base (the 15
-designed-RED members, by construction): `oracle-bin-units` (0 test names
+**The measured at-base vector (rehearsal #1, this session; every member
+accounted).** GREEN at base (29): `suite` (measured this session), `bench`
+(measured), the 20 I66-carried unit members (the four I66 defect gates
+GREEN at base since their cures landed at `25adab9`), `oracle-pin-state`
+(the pin performed by this spec session — a GUARD, not a lane
+deliverable), `s1-tart-mode` (the tolerant form: rig ec=1 by design +
+TART_MODE_OK — the pi pane completes under any oracle), and — MEASURED,
+not predicted — `s4`/`s9`/`s17`: their compared settled surfaces are
+version-insensitive, green under BOTH the 1.2.0 system oracle (base) and
+the pinned 1.1.0 oracle (the Grounds R3 drive); they carry as regression
+guards proving the oracle swap breaks nothing previously green. RED at
+base (12 designed-RED + 1 site-noise): `oracle-bin-units` (0 test names
 match `/oracle_bin/` — verified), `oracle-resolve`
-(`TuiSplitRig.resolve_pi_bin` does not exist — NameError), `s1`–`s10` +
-`s17` (the default resolution still consults PATH → the 1.2.0 system
-oracle → the version-banner unknown-candidate), `wire-delta` (the rig
-run fails first AND the instruction sha differs — tart's `<docs>` resolve
-the system install), `zai-max-tokens-wire` (the rig run fails first).
-All 15 cure to GREEN at the lane tree per the Grounds R3 measurement.
+(`TuiSplitRig.resolve_pi_bin` does not exist — NameError), `s1`, `s2`,
+`s3`, `s5`, `s6`, `s7`, `s8`, `s10` (the default resolution still
+consults PATH → the 1.2.0 system oracle → the `v1.2.0`-vs-`v1.1.0`
+version-banner unknown-candidate, reproduced in the rehearsal transcript
+with rig_failure None and both apps completed — the designed failure
+mode; s8 additionally carries the `<docs>` divergence), `wire-delta`
+(the rig run fails first AND the instruction sha differs — tart's `<docs>`
+resolve the system install), `zai-max-tokens-wire` (the rig run fails
+first) — 12 members that all cure to GREEN at the lane tree per the
+Grounds R3 measurement; plus `scope` RED at the CANONICAL rehearsal site
+(the owner's 4 remaining diff files read as out-of-scope noise — the
+standing I65/I66 class; vacuous → GREEN at the lane tree where the judge
+runs).
 
 **Rehearsal protocol (mandatory, the I65/I66 owner-state class extended
 — Grounds R4).** The canonical `repos/tart` checkout carries the owner's
