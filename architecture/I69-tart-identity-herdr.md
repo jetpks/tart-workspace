@@ -208,35 +208,191 @@ short-out-dir discipline.
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section tart-identity-herdr specification --from <file>`. -->
+### Objective
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+tart stands on its own face and an honest wire. Two owner rulings
+2026-10-17 land as one lane: (a) the DEFAULT identity flips to tart with
+`--identity pi` / `TART_IDENTITY=pi` as the byte-exact pi-parity opt-in;
+(b) the herdr reporter reports tart's OWN name (`source "tart"`, `agent
+"tart"`) through the generic first-class interface herdr actually accepts,
+at pi's seq scale, WITH the resume command so herdr server restarts reopen
+tart sessions. BRIEF §7 (the owner's daily driver) — the daily driver must
+report its own name to the owner's pane manager.
 
-```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision tart-identity-herdr`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
-```
+### The contract (one lane)
+
+**R1 — the identity flip (lib/tart/identity.rb + bin/tart help rows).**
+`DEFAULT = TART` (the ONE-line core change); the resolution order, the
+free-form rule, the clean-abort on blank values, `ENV_KEY = "TART_IDENTITY"`,
+and `ORACLE_VERSION = "1.1.0"` are all BYTE-UNCHANGED. `bin/tart`'s help
+rows move with the default: the `--identity` flag description ("default
+tart"), the `TART_IDENTITY` env row ("tart (default), pi, or your own") —
+help text ONLY, no flag behavior changes. NO other lib file changes for the
+flip: the face dispatch (`chat.rb:829`) is identity-only and reads the
+resolved value; pi-parity mode stays byte-exact (the rig's explicit staging
+is the proof, Grounds "the rig audit").
+
+**R2 — the honest herdr wire (lib/tart/herdr.rb).**
+`SOURCE = "tart"`, `AGENT = "tart"` — identity-blind constants (the
+reporter reports tart's own name in BOTH modes; the face is presentation,
+the wire is identity). The request-id prefixes follow SOURCE
+(`tart:session:…`, `tart:…`). The seq base becomes pi's scale:
+`(epoch-ms × 1000)` (≈1.79×10¹⁵ — the existing `epoch_ms` helper × 1000),
++1 per report, monotonic within the process — the same ladder pi's v9
+runs. `resume_argv`: `["tart", "-r", <agent_session_id>]` (fallback
+`<agent_session_path>` when no id), attached to EVERY report that carries a
+session ref — both `report_session` and ref-carrying `report_state` — built
+ONLY when every element passes herdr's validation predicate (first word a
+plain command name — `"tart"`; no apostrophes or control characters; the
+3-element shape trivially satisfies ≤64 args / ≤8KiB); an arg that fails
+the predicate attaches NOTHING — a poisoned argv must never kill a state
+report (herdr rejects the WHOLE report on invalid argv, panes.rs:1561). The
+OQ-5 header comment is REWRITTEN: the "identical bytes" ruling is reversed
+— cite this plan (notes/plan-20261017T183001Z-tart-standalone.md ENTRY 1)
+and the reserved-pair gauntlet. The send path (one retry, swallowed
+failures, coalescing, FIFO sessions), the env gate, the TUI-only root, and
+the `herdr:blocked` channel are BYTE-UNCHANGED.
+
+**R3 — the rig staging pin (gems/tui-split-rig/lib/runner.rb + its tests).**
+The runner's fetch default stays `"pi"` (the runner OWNS the explicit
+staging; parity scenarios boot pi-mode). NEW: a scenario env override that
+stages a BLANK or NIL `TART_IDENTITY` is REFUSED LOUDLY —
+`TuiSplitRig::Error` naming the requirement (an explicit non-empty
+identity) — never composed into the pane command (today a blank rides
+through as `TART_IDENTITY=''` with a blank model-namespace prefix,
+measured). Pins in `gems/tui-split-rig/test/scenario_test.rb`: the blank
+refusal + the explicit-staging behaviors (the existing :399-417 pins stay
+green).
+
+**R4 — the live herdr gate (gems/tui-split-rig/bin/herdr-wire-probe, NEW).**
+A rig bin in the tool-pending-probe shape (stdlib + tui_split_rig +
+MockLLMServer; `--out DIR`): (1) start a listener on a UNIX socket in the
+out dir (the tmp/probe-herdr/listener.rb pattern — accept-loop thread, log
+one line per request, reply one byte); (2) drive ONE tart boot through
+`TuiSplitRig::Runner` (app: "tart", runs: 1) with a Hash-built Scenario
+(the render-perf-probe precedent — NO yaml file, NO scenario-content edit)
+staging `env.tart`: `TART_IDENTITY: tart` + `HERDR_ENV: 1`,
+`HERDR_SOCKET_PATH: <listener sock>`, `HERDR_PANE_ID: <probe pane id>`;
+(3) send the scripted prompt, let the mock turn settle (the
+tool-pending-probe settle loop), teardown; (4) assert the RECEIVED bytes:
+every `pane.report_agent` / `pane.report_agent_session` params carry
+`source == "tart"` AND `agent == "tart"` and never a `herdr:` source
+prefix; the seqs all sit in the ~10¹⁵ class (>= 10^15) and are strictly
+increasing in arrival order; the state sequence is idle (the forced
+session_start publish) → working (agent_start) → idle (agent_end) across
+the mock-driven turn; every ref-carrying report carries
+`resume_argv == ["tart", "-r", <that report's agent_session_id or path>]`;
+(5) print `HERDR_WIRE_OK` / exit 0, else the failing line and exit 1. A
+bounded post-settle wait (≤ a few seconds) covers the final idle report's
+delivery race before the asserts.
+
+**R5 — the test moves (all inside the frozen touch set, itemized per
+Grounds "the flip's test blast radius").** Two cure shapes, per test:
+- Real-boot stagings (`launcher_smoke_test` smoke_env/wire_env,
+  `e2e_session_test` tart_env, `subagents_e2e_test` env stagings): stage
+  `TART_IDENTITY=pi` explicitly — the pins keep testing the pi-parity
+  opt-in with their PI_* literals byte-unchanged.
+- DEFAULT-implicit resolution pins (`settings_test:208`,
+  `models_test`/`shapes_test` boot-model env-tier legs,
+  `agent_loop_test:1045`, the launcher footer-window test's
+  `ENV["PI_CONTEXT_WINDOW"]`): move with the default — the namespaced key
+  the resolved identity reads (TART_*) or an explicit identity arg,
+  whichever preserves the pin's original intent.
+- `herdr_test` byte pins move to the new wire (source/agent "tart", id
+  prefix `tart:`, seq-scale pins, resume_argv pins).
+- NEW pins: the default-mode real boot (TART_* namespace, "operating
+  inside tart" preamble — the default-boot gate's law), the resolved-default
+  face (tart wordmark + `Tart::VERSION`, never the oracle version), and the
+  `--identity pi` opt-in face staying byte-pi.
+Nothing is DELETED: moved pins keep their discrimination, new pins grow
+the suite past the measured 1211 floor.
+
+### Frozen expectations (do not redesign)
+
+- `Identity::ORACLE_VERSION` SURVIVES untouched (pi-mode's version line).
+- The `TART_IDENTITY` env key stays literally spelled `TART_IDENTITY`.
+- Pi-parity mode is byte-exact: every rig parity scenario (s1–s10, s17,
+  wire-delta, zai-max-tokens-wire) stages pi explicitly and must stay
+  green cold; `s1-tart-mode` (staged tart) stays green cold.
+- NO LLM wire/session byte changes: herdr rides its own socket, not the
+  model wire — the wire-delta (instruction `4209f40b…`, tools
+  `7360fd1e…758831…`) and session-golden digests carry as guards and must
+  hold at the lane tree.
+- The suite's standing rig live-run skip stays (1 skip).
+
+### Named exclusions (Constraints, itemized)
+
+- NO `pane.release_agent` report (pi's own v9 extension sends none; herdr's
+  idle-prompt safety net clears on exit — the live-proven behavior).
+  Reopenable post-landing if the owner wants instant release.
+- NO change to tart's both-refs session reports (pi sends path-OR-id, tart
+  sends both; herdr accepts both — kept as-is, out of scope).
+- NO rig scenario-CONTENT edits (`gems/tui-split-rig/scenarios/**` is
+  pinned untouched by the scope gate); the herdr-wire probe builds its
+  Scenario from a Hash.
+- NO `lib/tart/render/motd.rb` change (the face dispatch is identity-only);
+  no markdown/render changes of any kind (ENTRY 4 owns that file).
+- NO new gems; no Gemfile/lock/gemspec changes; no bench changes.
+- NO LLM wire or session byte changes (guards carry).
+- The model-window tick stays DEAD; landing stays the human's.
+
+### Output format
+
+Builder Report per the standing template: the one-paragraph result, the
+suite summary line, the gate one-liners table (EVERY frozen gate, the I68
+lesson — an absent gate in the table is a REJECT-class violation), the
+itemized deviation list (every moved test pin named), residual risks.
+
+### Tool guidance
+
+Read-only grounding first (`lib/tart/identity.rb`, `lib/tart/herdr.rb`,
+`bin/tart`, `gems/tui-split-rig/lib/tui_split_rig/runner.rb` +
+`scenario.rb`, `test/herdr_test.rb`, `tmp/probe-herdr/listener.rb` +
+`received.log`, `gems/tui-split-rig/bin/tool-pending-probe` for the probe
+shape). The herdr repo is a REFERENCE (`docs/preview/website/src/content/
+docs/add-herdr-support.mdx`, `docs/socket-api.mdx`, `src/app/api/panes.rs`)
+— never modified. Then edit; run the suite early (the flip's blast radius
+is the discovery work — run `bundle exec rake` after the identity flip
+BEFORE the herdr work to enumerate the moves).
+
+### Boundaries
+
+Touch set (the scope gate's whitelist, exactly):
+`lib/tart/identity.rb`, `lib/tart/herdr.rb`, `bin/tart`,
+`gems/tui-split-rig/lib/tui_split_rig/runner.rb`,
+`gems/tui-split-rig/bin/herdr-wire-probe` (NEW),
+`gems/tui-split-rig/test/scenario_test.rb`, `test/identity_test.rb`,
+`test/settings_test.rb`, `test/herdr_test.rb`,
+`test/launcher_smoke_test.rb`, `test/e2e_session_test.rb`,
+`test/subagents_e2e_test.rb`, `test/shapes_test.rb`,
+`test/models_test.rb`, `test/agent_loop_test.rb`. Must-differ:
+identity.rb, herdr.rb, bin/tart, runner.rb. Must-not-touch (pinned by the
+scope gate): `gems/tui-split-rig/scenarios/**`, Gemfile/Gemfile.lock/
+tart.gemspec, `bench/`, and every other path. If a test OUTSIDE the
+whitelist breaks on the flip, STOP and disclose in the report — do not
+widen the touch set silently (the judge adjudicates under the standing
+deviation discipline).
+
+### Lane plan
+
+- id: core
+  repo: tart
+  base: 3845f6a
+  integration_branch: project/pi-port
+  effort: high
+  lanes_required: 1
+  rationale: the flip's blast radius across launcher/e2e/rig tests + the
+    herdr wire law + a NEW live rig probe + the runner assert — the code
+    deltas are small but the discovery-and-move work is broad; a missed
+    DEFAULT-identity path is a lane failure.
+
+### Effort call
+
+High — not for code volume but for enumerated audit: every real-boot and
+DEFAULT-identity test path must be found and moved with its original
+discrimination preserved (Grounds blast-radius table + whatever the post-
+flip suite run surfaces), the live probe must be reliable cold, and the
+rig assert must not break the runner's byte-frozen no-knob paths.
 
 ## Acceptance Criteria
 
