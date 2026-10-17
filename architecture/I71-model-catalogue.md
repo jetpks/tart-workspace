@@ -1651,10 +1651,148 @@ move under the fill — its own assertions stay green. Gates: `suite`,
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I71-model-catalogue-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section model-catalogue prompt --append --lane <lane> --from build/I71-model-catalogue-<lane>/prompt.md`. -->
+### core
+
+You are the builder for iteration `model-catalogue` (I71), lane `core`.
+Work ONLY in the provisioned worktree on branch
+`lane/I71-model-catalogue-core` (base tart `project/pi-port` @ `dd41ae1`
+— the I70-integrated tip, clean); NEVER commit (the integrator lands your
+tree), NEVER touch the space repo, NEVER push, NEVER touch any gem
+(published fast-completions 0.5.0 and ratatui_ruby 1.5.0 are dependencies
+— consume, never modify), NEVER write anything under `repos/pi` (the
+pinned oracle clone @ v1.1.0, branch `oracle-v1.1.0`, is ENVIRONMENT,
+guarded by the `oracle-pin-state` gate — read-only reference: you COPY its
+committed data files, you never modify the clone). The full iteration
+contract is the frozen Grounds/Specification/Acceptance Criteria in the
+arch file (authoritative) — read them first; this header is the lane's
+operating brief. You are the ONLY lane.
+
+THE TASK IN ONE PARAGRAPH: `/model` learns what is available — the owner's
+option-C ruling. (1) THE VENDORED BASELINE: copy all 44 provider JSON
+files from the pinned pi clone's `packages/ai/src/providers/data/`
+VERBATIM (byte-identical) into a NEW `vendor/pi-models/` dir, plus
+`ATTRIBUTION.md` (source, MIT / "Copyright (c) 2025 Mario Zechner", link,
+the refresh command, the local-clone-only law) and tart's OWN
+`.manifest.json` (`{source, revision, generatedAt, files: {name: sha256}}`
+covering exactly the vendored `*.json` set; pi's own `.manifest.json` is
+NOT copied); add the offline operator-run rake task
+`models:vendor:refresh` to the Rakefile (reads `ENV["PI_REPO"]`, default
+`../pi` rel the tart root; fails LOUDLY when the clone is missing; copies
+verbatim + regenerates the manifest; ZERO network — no Net::HTTP /
+Async::HTTP / URI.open / open-uri tokens anywhere in the Rakefile, gated).
+(2) THE VENDORED TIER (`lib/tart/models/vendored.rb`, NEW): a local-file
+metadata tier consulted at the FACT seams only — the loaded catalog is
+NEVER mutated (`Models.load`/`Config`/`model_entries`/`Shapes::Model#to_h`
+byte-stable). MATCH RULE (frozen): a user provider block matches a
+vendored provider by baseUrl EXACT (case-insensitive, one trailing `/`
+stripped both sides) FIRST; the provider KEY (case-insensitive) ONLY when
+the user block declares NO baseUrl; model id equality (case-insensitive)
+within the matched provider; NO cross-provider bare-id fallback — a
+`zai`-keyed `http://localhost:1/v1` block matches NOTHING (the
+hermetic-suite inertness law). FILL-ONLY: `contextWindow`, `maxTokens`,
+`reasoning`, `thinkingLevelMap`, `compat`, `name` fill ONLY when the user
+entry omits the field; a declared value ALWAYS wins; compat fills through
+the existing `build_compat` six-key pick. SEAMS: `entry_context_window` /
+`entry_max_tokens` slot the tier between the declared value and the
+`DEFAULT_ENTRY_*` constants (no match ⇒ today's 128_000/16_384; nil entry
+⇒ nil, unchanged); `Settings.thinking_facts` slots the map between the
+entry's map and the known tables and the reasoning flag between the
+entry's flag and `model_reasoning_capable`; a NEW public
+`Models.dialect_for_entry(entry)` = `dialect_for(entry.compat ||
+vendored compat)` and the threading call sites that pass
+`dialect_for(entry.compat)` move to it (bin/tart boot kwargs, chat.rb
+`apply_model_selection`); `dialect_for` and `wire_model` signatures are
+UNCHANGED. LOADER: raw JSON parse (NEVER through the models.json
+CatalogContract — pi's schema is a superset), lazy per-file, cached,
+`__dir__`-relative path to `vendor/pi-models/`; missing/corrupt file ⇒
+that provider absent from the tier — never raises, never blocks boot, no
+MOTD noise. (3) THE LIVE LISTING (`lib/tart/models/listing.rb`, NEW):
+`Tart::Models::Listing.fetch(base_url:, api_key:, timeout: 5)` →
+`Array<String>` of ids or `nil` on ANY failure — ONE attempt, bounded
+timeout (5 s frozen constant), GET `<base_url>/models` with
+`Authorization: Bearer <key>`, a one-off Async::HTTP client inside ONE
+dedicated background thread (the `lib/tart/herdr.rb` sender discipline:
+off the reactor, never blocks the UI) — the ONE sanctioned new
+`Thread.new` site (the threads-budget gate excludes exactly
+`lib/tart/models/listing.rb`; the `listing-thread-law` gate pins exactly
+one `Thread.new` there and none in `models.rb`/`vendored.rb`). Every
+failure class (refused, timeout, non-200, malformed) ⇒ nil, nothing
+raised into the caller, NO retries. (4) THE MENU MERGE
+(`lib/tart/render/chat.rb` + `model_menu.rb`): `Render::Chat` gains an
+`endpoint:` kwarg (default nil ⇒ no listing — every existing test
+construction unchanged); `open_model_menu` fires ONE fetch per open
+(plain or seeded) — NEVER at boot, NEVER print mode, NEVER subagent
+children, NEVER the `/model <ref>` direct-switch path — resolving the
+endpoint at open time for the CURRENT model ref's provider (provider
+block baseUrl/apiKey, per-field fallback to the threaded boot facts;
+unresolvable ⇒ no attempt); the menu renders the user entries
+IMMEDIATELY and merges the listed ids in when the fetch lands (merge
+under the Chat mutex, `request_draw`); live entries are typed
+`Shapes::Model` under the configured provider key, enriched by the
+vendored tier through the SAME match rule (no match ⇒ bare entry, name =
+id), deduped against user entries (user wins on provider+id collision);
+selecting one rides `apply_model_selection` UNCHANGED. `ModelMenu` gains
+`refresh(entries:)` (rebuild items, re-filter with the CURRENT query,
+clamp selection per the existing empty-query rule; row shape/sort/
+markers/`Model Name:` row UNCHANGED — no new glyphs) and a failure flag
+rendering ONE muted `  (live listing unavailable)` row after the list
+rows when the fetch failed (absent otherwise). (5) THE LAUNCHER
+THREADING (`bin/tart`): `build_surface` gains an `endpoint:` parameter
+threading the boot `endpoint_facts` into `Render::Chat` — the I27
+live-defect lesson: ship it with the launcher-seam regression pin.
+(6) THE TESTS (additive, enumerated in R6): `test/models_test.rb`
+`/vendored/` ≥6; `test/settings_test.rb` `/vendored/` ≥1;
+`test/models_listing_test.rb` NEW ≥5 (happy path via the mock, GET path +
+Bearer pinned from the captured request log, dead endpoint ⇒ nil +
+bounded elapsed, single attempt — server request_count == 1, malformed/
+non-200 ⇒ nil, boot-inert: constructing the Chat and reading footer facts
+makes ZERO requests); `test/chat_test.rb` `/live_list/` ≥3 (merge-in with
+vendored enrichment, user-wins dedup, failure row + no crash + single
+attempt, live-entry switch threads vendored facts);
+`test/render/model_menu_test.rb` `/refresh/` ≥2; `test/launcher_smoke_test.rb`
+`test_build_surface_threads_the_listing_endpoint`; the mock server gains
+a `:models` spec type answering `{"object":"list","data":[{"id":…,
+"object":"model"}…]}` (the request log keeps method/path/headers as
+today).
+
+LAWS YOU MUST NOT BREAK: the fill-only law (a user-declared value ALWAYS
+wins, at every seam); the loaded-catalog byte-stability law (fill at the
+fact seams, never merge-at-load); the resolution order (I27 env > user
+catalog > settings — vendored informs, never overrides); the dialect
+boundary (I46/I64: ONLY a zai thinkingFormat builds the zai dialect — the
+vendored `openrouter`/`deepseek` formats ride the DEFAULT dialect,
+tolerated-and-dropped; do NOT extend the wire vocabulary); no network at
+boot, no runtime pi.dev fetch EVER; `~/.tart/models.json` format
+unchanged and the owner's live file is a merge NO-OP; the wire/session
+guards hold EXACT (the staged parity catalogs are fill-inert); no new
+gems; no rig changes; `lib/tart/agent/**`, `commands.rb`, `schemas.rb`,
+`shapes.rb`, `prompts.rb`, `skills.rb`, `subagents/**`, `tools/**`,
+`mcp/**`, `core/**`, `tui.rb`, `herdr.rb` are OUT OF BOUNDS.
+
+RUN DISCIPLINE: ground read-only first (the R-list in Tool guidance);
+land R1 (data + task) then R2 and RUN THE FULL SUITE EARLY — a frozen pin
+shifting on the fill outside the pre-declared set (Grounds: the
+strict_sampling staged config's UN-PINNED wire dimensions move BY DESIGN —
+max_tokens 16_384→131_072, reasoning_effort `medium`→`high` under the
+vendored map; its own assertions stay green) is STOP-AND-DISCLOSE for the
+judge. Then R3/R4 (listing + menu), R5/R6 (launcher + pins). Before
+reporting: `cd repos/tart && bundle install --quiet && bundle exec rake`
+(full suite, 0F/0E, the standing 1 skip, runs STRICTLY greater than the
+frozen base floor), `bundle exec ruby bench/seam_bench.rb`
+(SEAM_BENCH_OK), and the gate table below — EVERY one of the 61 frozen
+gates, one line each, executed verbatim from the frozen gates block (an
+absent gate in the table is a REJECT-class violation — the I68 lesson).
+The 8 designed-RED gates are RED at BASE; on your tree they must go GREEN
+for the right reason (the work existing), never RED-for-a-defect.
+
+OUTPUT (your scratch report, `build/I71-model-catalogue-core/report.md`):
+the one-paragraph result; the suite summary line (runs/assertions/F/E/S);
+the 61-line gate table (gate id, GREEN/RED/BROKEN, the load-bearing token
+or the failing line); the itemized deviation list (every moved pin or
+judgment call named — never silent); residual risks (the live
+`/v1/models` against a REAL provider key is the named human checkpoint —
+statically pinned only; the vendor dir does not ship in the gem package —
+from-source daily driver only, flagged for the human).
 
 ## Builder Report
 
