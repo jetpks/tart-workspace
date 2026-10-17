@@ -2639,13 +2639,14 @@ project:
       - gems/tui-split-rig/bin/tui-split-rig
       - gems/tui-split-rig/test/oracle_bin_test.rb
       base_sha: 25adab958513067fdf533be6e441427db311de13
-      worktree: build/I67-rig-oracle-repin-core/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: openrouter/z-ai/glm-5.3-flash
       variant: false
       effort: high
       dispatched_at: '2026-10-16T23:00:26-06:00'
+      integrate_sha: cfb4f3c52ec3880f8efa708407b1e004aca8ce01
     rehearsal:
       gates_digest: f15e2df65572a6bbb44c5d835ac3bcc74f6ed938e42c2b2ad11eed4ae7151a4e
       at: '2026-10-16T22:52:08-06:00'
