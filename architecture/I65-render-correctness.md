@@ -183,35 +183,222 @@ Owner finding: `new_problems.md` "model context window still missing" (the
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section render-correctness specification --from <file>`. -->
+### Objective
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+Close the three live-run correctness defects of plan ENTRY 1
+(`notes/plan-20261017T005042Z-live-render-correctness.md`) — all three
+render-layer, all three root-caused in Grounds (D1/D2/D3), none needing a
+terminal to verify. Done bar: **BRIEF §8** exact parity on the owner's
+daily-driver surface (**BRIEF §3**); this iteration is the correctness half —
+ENTRY 2 (viewport polish) builds on this tip.
+
+### The contract (one lane)
+
+**D1 — the markdown emission cure** (`lib/tart/render/markdown.rb` ONLY).
+
+- Both reject arms of `inline_spans` (the em `padded?` arm and the del
+  `strict_strikethrough?` arm) change to: emit the delimiter character AT THE
+  MATCH POSITION (`src[m.begin(0)]`) and advance the scan to
+  `m.begin(0) + 1` — NEVER `src[pos]`, NEVER `pos + 1`. The pre-text is
+  already emitted at the loop top (`src[pos...m.begin(0)]`); the remainder of
+  a rejected match re-scans as ordinary text, so a later delimiter pair inside
+  it still processes (accept or reject) normally.
+- The accepted arms, `INLINE_SCAN`, `padded?`, `strict_strikethrough?`,
+  `merge_adjacent`, `split_rows`, the block parser, the `FG` table, and every
+  row composer (heading/quote/list/code/hr) are byte-frozen. The I06 flanking
+  approximation STAYS a declared deviation — rejects still reject; they now
+  render as literal text exactly once.
+- Regression pins, names carrying the token `inline_scan`:
+  - the minimal trigger `Markdown.rows("between zai/* and openrouter/z-ai-*);
+    tail", width: 94)` renders passthrough-exact (one row, text == source);
+  - a reject-with-pre-text case for BOTH families (em and del — match
+    position > 0) asserting the exact literal spans (no duplicated prefix,
+    no dropped chars);
+  - a re-scan case (a rejected pair followed by an accepted pair in the same
+    source) pinning the exact spans — the advance-past-the-delimiter
+    semantics, never before the match, never by scan-start+1;
+  - the owner's literal payload (new_problems.md's thinking text — at minimum
+    the exploded items 5-6 slice carrying `zai/* and openrouter/z-ai-*`;
+    the full text preferred) through BOTH seams — `Markdown.rows` AND
+    `Transcript.reasoning_lines` — asserting the at-most-once cover property:
+    every non-empty row's text is a substring of the source, rows appear in
+    source order (each row's source-index window starts at-or-after the
+    previous row's end), no source character rendered twice, and every row's
+    display width fits the content width (readable wrapped rows, no
+    explosion).
+  - the existing at-position-0 literal pins (`~~ padded ~~`) pass unchanged.
+  Test homes: `test/markdown_test.rb` (the converter pins) +
+  `test/render/transcript_test.rb` (the `reasoning_lines` seam pins).
+
+**D2 — the id-keyed pending registry** (`lib/tart/render/transcript.rb` +
+the two arms in `lib/tart/render/chat.rb`).
+
+- The single-slot `@pending_tool` becomes an id-keyed Hash registry. Seam
+  contract (the frozen shape; deviations itemized):
+  `enqueue_pending_tool_block(id, name, args)` — id FIRST (ToolCall member
+  order) — registers the region under the call id, NO supersede (a second
+  concurrent enqueue adds a second entry; pi `interactive-mode.ts`
+  :3611-:3621);
+  `finalize_tool_block(id, name, args, result, duration, details: nil)` —
+  finalizes IN PLACE by call id through today's exact two paths
+  (`replace_flushed_pending` for the flushed registration,
+  `swap_queued_pending` for the still-queued region); an id MISS (or nil id —
+  reader-less doubles) falls back to today's append (`enqueue_tool_block`) —
+  the replay path, the post-reset finalize, and the unknown-id shape keep
+  today's observable behavior (pi :3645-:3652);
+  the drain links EVERY registry entry's flushed region to its registration
+  by region identity (not just one slot);
+  `finalize_pending_as_error(text)` loops EVERY live pending — each settles
+  in place as the error block with today's exact bytes — then clears the
+  registry (pi :3573-3586);
+  `reset` clears the whole registry.
+- The `chat.rb` arms (:569-:591) thread `call.id` into both calls; the
+  reader-guard idiom for reader-less doubles is builder freedom (declared in
+  the report either way). The `[name, args]` identity member dies with the
+  slot.
+- ROW COMPOSITION AND BOOKKEEPING ARITHMETIC FROZEN: `pending_tool_rows`,
+  `tool_block_builder`, the per-family block rows, the I34 pending shapes,
+  `replace_flushed_pending`/`swap_queued_pending` as-is — the registry
+  replaces the slot's REGISTRATION bookkeeping only. The `PendingTool`
+  struct may reshape or die; nothing observable may change for the
+  single-call, sequential, error, replay, or reset paths.
+- Unit pins, names carrying the token `pending_registry`
+  (`test/render/transcript_test.rb`), driving the transcript state directly
+  with start/end event pairs:
+  - N=2 concurrent calls, BOTH completion orders (B-first and A-first): each
+    call's block settles IN PLACE — exactly one block per call, the blocks
+    stay in start order, zero `tool_pending_bg` rows survive, no appended
+    duplicate;
+  - an identical-name/identical-args pair with DISTINCT ids finalizes
+    correctly in place (the discriminating case `[name, args]` equality
+    could not solve);
+  - `finalize_pending_as_error` over TWO live pendings settles BOTH in place
+    as error blocks and clears the registry; the single-pending case keeps
+    today's exact bytes;
+  - reset clears the registry (post-reset finalize appends);
+  - the id-miss finalize appends (the replay/unknown shape).
+  Mechanical re-pins of the existing pending family to the id-carrying
+  signature are part of the lane (itemized in the report);
+  `test_second_pending_supersedes_and_the_stale_end_appends` is REPLACED by
+  the registry behavior — the supersede WAS the defect (declared).
+  `test/chat_test.rb`'s `ToolCallDouble`/`tool_start`/`tool_end` helpers
+  gain the id (centralized — the call sites stay untouched).
+
+**D3 — the footer context window** (`bin/tart` ONLY).
+
+- `footer_data`'s context_window line gains the same fallback the other two
+  call sites already carry: `Settings.resolve_context_window(settings:,
+  model: chat.model, identity:) || Models.entry_context_window(entry)` —
+  with `entry` hoisted once (the `resolve_boot_entry(models, boot)` the
+  method already computes for `thinking_facts`, reused). All three boot
+  call sites one shape (print :323-:326, loop kwarg :473-:476, footer
+  :660) — the I59 D4 asymmetry closed.
+- `models: nil` legacy calls (footer_data's optional shape) keep today's
+  behavior: entry nil → window nil. Env-tier precedence unchanged (the
+  resolve ladder runs FIRST; the fallback fires only when the whole ladder
+  is nil). The `/model` switch overlay (`@runtime_model` reader +
+  `apply_model_selection`) is untouched.
+- Pin (`test/launcher_smoke_test.rb`, the `Executable.footer_data` staged
+  shape): a staged catalog `zai/glm-5.3` with `contextWindow: 1_000_000` +
+  the placeholder chat → `footer_data[:context_window] == 1_000_000` from
+  the first frame (identical in value to the loop kwarg's expression —
+  assert both in one test); a second leg with `PI_CONTEXT_WINDOW` set →
+  the env value wins over the entry (precedence pinned).
+
+### Named exclusions (Constraints, itemized)
+
+- Repo tart ONLY; fast-llm untouched; no rig/oracle work — the iteration is
+  unit-pinned (the pi-1.2.0 banner drift keeps the rig family out; the
+  owner may re-pin `ORACLE_VERSION` separately, outside this plan).
+- NO wire/tool/agent-layer changes: `lib/tart/tools/**`, `lib/tart/agent/**`,
+  `lib/tart/models.rb`, `lib/tart/settings.rb`, `lib/tart/schemas/**`,
+  `lib/tart/shapes/**`, `lib/tart/session*` untouched (scope-gated). No
+  changes to wire-body or session golden digests — guarded by the carried
+  `strict-wire`/`session-golden` gates + the suite.
+- NO gem changes: Gemfile/Gemfile.lock/tart.gemspec untouched (0.4.0 pin
+  stands); no new gems.
+- Do NOT delete or move the MOTD/mark/version machinery or the I34
+  pending-block row shapes.
+- ENTRY 2's surface (viewport/scrollbar/jump-to-bottom;
+  `render/viewport.rb`, the rail/mouse/widget-assembly family of chat.rb) is
+  OUT — chat.rb edits are confined to the two tool-execution arms.
+- No docs gates claimed (no tart docs exist for these surfaces).
+
+### Output format
+
+- Lane commit on `lane/I65-render-correctness-core` (provisioned from
+  `project/pi-port` @ 1b83e05): the 8-file declared touch set, nothing else.
+- Scratch report at `build/I65-render-correctness-core/report.md` (the
+  builder's; transcribed verbatim by the architect).
+- Test output: the suite summary line + the per-gate one-liners in the
+  report; deviations itemized (any signature/shape deviation from this
+  contract, every test re-pin enumerated).
+
+### Tool guidance
+
+- Verification (exact, tested this session):
+  `cd repos/tart && bundle install --quiet && bundle exec rake` →
+  `1179 runs, 5591 assertions, 0 failures, 0 errors, 1 skips` at base
+  (post-lane: >= 1179 runs, 0 failures, 0 errors);
+  `bundle exec ruby bench/seam_bench.rb` → last line `SEAM_BENCH_OK`.
+- The four defect gates (exact forms frozen in the AC):
+  md-repro + footer-window (self-contained `ruby -Ilib` one-shots),
+  md-inline-units + pending-registry-units (minitest name filters
+  `/inline_scan/` and `/pending_registry/` — the token in the test NAMES is
+  REQUIRED by the gates; both are 0-run at base).
+- Probes (tart-only, cold-verified at base):
+  `env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH
+  -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/
+  {render-perf-probe --app tart --shape gate,tool-pending-probe --gate,
+  user-bash-stream-probe --gate}`.
+- pi citations for the touched seams (house style — commented citations at
+  the seam): interactive-mode.ts :3611-:3621, :3645-:3652, :3573-3586 (the
+  pendingTools Map); footer.ts / the I59 boot-facts citations already at
+  the three call sites.
+- `BUNDLE_GEMFILE` may leak into the lane env — prefix suspect `architect`
+  calls with `env -u BUNDLE_GEMFILE`.
+
+### Boundaries
+
+- May touch: exactly the declared 8 files (scope gate): `bin/tart`,
+  `lib/tart/render/chat.rb`, `lib/tart/render/markdown.rb`,
+  `lib/tart/render/transcript.rb`, `test/chat_test.rb`,
+  `test/launcher_smoke_test.rb`, `test/markdown_test.rb`,
+  `test/render/transcript_test.rb`.
+- Must not touch: everything else — including `lib/tart/render/footer.rb`
+  (the `?` is the DATA's fault, not the segment's), the viewport/rail
+  family (ENTRY 2), and the frozen wire/session surfaces.
+- Frozen stack: **BRIEF §2** (async/ratatui_ruby/fast-completions 0.4.0);
+  house style per AGENTS/discipline: commented pi citations at the touched
+  seams, tests through public interfaces, no refactors beyond the task.
+
+### Lane plan
+
+One lane — one flow, one commit, one test surface family.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision render-correctness`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - bin/tart
+    - lib/tart/render/chat.rb
+    - lib/tart/render/markdown.rb
+    - lib/tart/render/transcript.rb
+    - test/chat_test.rb
+    - test/launcher_smoke_test.rb
+    - test/markdown_test.rb
+    - test/render/transcript_test.rb
+  effort: high
 ```
+
+### Effort call
+
+`high` — three distinct defect cures with frozen byte-disciplines on each
+side (the markdown converter's accepted arms byte-frozen while the reject
+arms' scan semantics change; the registry swap with the I34 row shapes and
+both in-place paths held; the boot-facts one-liner against two frozen call
+sites), a signature change rippling through an established 12-test family,
+and owner-payload regression pins at two seams — not a routine lane.
 
 ## Acceptance Criteria
 
