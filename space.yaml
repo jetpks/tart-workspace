@@ -2603,7 +2603,7 @@ project:
     ordinal: 66
     file: architecture/I66-viewport-polish.md
     freeze_sha: 292da329e76c75d68eadceabc42864da99a72565
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
@@ -2621,6 +2621,7 @@ project:
       model: openrouter/z-ai/glm-5.3-flash
       variant: false
       effort: high
+      dispatched_at: '2026-10-16T21:36:13-06:00'
     rehearsal:
       gates_digest: '04494639fa8be0892d7601c28e93f11d97e19b07ebef9ce5a3a64fe85a339a2e'
       at: '2026-10-16T21:28:47-06:00'
