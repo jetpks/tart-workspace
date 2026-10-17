@@ -9,11 +9,219 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section subagents-default-on grounds --from <file>`. -->
+### Standing frame (facts, cited)
+
+Plan `notes/plan-20261017T183001Z-tart-standalone.md` ENTRY 2 — iteration
+`subagents-default-on`, repo `repos/tart`, ONE lane `core`. Base = tart
+`project/pi-port` @ **2a33f66** (the I69-integrated tip; `git status
+--short` EMPTY this session, clean tree, no owner-state swap needed).
+Gem: fast-completions 0.5.0 (pin-only). **Measured base suite THIS session
+(fresh): 1219 runs / 5948 assertions / 0 failures / 0 errors / 1 skip, rake
+exit 0 + `SEAM_BENCH_OK`** (bench exit 0). The oracle pin (`repos/pi`
+branch `oracle-v1.1.0` @ v1.1.0) is ENVIRONMENT, guarded by
+`oracle-pin-state` — never re-performed from a lane; `env -u PI_PACKAGE_DIR`
+for every direct oracle exec. Landing is the human's. Routing rides
+`architect.yaml` as-is; the model-window tick stays DEAD.
+
+### The defect and the two rulings
+
+**The crash (reproduced live this session at 2a33f66).** The owner's
+2026-10-17 live case: settings `{"subagents": true}` → boot dies. Re-run
+this session (staged HOME, staged settings, mock provider, identity `pi`):
+`NoMethodError: undefined method 'start_with?' for nil` at
+`lib/tart/render/motd.rb:306` (`under?`) ← `scope_group` :299 ←
+`prompt_scope_entries` :317 ← `sections` :282 ← chat.rb:845/:807/:448
+(`render_frame`) ← loop.rb:354 (`draw_frame`) — the FIRST frame kills the
+process. Trace preserved at `tmp/probe-subag/tart.stderr`. The chain: the
+six workflow templates ship with `file_path: nil`
+(`lib/tart/subagents/workflows.rb` — programmatic by design, I49 Spec §7),
+and motd's prompt scope path classifies by PATH
+(`prompt_scope_entries` → `scope_group` → `under?`), so a nil path crashes.
+The NEXT crash behind it: `scope_group_rows` :331 `sort_by { |entry|
+entry[:path] }` — also nil. The cure must cover the WHOLE prompt-scope
+section, not just the first nil deref.
+
+**The owner ruling (2026-10-17):** subagents on by default, after an
+interactive test-drive in a functional state. **The architect ruling
+(recorded in the plan, binding here):** the crash fix and the default flip
+land in the SAME iteration, behind e2e gates that prove the functional
+state; the owner's interactive test-drive is the named POST-INTEGRATION
+checkpoint; the verdict documents the one-line revert (settings/env
+opt-out) as the safety path if live pain surfaces — the loop cannot block
+on human presence without dying.
+
+### The oracle (live capture this session, hermetic)
+
+pi-subagents ships its prompts as REAL .md files: the npm package manifest
+(`~/.pi/agent/npm/node_modules/pi-subagents/package.json` `"pi": {"prompts":
+["./prompts"]}`) → pi's package-manager loads them as user-scope package
+resources (`repos/pi/packages/coding-agent/src/core/package-manager.ts`
+:2126-2134 the user-scope npm install path; `resource-loader.ts` :864-883
+the sourceInfo lookup) → sourceInfo `{source: "npm:pi-subagents", scope:
+"user"}`. pi therefore NEVER has a path-less template; and pi's grouping is
+sourceInfo-based (`interactive-mode.ts` `getScopeGroup` :1610-1619 —
+missing metadata degrades gracefully to project), with a PACKAGE tier
+(`isPackageSource` :1613-1617, `npm:`/`git:` prefixes) rendered by
+`buildScopeGroups` :1624-1659 + `formatScopeGroups` :1661-1693: group label
+row (2-space indent, accent), then plain path members (4-space, dim,
+path-sorted), then package sub-lists (label row 4-space mdLink, then
+6-space dim item rows, both localeCompare-sorted).
+
+**Live MOTD [Prompts] capture (this session, `tmp/probe-subag/`):** the
+pinned oracle clone booted in tmux (staged HOME, staged agent dir with
+`settings.json {"theme":"dark","packages":["npm:pi-subagents"]}` +
+symlinked installed pi-subagents package, mock provider, `PI_OFFLINE=1`,
+`PI_PACKAGE_DIR` scrubbed). Owner-environment facts: no
+`~/.pi/agent/prompts` dir exists; `pi-web-access` and the git `pi-extensions`
+package ship no prompts — the owner's live pi [Prompts] section is EXACTLY
+the six pi-subagents templates. Captured bytes (collapsed, then expanded
+after ctrl+o):
+
+```
+[Prompts]
+  /council, /gather-context-and-clarify, /parallel-cleanup, /parallel-research, /parallel-review,
+/review-loop
+```
+
+```
+[Prompts]
+  user
+    npm:pi-subagents
+      /council
+      /gather-context-and-clarify
+      /parallel-cleanup
+      /parallel-research
+      /parallel-review
+      /review-loop
+```
+
+Styled capture (`-e`): the group label `user` renders `38;2;167;152;215`
+(accent `#a798d7`), the package label `npm:pi-subagents`
+`38;2;105;173;208` (mdLink `#69add0` = the port's `Theme[:md_link]`,
+theme.rb:86), every `/name` row `38;2;126;136;142` (dim `#7e888e`); the
+indents ride OUTSIDE the SGR runs (two-run label rows; the whole entry row
+inside one dim run). The port already owns all three tokens. pi's [Skills]
+section renders the same package tier (`skills/council-mode/SKILL.md` rows)
+— shared machinery, one shape.
+
+### tart today (the seams, base 2a33f66)
+
+- `lib/tart/subagents/workflows.rb` — six `Prompts::Template.new` with
+  `file_path: nil`, descriptions/argument-hints byte-carried from
+  pi-subagents 0.77.0 (pinned at `test/subagents_intercom_test.rb`
+  :574-648 incl. `merge_workflow_templates` lowest-tier + user-wins).
+- `lib/tart/prompts.rb` — the `Template` struct
+  (name/description/argument_hint/content/file_path); every FILE load is
+  file-backed (load_template_file always sets `file_path:`) — **nil
+  file_path ⇒ the builtin workflow tier, exclusively** (the classification
+  is total, no other producer). `lib/tart/prompts.rb`/`skills.rb` are
+  frozen seams OUTSIDE this lane's touch set.
+- `lib/tart/render/motd.rb` — `prompt_scope_entries` :316-321 (entry
+  `{path:, display: "/<name>", group:}`), `scope_group` :298-306 (path
+  classification: project/user/path), `scope_group_rows` :327-346 (group
+  order project → user → path, label rows accent, entries dim path-sorted,
+  every row through `wrap_resource_row`). NO package tier today.
+- `lib/tart/settings.rb` — `DEFAULTS["subagents"] => false` :65 (the one
+  literal to flip), `RESOLUTION_ENV["subagents"] => "SUBAGENTS"` :94,
+  `resolve_setting` :163-165 (env > file > default, RAW env values).
+  `bin/tart` :606-608 `subagents_enabled?` (true/"true"/"1" = on, anything
+  else = off — the env tier already speaks the opt-out).
+- `bin/tart` — three gate call sites, mechanics unchanged by the flip:
+  :295 print-mode register, :381-384 the interactive workflow-templates
+  merge (before build_surface), :431-437 the interactive register
+  (kernel bridge + endpoint). Comments describe the default-off
+  zero-byte invariant — they move with the flip (help text has NO
+  subagents row today; none is added).
+- `lib/tart/subagents/manager.rb` :369-380 — I69's cured `child_env` (the
+  literal `TART_IDENTITY` bootstrap key): children spawn correctly; the
+  child env is CLOSED with no subagents gate row (children never nest,
+  I48 AC4). NOT touched this iteration.
+- The I48/I49 e2e machinery (`test/subagents_e2e_test.rb`): legs A-D
+  (foreground round-trip, async + notify + print-parent drain, steer
+  receipt, stop) staging `{"subagents": true}` + staged
+  `<IDENTITY>_SUBAGENTS_HOME` + closed env + explicit `TART_IDENTITY=pi`;
+  MockLLMServer + real `bin/tart -p` subprocess parents.
+
+### Measured wire facts (this session, base 2a33f66, staged-HOME print boots)
+
+- **OFF** (staged `{"subagents": false}`, default 4-tool loadout): tools
+  array digest `7360fd1ec6419b5f9966c3067588314cdd0d29231a78346443a0002923c23707`
+  — byte-identical to the standing wire-delta constant (the tools array is
+  env/path-independent). **ON** (`{"subagents": true}`): digest
+  `2c744efc8cae1095996cca7261829ead5b1dd148487a6c0e153efd9ba3f55d88`,
+  names `["read", "bash", "edit", "write", "subagent"]` — the subagent tool
+  declared LAST (the I47 merge order). The instruction (system-prompt)
+  digest is IDENTICAL off vs on in the same staged env
+  (`1435dd80…` both) — the tool registration moves ONLY the tools array.
+- Print-mode boots with the gate on exit 0 (measured) — print never
+  renders the MOTD, so the crash is interactive-only.
+
+### The rig law (the parity surface and the flip)
+
+The parity scenarios stage tart with NO subagents row today (the rig's
+`stage_tart_home` writes settings.json ONLY for the context_window
+compaction scenarios s7/s8, runner.rb:359-363). Post-flip, every default
+boot registers the tool + renders the [Prompts] section while the staged
+pi side (no packages) shows NEITHER — the s-family, wire-delta, and
+zai-max-tokens-wire gates would fail BY DEFAULT. The I69 explicit-staging
+ruling is the law: **the runner OWNS explicit staging; no parity path
+rides the app default.** The cure: `stage_tart_home` writes settings.json
+ALWAYS, carrying `"subagents" => false` (the explicit opt-out — the parity
+target remains staged-pi vs tart-opted-out, the I48-off shape); the
+compaction rows still ride only the context_window scenarios;
+`stage_memory`'s deep-merge (runner.rb:462) composes with the row
+unchanged. The default-ON shape is proven by NEW gates, not by the parity
+scenarios (the owner's live pi-subagents-vs-tart parity is the
+post-integration interactive test-drive's domain, not rig-observable — the
+rig's pi is the pinned package-less clone).
+
+### The flip's blast radius (audited this session)
+
+- Pins that MOVE (the default flips): `test/settings_test.rb` :83-88 (the
+  DEFAULTS row + the no-file default-tier resolution) and :91+ (the
+  known-key load's default tier); `test/subagents_test.rb` :102 (the
+  DEFAULTS row) and :105-108 (the "off = no tool" pin re-words to the
+  opt-out shape — the mechanics are the register call, unchanged).
+- Boots default-on post-flip, audited GREEN at base with the gate on:
+  `launcher_smoke_test` (print boot exit 0 — measured), `e2e_session_test`
+  (tools presence assertions only, :140-141; the drain no-ops with no
+  runs; staged HOME hermetic), `subagents_e2e_test` legs A-D (stage
+  `true` explicitly — the opt-in tier unchanged), the rig s-family
+  (protected by the R3 staging).
+- NO other file pins the default (grep `"subagents"` across test/lib/bin:
+  the full enumeration is settings.rb, bin/tart, the subagents module, the
+  tests named above). In-process registry/loop tests build their own
+  loadouts — identity-blind to the default.
+
+### Environment / ops facts (measured this session)
+
+- The lane tree is predicted at **84 chars**
+  (`build/I70-subagents-default-on-core/wt`, absolute) — the s9 wrap law
+  (row = tree + outdir + 32, fires > 120) gives s9's out-dir budget
+  **4 chars** (`t7s9` → row exactly 120, the I68/I69 proven-green
+  boundary); every other scenario's out dir stays ≤ 6 (`t70sN`).
+- This spec session itself runs inside a herdr pane — every gate that
+  boots tart carries the `env -u HERDR_*` scrub (the I47/I69 lesson).
+- The spec session's shell is clean (no bundler poison) — the full
+  `architect` env scrub is needed only from bundle-exec'd tart sessions.
+- The I69 hygiene law: every frozen gate that writes an out dir carries
+  its own `rm -rf` (the herdr-wire-probe amendment precedent).
+- Gates are GENERATED from the previous frozen block (`tmp/i70-spec/
+  build-gates.rb` re-pointed at the I69 pair), carry audit BEFORE
+  rehearsal, every rebase + drop declared in the AC preamble (the I32
+  law: prose list and gate pattern generated from the lanes block, never
+  hand-written alongside).
+
+### Prior handoffs
+
+- `notes/spec-digest-20261017T185618Z-tart-identity-herdr.md` (I69): the
+  conventions above, the explicit-staging ruling, the s9 wrap law, the
+  probe-naming rule (one load-bearing stdout token per gate).
+- `architecture/I48-subagents-core.md` +
+  `architecture/I49-subagents-profiles-intercom.md`: the subagent
+  machinery contracts (manager/supervisor/profiles/intercom), the e2e
+  harness discipline, the boot-discipline pins.
+- Plan ENTRY 2 (the objective, constraints, acceptance direction).
 
 ## Specification
 
