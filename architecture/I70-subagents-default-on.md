@@ -464,21 +464,28 @@ the s-family).
 
 Property-level, each independently judgeable. The frozen ```gates block
 below is the machine-checkable form: **54 gates — 47 carried from the I69
-frozen block (26 byte-identical + 21 rebased exactly as declared; the
+frozen block (25 byte-identical + 22 rebased exactly as declared; the
 carry audit ran clean this session, `tmp/i70-spec/audit-gates.rb`:
 AUDIT_OK, zero DIFF, zero UNDECLARED-DROP) + 7 new/rewritten.** The
 carried gates keep their I69 `ac:` labels verbatim — they map to the
 STANDING battery (this iteration's AC5, with `suite`/`bench` = AC6 by the
 standing collapse); only the 7 new gates map to this iteration's AC1–AC5.
 **Declared DROPPED (1):** `scope` — per-iteration (rewritten here, never
-carried). **Declared rebases (21, commands byte-verbatim except these):**
+carried). **Declared rebases (22, commands byte-verbatim except these):**
 the out-dir family `t69*`→`t70*` with s9 → the FOUR-char `t7s9` (the I70
 lane tree is 84 chars — `build/I70-subagents-default-on-core/wt` — so the
 s9 wrap law (row = tree + outdir + 32, fires >120) pins s9's out dir at
 exactly 120, the I68/I69 proven-green boundary); `threads-budget`'s diff
 base `3845f6a`→`2a33f66` (the iteration base); the mktmpdir prefixes
 (`i69-hu-`/`i69-boot-`→`i70-*`) and the rig-identity-assert scratch out —
-cosmetic, zero semantics.
+cosmetic, zero semantics; and ONE wording fix inside `default-face`: the
+I69 verdict-session amendment left a shell apostrophe inside the
+single-quoted `ruby -e` script (the comment `identity_test's byte-pi
+pin` — the exact /bin/sh quote-termination trap the I69 digest warns
+about; the gate exits 2 BROKEN, never RED or GREEN) — the reword
+`identity_test pin (byte-pi)` is ruby-comment-only, zero semantics.
+Rehearsal #1 (this session) caught it as BROKEN; the fix is the rehearsal
+loop working as designed.
 
 **The designed-RED vector (7, every one verified RED-for-the-right-reason
 at base 2a33f66 by direct runs this session):** `subagents-default-law`
@@ -584,6 +591,21 @@ I69 precedent class) does not fail this iteration when the same tree
 exits 0 at canonical depth — the judge runs the battery on the integrated
 tree. The three launcher/SystemPrompt environment-dependent pins inside
 `suite` adjudicate env-class exactly as standing (the I59+ class).
+
+**Suite flake note (rehearsal #1, this session):** the `suite` gate TIMED
+OUT at the 900 s default in rehearsal #1 while the pristine base tree
+ran `test_kernel_interrupt_during_streaming_cancels_and_leaves_render_
+coherent` (chat_test:1613/1620, a timing-sensitive interrupt test) — the
+run stopped emitting output ~2.5 min in and never recovered. Direct
+re-runs of the SAME suite at the SAME base THIS session are green:
+three full runs (176.9 s / ~175 s / seed 40850 — the rehearsal's own
+seed) all 1219 runs / 5948 assertions / 0F / 0E / 1S. Class: the
+environmental-timing flake the I38 rehearsal precedent recorded
+("transient … clean on re-run"), not a tree defect — the rehearsal ran
+the PRISTINE base with zero lane work. If the judge's `suite` run hits
+the same timeout, re-run cold before adjudicating (the standing
+practice); a reproducible cold failure is a different class and must be
+root-caused before any verdict.
 
 ```gates
 ---
@@ -1209,7 +1231,7 @@ tree. The three launcher/SystemPrompt environment-dependent pins inside
     # BASE too (motd.rb is outside the touch set); masked at base by the
     # leg-1/2 aborts firing first. Width 120 preserves the discrimination
     # (pi face keeps the oracle version + the onboarding line), matching
-    # identity_test's byte-pi pin.
+    # identity_test pin (byte-pi).
     abort "the explicit pi face moved" unless pi.include?("v#{Tart::Identity::ORACLE_VERSION}") && pi.include?(Tart::Render::Motd::PI_ONBOARDING_LINE)
     puts "DEFAULT_FACE_OK"'
   expect:
