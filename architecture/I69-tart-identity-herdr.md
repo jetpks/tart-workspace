@@ -386,6 +386,28 @@ deviation discipline).
     deltas are small but the discovery-and-move work is broad; a missed
     DEFAULT-identity path is a lane failure.
 
+```lanes
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/identity.rb
+    - lib/tart/herdr.rb
+    - bin/tart
+    - gems/tui-split-rig/lib/tui_split_rig/runner.rb
+    - gems/tui-split-rig/bin/herdr-wire-probe
+    - gems/tui-split-rig/test/scenario_test.rb
+    - test/identity_test.rb
+    - test/settings_test.rb
+    - test/herdr_test.rb
+    - test/launcher_smoke_test.rb
+    - test/e2e_session_test.rb
+    - test/subagents_e2e_test.rb
+    - test/shapes_test.rb
+    - test/models_test.rb
+    - test/agent_loop_test.rb
+  effort: high
+```
+
 ### Effort call
 
 High — not for code volume but for enumerated audit: every real-boot and
