@@ -2684,9 +2684,27 @@ project:
   - name: tart-identity-herdr
     ordinal: 69
     file: architecture/I69-tart-identity-herdr.md
-    freeze_sha: bda6355c55edbd1a90c4ca862ea9c1902f524a99
+    freeze_sha: 844b4af77a90370e9ee75855358e7ab9fbbdcfc3
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/identity.rb
+      - lib/tart/herdr.rb
+      - bin/tart
+      - gems/tui-split-rig/lib/tui_split_rig/runner.rb
+      - gems/tui-split-rig/bin/herdr-wire-probe
+      - gems/tui-split-rig/test/scenario_test.rb
+      - test/identity_test.rb
+      - test/settings_test.rb
+      - test/herdr_test.rb
+      - test/launcher_smoke_test.rb
+      - test/e2e_session_test.rb
+      - test/subagents_e2e_test.rb
+      - test/shapes_test.rb
+      - test/models_test.rb
+      - test/agent_loop_test.rb
     rehearsal:
       gates_digest: ee5ac5e73f27685e84c731a9c179618c5887fc053faf12bc3a369f86d73088a1
       at: '2026-10-17T12:43:36-06:00'
