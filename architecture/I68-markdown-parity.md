@@ -1278,11 +1278,157 @@ green kept), the enumerated deviations.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I68-markdown-parity-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence markdown-parity --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# I68 markdown-parity — core lane report
+
+Builder: architect-builder, lane core. Worktree
+`build/I68-markdown-parity-core/wt`, branch `lane/I68-markdown-parity-core`,
+base `3845f6a`. No commits made (integrator lands the tree); no gem, rig,
+`repos/pi`, or call-site edits.
+
+## Result in one paragraph
+
+The converter's inline machinery was rebuilt around the CommonMark
+delimiter-run law (Grounds R1–R3: left/right-flanking predicates for both
+`*` and `_`, the `_` intraword disallowance, the rule of 3, nearest-opener
+resolution with run splitting), the strict-del pair became pi's literal
+`STRICT_STRIKETHROUGH_REGEX` attempt per scan position, escapes consume
+backslash + ASCII punctuation only (R5), link destinations carry balanced
+parens (R6), indented fences dedent their body (R7), and task markers fold
+into the listBullet marker span with the full-width continuation prefix
+(R8). The I65 D1 reject-emission semantics are preserved by construction:
+an unpairable delimiter falls to the tokenizer's one-char text fallback
+(emit the character at its position, advance one, re-scan). The frozen
+48-case battery passes 48/48; every local gate is green; the 12 pty parity
+members and both wire gates stayed exactly where base had them.
+
+## Suite summary line
+
+```
+1259 runs, 5957 assertions, 0 failures, 0 errors, 1 skips
+```
+(`bundle install --quiet && bundle exec rake` at the lane tree; base was
+1211/5911. The delta is +48 battery tests. The 1 skip is the standing one.)
+
+## Gate one-liners (exact frozen commands, all at the lane tree)
+
+| gate | outcome |
+|---|---|
+| `bundle install --quiet && bundle exec rake` | 1259 runs, 0 failures, 0 errors, 1 standing skip |
+| `bundle exec ruby bench/seam_bench.rb` | last line `SEAM_BENCH_OK` |
+| `ruby -Ilib -Itest test/markdown_test.rb -n "/md_battery/"` | 48 runs, 0 failures, 0 errors |
+| `ruby -Ilib -Itest test/markdown_test.rb` (full) | 79 runs (31 base + 48 battery), 148 assertions, 0 failures |
+| `md-battery-fixture` | `MD_BATTERY_FIXTURE_OK` — sha256 `4ecd9cc2a5937dda7254c6553c6b9927b7af725e111ea02acf9226c2e01ac883` verified before AND after the copy |
+| `md-regression-units` | 79 runs ≥ 79, ec 0 |
+| `md-battery-units` | 48 runs ≥ 48, ec 0 |
+| `md-flanking-repro` | `MD_FLANKING_OK` (R1a/R1b/R2/R3/R3b/R3c/R4/R5/R6/R7/R8 + the I65 reject pin, all exact) |
+| `s1-parity` … `s10-parity` (s1_text_turn, s2_tool_turn, s3_tool_turn_files, s4_bash_variants, s5_bash_truncation, s6_long_calls, s7_compaction, s8_zero_usage_compaction, s9_startup_help, s10_editor_wrap) | exit 0 ×10, out dirs `tmp/i68s1`…`tmp/i68s10` |
+| `s17-parity` (s17_edit_tool_bg) | exit 0, out dir `tmp/i68s17` |
+| `s1-tart-mode` (s1_tart) | `TART_MODE_OK`, out dir `tmp/i68s1t` |
+| `wire-delta` | `WIRE_DELTA_OK` — instruction sha `4209f40b…` EXACT, tools sha `7360fd1e…758831…` EXACT, key order/store/stream_options exact |
+| `zai-max-tokens-wire` | `ZAI_WIRE_OK tart=pi=512`, out dir `tmp/i68zwire` |
+| `scope` | `SCOPE_OK` — diff vs `3845f6a` is exactly `lib/tart/render/markdown.rb` (M), `test/markdown_test.rb` (M), `test/fixtures/markdown_battery.json` (new, untracked) |
+| `viewport-probe` | `VIEWPORT_PROBE_OK c` (probe file already at base — nothing declared-new needed) |
+| `oracle-pin-state` | `ORACLE_PIN_OK` (environment gate, read-only check) |
+| `oracle-bin-units` | 6 runs, 0 failures |
+| `oracle-resolve` | `ORACLE_RESOLVE_OK` |
+
+Rig note: the prompt's "13 pty members" maps to the 12 parity scenarios
+(s1–s10, s17, s1t) plus the wire members; all 14 rig runs (12 pty scenarios,
+`tmp/i68wire` and `tmp/i68zwire` s1 reruns) executed green at the lane tree
+with the env-strip prefix and NO `--pi-bin` flag, `tart-dir` defaulting to
+the worktree. All out dirs are gitignored, untracked environment artifacts.
+
+## Battery per-family outcome (48/48 green)
+
+**The 11 designed-RED cases — cured (battery tests pass against the frozen
+oracle rows):**
+owner_snake_line, intraword_double_underscore, multi_snake_identifiers,
+strong_padded, strong_intraword, underscore_pair_in_parens,
+em_nested_strong_star, escaped_backslash_before_letter, link_parens_url,
+fenced_indented, list_task.
+
+**The 37 GREEN cases — kept** (the `*`-intraword asymmetry
+`intraword_star_em`/`intraword_double_star`, `underscore_real_em`,
+`em_word_boundaries`/`strong_word_boundaries`, `em_punct_flank`,
+`em_before_period`, `star_padded`/`underscore_padded`, `triple_delim`,
+`strong_nested_em_underscore`/`strong_nested_em_star`, `escaped_star`,
+`escaped_underscore`, `escaped_two_backslashes`, `code_protect_underscore`/
+`code_protect_delims`, the whole strict-del family (`del_basic`,
+`del_padded`, `del_adjacent`, `del_tilde_edge`), the link edges
+(`link_basic`, `link_text_eq_href`, `link_punct_url`, `link_formatted_text`,
+`link_mailto`), headings (`heading_inline_bold`, `heading_inline_code`,
+`heading_six`), `hr_underscores`, fences (`fenced_tilde`,
+`fenced_unclosed`), lists (`list_paren_ordered`,
+`list_nested_ordered_in_unordered`, `list_code_item`), quotes
+(`quote_nested`, `quote_list`) — all pass byte-exact against the frozen
+fixture.
+
+Additionally verified: every I65 D1 pin stayed green inside the full
+`rake` run (`test_inline_scan_*`, `OWNER_PAYLOAD` full + slice cover walks,
+the minimal trigger, and the transcript-side twins in
+`test/render/transcript_test.rb` — 32 runs, 0 failures); the two md-repro
+passthrough cases (`a ~~ padded ~~ b * and *`, `between zai/* and
+openrouter/z-ai-*); tail`) render byte-exact.
+
+## Mechanism (declared per the spec's "mechanism is YOUR choice")
+
+`lib/tart/render/markdown.rb` inline side: `INLINE_SCAN` (regex alternation
+with the no-padded-content approximation) is replaced by a tokenizer
+(`tokenize_inline`: escape → codespan → link → delimiter run → strict-del
+pair, else one text character) plus a CommonMark emphasis resolver
+(`resolve_emphasis`/`close_emphasis`: nearest same-char opener that can
+open, run splitting with `use = 2 → strong / 1 → em`, closer remnants
+re-close so `***x***` nests em(strong), rule of 3, per-key openers bottoms,
+unmatched runs render literally). The block side gained exactly two cures:
+fence-body dedent in `code_block` (R7) and the task-marker fold in
+`list_rows` (R8, checked normalized to `x` per markdown.ts `taskMarker`,
+continuation = `" " * full marker width`). Public interface
+(`Markdown.rows`, `Span`, `FG`) unchanged; both render call paths consume
+it as-is.
+
+## Deviations (itemized)
+
+1. **CommonMark predicates, not marked's regex-quirk machinery.** marked
+   18.0.11's `emStrong` is a regex approximation with non-CommonMark
+   behaviors in some shapes; the Grounds specify the CommonMark predicates
+   ("can OPEN only if left-flanking…"), which is what I implemented. Probed
+   off-battery shapes (`*a *b*`, `**a *b** c*`, `a *b\nc* d`, `**a\nb**`,
+   `~~a~~b~~`) render modifier-identical to the pinned oracle (marked
+   18.0.11 via `repos/pi/packages/tui`, node probe). No battery case
+   distinguishes the two mechanisms.
+2. **Emphasis/pairing can now span paragraph soft line breaks** (the
+   newline is whitespace in the inline stream, as in marked). At base, em
+   could not (`[^*\n]+`) though strong/del could. Battery-neutral; probed
+   match with marked (`a *b\nc* d`, `**a\nb**`).
+3. **Codespans stay line-bound** (base convention; marked would allow
+   cross-line code spans with `\n`→space). Added marked's run-length
+   closer matching and the one-edge-space strip. Battery-neutral.
+4. **Link label/dest stay line-bound and non-empty** (base semantics):
+   `[a]()` stays literal text where marked yields an empty-href link;
+   titles (`[a](u "t")`) unsupported as at base (battery contains none;
+   probe: `[a](url title)` literal in both).
+5. **Standing exclusions unchanged from base** (named in the frozen plan):
+   tables, setext headings, autolinks `<…>`, images, OSC-8 hyperlinks,
+   latex. No new exclusions introduced.
+6. **No frozen-expectation moves.** `test/chat_test.rb` and
+   `test/render/transcript_test.rb` are untouched; no render call-site
+   changes; `gems/tui-split-rig/**`, Gemfile/lock/gemspec untouched; no new
+   `Thread.new` sites; the converter file remains free of the underlying
+   gem's name.
+
+## Residual risks
+
+- The rig screens were verified against the pinned oracle at THIS tip only;
+  a future re-pin of repos/pi (the standing 1.2.0-drift residual) may
+  re-expose the marked-quirk class from deviation 1 (out of this lane's
+  frozen letter either way).
+- `bottoms` (openers-bottom) bookkeeping keys on
+  `[ch, closer_can_open, orig % 3]` following commonmark.js's shape;
+  pathological rule-of-3 retry chains (not in the battery, not in any rig
+  payload) could in principle differ from marked by a nesting choice.
+  Termination is guaranteed (counts strictly decrease per match).
 
 ## Verdict
 
