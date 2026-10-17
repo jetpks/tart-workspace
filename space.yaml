@@ -4,7 +4,7 @@ id: 20261009-pi-port
 title: pi-port
 status: active
 created_at: '2026-10-09T02:03:09-06:00'
-updated_at: '2026-10-16T18:40:46-06:00'
+updated_at: '2026-10-17T12:10:59-06:00'
 repos:
 - provider: github.com
   organization: earendil-works
@@ -69,12 +69,19 @@ repos:
   clone_url: git@github.com:setdef/RatatuiRuby.git
   path: repos/RatatuiRuby
   added_at: '2026-10-16T18:40:46-06:00'
+- provider: github.com
+  organization: herdrdev
+  name: herdr
+  full_name: github.com/herdrdev/herdr
+  clone_url: git@github.com:herdrdev/herdr.git
+  path: repos/herdr
+  added_at: '2026-10-17T12:10:59-06:00'
 notes: []
 tickets: []
 tags: []
 project:
   status: active
-  current_iteration: markdown-parity
+  current_iteration: tart-identity-herdr
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -2674,4 +2681,10 @@ project:
     rehearsal:
       gates_digest: 2c70ac32ef544e95174b660497252240b71efd68396b5c91fe2c44bc211ea907
       at: '2026-10-17T02:25:45-06:00'
+  - name: tart-identity-herdr
+    ordinal: 69
+    file: architecture/I69-tart-identity-herdr.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
