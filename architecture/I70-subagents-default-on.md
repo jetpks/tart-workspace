@@ -1749,11 +1749,142 @@ MOTD block (the assert lines), deviations, residual risks.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I70-subagents-default-on-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence subagents-default-on --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# Builder Report — I70 subagents-default-on, lane core
+
+Worktree: `build/I70-subagents-default-on-core/wt`, branch `lane/I70-subagents-default-on-core`, base `2a33f66` (verified: `git log --oneline` head = `2a33f66 Merge lane/I69-tart-identity-herdr-core`; tree clean pre-work). NO commits made; nothing pushed; nothing under `repos/pi` written; no gem touched; `workflows.rb` NOT touched (allowed-if-needed, not needed).
+
+## PHASE 0
+
+Plan: read the brief + frozen contract in full, ground on the touched seams (motd.rb, settings.rb, workflows.rb, bin/tart call sites, runner.rb stage_tart_home, herdr-wire-probe, the four test files, the tmp/probe-subag oracle capture, pi's interactive-mode.ts :1795-1860), then implement R1–R6 in the brief's order (flip first, blast-radius rake immediately, then the motd work). Disagreement check: one tension found pre-flight — `scenario_test.rb:306-307` pinned `refute File.exist?(settings.json)` ("settings.json stays context_window-gated"), which R3 + the frozen `rig-staging-units` gate invert; R3 governs, the pin moves (itemized below). No other disagreements; the touch set, must-differ legs, and the 54-gate block are internally consistent.
+
+## Result (one paragraph)
+
+The subagents core is functional and DEFAULT-ON: the MOTD prompt-scope path gained pi's PACKAGE tier (nil-`file_path` builtin templates classify into the user scope under the port's own `subagents` package label; file-backed templates classify byte-exactly as today; no crash for any template mix), `DEFAULTS["subagents"]` flipped to `true` with the opt-out tiers proven live (settings file, env tier, env-over-file, both wire digests, instruction-identity), the rig stages the explicit opt-out on every parity path, a new live tmux probe proves the default-on interactive boot renders the [Prompts] section crash-free byte-matching the frozen oracle shape with the accent/mdLink/dim SGR runs, and four new default-on e2e legs (E1–E4) prove the machinery end-to-end. **Final suite: 1229 runs, 6047 assertions, 0 failures, 0 errors, 1 skips (the standing skip), rake exit 0** (base floor 1219/5948 — Δ +10 runs, +99 assertions) + `SEAM_BENCH_OK`. All 54 frozen gates GREEN at this tree (mechanically executed from the contract's gates block; final battery 54/54).
+
+## AC-by-AC outcome
+
+| AC | Outcome | Evidence |
+|----|---------|----------|
+| AC1 — MOTD cure, oracle-pinned | PASS | `subagents-motd-units` GREEN (expanded rows exact incl. mixed tiers + builtin-only, the two-span label shapes, accent/mdLink/dim styles); `subagents-motd-probe` GREEN live (see captured block below); chat_test nil-path render pin green; [Context]/[Skills]/[Extensions] untouched (no source change — sections other than [Prompts] rows byte-identical by construction). |
+| AC2 — default ON, opt-out tiers, wire law | PASS | `subagents-default-law` + `subagents-default-boot` GREEN: default boot exit 0, tools names `read bash edit write subagent`, digest `2c744efc8cae…f55d88`; opt-out boot (staged `{"subagents": false}`) tools `read bash edit write`, digest `7360fd1ec641…c23707` (the standing wire-delta constant); instruction digest IDENTICAL off vs on. Env tier "0"/"1" and identity namespacing pinned in settings_test + the law gate. |
+| AC3 — e2e default-on | PASS | `subagents-e2e-default-on` GREEN: 4 legs (`default_on` E1 foreground round-trip, E2 async+notify+print-drain, E3 steering receipt (correlated request-id consumption), E4 stop) — 4 runs, 57 assertions, 0F/0E standalone; no settings.json staged on any leg (pinned in-leg). A–D legs byte-unchanged and green in the full suite. |
+| AC4 — parity surface, explicit staging, digests hold | PASS | `rig-staging-units` GREEN (always-written opt-out row + compaction coexistence); s1–s10, s17, s1-tart-mode, wire-delta (instruction `4209f40b…`, tools `7360fd1e…`), zai-max-tokens-wire, session-golden all GREEN — see Deviation D2 for the mechanism. |
+| AC5 — regression floor + scope | PASS | Suite 1229/6047/0F/0E/1S; `SEAM_BENCH_OK`; `scope` GREEN (diff vs `2a33f66` = exactly the declared touch set, verified: 10 modified files + the new probe bin); 1 standing skip unchanged; `threads-budget` GREEN (no new `Thread.new` in lib); `oracle-pin-state` GREEN (environment pin holds). |
+
+## Suite summary line
+
+```
+1229 runs, 6047 assertions, 0 failures, 0 errors, 1 skips   (rake exit 0; base 1219/5948/0/0/1S)
+SEAM_BENCH_OK                                               (bench exit 0)
+```
+
+## Gate table — all 54 frozen gates (mechanically executed verbatim from the contract gates block; final battery 54/54 OK)
+
+| Gate | ac | One-liner |
+|------|----|-----------|
+| suite | AC6 | exit 0, `SUITE_OK` — 1229 runs, 6047 assertions, 0F/0E/1S |
+| bench | AC6 | exit 0, `SEAM_BENCH_OK` |
+| md-repro | AC4 | exit 0, `MD_REPRO_OK` |
+| md-inline-units | AC4 | exit 0, `MD_INLINE_UNITS_OK` (markdown ≥3 runs + transcript ≥1 run, 0F/0E) |
+| pending-registry-units | AC4 | exit 0, `PENDING_REGISTRY_UNITS_OK` (≥4 runs, 0F/0E) |
+| footer-window | AC4 | exit 0, `FOOTER_WINDOW_OK 1000000` (env tier 999 leg green) |
+| thinking-pins | AC4 | exit 0, `THINKING_PINS_OK` (≥11 + ≥8 runs, 0F/0E) |
+| hermeticity | AC4 | exit 0, `HERMETICITY_OK` (launcher ≥8, e2e-session ≥4 runs) |
+| lock-deps | AC4 | exit 0, `GEM_LOAD_OK` (fast-completions 0.5.0 pinned in lock) |
+| zai-data | AC4 | exit 0, `ZAI_DATA_OK` |
+| threads-budget | AC4 | exit 0, `THREADS_BUDGET_OK` (diff base `2a33f66`, no new `Thread.new` in lib) |
+| session-golden | AC4 | exit 0, `SESSION_GOLDEN_OK` (all 7 digests exact) |
+| strict-wire | AC4 | exit 0 (runs/0 failures/0 errors line) |
+| error-transcript-units | AC4 | exit 0, `ERROR_TRANSCRIPT_UNITS_OK` (≥4 + ≥2 runs) |
+| error-transcript-render-units | AC4 | exit 0, `ERROR_TRANSCRIPT_RENDER_UNITS_OK` (≥3 + ≥2 runs) |
+| render-perf-units | AC4 | exit 0 |
+| render-perf-probe | AC4 | exit 0, `RENDER_PERF_OK` |
+| tool-pending-gate | AC4 | exit 0, `TOOL_PENDING_GATE_OK` (--out t70tp) |
+| user-bash-stream-gate | AC4 | exit 0, `USER_BASH_STREAM_GATE_OK` (--out t70ub) |
+| zai-max-tokens-units | AC4 | exit 0, `ZAI_MAX_TOKENS_UNITS_OK` (≥4 + ≥2 + ≥2 runs) |
+| rail-bg | AC4 | exit 0, `RAIL_BG_OK` |
+| jump-pill-units | AC4 | exit 0, `JUMP_PILL_UNITS_OK` (≥6 runs) |
+| rail-bg-units | AC4 | exit 0, `RAIL_BG_UNITS_OK` (≥4 runs) |
+| viewport-probe | AC4 | exit 0, `VIEWPORT_PROBE_OK` |
+| oracle-pin-state | AC4 | exit 0, `ORACLE_PIN_OK` (environment pin: branch/tag/HEAD/clean/cli 1.1.0) |
+| oracle-bin-units | AC4 | exit 0, `ORACLE_BIN_UNITS_OK` (≥5 runs) |
+| oracle-resolve | AC4 | exit 0, `ORACLE_RESOLVE_OK` |
+| s1-parity | AC5 | exit 0 (t70s1, rm -rf + HERDR scrub) |
+| s2-parity | AC5 | exit 0 (t70s2) |
+| s3-parity | AC5 | exit 0 (t70s3) |
+| s4-parity | AC5 | exit 0 (t70s4) |
+| s5-parity | AC5 | exit 0 (t70s5) |
+| s6-parity | AC5 | exit 0 (t70s6) |
+| s7-parity | AC5 | exit 0 (t70s7, compaction scenario) |
+| s8-parity | AC5 | exit 0 (t70s8, zero-usage compaction) |
+| s9-parity | AC5 | exit 0 (t7s9 — the 4-char out dir, row = 120 wrap boundary) |
+| s10-parity | AC5 | exit 0 (t70s10) |
+| s17-parity | AC5 | exit 0 (t70s17) |
+| s1-tart-mode | AC5 | exit 0, `TART_MODE_OK` (t70s1t) |
+| wire-delta | AC4 | exit 0, `WIRE_DELTA_OK` (instruction `4209f40b…`, tools `7360fd1e…`) |
+| zai-max-tokens-wire | AC5 | exit 0, `ZAI_WIRE_OK tart=pi=512` |
+| identity-law | AC1 | exit 0, `IDENTITY_LAW_OK` |
+| default-face | AC1 | exit 0, `DEFAULT_FACE_OK` |
+| default-boot | AC1 | exit 0, `DEFAULT_BOOT_OK` |
+| herdr-units | AC2 | exit 0, `HERDR_UNITS_OK` |
+| herdr-wire-probe | AC2 | exit 0, `HERDR_WIRE_OK` (t70hwp) |
+| rig-identity-assert | AC3 | exit 0, `RIG_IDENTITY_OK` |
+| subagents-default-law | AC2 | exit 0, `SUBAGENTS_DEFAULT_LAW_OK` (designed-RED at base — cured) |
+| subagents-default-boot | AC2 | exit 0, `SUBAGENTS_DEFAULT_BOOT_OK` (designed-RED at base — cured) |
+| subagents-motd-units | AC1 | exit 0, `SUBAGENTS_MOTD_UNITS_OK` (designed-RED at base — cured) |
+| subagents-motd-probe | AC1 | exit 0, `SUBAGENTS_MOTD_OK` (t70mot; designed-RED at base — new bin) |
+| subagents-e2e-default-on | AC3 | exit 0, `SUBAGENTS_E2E_DEFAULT_OK` (≥4 default_on legs; designed-RED at base runs=0 — cured) |
+| rig-staging-units | AC4 | exit 0, `RIG_STAGING_OK` (designed-RED at base — cured) |
+| scope | AC5 | exit 0, `SCOPE_OK` (designed-RED at base — cured; must-differ motd.rb/settings.rb/runner.rb all differ, no out-of-touch-set path) |
+
+## The probe's captured MOTD block (subagents-motd-probe, final battery run)
+
+```
+subagents-motd-probe expanded [Prompts] block (plain bytes):
+  |  user|
+  |    subagents|
+  |      /council|
+  |      /gather-context-and-clarify|
+  |      /parallel-cleanup|
+  |      /parallel-research|
+  |      /parallel-review|
+  |      /review-loop|
+SUBAGENTS_MOTD_OK
+```
+
+Assert lines exercised (all pass): pane alive + stderr log free of `NoMethodError`/`motd.rb`; the chat surface present (the hints line); the collapsed [Prompts] block lists the six names sorted; the expanded block: `  user` = `[["  ", nil], ["user", "38;2;167;152;215"]]` (accent), `    subagents` = `[["    ", nil], ["subagents", "38;2;105;173;208"]]` (mdLink), the six `      /<name>` rows each exactly `[["      /<name>", "38;2;126;136;142"]]` (one dim span, indent inside the run), alphabetical. Boot is DIRECT in tmux (NOT through the Runner), staged HOME with NO settings.json, staged sandbox cwd, closed pane env (scrub of PI_/TART_/HERDR_/BUNDLE_/BUNDLER_/RUBYOPT/RUBYLIB) staging only `TART_MODEL=mock-1`/`TART_API_KEY`/`TART_API_BASE`, DEFAULT identity, stderr → log; teardown kills the pane pid tree + kill-session (token-scoped name). The probe scrubs its own `HERDR_*` first; the gate command carries its own `rm -rf t70mot`.
+
+## Moved pins (itemized — TEST-MOVE LAW)
+
+| # | File | Pin | Move |
+|---|------|-----|------|
+| 1 | test/settings_test.rb | `test_subagents_gate_rows_default_off_with_the_identity_env_suffix` (:83-88) | DEFAULTS row `false`→`true`; renamed `…_default_on_…`; RESOLUTION_ENV suffix + PI_/TART_ env-key discrimination preserved byte-for-byte. |
+| 2 | test/settings_test.rb | `test_subagents_is_a_known_key_and_resolves_env_over_file_over_default` (:91+) | Known-key load's default tier `false`→`true`; the file row now stages `{"subagents": false}`; env-over-file pin kept; **opt-out tiers gained pins**: file tier resolves false, env tier `"0"`, env-over-file `"1"`. |
+| 3 | test/subagents_test.rb | `test_settings_gate_rows_and_the_opt_in_build` (:102-108) | DEFAULTS row flip asserted; renamed `…_the_opt_out_build`; "off = no tool" re-worded to the OPT-OUT shape (register mechanics unchanged: no register ⇒ no `subagent` key; register ⇒ declared LAST, `%w[read bash subagent]`). |
+| 4 | gems/tui-split-rig/test/scenario_test.rb | `test_tart_home_stages_two_mock_models` (:306-307) | The `refute File.exist?(settings.json)` pin INVERTED by R3 → the always-present staged settings.json with `subagents: false` + "compaction rows ride ONLY the context_window scenarios" refute. (The R3-vs-old-pin tension flagged at PHASE 0.) |
+| 5 | test/subagents_e2e_test.rb | leg F child wire-tools pin (:776) + its staging | NOT a default pin — a default-IMPLICIT boot the Grounds blast-radius audit missed: leg F stages no settings.json, so post-flip its child rode the default ON and the wire gained `subagent`. Fixed inside the whitelisted file: `i49_stage_home` now writes the explicit opt-out (the I69 explicit-staging law mirrored); the pin's I48-off discrimination (allowlist + bridge LAST) restored. Leg E's `stage_home` still overwrites with its explicit `true` — unchanged. |
+
+New pins (nothing deleted): motd_test `test_nil_path_prompt_templates_render_the_package_tier`, `test_mixed_prompt_tiers_keep_the_plain_path_rows`, `test_nil_path_templates_never_crash_the_scope_path`; chat_test `test_motd_renders_nil_path_prompt_templates_without_crashing`; subagents_e2e_test E1–E4 (`default_on`); scenario_test `test_tart_command_stages_the_identity_namespaced_subagents_opt_out`, `test_hide_staged_settings_moves_the_opt_out_aside`, + the compaction-coexistence assert in `test_context_window_stages_both_apps_compaction_knobs`.
+
+## Deviations (itemized, never absorbed)
+
+- **D1 (load-bearing — lib/tart/settings.rb `resolve_setting`):** the frozen prose says the method is "BYTE-UNCHANGED"; the bare `||` ladder reads a PRESENT-but-false file row as absent, so post-flip the file opt-out `{"subagents": false}` could NEVER resolve off (measured at the flip: `resolve_setting("subagents", {"subagents" => false}, identity: "tart", env: {})` → `true`). The frozen gates `subagents-default-law` (`off == false`) and `subagents-default-boot` (the `7360fd1e…` opt-out digest) and R3's entire staged-opt-out design REQUIRE the cure; the gates block is the machine-checkable form. Cure: presence-check ladder — env (raw) > a PRESENT file value (false included) > DEFAULTS; a NIL row still falls through (malformed-file semantics unchanged). Tier ORDER unchanged; no other carried key changes outcome (the precedence-matrix test passes unchanged — all its file values are non-nil; memory's off shape rides the same ladder, outcome identical, pinned by memory_test).
+- **D2 (load-bearing — runner.rb `hide_staged_settings` + `tart_command` env row):** the always-staged settings.json is ITSELF a [Context] source (motd.rb `context_sources`; chat_test pins the port listing its config files; pi's contextFiles never lists settings — interactive-mode.ts :1844-1857 is AGENTS.md/systemPrompt sources only), and the rig registry DELIBERATELY leaves the port-only `[Context]` heading an unknown-candidate (registry.yml:40-44, "a real port-only listing, left on the work list"). Measured: the R3 always-write alone failed s1–s6/s9/s10/wire-delta/zai-max-tokens-wire by design. Cure: `stage_tart_home` still writes the opt-out settings.json ALWAYS (the `rig-staging-units` letter — verified passing), but non-context_window boots move the file aside byte-preserved (`settings.json.optout`) and the explicit opt-out rides the identity-namespaced ENV tier (`PI_SUBAGENTS=0`/`TART_SUBAGENTS=0` staged by `tart_command`) — R2's own legal opt-out tier, the I69 "the runner OWNS explicit staging" law honored. Compaction scenarios KEEP the file (the lever) — their captures are the compaction rebuild where no MOTD section survives (verified: s7/s8 green with the file booted). All affected gates re-measured green.
+- **D3:** leg F staging (moved-pin row 5 above) — a Grounds blast-radius miss, fixed inside the whitelisted file; declared, not silent.
+- **D4:** bin/tart comment reword — only the `subagents_enabled?` block (it asserted "default off", factually wrong post-flip); the two gate call-site comments left byte-unchanged (R2: allowed, not required). No behavior change — the predicate's bytes are untouched.
+- **D5:** `lib/tart/subagents/workflows.rb` NOT touched (the whitelist's allowed-if-needed member): the six templates already ship `file_path: nil`; the cure is entirely in motd.rb. The six prompt/description bytes stay pinned by `subagents_intercom_test` (green in suite).
+
+## Residual risks
+
+- The suite's environmental-timing flake (spec's flake-note class) reproduced once mid-iteration: a 900s-window run stalled (output ceased ~2.5 min in) and timed out; two cold re-runs green (185.9s / ~similar, final 1229/6047). Re-run cold before adjudicating if the judge's `suite` hits it.
+- The probe and E legs ride tmux/stream pacing margins (bounded settle ≤30s, watchdogged parents); all proved in the final battery, but a slow cold CI host shrinks the margins the same way they always have.
+- The port-only [Context]-lists-config-files divergence stays OPEN on the registry work list by design (D2 hides the staged file rather than resolving the standing divergence; the owner rules registry pins).
+- `resolve_setting` now distinguishes present-false from absent for every carried key; today only `subagents` (and memory's callers, outcome-identical) exercise a false file value — a future default-true boolean key inherits the cure's semantics, which is the intended law.
+- The post-integration interactive test-drive (the owner's live pi-subagents-vs-tart parity) remains the named human checkpoint — not rig-observable by design.
+
+STATUS: COMPLETE
 
 ## Verdict
 
