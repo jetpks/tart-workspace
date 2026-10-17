@@ -1098,10 +1098,134 @@ as standing. Gates: `suite`, `bench` (+ every AC5 member cold).
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I67-rig-oracle-repin-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section rig-oracle-repin prompt --append --lane <lane> --from build/I67-rig-oracle-repin-<lane>/prompt.md`. -->
+### core
+
+You are the builder for iteration `rig-oracle-repin` (I67), lane `core`.
+Work ONLY in the provisioned worktree on branch
+`lane/I67-rig-oracle-repin-core` (base tart `project/pi-port` @ `25adab9` —
+the I66 merge); NEVER commit (the integrator lands your tree), NEVER touch
+the space repo, NEVER push, NEVER touch any gem (published
+fast-completions 0.4.0 and ratatui_ruby 1.5.0 are dependencies — consume,
+never modify), NEVER write anything under `repos/pi` (the pinned oracle
+clone is ENVIRONMENT, performed and guarded by the spec session — read-only
+for you; see THE PIN below). The full iteration contract is the frozen
+Grounds/Specification/Acceptance Criteria in this file (verbatim below) —
+read them first; this header is the lane's operating brief. You are the
+ONLY lane.
+
+THE TASK IN ONE PARAGRAPH: make the parity rig's oracle self-contained and
+version-stable — (R1) a NEW public seam
+`TuiSplitRig.resolve_pi_bin(flag: nil, env: ENV, tart_root: nil)` resolves
+the oracle in the frozen order: `flag` (the `--pi-bin` CLI override, kept
+verbatim) → `env["TUI_SPLIT_RIG_PI_BIN"]` (a NEW env escape hatch — never
+PATH) → the pinned clone default
+`<pi-root>/packages/coding-agent/dist/bundle/cli.js`, where `pi-root` is
+the sibling `pi` of the tart repo root — the tart repo root is `tart_root`
+when explicitly passed, else the rig's own repo root, and (default-root
+case ONLY) when the direct sibling clone is missing there, the CANONICAL
+checkout resolved via `git -C <repo_root> rev-parse --git-common-dir`
+(dirname, absolute-ized) — YOUR LANE WORKTREE resolves through exactly this
+fallback (measured; Grounds "Rig mechanics"); with an explicit
+`tart_root` there is NO git fallback (the pure testability contract).
+Unresolvable → raise `TuiSplitRig::Error` naming the expected clone path.
+`command -v pi` is DELETED from the runner (the system pi — 1.2.0 on PATH
+— is never consulted again); `Runner#default_pi_bin` delegates to the
+seam; `@pi_bin` construction and the pi pane's PATH-prepend + `exec env …
+--model mock/mock-1` mechanics (runner.rb :41/:46, :459-:463) are
+UNCHANGED. `gems/tui-split-rig/bin/tui-split-rig:26` — the `--pi-bin` help
+text names the new default. (R2) `stage_tart_home` stages `<home>/bin/pi`
+as a SYMLINK to the resolved `@pi_bin` and `tart_command` prepends that
+bin dir to the tart pane's PATH (before `dirname(@bundle_bin)`; the rest
+of the staged env byte-identical) — tart's `SystemPrompt.pi_package_dir`
+realpath walk then resolves the SAME pinned clone the oracle runs from,
+curing the measured s8 divergence (pi 1,474 tokens from the clone's docs
+paths vs tart 1,432 from the system install's — Grounds R2). Unit pins:
+`gems/tui-split-rig/test/oracle_bin_test.rb` (NEW — rake loads it), names
+carrying the token `oracle_bin`.
+
+TEST-NAME TOKENS (load-bearing — a gate filters by test NAME): your
+oracle pins must carry the token `oracle_bin` in their names (the
+`/oracle_bin/` filter must match >= 5 tests). If a test you write fits
+but lacks the token, the gate reads 0 runs and fails — name them
+deliberately. The enumerated minimum set (Specification R1): resolution
+order flag > env > clone-default (injected roots, no git); the
+missing-clone raise (`TuiSplitRig::Error`, explicit `tart_root` to a dir
+with no sibling clone); the real-repo default resolves the clone's cli.js
+(absolute, executable); `env -u PI_PACKAGE_DIR node <cli> --version`
+prints exactly `1.1.0`; the never-PATH property (the resolved default
+differs from `command -v pi`'s output whenever a PATH pi exists); after
+`stage_tart_home` the staged `<home>/bin/pi` symlink exists and
+`File.realpath`s into the pinned clone.
+
+THE PIN IS DONE (do not redo it): `repos/pi` is already on branch
+`oracle-v1.1.0` @ tag `v1.1.0` (built; `env -u PI_PACKAGE_DIR node
+<clone>/packages/coding-agent/dist/bundle/cli.js --version` → `1.1.0`),
+guarded by the `oracle-pin-state` gate. Do NOT checkout, build, or commit
+anything there. If that gate reads RED at your tree, report it as an
+ENVIRONMENT failure in your report (with the gate's output) — never
+attempt to fix it from the lane.
+
+FROZEN EXPECTATIONS (do not redesign; the frozen sections govern on any
+conflict):
+- NO scenario-content edits: `gems/tui-split-rig/scenarios/*.yml`,
+  `registry.yml`, `gems/tui-split-rig/fixtures/` are BYTE-FROZEN.
+- ALL of `lib/tart/**` untouched — `identity.rb` (`ORACLE_VERSION =
+  "1.1.0"`, the frozen parity target) and `system_prompt.rb` (tart's own
+  `<docs>` walk stays as-shipped; the R2 cure pins its INPUT via the
+  staged PATH, not its code).
+- The pane env scrub (`env_flags` :494-501) unchanged. No new gems; no
+  new `Thread.new` sites; Gemfile/lock/gemspec, tart's `bin/`+`test/`,
+  `bench/`, and the four other rig bins untouched. Your tree's diff vs
+  `25adab9` is EXACTLY: runner.rb (modified), bin/tui-split-rig
+  (modified), test/oracle_bin_test.rb (NEW, untracked — the integrator's
+  `git add` picks it up).
+- The measured cure facts you must reproduce (Grounds R2/R3): post-cure
+  BOTH panes' `<docs>` segments are byte-identical (the clone's
+  README/docs/examples paths); s8's `"Compacted from N tokens"` line
+  agrees; the frozen `wire-delta` sha `4209f40b…` holds with the frozen
+  widened sandbox normalization (copy the gate text VERBATIM — never
+  re-derive it).
+
+VERIFICATION (exact commands, all tested at base):
+- `bundle install --quiet && bundle exec rake` — expect >= 1205 runs, 0
+  failures, 0 errors (1 standing skip) at your tree.
+- `bundle exec ruby bench/seam_bench.rb` — last line `SEAM_BENCH_OK`.
+- The rig battery at YOUR tree, NO `--pi-bin` flag anywhere (the gates
+  prove the DEFAULT resolution), SHORT out dirs exactly as frozen, the
+  env-strip prefix as frozen. The 12 designed-RED gates (oracle-bin-units,
+  oracle-resolve, s1/s2/s3/s5/s6/s7/s8/s10-parity, wire-delta,
+  zai-max-tokens-wire) must ALL be GREEN at your tree; the at-base-green
+  members (s4/s9/s17-parity, s1-tart-mode, oracle-pin-state, the carried
+  battery) must STAY green.
+- Direct rig-test runs: `bundle exec ruby -Ilib -Itest
+  gems/tui-split-rig/test/oracle_bin_test.rb -n "/oracle_bin/"`.
+- Direct oracle execs: ALWAYS `env -u PI_PACKAGE_DIR node <cli.js>
+  --version` (the env var overrides pi's package-dir walk — Grounds "The
+  pin").
+- `BUNDLE_GEMFILE` may leak into your env from parent contexts — prefix
+  suspect tool calls with `env -u BUNDLE_GEMFILE`.
+- The canonical `repos/tart` checkout cannot boot BUNDLE_FROZEN tart panes
+  while the owner's stripped-checksum lock diff stands (Grounds R4) — run
+  the battery at YOUR worktree only.
+
+PI CITATIONS FOR THE TOUCHED SEAMS (house style — commented at the seam):
+config.ts :393-405 (getPackageDir — the `PI_PACKAGE_DIR` preference and
+the `findNodePackageDir(__dirname)` walk), :439-:441 +
+:555-:582 (getPackageJsonPath / the startup pkg read that yields
+VERSION), package.json `"bin": {"pi": "dist/bundle/cli.js"}` (the clone's
+built entry — what the staged symlink points at).
+
+DISCIPLINE: house style per the repo's conventions — tests through public
+interfaces, no refactors beyond the task, deviations ITEMIZED (any
+contract-shape deviation, any surprise — declare, never absorb silently).
+The pin-state gate's result is environment, not yours — report, never
+fix.
+
+OUTPUT: your scratch report at `build/I67-rig-oracle-repin-core/report.md`
+— the AC-by-AC outcome, the suite summary line, the per-gate one-liners
+(the 13 pty gates with exit codes and candidate counts), the resolution
+seam's measured resolution at your tree (the resolved absolute path + the
+`--version` output), the enumerated deviations.
 
 ## Builder Report
 
