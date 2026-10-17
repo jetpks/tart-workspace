@@ -2622,6 +2622,7 @@ project:
       variant: false
       effort: high
       dispatched_at: '2026-10-16T21:36:13-06:00'
+      integrate_sha: 239650d504c391ae33afedf7af221c1a07e839eb
     rehearsal:
       gates_digest: '04494639fa8be0892d7601c28e93f11d97e19b07ebef9ce5a3a64fe85a339a2e'
       at: '2026-10-16T21:28:47-06:00'
