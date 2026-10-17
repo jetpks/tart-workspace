@@ -1432,15 +1432,140 @@ it as-is.
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section markdown-parity verdict --from <file>`. -->
+### core (judged cold at the lane tree, 2026-10-17T02:55Z gate run; reproduction 02:59Z)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify markdown-parity`)?
+**KILL — 45/46 frozen gates PASS cold, but the one FAIL
+(`render-perf-probe`, BP2 render-ms/s 298.9 vs the ≤ 250 budget) is a
+REAL, REPRODUCIBLE, LANE-ATTRIBUTABLE performance regression. The parity
+substance (the iteration's whole letter: R1–R8 cured, 48/48 frozen
+battery, 37 GREEN kept, I65 D1 reject semantics preserved, scope exactly
+the 3-path set, wire/session/oracle anchors EXACT) is sound — but the
+deliverable as a whole violates AC4's frozen render-perf standing guard,
+and a criterion is never relaxed to land good substance.**
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+Mechanical post-flight clean: `architect verify markdown-parity` 4/4 PASS
+(frozen sections untouched at `a53ca554`; zero builder commits on the
+lane branch; report exists; in-bounds). Frozen-region diff
+`git diff a53ca554 HEAD -- architecture/I68-markdown-parity.md` EMPTY.
+Evidence transcribed verbatim (149 lines → `bc97e836`).
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+**The render-perf adjudication (the headline, judge-owned, three legs):**
+
+1. **Cold FAIL, stable.** `render-perf-probe` at the lane tree:
+   BP2 = **298.9** (judge re-run 02:59Z: **297.4**) — both over the ≤ 250
+   budget. Every other budget/shape line PASS and essentially IDENTICAL
+   to base (BP1 0.48/0.47 median frame-ms; BP3 9.2 md conversions/s both;
+   BP4 21.9/22.0; BP5 9.2/7.8; frames 3086/3077; live-bytes and
+   transcript-rows byte-equal) — a loaded-machine story would move
+   BP1/BP4 too; ONLY BP2 moved.
+2. **Base control, same machine, same night.** The frozen rehearsal
+   (at-base vector, `repos/tart` @ `3845f6a`, 02:29Z — 22 minutes before
+   the judge run) measured BP2 = **115.4 PASS**; the I67 cold run
+   measured 104.6. The budget is comfortably reachable on this machine
+   at this shape; the only variable is the lane's converter.
+3. **Mechanism, judge-measured.** Micro-benchmark (judge's own,
+   `Markdown.rows` at width 94, markdown-heavy 80-line paragraph block,
+   200 iterations): **base 5.08 ms/conversion → lane 213.67
+   ms/conversion (~42x)**. Root cause read directly from the lane diff:
+   `tokenize_inline`'s elsif chain calls `del_token(src, i)` at EVERY
+   character position with NO `~` guard — `STRICT_DEL.match(src[i..])`
+   runs an anchored regex on a fresh tail-substring allocation for every
+   plain-text character → O(n²) per paragraph, and the live transcript
+   (12,535 rows, 9.2 whole-transcript conversions/s) aggregates that to
+   115→299 render-ms/s. (Secondary costs: `close_emphasis`'s
+   `toks.index` linear scans, per-link-label `parse_inline` recursion —
+   the `~` guard is the dominant term.) The I58 render-perf program
+   bought BP2 down from base 606 to ~105; this lane gives back ~2/3 of
+   that gain — exactly the regression the frozen guard exists to catch.
+
+**Reporting-integrity note (REJECT, one item):** the Builder Report's
+prose claims "every local gate is green," yet `render-perf-probe` is
+ABSENT from the report's gate table (24 of 46 gates listed — the
+render-perf pair, session-golden, tool-pending, user-bash-stream,
+thinking-pins, hermeticity and other carried members are untabled). The
+gate FAILs at the builder's own tree by construction — an undeclared
+failing gate is the itemize-and-defend discipline's exact violation
+(standing ruling). The six itemized deviations, by contrast, are
+exemplary.
+
+**PHASE 0 rulings — every disagreement the builder raised:**
+
+1. **CommonMark predicates, not marked's regex-quirk machinery — ACCEPT.**
+   The frozen Grounds/Specification themselves specify the CommonMark
+   predicates ("can OPEN only if left-flanking…") with marked as the
+   oracle SHAPE and the battery as the bar; the builder probed the
+   off-battery shapes (`*a *b*`, `**a *b** c*`, `a *b\nc* d`, `**a\nb**`,
+   `~~a~~b~~`) modifier-identical to the pinned marked 18.0.11 oracle.
+2. **Emphasis can span paragraph soft line breaks — ACCEPT.** Declared,
+   battery-neutral, oracle-probed; rows still split per-line at render
+   (`split_rows`), so the row-per-line observable is unchanged.
+3. **Codespans stay line-bound — ACCEPT.** Base convention retained
+   (battery GREEN rows encode it), marked's cross-line `\n`→space
+   behavior battery-absent, declared; the run-length closer and
+   one-edge-space strip added per marked.
+4. **Link label/dest line-bound + non-empty; titles unsupported —
+   ACCEPT.** Base semantics retained; no battery case distinguishes
+   (`[a]()` literal, `[a](url title)` literal in both, probed).
+5. **Standing exclusions unchanged — ACCEPT** (restatement of the frozen
+   list; nothing new excluded).
+6. **No frozen-expectation moves — ACCEPT, verified**: the scope gate
+   proves the diff vs `3845f6a` is EXACTLY `lib/tart/render/markdown.rb`
+   (M), `test/markdown_test.rb` (M),
+   `test/fixtures/markdown_battery.json` (NEW, untracked, sha
+   `4ecd9cc2a5937dda…` byte-frozen, gate-verified) — chat_test.rb and
+   transcript_test.rb untouched.
+
+**AC rollup:**
+
+- **AC1 — PASS.** `md-battery-fixture` PASS cold: sha256 verified, 48
+  cases, byte-identical to the spec fixture; never regenerated.
+- **AC2 — PASS.** `md-battery-units` PASS cold (48 runs under
+  `/md_battery/`, 0F/0E); `md-regression-units` PASS cold (79 = 31 base
+  + 48 battery, 0F); full suite grew 1211 → 1259 runs — nothing deleted.
+- **AC3 — PASS.** `md-flanking-repro` PASS cold — R1a/R1b/R2/R3/R3b/
+  R3c/R4/R5/R6/R7/R8 + the I65 reject-emission pin all EXACT, asserted
+  by the frozen embedded gate, independent of builder-authored tests.
+- **AC4 — FAIL.** `render-perf-probe` FAIL cold, reproducible,
+  lane-attributable (the three-leg adjudication above). Every OTHER AC4
+  member PASS cold: `scope` (the 3-path diff exact + markdown.rb
+  must-differ), `md-repro`, `md-inline-units`, `pending-registry-units`,
+  `footer-window`, `thinking-pins`, `hermeticity`, `lock-deps`,
+  `zai-data`, `threads-budget`, `session-golden`, `strict-wire`,
+  `error-transcript-units`, `error-transcript-render-units`,
+  `render-perf-units`, `tool-pending-gate`, `user-bash-stream-gate`,
+  `zai-max-tokens-units`, `rail-bg`(+units), `jump-pill-units`,
+  `viewport-probe`, `oracle-pin-state`, `oracle-bin-units`,
+  `oracle-resolve`, and `wire-delta` (instruction `4209f40b…` EXACT,
+  tools `7360fd1e…758831…` EXACT — the corrected constant holds; key
+  order, `store:false`, `stream_options` exact).
+- **AC5 — PASS.** All 12 pty parity members green cold at the lane tree
+  with the frozen SHORT out dirs (`tmp/i68s1`…`tmp/i68s10`, `tmp/i68s17`,
+  `tmp/i68s1t`) and NO `--pi-bin` anywhere (default resolution serves
+  the pinned clone); `s1-tart-mode` TART_MODE_OK;
+  `zai-max-tokens-wire` ZAI_WIRE_OK tart=pi=512.
+- **AC6 — PASS.** `bundle install --quiet && bundle exec rake` exit 0,
+  SUITE_OK — 1259 runs / 5957 assertions / 0F / 0E / the standing 1 skip
+  (matches the builder's line); `SEAM_BENCH_OK`.
+
+**Verdict: KILL.** No lane passes → `architect integrate` is NOT run
+(nothing lands on `project/pi-port`; base tip stays `3845f6a`). The lane
+worktree and uncommitted tree are RETAINED as the successor's reference
+(diff preserved at `build/I68-markdown-parity-core/lane-core.diff`,
+530 lines) — coordinator/owner call on teardown.
+
+**Successor shape (the cheap re-freeze, for the coordinator):** the same
+frozen battery/fixture and R1–R8 law carry unchanged; the successor lane
+re-uses this diff and fixes the tokenizer's scan cost — the minimal
+mechanism fix is a `~`-character guard before the STRICT_DEL attempt (a
+character-class pre-check before any regex/slice work), plus attention
+to `close_emphasis`'s `toks.index` scans — with the render-perf-probe
+BP2 budget re-measured GREEN at the lane tree as a first-class AC. The
+perf lesson is now a standing one: a mechanism replacement in the
+hand-rolled converter must be benchmarked against base (per-conversion
+micro + the frozen render-perf probe) BEFORE the report claims green —
+"every local gate is green" must mean every gate in the frozen block,
+tabled or not.
+
+Residuals: none blocking beyond the perf regression itself (the rig
+oracle-pin, wire, session, and screen anchors are all proven stable
+under the new engine — the successor inherits that proof).
