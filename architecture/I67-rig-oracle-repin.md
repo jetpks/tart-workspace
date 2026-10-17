@@ -1385,15 +1385,57 @@ was read beyond the pin gate's checks.
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section rig-oracle-repin verdict --from <file>`. -->
+**CONTINUE — 40/42 gates PASS cold; both FAILs adjudicated spec-side, not lane defects.**
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify rig-oracle-repin`)?
+Mechanical post-flight clean: verify 4/4 PASS (frozen sections untouched at `d217aba2`, zero
+builder commits, report present, in-bounds); the worktree diff is exactly the declared
+3-file touch set. The cold gate battery at the lane tree: 40 PASS, 2 FAIL — and both FAILs
+match the builder's itemized deviations, both root-caused spec-side by this judge with
+independent re-runs.
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+**PHASE 0 adjudications (the two deviations):**
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+1. **`s9-parity` — ACCEPT (spec-side gate defect; s9 parity PROVEN by judge re-run).** The
+   frozen gate's out dir (`tmp/i67-s9`) puts tart's AGENTS.md context row at 2+80+40 =
+   **122 chars > 120 cols** at this tree → frozen `wrap_resource_row` (motd.rb, untouched
+   by the lane) wraps it → the settled window shifts → 2 unknown-candidates. Verified
+   oracle-INDEPENDENT (the system-pi 1.2.0 `--pi-bin` falsification on disk runs the mise
+   install — confirmed via its request-log docs paths — and fails the same wrap class);
+   verified boundary-only (judge's own cold re-run at a 7-char out dir, `tmp/js9`:
+   **ec=0, no unknown-candidates**, both AGENTS.md rows single-line with indent). The
+   Grounds' own green measurement used out dir `d-s9` (row exactly 120 — two chars below
+   the wrap point); the frozen gate's longer out dir crossed it. The builder's minor
+   numeric slips (77/119 vs 80/120) don't change the substance. The gate is INVALID as a
+   lane discriminator; every cure candidate lies outside the frozen touch set. Backlog:
+   rebase the s9 gate out dir (≤7 chars) or fix the wrap in a later iteration.
+
+2. **`wire-delta` tools-sha constant — ACCEPT, with a sharper finding: a stale-source
+   transcription, not a fresh typo.** The frozen `…758331…` was copied from the I60-era
+   gate; the tools bytes legitimately moved with the I61–I64 wire work and **I64
+   re-pinned and recorded `…758831…` "EXACT (raw)"** (its gate PASSED with it). The I67
+   spec session transcribed the wrong ancestor's constant. Triple-verified now: I64's
+   recorded measurement, the spec session's own deepmeas capture (raw digest =
+   `…758831…`), and the judge's independent cold re-run with the corrected constant →
+   **WIRE_DELTA_OK** (instruction sha `4209f40b…` exact, key order, `store:false`,
+   positive `max_completion_tokens`, user message, `stream_options` all hold; tools carry
+   no sandbox paths, so the widened normalization is tools-neutral). NO wire change. The
+   gate is INVALID against this lane; the constant must be corrected when next carried.
+
+**ACs:** AC1 PASS (`oracle-pin-state` cold; lane never touched `repos/pi`). AC2 PASS —
+the diff implements the frozen seam contract exactly (flag → `TUI_SPLIT_RIG_PI_BIN` →
+pinned-clone default, git-common-dir fallback for the default root only, Error naming the
+expected path, `command -v pi` deleted, ctor/pane mechanics byte-unchanged, help text
+updated; `oracle-bin-units` 6 pins ≥ 5, `oracle-resolve`). AC3 PASS (`s8-parity` cold —
+the R2 staged-symlink + PATH-prepend cure exactly as frozen; docs segments byte-identical).
+AC4 PASS — s1–s8, s10, s17, s1-tart-mode, zai-max-tokens-wire all green cold via the
+DEFAULT resolution (no `--pi-bin` anywhere); s9 proven by judge re-run as above. AC5 PASS
+(`scope` cold — exactly the 3-file set; every carried member green; `wire-delta`
+adjudicated). AC6 PASS (1211 runs / 5911 assertions / 0 failures / 0 errors / 1 skip ≥
+1205; `SEAM_BENCH_OK`).
+
+The owner ruling's deliverable is landed: the rig's oracle is permanently the pinned
+`repos/pi` clone @ v1.1.0, both panes resolve the same install, and the parity battery
+runs green against tart's frozen `Identity::ORACLE_VERSION` 1.1.0 — decoupled from the
+system pi (1.2.0+, staying). Backlog for the next iteration: the s9 gate out-dir rebase,
+the wire-delta constant correction, and the s18/I60-E-3 blank-line class (standing owner
+backlog).

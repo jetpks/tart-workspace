@@ -2630,7 +2630,7 @@ project:
     ordinal: 67
     file: architecture/I67-rig-oracle-repin.md
     freeze_sha: d217aba21913e0f6caf646a7a046869c95a2ab4c
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
