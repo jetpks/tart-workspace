@@ -2706,12 +2706,21 @@ project:
       - test/models_test.rb
       - test/agent_loop_test.rb
       base_sha: 3845f6a97dd8e2f6319055f320860e8de19ca90f
-      worktree: build/I69-tart-identity-herdr-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: openrouter/z-ai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 683b5436803c0f085a123fb5cbe80018862fd27f
+      bounds_override_reason: 'Supervisor ruling 2026-10-17 OPTION (A): the identity
+        flip''s measured blast radius required lib/tart/subagents/manager.rb (child
+        identity rides the literal bootstrap key TART_IDENTITY; the dead namespaced
+        PI_IDENTITY write was read by nobody) plus out-of-whitelist DEFAULT-implicit
+        pin moves in test/{subagents,subagents_intercom,bash_tool,system_prompt,chat,memory}_test.rb
+        — every file verified on the sanctioned list, every move keeps its discrimination
+        (judge re-read the diffs), scope gate amended per the ruling (commit 5743f83)
+        and re-verified cold SCOPE_OK'
     rehearsal:
       gates_digest: ee5ac5e73f27685e84c731a9c179618c5887fc053faf12bc3a369f86d73088a1
       at: '2026-10-17T12:43:36-06:00'
