@@ -170,35 +170,308 @@ iteration's touch set.
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section model-catalogue specification --from <file>`. -->
+### Objective
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+`/model` knows what is available. The owner-ruled option C lands as ONE
+lane: pi's MIT-licensed provider catalogue data vendored into tart as a
+local, offline metadata baseline (gap-fill for models the user references)
+PLUS a live listing from the configured provider's own `/v1/models`
+endpoint, merged into the /model menu on demand — never at boot, never a
+runtime third-party dependency, never an override of the env/user/settings
+tiers. The owner's existing `~/.tart/models.json` keeps working
+byte-unchanged (the merge is a no-op for a fully-specified catalog).
+
+### The contract (one lane)
+
+**R1 — the vendored data lands (vendor/pi-models/, NEW).** All 44 provider
+JSON files from the pinned pi clone (`packages/ai/src/providers/data/*.json`)
+copied VERBATIM (byte-identical, gated) into `vendor/pi-models/`, plus:
+
+- `vendor/pi-models/ATTRIBUTION.md` — the visible attribution: source
+  (the pi repo, the data dir path), license (MIT, "Copyright (c) 2025
+  Mario Zechner", link to the LICENSE), the refresh command, and the
+  local-clone-only law.
+- `vendor/pi-models/.manifest.json` — tart's OWN manifest (pi's
+  `.manifest.json` is NOT copied): `{source, revision, generatedAt,
+  files: {<name>: <sha256>}}` covering exactly the vendored `*.json`
+  files. `revision` records the source clone's HEAD sha at refresh time.
+- The refresh task: `rake models:vendor:refresh` (Rakefile, NEW task) —
+  OPERATOR-RUN, OFFLINE: reads a local pi checkout (`ENV["PI_REPO"]`,
+  default `../pi` relative to the tart root), fails LOUDLY when it is
+  missing, copies the data files verbatim, regenerates the manifest, and
+  NEVER touches the network (no Net::HTTP/Async::HTTP/URI.open/open-uri
+  tokens in the Rakefile — gated). Borrow pi's content-hash discipline,
+  not its runtime.
+
+**R2 — the vendored tier (lib/tart/models/vendored.rb, NEW).** A local-file
+metadata tier consulted at the FACT-RESOLUTION seams — loaded catalog
+entries are NEVER mutated (`Shapes` pins hold; `Config`/`model_entries`
+byte-stable; the merge is fill-at-read, not merge-at-load):
+
+- **Match rule (frozen):** a user provider block matches a vendored
+  provider when (a) the user `baseUrl` EQUALS the vendored provider's
+  `baseUrl` (string compare, case-insensitive, a single trailing `/`
+  stripped on both sides) — evaluated across the vendored providers; or
+  (b) the user provider declares NO `baseUrl` and its KEY equals the
+  vendored provider name (case-insensitive). Priority (a) over (b); no
+  bare-id cross-provider fallback (a `zai`-keyed localhost base must NOT
+  match — the hermetic-test inertness law). Model match: the user model
+  `id` equals the vendored model `id` (case-insensitive) within the
+  matched provider.
+- **Fill-only fields:** `contextWindow`, `maxTokens`, `reasoning`,
+  `thinkingLevelMap`, `compat`, `name` — a field fills ONLY when the user
+  entry omits it (nil/absent); a user-declared value ALWAYS wins. `compat`
+  fills through the existing `build_compat` six-key pick (vendored
+  superset keys tolerated-and-dropped, the I46 law).
+- **Consultation seams (the only behavior changes):**
+  `Models.entry_context_window` / `Models.entry_max_tokens` — the tier
+  slots between the entry's declared value and the `DEFAULT_ENTRY_*`
+  definition default (an ENTRY that omits the field + a vendored match ⇒
+  the vendored value; no match ⇒ today's 128_000/16_384; nil entry ⇒ nil,
+  unchanged); `Settings.thinking_facts` — the map slots between the
+  entry's map and the known tables (entry → vendored → known-tables), the
+  reasoning flag between the entry's flag and `model_reasoning_capable`
+  (entry → vendored → capable); `Models.dialect_for_entry(entry)` (NEW
+  public seam) — `dialect_for(entry.compat || vendored compat)`; the
+  boot/switch threading call sites that today pass
+  `dialect_for(entry.compat)` move to `dialect_for_entry(entry)`
+  (`bin/tart` boot kwargs, `chat.rb` `apply_model_selection`; the
+  `wire_model` signature and `dialect_for` are UNCHANGED — existing
+  direct-call pins hold).
+- **Loader discipline:** raw JSON parse (NEVER through the models.json
+  `CatalogContract` — the vendored files carry pi's full schema, not the
+  port's subset), lazy per-file parse, cached after first use, resolved
+  from `lib/tart/models/` by a `__dir__`-relative path to
+  `vendor/pi-models/`; a missing or unparseable vendor file degrades to
+  that provider being absent (never raises, never blocks boot).
+
+**R3 — the live listing (lib/tart/models/listing.rb, NEW).**
+`Tart::Models::Listing.fetch(base_url:, api_key:, timeout: 5)` →
+`Array<String>` of model ids, or `nil` on ANY failure:
+
+- ONE attempt, bounded `timeout:` (5 s default, a frozen constant),
+  GET `<base_url>/models` (the OpenAI-compatible `/v1/models` convention;
+  the configured base already carries `/v1`), `Authorization: Bearer
+  <key>`; a one-off `Async::HTTP::Client` inside ONE dedicated background
+  thread (the herdr-sender discipline: off the reactor, never blocks the
+  UI, joined/cleaned by the caller) — the ONE sanctioned new
+  `Thread.new` site (the threads-budget gate carries the declared
+  exclusion, `listing-thread-law` pins it).
+- Every failure class (connect refused, timeout, non-200, malformed body)
+  returns nil; NOTHING is raised into the caller; NO retries, NO
+  backoff, NO retry storm (one fetch per menu open, user-initiated).
+- **Trigger (frozen):** `Render::Chat#open_model_menu` ONLY — every menu
+  open (plain or seeded) fires ONE fetch; NEVER at boot, NEVER in print
+  mode, NEVER from subagent children (no interactive surface), NEVER from
+  `/model <ref>` direct switches (the exact-match path needs no listing).
+- **Endpoint resolution (frozen):** at menu-open time, for the CURRENT
+  model ref's provider key — the provider block's `baseUrl`/`apiKey` from
+  the user catalog, falling back per-field to the threaded boot endpoint
+  facts (which carry the env tier); a base+key that still does not
+  resolve ⇒ NO attempt (menu = user entries only, no failure row).
+
+**R4 — the menu merge (lib/tart/render/model_menu.rb +
+lib/tart/render/chat.rb).**
+
+- `Render::Chat` gains an `endpoint:` kwarg (default nil = no listing —
+  every existing test construction is unchanged); the fetch is spawned at
+  menu open, the menu renders IMMEDIATELY with the user entries, and the
+  listing MERGES IN when it lands (merge under the Chat mutex, then
+  `request_draw`).
+- `ModelMenu#refresh(entries:)` (NEW public): rebuilds the item list from
+  the merged entries, re-runs the fuzzy filter with the CURRENT query
+  preserved, clamps the selection per the existing empty-query rule; the
+  row shape, the sort, the ✓/· markers, the `Model Name:` row are
+  UNCHANGED — no new glyphs, no new columns.
+- Live entries are constructed as typed `Shapes::Model` under the
+  CONFIGURED provider key: `id` = the listed id verbatim, the fill fields
+  from the vendored tier (same match rule against the configured
+  provider's vendored counterpart; no match ⇒ bare entry, `name` = id),
+  `context_window`/`max_tokens` nil (the entry-fact seams resolve them —
+  a vendored match fills, no match ⇒ the definition defaults, the
+  declared gap-entry semantics).
+- Collision rule: a live id that already exists as a user entry (same
+  provider key + id) is NOT duplicated — the user entry wins. Selecting a
+  live entry rides `apply_model_selection` UNCHANGED (the merged entry
+  threads its facts; persist writes settings, never models.json).
+- Failure presentation: `ModelMenu` gains a failure flag — when the fetch
+  failed, ONE muted row `  (live listing unavailable)` renders after the
+  list rows; absent on success and before the fetch settles. No transcript
+  status, no MOTD row, no log noise.
+
+**R5 — the launcher threading (bin/tart).** `build_surface` gains an
+`endpoint:` parameter and threads the boot endpoint facts (the same
+`endpoint_facts` chain `build_chat` uses) into `Render::Chat`. The I27
+live-defect lesson is the law: every new surface kwarg ships with a
+launcher-seam regression pin (`launcher_smoke_test` leg
+`test_build_surface_threads_the_listing_endpoint` — a staged catalog +
+mock listing server through `build_surface`, the menu merges live rows).
+
+**R6 — the tests (additive; the enumerated pins).** NEW/extended pins:
+`test/models_test.rb` `/vendored/` family (≥6 runs: the match rule both
+arms, the fill-only truth table, the no-match inertness, the owner-catalog
+no-op, `dialect_for_entry` both arms); `test/settings_test.rb` `/vendored/`
+(≥1: the `thinking_facts` tier order entry → vendored → known-tables);
+`test/models_listing_test.rb` (NEW, ≥5 runs: fetch happy path against the
+mock, GET path + Bearer header pinned from the captured request log, dead
+endpoint ⇒ nil + bounded elapsed, single attempt (server request_count ==
+1), malformed/non-200 ⇒ nil, boot-inert (constructing the Chat + footer
+facts makes ZERO requests)); `test/chat_test.rb` `/live_list/` (≥3: the
+merge-in with vendored enrichment, the user-entry-wins dedup, the failure
+row + no-crash + single attempt, the live-entry switch threading vendored
+facts); `test/render/model_menu_test.rb` `/refresh/` (≥2: refresh
+preserves query/clamps selection, the failure row shape);
+`test/launcher_smoke_test.rb` `/listing_endpoint/` (≥1);
+`test/support/mock_llm_server.rb` gains a `:models` spec type (responds
+`{"object":"list","data":[{"id":…,"object":"model"}…]}` to any request —
+the recorded-wire log keeps method/path/headers as today). NOTHING is
+deleted; moved pins itemized if any frozen pin legitimately shifts (none
+expected outside the declared strict_sampling wire dimensions — its own
+assertions do not pin them).
+
+### Frozen expectations (do not redesign)
+
+- The resolution-order law (I27): env > models.json (user entries + the
+  "default" key) > settings — the vendored tier INFORMS (fills absent
+  fields, enriches live ids), NEVER overrides any tier. A user-declared
+  value always wins; the env tiers (`<IDENTITY>_CONTEXT_WINDOW` etc.) sit
+  above the catalog facts exactly as today.
+- The loaded catalog is byte-stable: `Models.load` output, `Config`,
+  `model_entries`, `Shapes::Model#to_h`, the `resolve` match tables, the
+  schema contract — UNCHANGED. The fill happens at the fact-resolution
+  seams only.
+- `dialect_for` and the Dialect vocabulary are FROZEN (I46/I64/I70): only
+  a zai `thinkingFormat` builds the zai dialect; every other compat
+  (incl. the vendored `openrouter`/`deepseek` formats) rides the DEFAULT
+  dialect with tolerated-and-dropped keys. The vendored compat does NOT
+  extend the wire vocabulary.
+- The wire/session guards hold EXACT: the parity family, `wire-delta`,
+  `session-golden`, `zai-max-tokens-wire` stage full-fact or non-matching
+  catalogs — byte-identical before/after.
+- The never-raise boot law (I27): a missing/corrupt vendor file is a
+  degraded tier, never a boot error, never a warning on the MOTD.
+- No network at boot; no runtime fetch from pi.dev EVER (the refresh task
+  is the only updater and it is offline + operator-run).
+- `~/.tart/models.json` format unchanged (no new keys required, no
+  migration); the owner's live file is a merge no-op.
+- The suite's standing 1 skip stays; `SEAM_BENCH_OK` stays; the suite
+  grows past the measured floor.
+- The I70 flip's regression pins (default-on law/boot, motd units/probe,
+  e2e default-on, rig staging) carry as the standing battery.
+
+### Named exclusions (Constraints, itemized)
+
+- NO rig changes at all (`gems/tui-split-rig/**` outside the touch set);
+  no scenario-content edits; the parity family carries byte-identical.
+- NO changes to the LLM request path beyond the fact threading named in
+  R2 (`lib/tart/agent/**`, the Chat client, `wire_model`, the gem
+  untouched); no dialect vocabulary extension; no new wire keys.
+- NO models.json persistence of live listings (the menu is ephemeral; the
+  persist path stays settings-only).
+- NO new runtime gems (the listing rides the existing async-http stack
+  already in the lockfile); no Gemfile/Gemfile.lock/tart.gemspec changes.
+- NO caching layer, TTL, or debounce for listings (one fetch per menu
+  open — simplicity over cleverness, no retry surface).
+- NO vendor-time pruning/rewriting of the pi data (verbatim copies only;
+  the manifest records provenance).
+- NO boot-time listing, NO print-mode listing, NO listing in subagent
+  children; NO MOTD/settings surface for the vendored tier.
+- The model-window tick stays DEAD; landing is the human's; routing rides
+  `architect.yaml` as-is.
+
+### Output format
+
+Builder Report per the standing template: the one-paragraph result, the
+suite summary line, the gate one-liners table (EVERY frozen gate — the
+I68/I70 lesson: an absent gate in the table is a REJECT-class violation),
+the itemized deviation list (any moved pin named), residual risks.
+
+### Tool guidance
+
+Read-only grounding first: `lib/tart/models.rb` (the fact seams),
+`lib/tart/settings.rb` (`thinking_facts`), `lib/tart/render/chat.rb`
+(`open_model_menu`/`apply_model_selection`/`model_menu_entries`),
+`lib/tart/render/model_menu.rb`, `bin/tart` (`build_surface`,
+`endpoint_facts`, the three boot fact-threading sites),
+`lib/tart/herdr.rb` (the background-thread discipline),
+`test/models_test.rb` + `test/support/mock_llm_server.rb` (the staged
+catalog idioms), `repos/pi/packages/ai/src/providers/data/` (the data being
+vendored). Then R1 (data + task) → R2 (the tier, run the suite EARLY to
+catch inertness misses — a frozen pin shifting on the fill is
+STOP-and-disclose) → R3/R4 (listing + menu) → R5/R6 (launcher + pins).
+Run `bundle exec ruby bench/seam_bench.rb` before reporting.
+
+### Boundaries
+
+Touch set (the scope gate's whitelist, exactly):
+`lib/tart/models.rb`, `lib/tart/models/vendored.rb` (NEW),
+`lib/tart/models/listing.rb` (NEW), `lib/tart/settings.rb`,
+`lib/tart/render/chat.rb`, `lib/tart/render/model_menu.rb`, `bin/tart`,
+`Rakefile`, `vendor/pi-models/**` (NEW data + attribution + manifest),
+`test/models_test.rb`, `test/settings_test.rb`,
+`test/models_listing_test.rb` (NEW), `test/chat_test.rb`,
+`test/render/model_menu_test.rb`, `test/launcher_smoke_test.rb`,
+`test/support/mock_llm_server.rb`. Must-differ: `lib/tart/models.rb`,
+`lib/tart/render/chat.rb`, the vendored dir (existence-gated:
+`ATTRIBUTION.md`, `.manifest.json`, `vendored.rb`, `listing.rb`).
+Must-not-touch (pinned by the scope gate): `gems/tui-split-rig/**`,
+Gemfile/Gemfile.lock/tart.gemspec, `bench/`, `lib/tart/agent/**`,
+`lib/tart/commands.rb`, `lib/tart/prompts.rb`, `lib/tart/skills.rb`,
+`lib/tart/schemas.rb`, `lib/tart/shapes.rb`, `lib/tart/subagents/**`,
+`lib/tart/tools/**`, `lib/tart/mcp/**`, `lib/tart/core/**`,
+`lib/tart/tui.rb`, `lib/tart/herdr.rb`, and every other path. A test
+OUTSIDE the whitelist breaking on the fill: STOP and disclose (the I69
+blast-radius rule) — the one pre-declared exception is the
+`strict_sampling` staged-config wire dimensions (Grounds), which its own
+assertions do not pin.
+
+### Lane plan
+
+- id: core
+  repo: tart
+  base: dd41ae1
+  integration_branch: project/pi-port
+  effort: high
+  lanes_required: 1
+  rationale: the code deltas are moderate (one data dir, two small
+    modules, three seam insertions, one menu refresh path) but the audit
+    surface is exacting: the fill-only law must hold at every fact seam,
+    the hermetic-test inertness depends on the baseUrl-first match rule,
+    the live-listing failure matrix must be pinned cold, and any frozen
+    pin shift outside the declared set is a lane failure.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision model-catalogue`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/models.rb
+    - lib/tart/models/vendored.rb
+    - lib/tart/models/listing.rb
+    - lib/tart/settings.rb
+    - lib/tart/render/chat.rb
+    - lib/tart/render/model_menu.rb
+    - bin/tart
+    - Rakefile
+    - vendor/pi-models/ATTRIBUTION.md
+    - vendor/pi-models/.manifest.json
+    - vendor/pi-models/*.json
+    - test/models_test.rb
+    - test/settings_test.rb
+    - test/models_listing_test.rb
+    - test/chat_test.rb
+    - test/render/model_menu_test.rb
+    - test/launcher_smoke_test.rb
+    - test/support/mock_llm_server.rb
+  effort: high
 ```
+
+### Effort call
+
+High — not for code volume but for enumerated exactness: the match rule
+carries the hermetic-suite inertness load, the fill-only law must be
+proven at four seams, the live-listing failure matrix needs cold-reliable
+pins against a mock, and the launcher threading carries the I27
+live-defect lesson.
 
 ## Acceptance Criteria
 
