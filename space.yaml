@@ -2684,7 +2684,10 @@ project:
   - name: tart-identity-herdr
     ordinal: 69
     file: architecture/I69-tart-identity-herdr.md
-    freeze_sha:
+    freeze_sha: bda6355c55edbd1a90c4ca862ea9c1902f524a99
     verdict: pending
     lanes: []
+    rehearsal:
+      gates_digest: ee5ac5e73f27685e84c731a9c179618c5887fc053faf12bc3a369f86d73088a1
+      at: '2026-10-17T12:43:36-06:00'
   integration_branch: project/pi-port
