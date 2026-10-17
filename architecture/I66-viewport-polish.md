@@ -984,10 +984,163 @@ as standing. Gates: `suite`, `bench` (+ every AC4 member cold).
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I66-viewport-polish-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section viewport-polish prompt --append --lane <lane> --from build/I66-viewport-polish-<lane>/prompt.md`. -->
+### core
+
+You are the builder for iteration `viewport-polish` (I66), lane `core`.
+Work ONLY in the provisioned worktree on branch
+`lane/I66-viewport-polish-core` (base tart `project/pi-port` @ `9db6370` —
+the I65 merge); NEVER commit (the integrator lands your tree), NEVER touch
+the space repo, NEVER push, NEVER touch any gem (published
+fast-completions 0.4.0 and ratatui_ruby 1.5.0 are dependencies — consume,
+never modify), NEVER write anything under `repos/RatatuiRuby` (a READ-ONLY
+reference clone: source reading and upstream-finding citations ONLY). The
+full iteration contract is the frozen Grounds/Specification/Acceptance
+Criteria in this file (verbatim below) — read them first; this header is
+the lane's operating brief. You are the ONLY lane.
+
+THE TASK IN ONE PARAGRAPH: close the two viewport live-run findings
+(both root-caused and measured in Grounds) — (F1) port pi's jump-to-bottom
+pill: `Viewport` gains `following?` + `scroll_to_end(content_size, rows)`
+(pi scroll-view.ts :177-187 — offset pins to max, follow re-arms,
+scrollbar activity marked iff the offset moved); `Theme::TOKENS` gains
+`selected_bg: "#213b49"` (pi dark.json :27 — the blueBg var
+`user_message_bg` already resolves); `transcript_widget` (chat.rb)
+composites the pill AFTER the rail overlay — trigger `!following?`, label
+EXACTLY `" ↓ Jump to latest message "` (flanking spaces) on
+`text`/`selected_bg`, centered floor on the transcript area's LAST row,
+truncated LEFT of the rail column while the rail is visible, the latched
+rect for the mouse (nil when absent); `handle_mouse` routes the pill press
+FIRST (plain left press inside the rect → consumed →
+`mark_scrollbar_activity(@viewport.scroll_to_end(...))` + one
+`request_draw`; everything else falls through to today's arms). (F2/F3)
+`overlay_rail_cell` (viewport.rb ONLY): the pad span AND the glyph span
+carry the TARGET bg (the bg of the original line's span covering column
+`width − 1`; nil when no span reaches it — never invent a bg), the glyph
+keeps its own theme fg; a wide grapheme straddling `width − 1` is replaced
+WHOLE (pi getGraphemeCellRange — head clips at the straddler's start
+cell, pad carries the target bg, glyph at the LAST column, composed line
+EXACTLY `width` cells, never `width + 1`) — the straddle-safe clip is a
+SPAN-LEVEL walk inside `overlay_rail_cell` mirroring `Text.take_cells`'
+discipline; `lib/tart/render/text.rb` is OUT of the touch set (`fit`'s
+force-progress arm :243 is load-bearing for the wrap loop). (F4) the
+bounded probe: `test/support/viewport_buffer_probe.rb` (NEW, standalone —
+rake must not load it) driving the frozen 3-frame method through the
+gem's own headless terminal API with the discrimination re-drive, output
+`VIEWPORT_PROBE_OK <a|b|c>` + per-frame cell reads, exit 0 in EVERY
+outcome.
+
+TEST-NAME TOKENS (load-bearing — two gates filter by test NAME): your
+jump-to-bottom pins (`test/chat_test.rb`, the `with_chat` headless family
++ `kernel.fire_timers`) must carry the token `jump_pill` in their names
+(the `/jump_pill/` filter must match >= 6 tests), and your rail pins
+(`test/chat_test.rb`) must carry `rail_background` (>= 4 tests). If a
+test you write fits but lacks the token, the gate reads 0 runs and fails
+— name them deliberately.
+
+FROZEN EXPECTATIONS (do not redesign; the frozen sections govern on any
+conflict):
+- The pill: pi's exact trigger/label/geometry (compositeScrollToEndIndicator
+  tui-alt-screen.ts :1638-:1667, the click :1037-:1044 + indicator-first
+  routing :940, scrollToBottom :495-:510, the label tui-renderer.ts
+  :30-:34). The SHORTCUT segment is OMITTED — tart has no
+  `tui.altScreen.bottom` analog (transcript wheel-only since I35); do NOT
+  invent a keybinding. The pill composites over the FINISHED window
+  (after the rail overlay), cells REPLACED with neighbors keeping their
+  styles (compositeTuiLine tui.ts :426-:452); the flash stays row 0's own
+  composite, untouched; image-line skip has no port seam (no image rows
+  exist — do not add machinery for it).
+- The overlay rewrite holds the EXISTING scrollbar pins green
+  (chat_test.rb :4375-:4454: hidden-at-settle, shows-while-fresh,
+  user-scroll-marks-activity, overlays-without-carved-gutter) AND the
+  panel-bg pin :148 (it asserts the rail glyph at column 19 + column-0
+  bg — compatible with the cure). A plain no-bg row keeps today's neutral
+  look (the target bg is nil there). The fade: after the hide timer
+  fires and the redraw lands, the former rail column reads the
+  underlying row's own state — pinned at the cell level.
+- The straddle case is REQUIRED pure AND buffer-level: the measured base
+  shape (a bg panel row whose last two cells are `漢`) — base composed
+  width 21 in a 20-wide area with the glyph clipped off; post-cure the
+  glyph paints at the LAST column on the straddle row.
+- `Theme::TOKENS` gains EXACTLY `selected_bg: "#213b49"`; the theme
+  full-table EXPECTED pin (theme_test.rb :63) is re-pinned with exactly
+  that row — the ONE declared golden re-pin; every other row
+  byte-identical; `user_message_bg` unchanged.
+- The probe (frozen method, Grounds F4): frame 1 settle (draw the row
+  set: full-width panel-bg rows via the `Panel` vocabulary, a plain
+  no-bg row, a true-straddle row; read cells) → frame 2 rail (the rows
+  through the REAL `Viewport#overlay_rail_cell` + `TUI.scrollbar_lines`;
+  read) → frame 3 fade (the ORIGINAL rowset again; read). Artifact A =
+  any frame-2 rail glyph missing at the last column or any overlaid
+  line's span width ≠ the area width; artifact B = any frame-3
+  non-straddle `cell_bg(W−1)` differing from FRAME 1's OWN read of that
+  cell (NEVER the nominal bg — the gem's wide-char continuation cells
+  read nil even pre-rail, measured). Discrimination: re-drive with a
+  MINIMAL gem-only composition (hand-built `RatatuiRuby` spans, no
+  Viewport/Text/Panel) — artifact persisting there homes it in
+  ratatui_ruby (letter b), else tart's composition (letter a), neither
+  reproducing = letter c. Exit 0 in EVERY outcome — the probe reports,
+  never fails.
+- Outcome-contingent deliverable (the letter governs): (a) the F2/F3
+  cures eliminate the artifact — record the correspondence in your
+  report; (b) root-caused inside ratatui_ruby — implement the SMALLEST
+  tart-side compositing workaround that eliminates the VISIBLE defect
+  (unit-pinned in the `rail_background`/`jump_pill` families) AND write
+  the upstream finding into your report: file + failing case + verbatim
+  cells, citing the installed gem 1.5.0 with the repo clone @ `10dd180`
+  (v1.5.2) as the readable source; (c) not reproducible in-buffer —
+  document it as terminal-side with the probe's per-frame evidence.
+  NO vendoring, forking, or Gemfile pin changes for ratatui_ruby in ANY
+  outcome — that is an owner decision outside the lane.
+- The ENTRY-1 transcript content paths are BYTE-FROZEN: markdown.rb,
+  transcript.rb (pending registry, replay, every content row composer) —
+  scope-gated. text.rb/footer.rb/editor.rb/selection.rb/tui.rb, bin/,
+  Gemfile/lock/gemspec, the rig: untouched. No new gems, no Thread.new.
+  Your tree's diff vs `9db6370` is EXACTLY the 6 declared files.
+
+VERIFICATION (exact commands, all tested at base):
+- `bundle install --quiet && bundle exec rake` — expect >= 1192 runs,
+  0 failures, 0 errors (1 standing skip) at your tree.
+- `bundle exec ruby bench/seam_bench.rb` — last line `SEAM_BENCH_OK`.
+- The designed-RED defect gates: `rail-bg` (the self-contained
+  `ruby -Ilib` drive — copy it VERBATIM from the Acceptance Criteria
+  gates block; must print `RAIL_BG_OK`), `jump-pill-units` +
+  `rail-bg-units` (the `/jump_pill/` and `/rail_background/` name
+  filters — the frozen floors), `viewport-probe` (the committed script:
+  `env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH
+  -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID bundle exec ruby
+  test/support/viewport_buffer_probe.rb` → `VIEWPORT_PROBE_OK <letter>`).
+- The three tart-only probes (env-strip prefix as frozen):
+  render-perf-probe `--app tart --shape gate`, tool-pending-probe
+  `--gate`, user-bash-stream-probe `--gate`.
+- The full frozen gate battery is in the Acceptance Criteria — the five
+  RED-at-base members (rail-bg, jump-pill-units, rail-bg-units,
+  viewport-probe + scope-at-canonical-checkout) must all be GREEN at
+  your tree (scope bites there — your worktree is cut from the committed
+  branch); everything else stays GREEN.
+
+PI CITATIONS FOR THE TOUCHED SEAMS (house style — commented at the seam):
+tui-alt-screen.ts :1638-:1667 (composite), :1037-:1044 (the click) +
+:940 (indicator-first routing), :495-:510 (scrollToBottom),
+scroll-view.ts :177-:187 (scrollToEnd), layout.ts :249-:278 + :309-:330
+(replaceScrollbarCell/paintScrollbar), utils.ts :335-:352
+(getGraphemeCellRange) + :786-:790 (getActiveBackgroundAnsi), tui.ts
+:426-:452 (compositeTuiLine), tui-renderer.ts :30-:34 (the label),
+dark.json :27 (selectedBg).
+
+DISCIPLINE: house style per the repo's conventions — tests through
+public interfaces, no refactors beyond the task, deviations ITEMIZED
+(any contract-shape deviation, every test re-pin — the theme EXPECTED row
+is pre-declared, any surprise — declare, never absorb silently). The
+probe's verdict letter is a FIRST-CLASS deliverable: run it honestly, do
+not tune shapes until a preferred letter falls out — the letter is
+whatever the cells say.
+
+OUTPUT: your scratch report at `build/I66-viewport-polish-core/report.md`
+— the AC-by-AC outcome, the suite summary line, the per-gate one-liners,
+the probe's verdict LETTER with its per-frame cell reads, the
+outcome-contingent deliverable for that letter, the enumerated re-pins,
+any deviations. `BUNDLE_GEMFILE` may leak into your env from parent
+contexts — prefix suspect tool calls with `env -u BUNDLE_GEMFILE`.
 
 ## Builder Report
 
