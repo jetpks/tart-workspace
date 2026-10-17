@@ -966,11 +966,286 @@ leak into your env from parent contexts — prefix suspect tool calls with
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I65-render-correctness-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence render-correctness --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# I65 render-correctness — lane `core` builder report
+
+Worktree: `/Users/eric/architect/spaces/20261009-pi-port/build/I65-render-correctness-core/wt`,
+branch `lane/I65-render-correctness-core`, base tart `project/pi-port` @ `1b83e05`.
+Tree left UNCOMMITTED (see Deviation 1); `git log 1b83e05..HEAD` = 0 commits.
+
+## AC-by-AC outcome
+
+### AC1 — the markdown emission cure (D1) — SATISFIED
+- `lib/tart/render/markdown.rb` `inline_spans`: BOTH reject arms (em `padded?`
+  :282-arm, del `strict_strikethrough?` :291-arm) changed from
+  `span(src[pos], …); consumed = pos + 1` to
+  `span(src[m.begin(0)], fg, modifiers); consumed = m.begin(0) + 1`, with
+  I65 D1 why-comments. Nothing else in the converter touched (diff is the two
+  arms only).
+- Base defect measured at this tree pre-fix: `Markdown.rows("between zai/* and
+  openrouter/z-ai-*); tail", width: 94)` rendered **120 bytes for a 42-byte
+  source** ("between zai/between zai/etween zai/…"). Post-fix: passthrough-exact.
+- New markdown pins, all named with `inline_scan` (6; gate floor ≥3), all
+  passing:
+  1. `test_inline_scan_rejected_em_with_pre_text_renders_the_delimiter_once`
+     — exact spans `"lead * padded * tail"` (one merged plain span).
+  2. `test_inline_scan_rejected_del_with_pre_text_renders_the_delimiter_once`
+     — exact spans `"lead ~~ padded ~~ tail"`.
+  3. `test_inline_scan_rescans_after_a_reject_so_a_later_pair_still_processes`
+     — exact spans `[plain "x * padded * and ", italic "em", plain " tail"]`
+     (two rejects then an accept; the accepted pair renders its inner alone).
+  4. `test_inline_scan_minimal_owner_trigger_renders_passthrough_exact` — the
+     frozen 42-byte trigger, one row, text == source, at width 94.
+  5. `test_inline_scan_owner_payload_slice_covers_the_source_exactly_once` —
+     the owner's items 5-6 slice (byte-verbatim from new_problems.md
+     a97a8dd) through `Markdown.rows`, span-level at-most-once cover walk +
+     the trigger fragment `"zai/*"` renders exactly 1× (the rejected opener;
+     the second `*` belongs to the accepted I06 pair, delimiters consumed —
+     base rendered the fragment 30+ times).
+  6. `test_inline_scan_owner_full_payload_covers_the_source_exactly_once` —
+     the FULL thinking field (4756 bytes, 28 lines) verbatim through
+     `Markdown.rows`; every non-whitespace span a source substring at-or-after
+     the previous span's window end; rendered length 546 ≤ source 553 chars.
+- Transcript seam pins, `inline_scan` (2; gate floor ≥1), in
+  `test/render/transcript_test.rb`:
+  1. `test_inline_scan_owner_payload_reasoning_lines_cover_the_source` — the
+     slice through `Transcript.reasoning_lines(payload, 94)`: cover walk +
+     every line's display width ≤ 94 + wraps into >1 readable rows + trigger
+     fragment once.
+  2. `test_inline_scan_minimal_trigger_reasoning_lines_render_once`.
+- Existing 25 markdown pins pass UNCHANGED (markdown_test.rb now 31 runs —
+  25 + 6 new — 0 failures). The I06 flanking approximation deviation stays:
+  rejects still reject; they render literally exactly once.
+- At-position-0 literal pin `test_strikethrough_is_strict` (`~~ padded ~~`)
+  passes unchanged (verified: position-0 rejects were already correct; the fix
+  is a no-op there).
+
+### AC2 — the id-keyed pending registry (D2) — SATISFIED
+- `lib/tart/render/transcript.rb`: the single-slot `@pending_tool` replaced by
+  `@pending_tools = {}` keyed by the tool call id.
+  - `PendingTool` reshaped `Struct.new(:name, :args, :region, :registration)`
+    (the `[name, args]` identity matching is gone; name/args remain as the
+    error-finalize settle payload).
+  - `enqueue_pending_tool_block(id, name, args)` — id FIRST (ToolCall member
+    order), registers under the id, NO supersede (pi pendingTools.set,
+    interactive-mode.ts:3611-3621).
+  - `finalize_tool_block(id, name, args, result, duration, details: nil)` —
+    in place by id; nil id or id MISS falls back to today's append
+    (`enqueue_tool_block`); `@pending_tools.delete(id)` on settle; the exact
+    `replace_flushed_pending` / `swap_queued_pending` two paths preserved.
+  - `finalize_pending_as_error(text)` — loops EVERY live pending (keys
+    snapshot, START order = Hash insertion order) through the settle dispatch,
+    then `@pending_tools.clear` (pi :3573-3586).
+  - The drain links EVERY registry entry's flushed region by region identity
+    (`@pending_tools.each_value … pending.region.equal?(item)`).
+  - `reset` → `@pending_tools.clear`.
+  - FROZEN bytes untouched: `pending_tool_rows`, `tool_block_builder`,
+    per-family blocks, `replace_flushed_pending`, `swap_queued_pending`, the
+    drain's registration/delta arithmetic.
+- `lib/tart/render/chat.rb` arms (:569-:591): both thread
+  `id = call.respond_to?(:id) ? call.id : nil` (the details respond_to? idiom;
+  see Deviation 3) into `enqueue_pending_tool_block`/`finalize_tool_block`,
+  with the pendingTools-Map citations.
+- New registry pins, all named with `pending_registry` (7; gate floor ≥4),
+  driving the transcript directly with start/end pairs, all passing:
+  1. `test_pending_registry_two_concurrent_calls_settle_in_place_b_first`
+  2. `test_pending_registry_two_concurrent_calls_settle_in_place_a_first`
+     — N=2, both completion orders: exactly one block per call, start order
+     kept, zero `tool_pending_bg` survivors, no appended duplicate.
+  3. `test_pending_registry_identical_calls_distinct_ids_settle_in_place` —
+     identical name+args, distinct ids, byte-identical to two sequential
+     settles (the `[name, args]`-unsolvable case).
+  4. `test_pending_registry_queued_settles_swap_the_right_region` — neither
+     region drained; each finalize swaps its OWN queue region.
+  5. `test_pending_registry_error_finalize_settles_both_and_clears` — two
+     error blocks in place + post-error finalize appends.
+  6. `test_pending_registry_reset_clears_and_the_post_reset_finalize_appends`
+     (renamed from `test_reset_clears_the_pending_registration`).
+  7. `test_pending_registry_id_miss_finalize_appends` (renamed from
+     `test_finalize_without_a_pending_registration_appends`).
+- `test_second_pending_supersede…` REPLACED: the supersede-pinning test
+  `test_second_pending_supersedes_and_the_stale_end_appends` is DELETED — the
+  supersede WAS the defect; pins 1-5 above are its replacement (declared).
+- `test/chat_test.rb`: `ToolCallDouble` gains `:id` as FIRST member
+  (`Struct.new(:id, :name, :arguments)`); `tool_start`/`tool_end` helpers
+  thread it (scheme in Deviation 4). All ~60 helper call sites untouched.
+  chat_test: 254 runs, 0 failures (same test count as base).
+- Carried controls green: tool-pending-gate (rig pty probe) OK; the
+  flushed/queued settle controls, delta threading, generic drop, orphan-error,
+  replay-purity, reset — all mechanically re-pinned and green.
+
+### AC3 — the footer context window (D3) — SATISFIED
+- `bin/tart` `footer_data`: `entry = models && resolve_boot_entry(models, boot)`
+  hoisted once (the guard preserves the models-nil legacy shape) and the
+  context_window line becomes
+  `Settings.resolve_context_window(settings:, model: chat.model, identity:) ||
+  Models.entry_context_window(entry)` — all three boot call sites one shape
+  (print :325, loop :475, footer :660). `render/footer.rb` untouched.
+- Gate `footer-window` (frozen form): `FOOTER_WINDOW_OK 1000000` — entry
+  window from the first frame, identical in value to the loop kwarg's
+  expression, and `PI_CONTEXT_WINDOW=999` wins over the entry.
+- New launcher pin `test_footer_data_carries_the_boot_entry_context_window_and_env_still_wins`
+  (launcher_smoke_test 10 → 11 runs): staged zai/glm-5.3 catalog
+  contextWindow 1_000_000 + placeholder chat → footer == 1_000_000 == loop
+  expression; `PI_CONTEXT_WINDOW=999` → 999 (env tier wins); models-nil
+  legacy call → window nil. The test neutralizes the boot-relevant `PI_*`
+  env vars in-process (snapshot/restore in ensure) because the boot's env
+  tier outranks the staged catalog — this lane's shell leaks
+  `PI_MODEL=glm-5.3-flash`/`PI_PROVIDER=zai` (the frozen gate form strips
+  the same vars in-shell).
+
+### AC4 — byte-freeze discipline (scope) — SATISFIED
+- `git diff --name-only 1b83e05` = EXACTLY the 8 declared files:
+  `bin/tart`, `lib/tart/render/chat.rb`, `lib/tart/render/markdown.rb`,
+  `lib/tart/render/transcript.rb`, `test/chat_test.rb`,
+  `test/launcher_smoke_test.rb`, `test/markdown_test.rb`,
+  `test/render/transcript_test.rb`.
+- Gemfile/Gemfile.lock/tart.gemspec byte-identical to base (scope gate's
+  frozen-path check + `git diff --quiet` on the frozen paths both clean).
+- No `Thread.new` added in lib (threads-budget OK). No wire/tool/agent-layer,
+  no viewport/rail, no rig, no ENTRY-2 surface edits.
+
+### AC5 — standing verification gates — SATISFIED
+- `bundle install --quiet && bundle exec rake` → exit 0,
+  **1192 runs, 5709 assertions, 0 failures, 0 errors, 1 skips** (≥1179
+  required; delta vs base = +13 = 6 markdown + 6 transcript net (7 new − 1
+  replaced) + 1 launcher; chat_test count unchanged). The standing skip is
+  the env-gated rig live-run test (live_run_test.rb:21 `TUI_SPLIT_RIG_LIVE`) —
+  unchanged from base.
+- `bundle exec ruby bench/seam_bench.rb` → last line `SEAM_BENCH_OK`.
+- Re-run twice (identical summary lines).
+
+## Gate battery — every member measured at the lane tree
+
+| gate | result |
+|---|---|
+| suite | 1192 runs, 5709 assertions, 0 failures, 0 errors, 1 skips |
+| bench | `SEAM_BENCH_OK` |
+| md-repro | `MD_REPRO_OK` (both frozen forms passthrough-exact) |
+| md-inline-units | `MD_INLINE_UNITS_OK` (markdown 6 runs ≥3; transcript 2 runs ≥1) |
+| pending-registry-units | `PENDING_REGISTRY_UNITS_OK` (7 runs ≥4) |
+| footer-window | `FOOTER_WINDOW_OK 1000000` |
+| thinking-pins | `THINKING_PINS_OK` (agent_loop 18 ≥11; settings 9 ≥8) |
+| hermeticity | `HERMETICITY_OK` (launcher 11 ≥8; e2e_session 4 ≥4) |
+| lock-deps | `LOCK_DEPS_OK` + `GEM_LOAD_OK` (0.4.0 pin, clean lock) |
+| zai-data | `ZAI_DATA_OK` (dialect pins 2 runs + values one-shot) |
+| threads-budget | `THREADS_BUDGET_OK` (no new Thread.new in lib) |
+| session-golden | `SESSION_GOLDEN_OK` (all 7 digests hold) |
+| strict-wire | 8 runs, 76 assertions, 0 failures, 0 errors |
+| error-transcript-units | `ERROR_TRANSCRIPT_UNITS_OK` (agent_loop 5 ≥4; session 2 ≥2) |
+| error-transcript-render-units | `ERROR_TRANSCRIPT_RENDER_UNITS_OK` (chat 4 ≥3; transcript 3 ≥2) |
+| render-perf-units | exit 0 |
+| render-perf-probe | `RENDER_PERF_OK` (env-strip prefix, `--out tmp/render-perf-gate`) |
+| tool-pending-gate | `TOOL_PENDING_GATE_OK` (env-strip prefix, `--out tmp/i65-tp`) |
+| user-bash-stream-gate | `USER_BASH_STREAM_GATE_OK` (env-strip prefix, `--out tmp/i65-ubs`) |
+| zai-max-tokens-units | `ZAI_MAX_TOKENS_UNITS_OK` (4 + 2 + 2) |
+| scope | `SCOPE_OK` (exactly the 8 declared files) |
+
+RED-at-base members (md-repro, md-inline-units, pending-registry-units,
+footer-window) all GREEN at the lane tree; every carried gate stayed GREEN.
+Excluded rig-scenario gates (s1–s10, s1-tart-mode, s17, s18, wire-delta,
+zai-max-tokens-wire, live-script) not run — declared unit-pin exclusions
+(pi-1.2.0 oracle drift).
+
+## Enumerated re-pins (mechanical, id threaded; behavior bytes unchanged)
+
+`test/render/transcript_test.rb` (15 call-site re-pins + 2 renames):
+1. `test_pending_bash_renders_the_call_rows_under_the_pending_bg` — enqueue+c1
+2. `test_pending_write_renders_the_call_rows_alone` — enqueue+c1
+3. `test_pending_read_renders_the_collapsed_call` — enqueue+c1
+4. `test_pending_generic_renders_the_mark_line_alone` — enqueue+c1
+5. `test_pending_bash_guards_nil_args_to_the_placeholder_header` — enqueue+c1
+6. `test_flushed_pending_settles_byte_identical_to_the_control` — enqueue+finalize c1
+7. `test_queued_pending_settles_byte_identical_to_the_control` — enqueue+finalize c1
+8. `test_flushed_settle_threads_the_row_delta_to_later_blocks` — enqueue+finalize c1
+9. `test_generic_settle_drops_the_registration_and_matches_the_control` — enqueue+finalize c1
+10. `test_orphaned_pending_finalizes_as_the_error_block` — enqueue+c1 (the
+    `finalize_pending_as_error` signature is unchanged)
+11. `test_generic_bg_live_settle_paints_the_success_bg` — finalize+c1 (id-miss append, bytes unchanged)
+12. `test_generic_bg_live_settle_paints_the_error_bg` — finalize+c1
+13. `test_generic_bg_pending_arm_stays_byte_frozen` — enqueue+c1
+14. `test_edit_block_dispatch_settles_from_the_call_details` — enqueue+finalize c1
+15. `test_edit_block_pending_renders_the_header_under_the_pending_bg` — enqueue+c1
+16. RENAMED `test_finalize_without_a_pending_registration_appends` →
+    `test_pending_registry_id_miss_finalize_appends` (token per the frozen
+    unit-pin list; body re-pinned to the id-carrying signature)
+17. RENAMED `test_reset_clears_the_pending_registration` →
+    `test_pending_registry_reset_clears_and_the_post_reset_finalize_appends`
+18. DELETED `test_second_pending_supersedes_and_the_stale_end_appends`
+    (replaced by the 5 new registry pins — the supersede was the defect)
+
+`test/chat_test.rb`: `ToolCallDouble` gains `:id` (first member, ToolCall
+member order); `tool_start`/`tool_end` helpers centralized (all call sites
+untouched). No chat_test test bodies changed.
+
+## Deviations (itemized; none absorbed)
+
+1. **No commit.** The prompt's Output-format section says "Lane commit", but
+   the same prompt's operating brief says "NEVER commit (the integrator lands
+   your tree)" and the runtime contract forbids all git write commands (the
+   judge verifies `git log <base>..` is empty — verified: 0 commits). The
+   8-file diff sits uncommitted on the lane worktree; `git status` shows only
+   the 8 modified files (probe `--out` dirs live under gitignored tmp/).
+2. **Cover property per-span, not per-row.** The AC's "every non-empty row's
+   text is a substring of the source" is unsatisfiable per-row on marked-up
+   source: stripping `**`/backticks joins non-adjacent source runs inside one
+   row (e.g. `"The space"` + `": 20261009…"` around a bold pair). The pins
+   implement the property at SPAN granularity (each non-whitespace span a
+   source substring found at-or-after the previous span's window end) — which
+   preserves the AC's substance: source order, no invented bytes, no source
+   character rendered twice; the I65 explosion (duplicated prefixes) cannot
+   survive the walk. The minimal-trigger pin still asserts exact passthrough
+   at row level.
+3. **Reader-guard idiom in the chat.rb arms** (declared builder freedom):
+   `call.respond_to?(:id) ? call.id : nil` — REQUIRED:
+   `test/render/render_perf_test.rb` (:24, outside the touch set) constructs
+   `ToolCall = Struct.new(:name, :arguments)` and drives both arms; an
+   unguarded `call.id` would raise. Consequence: a reader-less double's
+   start/end pair now paints pending + append instead of today's in-place
+   settle (the frozen D2 letter: nil id → append fallback). render_perf
+   asserts draw counts and fresh-vs-cached fingerprints only — both unchanged
+   (render-perf-units + render-perf-probe green). Every real ToolCall and
+   every chat_test double carries an id; behavior unchanged everywhere else.
+4. **chat_test helper id-pairing scheme** (helpers centralized, call sites
+   untouched, per the frozen contract): `tool_start` generates
+   `call_<n>` (per-test counter) and memoizes it on the test instance;
+   `tool_end` defaults its id to the memo; explicit `id:` overrides; an end
+   with no prior start carries nil → the append fallback (identical to
+   today's no-pending shape). A stale memo after an interrupted flow is
+   harmless: an id MISS in the fresh registry appends, the same observable.
+5. **Slice-pin trigger count pinned at exactly 1.** In the owner's item 5 the
+   second `zai/*`'s asterisk is the opener of the ACCEPTED em pair
+   (`*); architect.yaml … the zai/*`) — the accepted pair renders its inner
+   with delimiters consumed (I06 semantics, unchanged by D1), so exactly one
+   literal `zai/*` renders. Documented in the test comment.
+6. **Pre-existing base-tree quirk observed, NOT touched.** transcript_test.rb
+   carries a doubled `end` after `test_edit_block_pending_renders_the_header_under_the_pending_bg`
+   (base merge artifact) that orphans three `test_custom_block_*` defs and
+   two `test_rebuild_live_expandables_*` re-definitions to module scope: the
+   three custom-block tests never ran at base (base file: 31 defs, 26 class-
+   level unique = 26 runs) and still don't. Fixing it is outside the task (no
+   refactors beyond the task; the never-run tests may be stale). Flagged for
+   the integrator/owner.
+7. **Env hygiene inside the new launcher pin** (see AC3): in-process
+   snapshot/delete/restore of `PI_MODEL/PI_PROVIDER/PI_CONTEXT_WINDOW/
+   PI_MODEL_REASONING/PI_API_KEY/PI_API_BASE` — required for determinism in
+   any env that leaks the boot tiers (this shell does).
+
+## Environment notes
+
+- All bundler invocations ran under `env -u BUNDLE_GEMFILE` (the leak is
+  present in this shell).
+- The three probes ran with the frozen `env -u HERDR_*` prefix; out dirs
+  `tmp/render-perf-gate`, `tmp/i65-tp`, `tmp/i65-ubs` (gitignored).
+
+STATUS: COMPLETE_WITH_CONCERNS — concerns: (1) worktree intentionally left
+uncommitted (integrator lands it; no git writes allowed); (2) Deviation 3's
+declared reader-less-double shape change (pending+append instead of in-place
+settle) is accepted under the frozen nil-id letter and provably invisible to
+render_perf's assertions, but the integrator should know it exists; (3) the
+pre-existing orphaned custom-block tests (Deviation 6) are the owner's to
+rescue.
 
 ## Verdict
 
