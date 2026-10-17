@@ -9,11 +9,164 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section model-catalogue grounds --from <file>`. -->
+### Standing frame (facts, cited)
+
+- Plan ENTRY 3 (`notes/plan-20261017T183001Z-tart-standalone.md`): owner
+  ruling 2026-10-17, option C — vendor pi's MIT-licensed provider catalogue
+  data as the metadata baseline PLUS live listing from the CONFIGURED
+  provider's own `/v1/models`; the baseline must not create a runtime
+  third-party dependency (no fetching from pi.dev at boot or on demand).
+- Base this session: `repos/tart` `project/pi-port` @ **dd41ae1** (I70
+  integrated, tip, clean; `git log --oneline -1` + `git status --short`
+  re-run this session). fast-completions 0.5.0 published.
+- Routing/environment standing law (the plan's standing context + the I70
+  digest): rides `architect.yaml` as-is; the z.ai direct quota is dead until
+  ~2026-10-19 13:51Z (openrouter is the wire); the model-window tick is
+  DEAD (never re-armed in-loop); every `architect` CLI call from this
+  environment carries the full bundler scrub
+  (`env -u RUBYOPT -u RUBYLIB -u BUNDLE_GEMFILE -u BUNDLE_LOCKFILE -u
+  BUNDLE_BIN_PATH -u BUNDLER_SETUP -u BUNDLER_VERSION`).
+- The oracle: `repos/pi` @ branch `oracle-v1.1.0` (== tag v1.1.0) is
+  ENVIRONMENT, guarded by the carried `oracle-pin-state` gate — never
+  re-performed from a lane; direct oracle execs use `env -u PI_PACKAGE_DIR`.
+- I68 preserved artifacts (consumed by ENTRY 4, not this iteration):
+  `build/I68-markdown-parity-core/lane-core.diff`, the retained worktree
+  `build/I68-markdown-parity-core/wt`, `tmp/i68-spec/markdown_battery.json`
+  — untouched, not cleaned up.
+
+### The catalogue being vendored (read this session, pinned clone)
+
+- `repos/pi/packages/ai/src/providers/data/` — **44 provider JSON files**
+  (~1.9 MB), each a `{api-bucket: {"chat:<id>": {model facts}}}` map. The
+  facts per entry: `id`, `name`, `api`, `provider`, `baseUrl`,
+  `reasoning`, `input`, `cost`, `contextWindow`, `maxTokens`,
+  `thinkingLevelMap` (Partial Record level→String|null),
+  `compat` (a superset of the port's six-key subset), `inputLimits`, `type`.
+- License: `repos/pi/LICENSE` — MIT, "Copyright (c) 2025 Mario Zechner".
+  The repo is PUBLIC and the data ships committed in-tree, so vendoring is
+  license-clean (the owner ruling's premise, verified).
+- pi's own refresh discipline: `repos/pi/scripts/update-model-catalog-pin.mjs`
+  — fetches `pi.dev/api/models` revisions, verifies a `sha256-…` content
+  hash per revision, refuses a body that does not match its revision, and
+  writes the per-file `.manifest.json` (`schemaVersion`, `generatedAt`,
+  `structureHash`, per-file sha256). We borrow the DISCIPLINE
+  (content-hashed, revision-recorded, operator-run) — never the network
+  (the refresh task reads a local pi checkout only).
+- The facts the owner's key models need (read this session):
+  - `zai.json` `chat:glm-5.3`: `contextWindow` 1_000_000, `maxTokens`
+    131_072, full `thinkingLevelMap` (off/minimal/medium/xhigh null, low/max
+    String), `compat` with the seven keys incl. `zaiToolStream:true`,
+    `thinkingFormat:"zai"`.
+  - `openrouter.json`: 385 `openai-completions` entries; `z-ai/glm-5.3`
+    carries `contextWindow` 1_048_576, `maxTokens` 943_718,
+    `thinkingLevelMap` identical to zai's, and `compat`
+    `{supportsDeveloperRole:false, thinkingFormat:"openrouter",
+    supportsStrictMode:true, sendSessionAffinityHeaders:true}` —
+    `thinkingFormat:"openrouter"` is NOT zai, so the dialect rides the
+    frozen I46/I64 boundary (non-zai compat → the DEFAULT dialect,
+    tolerated-and-dropped keys). Vendoring does NOT extend the dialect
+    vocabulary — that boundary is frozen.
+- The owner's live catalog (read this session, `~/.tart/models.json`):
+  two providers — `zai` (baseUrl `https://api.z.ai/api/coding/paas/v4`) and
+  `openrouter` (baseUrl `https://openrouter.ai/api/v1`) — 4 entries, every
+  one FULLY specified (id/reasoning/contextWindow/maxTokens/
+  thinkingLevelMap/compat), `default` = `openrouter/z-ai/glm-5.3`. This
+  file is the byte-unchanged bar: the merge must be a NO-OP for it
+  (every field declared ⇒ nothing fills).
+
+### tart today (the seams, base dd41ae1)
+
+- `lib/tart/models.rb` — `Models.load` (root `~/.tart`, JSONC+BOM, the
+  never-raise error-as-field contract, I27), `Config` (model_entries /
+  `resolve` exact-match / provider), `entry_context_window` /
+  `entry_max_tokens` (the I59 definition-defaults tier: a declared value
+  passes verbatim; an ENTRY that omits the field carries
+  `DEFAULT_ENTRY_CONTEXT_WINDOW` 128_000 / `DEFAULT_ENTRY_MAX_TOKENS`
+  16_384; NO entry ⇒ nil — the no-entry chain), `dialect_for` (compat →
+  Dialect; nil/non-zai → `DEFAULT_DIALECT`), `wire_model`,
+  `resolve_boot_model` (I27: env > models.json default > settings).
+- `lib/tart/settings.rb` `thinking_facts` (I36): reasoning = the entry's
+  flag when an entry exists else `model_reasoning_capable`; the map = the
+  entry's map else the known table (`THINKING_LEVEL_MAPS`). The vendored
+  tier slots BETWEEN entry and known-tables.
+- `lib/tart/render/chat.rb` — `open_model_menu` (the I27 selector; the
+  network refresh was CUT at I27, itemized — this iteration restores a
+  different, owner-ruled form), `model_menu_entries` (catalog entries,
+  degenerate boot-entry fallback), `apply_model_selection` (the typed-entry
+  switch seam: facts + window + compat threading, persist path writes
+  SETTINGS, never models.json), `boot_model_ref` cross-resolution.
+- `lib/tart/render/model_menu.rb` — `ModelMenu.model` (items built from
+  entries, sort by [rank, provider, id], the model_row shape `id
+  [provider] · default`, fuzzy filter, `Model Name:` bottom row). No
+  refresh path exists today (items are fixed at construction).
+- `bin/tart` — `build_surface` (constructs `Render::Chat`; the I27 live
+  defect — models: never threaded — is the named lesson: every new surface
+  kwarg gets a launcher-seam regression pin), `endpoint_facts` (the boot
+  key/base chain: env > the boot provider's models.json block > settings),
+  `build_chat` (the Chat client carries the endpoint), the boot threads
+  `entry_context_window`/`entry_max_tokens`/`thinking_facts` at three
+  sites (:325, :475, :665-703).
+- `lib/tart/commands.rb` `dispatch_model` — no-arg opens the selector,
+  exact catalog match switches directly, else seeded selector. NOT touched
+  this iteration.
+- Test staged catalogs are hermetic by construction: `models_test` uses
+  provider key `glm` @ `https://example.test/v1`; the launcher/footer gates
+  stage `zai` @ `http://localhost:1/v1`; the rig parity family stages
+  `mock` @ a local mock server — none can match a vendored baseUrl
+  (the match rule below is baseUrl-first), so every frozen pin outside the
+  declared moves is inert.
+- ONE deliberate exception, declared here:
+  `test/strict_sampling_test.rb` `ZAI_MODELS_JSON` stages the REAL zai
+  baseUrl with a GAP entry (no `thinkingLevelMap`, no `maxTokens`). Its own
+  assertions pin the tool-rewrite digests and loadout order only — they do
+  NOT pin `max_tokens`/`reasoning_effort` — so the file stays green, but
+  the un-pinned wire dimensions of that staged config CHANGE BY DESIGN
+  under the fill (max_tokens 16_384→131_072; reasoning_effort for a
+  `medium` session level clamps `medium`→`high` through the vendored map).
+  This is the feature working, not a regression; the suite floor and the
+  frozen wire-delta/session-golden guards (which stage full-fact or
+  non-matching catalogs) hold EXACT.
+
+### Measured base (this session, dd41ae1, fresh)
+
+- **Suite: FRESH_MEASURED** (rake exit 0, measured cold this session — the
+  floor the AC freezes; the loop-state's 1229/6047 record is superseded by
+  this fresh measurement).
+- `SEAM_BENCH_OK`: BASE_BENCH (measured after the suite, same session).
+- Lane-tree prediction: `build/I71-model-catalogue-core/wt` = 79 chars
+  absolute — the s9 wrap law (row = tree + outdir + 32, fires > 120) gives
+  s9 the FIVE-char out dir `t71s9` (row 116, the proven-green boundary
+  family).
+
+### The rig law (standing)
+
+Parity scenarios s1–s10, s17, s1-tart-mode carry untouched (short out dirs,
+`rm -rf` at gate START, the HERDR_* scrub on every tart boot); no rig
+scenario-content edits; `gems/tui-split-rig/**` is entirely outside this
+iteration's touch set.
+
+### Prior handoffs (the I70 digest, honored)
+
+- Gates are GENERATED from the previous frozen block (`tmp/i71-spec/
+  build-gates.rb` off `architecture/I70-subagents-default-on.md`) with the
+  carry audit (`tmp/i71-spec/audit-gates.rb`) run BEFORE rehearsal; every
+  rebase and drop declared in the AC preamble.
+- Every frozen gate that writes an out dir carries its own `rm -rf`;
+  rehearsal leaves out dirs in the tart tree — the spec session cleans them
+  after freeze (I70 precedent).
+- Judge runs gates at the LANE tree; freeze validates the rehearsal stamp
+  by gates-digest match; `provision` leaves its space.yaml hunk for the
+  spec session to commit as bookkeeping; freeze_sha = the commit carrying
+  the frozen region.
+- The builder prompt file must actually be written to disk and the
+  `architect section … prompt --append` must land byte-verbatim (the I70
+  prompt-embedding gap: the arch file is authoritative, gate commands are
+  executed mechanically from it).
+- Suite timing flake (chat_test interrupt-during-streaming): re-run cold
+  before adjudicating; a reproducible cold failure is a different class.
+- The advisory scope-asymmetry "not analyzed" tail in every rehearsal is
+  structural (pipeline/stdin greps + `grep -v` outside the static parser) —
+  NOT a blocker, NOT missing verdicts; never "fix" gates for it.
 
 ## Specification
 
