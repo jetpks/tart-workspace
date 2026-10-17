@@ -2728,7 +2728,7 @@ project:
     ordinal: 70
     file: architecture/I70-subagents-default-on.md
     freeze_sha: bab4756eba03f77d7cd5b69340659829e45d67bf
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart

@@ -1888,15 +1888,43 @@ STATUS: COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section subagents-default-on verdict --from <file>`. -->
+**Decision: CONTINUE — integrate lane `core`.**
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify subagents-default-on`)?
+## Mechanical post-flight (this session, cold)
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+- `architect verify subagents-default-on`: 4/4 PASS (frozen sections untouched; no builder commits; scratch report present; in-bounds).
+- `git -C build/I70-subagents-default-on-core/wt log 2a33f66..` — EMPTY (lane committed nothing; the integrator lands the tree).
+- Frozen regions byte-identical since the AC freeze commit `d224a5c`; the only later iteration-file change is the declared Builder Prompt append (`bab4756`) and this session's Builder Report transcription (verbatim, `060d25c7`).
+- `architect gate subagents-default-on core` — **54/54 gates PASS cold at the lane tree** (transcript `build/gate/I70-subagents-default-on-20261017T165559.297553.md`), including `suite` (1229 runs / 6047 assertions / 0F / 0E / 1S, `SUITE_OK`) and `bench` (`SEAM_BENCH_OK`).
+- Suite flake watch-item: the judge's own cold `suite` run did NOT hit the chat_test interrupt-timing timeout class (one cold green run, no re-run needed per the spec's flake note). The builder's mid-iteration timeout remains the I38 environmental-timing class (two cold re-runs green, their final battery green, judge's battery green) — not a tree defect.
+- Scope verified independently: `git diff 2a33f66` = exactly the declared touch set — 10 modified files (bin/tart, runner.rb, scenario_test.rb, motd.rb, settings.rb, chat_test.rb, motd_test.rb, settings_test.rb, subagents_e2e_test.rb, subagents_test.rb) + the new untracked probe bin. `workflows.rb` NOT touched (D5, allowed-if-needed, not needed). Must-differ legs all differ.
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+## PHASE 0 disagreement rulings
+
+- **scenario_test.rb:306-307 `refute File.exist?(settings.json)` vs R3 — ACCEPT.** The stale I29-era pin ("settings stays context_window-gated") contradicts the frozen R3/AC4 law and the `rig-staging-units` gate, which reads the staged file directly after `stage_tart_home`; the frozen gates block governs over the older pin. The move is itemized and discrimination is preserved (compaction-gating still refuted; the always-present false row, the compaction coexistence, and the hide mechanism all newly pinned).
+
+## Deviation rulings (all itemized, none silent)
+
+- **D1 (`resolve_setting` presence-check ladder) — ACCEPT.** Required by the frozen gates themselves: `subagents-default-law` asserts `resolve_setting("subagents", {"subagents" => false}) == false` and `subagents-default-boot` requires the `7360fd1e…` opt-out digest — the bare `||` ladder made a present-false file row unresolvable post-flip. Verified in-source: tier ORDER unchanged (env > file > default, RAW env values), `RESOLUTION_ENV` and `subagents_enabled?` bytes untouched, nil-row fallthrough (malformed-file semantics) preserved, memory's off shape outcome-identical and pinned. The gates block is the machine-checkable form; the deviation is the spec's own gates demanding the cure.
+- **D2 (`hide_staged_settings` + `tart_command` env row) — ACCEPT (the R3 mechanism, modified).** The R3 letter holds where it is gate-observable: `stage_tart_home` writes the settings.json ALWAYS with `"subagents" => false`, compaction rows only on context_window (non-vacuously pinned by `rig-staging-units` and the scenario pins). The boot-time move-aside for non-compaction boots is forced by a real conflict the spec missed: the always-present settings.json is itself a `[Context]` source for tart (pi's contextFiles never lists settings — the registry's declared unknown-candidate), which broke s1–s6/s9/s10/wire-delta/zai-max-tokens-wire as measured. The cure honors the STANDING law (I69: the runner OWNS explicit staging; no parity path rides the app default) via the identity-namespaced `PI_SUBAGENTS=0`/`TART_SUBAGENTS=0` env row on every parity boot — R2's own legal opt-out tier. The spec's intent — the parity surface pins the OPT-OUT (I48-off) shape — is preserved exactly: wire-delta `7360fd1e…`, zai wire, session goldens, and the full s-family green cold at the lane tree.
+- **D3 (leg F staging) — ACCEPT.** A Grounds blast-radius miss (a default-implicit child boot), fixed INSIDE the whitelisted file, disclosed at PHASE 0 with the measurement, mirroring the I69 explicit-staging law. Exactly the boundary rule's intended flow.
+- **D4 (bin/tart comment reword) — ACCEPT.** R2: allowed, not required; comment-only, predicate bytes untouched (verified in the diff).
+- **D5 (`workflows.rb` untouched) — ACCEPT.** Allowed-if-needed, not needed; the six prompt/description bytes remain pinned by `subagents_intercom_test` (green in the suite).
+
+## AC rollup
+
+- **AC1 (MOTD cure, oracle-pinned) — PASS.** `subagents-motd-units` and `subagents-motd-probe` green cold; in-source read confirms R1's exact shape (nil-`file_path` ⇒ package member under `user`/`subagents`; file-backed classification untouched; label row two-span 4-space unstylized + md_link; member rows 6-space one-dim-span, name-sorted, through `wrap_resource_row`; no path sort ever sees nil). The live probe boot (default identity, NO settings staged, closed env) matched the frozen oracle bytes and the exact truecolor codes.
+- **AC2 (default ON, opt-out tiers, wire law) — PASS.** `subagents-default-law` + `subagents-default-boot` green cold: default boot tools `read bash edit write subagent`, digest `2c744efc8cae…f55d88`; opt-out boot `read bash edit write`, digest `7360fd1ec641…c23707` (the standing wire-delta constant); instruction digest IDENTICAL off vs on — the declared digest law holds exactly as frozen.
+- **AC3 (e2e default-on) — PASS.** `subagents-e2e-default-on` green (E1–E4, ≥4 runs, no settings.json pinned in-leg); legs A–D byte-unchanged and green in the full suite.
+- **AC4 (parity surface, explicit staging, digests hold) — PASS.** `rig-staging-units` green; s1–s10, s17, s1-tart-mode, wire-delta, zai-max-tokens-wire, session-golden all green cold — the parity surface pins the OPT-OUT shape per the I69 ruling (via D2's mechanism).
+- **AC5 (regression floor + scope) — PASS.** Suite 1229/6047/0F/0E/1S (> floor 1219/5948; Δ +10 runs, +99 assertions; the 1 standing skip; pins MOVED with discrimination preserved, nothing deleted); `SEAM_BENCH_OK`; `scope` green — diff = exactly the declared touch set; `oracle-pin-state` green.
+- **AC6 (standing collapse: suite/bench) — PASS.**
+
+## Post-integration checkpoints (carried)
+
+1. **The owner's interactive test-drive is the named POST-INTEGRATION checkpoint** — the live pi-subagents-vs-tart parity (the rig's package-less pi clone cannot observe it; by design). NOT rig-blocking.
+2. **The one-line revert safety path if live pain surfaces: stage settings `{"subagents": false}` — or the env tier (`TART_SUBAGENTS=0`, any non-on value; `PI_SUBAGENTS=0` under the pi identity) — and the boot returns to the exact I48-off wire (tools digest `7360fd1e…`, instruction unchanged).** No code rollback needed.
+3. The port-only `[Context]-lists-config-files` divergence stays OPEN on the registry work list (D2 hides the staged file; the owner rules registry pins).
+4. Cosmetic, non-blocking: `runner.rb` `boot_session` carries a duplicated 4-line "BEFORE the boot" comment (insertion artifact, zero semantics) — left as-is, noted for a future hygiene pass.
+
+Integration disposition: lane `core` merges to `project/pi-port` (the only lane; base `2a33f66`, clean fast-forward expected — the lane made no commits); teardown of the worktree and lane branch after merge.
