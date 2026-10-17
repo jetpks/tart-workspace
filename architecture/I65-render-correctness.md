@@ -1249,15 +1249,28 @@ rescue.
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section render-correctness verdict --from <file>`. -->
+### core (judged cold at the lane tree, 2026-10-16T20:56Z gate run)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify render-correctness`)?
+- **Disagreement rulings** — every PHASE 0 item the builder raised:
+  - **D1 (no commit) — ACCEPT.** The operating brief's "NEVER commit (the integrator lands your tree)" plus the frozen mechanical check (`verify` (b) no builder commits) govern the Output-format section's stale "Lane commit" phrasing — the tree is the deliverable.
+  - **D2 (cover property per-span, not per-row) — MODIFY.** The AC's literal per-row substring letter is unsatisfiable on markup-bearing rows (delimiter stripping joins non-adjacent runs); the per-span walk preserves the substance — source order, at-most-once, no invented bytes — and the row-level letter is still pinned where it is satisfiable (the minimal-trigger passthrough-exact). AC1 substance intact.
+  - **D3 (reader-guard idiom) — ACCEPT.** The frozen spec itself declares the idiom builder freedom and the nil-id→append fallback its letter; render-perf-units + render-perf-probe green prove the reader-less-double shape change invisible.
+  - **D4 (chat_test helper id-memo scheme) — ACCEPT.** "Centralized — the call sites stay untouched" is the frozen contract's own letter; a stale memo degrades to an id miss → append = today's observable.
+  - **D5 (trigger fragment pinned at exactly 1) — ACCEPT.** The second `zai/*` asterisk opens an ACCEPTED pair (I06 delimiters-consumed, unchanged by D1); exactly-1 discriminates both the explosion (30+) and over-stripping (0).
+  - **D6 (pre-existing doubled `end` in transcript_test) — ACCEPT, disclosed.** Verified pre-existing at base `1b83e05` (:472; lane tree :604, byte-untouched); three custom-block tests never ran at base and still don't — correctly left (no refactors beyond the task); OWNER follow-up, carried to the index.
+  - **D7 (in-test PI_* env neutralization) — ACCEPT.** Mirrors the frozen footer-window gate's env-strip prefix; snapshot/restore in ensure keeps the suite hermetic.
+- **Spec's three open questions, ruled:**
+  1. **Lane-tree battery — CONFIRMED CLEAN.** All 21 gates run cold at `build/I65-render-correctness-core/wt` by this session: 21 PASS / 0 FAIL. The pre-declared canonical-checkout `scope` RED-noise never materialized where it counts — at the lane tree `scope` bites exactly and passes (exactly the 8 declared files vs `1b83e05`).
+  2. **Scaffold `c1d7b77` swept the owner's uncommitted RatatuiRuby `space.yaml` repos-entry into history — DISCLOSED, NO ACTION.** Verified: the entry block is byte-preserved (`added_at: 2026-10-16T18:40:46-06:00`), intact at HEAD, never altered since; consistent with the honest-history no-scrubbing standing ruling; the alternative (leaving owner content uncommitted through a provision flow) was the worse risk.
+  3. **Suite gate stricter than the plan — CONFIRMED, NO CONFLICT.** The frozen gate's exit-0 demand (E-2 repaired at base, per the measured base vector) is the stricter form and it PASSED cold: exit 0, `SUITE_OK`, 1192 runs / 5709 assertions / 0 failures / 0 errors / 1 standing skip (base 1179; delta +13 = 6 markdown + 6 transcript net + 1 launcher — count re-derived and matches).
+- **Acceptance Criteria integrity** — `architect verify render-correctness`: (a) frozen sections untouched PASS, (b) no builder commits PASS, (c) scratch report exists PASS, (d) in-bounds PASS. `git diff 6db5bcb2 HEAD -- <iteration plan file>`: empty. `git -C wt log 1b83e05..`: empty.
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | md-repro PASS (both frozen forms passthrough-exact); md-inline-units PASS (6 markdown + 2 transcript `inline_scan` pins, floors 3/1); suite green; diff read: exactly the two reject arms (`src[m.begin(0)]` + `m.begin(0)+1`), converter remainder byte-identical; owner payload byte-verbatim (slice + full 4756-byte text) pinned at both seams with the at-most-once walk | §8 (exact parity — the screen-destroyer cured), §3 | PASS |
+| AC2 | pending-registry-units PASS (7 pins, floor 4: N=2 both completion orders, identical-name/args distinct ids byte-identical to sequential controls, queued-swap, two-pending error finalize + clear, reset, id-miss append); tool-pending-gate PASS; error-transcript-render-units PASS; diff read: registry is exactly the frozen seam contract; `pending_tool_rows`/`tool_block_builder`/`replace_flushed_pending`/`swap_queued_pending` verified BYTE-IDENTICAL; supersede pin replaced as declared | §8 (pi pendingTools Map parity), §3 | PASS |
+| AC3 | footer-window PASS (`FOOTER_WINDOW_OK 1000000`; loop-expression equality + env-tier 999 both asserted in the frozen one-shot); hermeticity PASS; diff read: entry hoist + the one-line `|| Models.entry_context_window(entry)` fallback, models-nil legacy nil pinned, footer.rb untouched, all three boot call sites one shape | §8 (the `?` cured), §3 | PASS |
+| AC4 | scope PASS (exactly the 8 declared files; Gemfile/lock/gemspec byte-identical); all 11 byte-freeze member gates PASS cold (session-golden 7/7 digests, strict-wire, thinking-pins, lock-deps, zai-data, threads-budget, render-perf ×2, user-bash-stream, zai-max-tokens, hermeticity) | §2 (frozen stack), §8 | PASS |
+| AC5 | suite exit 0 (1192/5709/0F/0E/1S, ≥1179, standing rig skip unchanged); bench `SEAM_BENCH_OK` — both cold this session, independent of the builder's runs | §8, §3 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+- **Iteration** — **CONTINUE.** The diff is faithful to the frozen Specification at every seam I read (the two reject arms, the registry contract with the frozen helpers byte-identical, the one-line footer fallback), the cold battery is 21/21 at the lane tree with all four RED-at-base defect gates green, and every deviation was declared and itemized, none absorbed silently — BRIEF §8 exact parity advanced on all three live-run defects.
