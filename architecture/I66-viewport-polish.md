@@ -449,51 +449,537 @@ routine lane.
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse viewport-polish` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze viewport-polish` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+Property-level, each independently judgeable. The frozen ```gates block
+below is the machine-checkable form: 25 gates — 20 carried/rebased from the
+I65 standing battery (the unit-runnable members; I65's four defect gates —
+md-repro, md-inline-units, pending-registry-units, footer-window — are
+carried VERBATIM, now standing regression guards over the ENTRY-1 landed
+work) + 5 new (the scope rewrite for this lane's 6-file touch set + 4
+designed-RED defect gates: rail-bg, jump-pill-units, rail-bg-units,
+viewport-probe). Base = tart `project/pi-port` @ `9db6370` (the I65 merge —
+tip, in sync with origin); gem = fast-completions **0.4.0 published**
+(pin-only Gemfile; no `FAST_COMPLETIONS_PATH`; measured cold this session
+at a scratch worktree @ 9db6370).
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**Declared battery exclusions (itemized, the I65 unit-pin ruling carried).**
+The pi-1.2.0-vs-ORACLE-1.1.0 banner drift keeps every rig-scenario gate
+exiting 1 `unknown-candidate` — NOT carried as RED: `s1`–`s10`,
+`s1-tart-mode`, `s17`, `s18`, `wire-delta`, `zai-max-tokens-wire`,
+`live-script`. The wire-byte freeze they would guard is covered here by
+`scope` + `strict-wire` + `session-golden` + `suite` instead.
 
-**AC1.** ...
+**Declared standing-gate rebases (commands byte-verbatim except these,
+itemized):** `threads-budget` — base sha `1b83e05`→`9db6370`;
+`tool-pending-gate`/`user-bash-stream-gate` — `--out` dirs re-pointed at
+`tmp/i66-*`; `scope` — rewritten for this lane's 6-file touch set
+(`lib/tart/theme.rb` moves from I65's must-not-touch list into the
+whitelist; the ENTRY-1 surfaces markdown/transcript, text/footer/editor/
+selection, tui.rb, and bin/ move into the must-not-touch leg); `ac:`
+labels re-mapped (suite/bench → AC5; every other carried member → AC4,
+I65's AC2-labeled `tool-pending-gate` included). The carry audit ran clean
+this session (`tmp/i66-spec/audit-gates.rb`: 17 OK byte-identical + 3
+REBASED exactly as declared, zero DIFF, zero AC-DRIFT).
+
+**The measured at-base vector (pre-declared; every member accounted;
+scratch worktree @ 9db6370, `bundle exec rake` → `1192 runs / 5709
+assertions / 0 failures / 0 errors / 1 skip`, exit 0 — the standing rig
+live-run skip).** GREEN at base: `suite` (measured this session), `bench`
+(SEAM_BENCH_OK, measured), and the 20 carried members — the four I65
+defect gates GREEN at base since their cures landed at `9db6370`; the rest
+measured by this session's rehearsal runs at the canonical checkout;
+`scope` vacuous at the lane tree (HEAD == base). RED at base (the 4
+designed defect gates, by construction, measured this session):
+`rail-bg` (the F2 full-width leg fails first: the composed row's last cell
+carries bg nil vs `#254131`), `jump-pill-units` (0 test names match
+`/jump_pill/` — verified), `rail-bg-units` (0 match `/rail_background/` —
+verified), `viewport-probe` (`test/support/viewport_buffer_probe.rb`
+missing at base).
+
+**Rehearsal-vs-judge checkout note (env-class, pre-declared, the I65
+carry).** The canonical `repos/tart` checkout carries the owner's standing
+uncommitted diff (6 files: the Gemfile path-branch, its lock checksum,
+`lib/tart/subagents/manager.rb`, 3 test files — plan standing context:
+intentional, LEAVE). Rehearsal runs there: `scope` reads those 6 files as
+out-of-scope NOISE at rehearsal time (the owner's files, never the lane's);
+every other gate is unaffected (the pin line survives inside the
+path-branch's else arm — measured; the owner's tests pass in-checkout).
+The judge runs the frozen battery at the LANE tree (cut from the committed
+branch, no owner diff): `scope` bites there exactly. Bundler-touching
+rehearsals snapshot/restore the owner's Gemfile/Gemfile.lock byte-identical
+around the run (`tmp/i66-owner-state/`, the I65 protocol).
+
+**AC1 — the jump-to-bottom pill (F1).** While the transcript viewport is
+detached from the end, a pill composites on the transcript area's LAST
+row: centered (`(width − label_width) / 2`, floor), the label EXACTLY
+pi's shape `" ↓ Jump to latest message "` (flanking spaces included),
+`fg: Theme[:text]`, `bg: Theme[:selected_bg]` — the NEW token `"#213b49"`
+(pi dark.json :27 selectedBg, the blueBg var `user_message_bg` already
+resolves); the pill cells are REPLACED, their neighbors keeping their own
+styles. While following, or when the content fits the area, NO pill
+composites (the latched rect is nil). While the rail is visible, the label
+truncates LEFT of the rail column (the left part kept; zero available
+width → no pill). A plain left press inside the latched rect is consumed
+BEFORE the wheel/selection arms: the view jumps to the end
+(`scroll_to_end` pins the offset to max, re-arms follow, marks scrollbar
+activity iff the offset moved) with one redraw — the pill is gone on the
+next draw and the rail is fresh; a press on the same row OUTSIDE the rect
+falls through to today's selection press, and every other mouse shape
+(wheel, drag, release) reaches today's arms unchanged. The shortcut
+segment is OMITTED — the itemized deviation (tart has no
+`tui.altScreen.bottom` analog; the transcript is wheel-only since I35 — no
+keybinding is invented). `Theme::TOKENS` gains exactly `selected_bg:
+"#213b49"`; the theme full-table EXPECTED pin is re-pinned with exactly
+that row (the ONE declared golden re-pin; `user_message_bg` unchanged).
+Pinned in `test/chat_test.rb` tests carrying the `jump_pill` name token
+(>= 6). Gates: `jump-pill-units`, `suite`, `scope`.
+
+**AC2 — rail background parity + the wide-grapheme straddle (F2/F3).**
+`Viewport#overlay_rail_cell` composes the pad span AND the glyph span with
+`bg:` = the target bg — the bg of the original line's span whose cell range
+covers column `width − 1` (nil when no span reaches it: a plain row keeps
+today's neutral look — the fix never invents a bg); the glyph keeps its own
+theme fg. Over a full-width colored panel row the composed line is exactly
+`width` cells with every cell's bg the panel bg and NO neutral-bg cell
+inserted; over a short-content row the PAD cells carry the panel bg too.
+A wide grapheme straddling the `width − 1` bound is replaced WHOLE (pi
+`getGraphemeCellRange`): the head clips at the straddler's start cell, the
+pad carries the target bg, the glyph lands at the LAST column, and the
+composed line is EXACTLY `width` cells — never `width + 1` (the base
+defect measured 21 in a 20-wide area); the straddling grapheme does not
+survive. `lib/tart/render/text.rb` stays untouched (`fit`'s
+force-progress arm is load-bearing for the wrap loop — the straddle-safe
+clip is span-level inside `overlay_rail_cell`). The fade is pinned at the
+cell level: after the hide timer fires and the redraw lands, the former
+rail column reads the underlying row's own state again. The existing
+scrollbar pins (`chat_test.rb` :4375-:4454 + the panel-bg pin :148) pass
+UNCHANGED. Pinned in `test/chat_test.rb` tests carrying the
+`rail_background` name token (>= 4), the CJK-at-the-edge straddle case
+pure AND at the buffer level. Gates: `rail-bg`, `rail-bg-units`, `suite`.
+
+**AC3 — the bounded RatatuiRuby artifact probe (F4).**
+`test/support/viewport_buffer_probe.rb` is committed (a standalone script —
+rake does not load it) and drives the overlay case through the gem's own
+buffer/terminal API: the frozen 3-frame method (settle → rail via the REAL
+`overlay_rail_cell` + `TUI.scrollbar_lines` → fade), per-frame cell reads
+through the gem's API, artifact A = any frame-2 rail glyph failing to paint
+at the last column or any overlaid line's span width ≠ the area width,
+artifact B = any frame-3 non-straddle `cell_bg(W−1)` differing from FRAME
+1's own read of the same cell (never the nominal bg — the gem's wide-char
+continuation cells read nil even pre-rail), the discrimination re-drive
+with a minimal gem-only composition (no `Viewport`/`Text`/`Panel`), and the
+output carries the per-frame reads + `VIEWPORT_PROBE_OK <a|b|c>` with exit
+0 in EVERY outcome (the probe reports, never fails). The
+outcome-contingent deliverable matches the frozen letter: (a) reproduced +
+tart-composition home → the F2/F3 cures eliminate it, the correspondence
+recorded in the Builder Report; (b) reproduced + ratatui_ruby home → the
+smallest tart-side compositing workaround that eliminates the VISIBLE
+defect (unit-pinned in the `rail_background`/`jump_pill` families) + the
+upstream finding in the Builder Report (file + failing case + verbatim
+cells, the installed gem 1.5.0 with the repo clone @ `10dd180` as the
+readable source); (c) not reproducible in-buffer → documented
+terminal-side with the probe's evidence. NO vendoring, forking, or Gemfile
+pin changes for ratatui_ruby in ANY outcome; nothing under
+`repos/RatatuiRuby` changes. Gates: `viewport-probe`.
+
+**AC4 — the byte-freeze discipline (scope).** Exactly the declared 6-file
+touch set changes vs `9db6370`: `lib/tart/render/viewport.rb`,
+`lib/tart/render/chat.rb`, `lib/tart/theme.rb`, `test/chat_test.rb`,
+`test/theme_test.rb`, `test/support/viewport_buffer_probe.rb` — NOTHING
+else. The ENTRY-1 transcript content paths are byte-frozen (`markdown.rb`,
+`transcript.rb` — the pending registry, replay, every content row
+composer); `text.rb`/`footer.rb`/`editor.rb`/`selection.rb`/`tui.rb`
+untouched; no bin/, no Gemfile/lock/gemspec, no rig files, nothing under
+`repos/RatatuiRuby`. The standing anchors all hold at the lane tree: the
+four I65 defect gates (the ENTRY-1 cures) + the wire/session/thinking/
+zai/lock/thread/render-perf/user-bash/tool-pending/error-transcript
+families — every carried gate GREEN. The ONE golden change is AC1's theme
+EXPECTED row — everything else golden (wire/session digests, screens)
+unchanged. Gates: `scope` + every carried member.
+
+**AC5 — the standing verification gates, cold at the lane tree.**
+`bundle install --quiet && bundle exec rake` exits 0 — >= 1192 runs, 0
+failures, 0 errors (the standing 1 rig live-run skip unchanged) — and
+`bundle exec ruby bench/seam_bench.rb` prints `SEAM_BENCH_OK`. Judge env
+note (I59/I64/I65 standing class): the three launcher/SystemPrompt pins
+inside `suite` are environment-dependent (pinned-oracle PATH + unset
+PI_*) — if present in the judge's env they adjudicate env-class, exactly
+as standing. Gates: `suite`, `bench` (+ every AC4 member cold).
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse viewport-polish` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec rake && echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+- id: bench
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1
+  expect:
+    exit_code: 0
+    stdout_match: SEAM_BENCH_OK
+- id: md-repro
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby -Ilib -e 'require "tart"
+    src = "between zai/* and openrouter/z-ai-*); tail"
+    rows = Tart::Render::Markdown.rows(src, width: 94)
+    text = rows.map { |r| r.map(&:text).join }.join("\n")
+    abort "MD_REPRO exploded: #{text.bytesize} bytes for a #{src.bytesize}-byte source" unless text == src
+    src2 = "a ~~ padded ~~ b * and *"
+    text2 = Tart::Render::Markdown.rows(src2, width: 94).map { |r| r.map(&:text).join }.join("\n")
+    abort "MD_REPRO2 exploded: #{text2.bytesize} bytes for a #{src2.bytesize}-byte source" unless text2 == src2
+    puts "MD_REPRO_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: MD_REPRO_OK
+- id: md-inline-units
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet
+    out1=$(bundle exec ruby -Ilib -Itest test/markdown_test.rb -n "/inline_scan/" 2>&1); ec=$?
+    runs1=$(echo "$out1" | grep -oE "[0-9]+ runs, " | head -1 | cut -d" " -f1)
+    [ "${runs1:-0}" -ge 3 ] || { echo "FAIL markdown pins runs=${runs1:-0} (want >=3; 0 = filter empty, declared-new)"; exit 1; }
+    [ "$ec" -eq 0 ] || { echo "FAIL markdown pins ec=$ec"; echo "$out1" | tail -8; exit 1; }
+    out2=$(bundle exec ruby -Ilib -Itest test/render/transcript_test.rb -n "/inline_scan/" 2>&1); ec=$?
+    runs2=$(echo "$out2" | grep -oE "[0-9]+ runs, " | head -1 | cut -d" " -f1)
+    [ "${runs2:-0}" -ge 1 ] || { echo "FAIL reasoning-seam pins runs=${runs2:-0} (want >=1; 0 = filter empty, declared-new)"; exit 1; }
+    [ "$ec" -eq 0 ] || { echo "FAIL reasoning-seam pins ec=$ec"; echo "$out2" | tail -8; exit 1; }
+    echo MD_INLINE_UNITS_OK
+  expect:
+    exit_code: 0
+    stdout_match: MD_INLINE_UNITS_OK
+- id: pending-registry-units
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet
+    out1=$(bundle exec ruby -Ilib -Itest test/render/transcript_test.rb -n "/pending_registry/" 2>&1); ec=$?
+    runs1=$(echo "$out1" | grep -oE "[0-9]+ runs, " | head -1 | cut -d" " -f1)
+    [ "${runs1:-0}" -ge 4 ] || { echo "FAIL registry pins runs=${runs1:-0} (want >=4; 0 = filter empty, declared-new)"; exit 1; }
+    [ "$ec" -eq 0 ] || { echo "FAIL registry pins ec=$ec"; echo "$out1" | tail -8; exit 1; }
+    echo PENDING_REGISTRY_UNITS_OK
+  expect:
+    exit_code: 0
+    stdout_match: PENDING_REGISTRY_UNITS_OK
+- id: footer-window
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    env -u PI_MODEL -u PI_PROVIDER -u PI_CONTEXT_WINDOW -u PI_MODEL_REASONING -u PI_API_KEY -u PI_API_BASE -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID bundle exec ruby -Ilib -e 'require "tart"; require "json"; require "fileutils"; require "tmpdir"
+    home = Dir.mktmpdir("i65-foot-")
+    begin
+      FileUtils.mkdir_p(File.join(home, ".tart"))
+      File.write(File.join(home, ".tart", "models.json"), JSON.generate({"default" => "zai/glm-5.3", "providers" => {"zai" => {"name" => "ZAI", "baseUrl" => "http://localhost:1/v1", "apiKey" => "k", "models" => [{"id" => "glm-5.3", "contextWindow" => 1_000_000, "maxTokens" => 65_536}]}}}))
+      settings = Tart::Settings.load(cwd: home, root: home).settings
+      models = Tart::Models.load(root: File.join(home, ".tart"))
+      resolved = Tart::Shapes::ResolvedSettings.from_load(settings, identity: Tart::Identity::DEFAULT)
+      boot = Tart::Models.resolve_boot_model(models, settings, identity: Tart::Identity::DEFAULT)
+      chat = Tart::Agent::Chat.new(client: Fast::Completions::Client.new(base_url: "http://localhost:1/v1", api_key: "k"), model_id: boot.id, provider_key: boot.provider)
+      src = File.read("bin/tart").sub(/^Tart::Executable\.run\(ARGV\)\n\z/, "")
+      eval(src, TOPLEVEL_BINDING, "bin/tart")
+      facts = Tart::Executable.footer_data(home, settings, boot: boot, chat: chat, identity: Tart::Identity::DEFAULT, models: models, resolved: resolved)
+      abort "footer window nil (renders ?): #{facts[:context_window].inspect}" unless facts[:context_window] == 1_000_000
+      loop_w = Tart::Settings.resolve_context_window(settings: settings, model: chat.model, identity: Tart::Identity::DEFAULT) || Tart::Models.entry_context_window(Tart::Executable.resolve_boot_entry(models, boot))
+      abort "footer #{facts[:context_window].inspect} != loop #{loop_w.inspect}" unless facts[:context_window] == loop_w
+      ENV["PI_CONTEXT_WINDOW"] = "999"
+      facts2 = Tart::Executable.footer_data(home, settings, boot: boot, chat: chat, identity: Tart::Identity::DEFAULT, models: models, resolved: resolved)
+      abort "env tier lost: #{facts2[:context_window].inspect}" unless facts2[:context_window] == 999
+      puts "FOOTER_WINDOW_OK #{facts[:context_window]}"
+    ensure
+      FileUtils.rm_rf(home)
+    end'
+  expect:
+    exit_code: 0
+    stdout_match: FOOTER_WINDOW_OK
+- id: thinking-pins
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet
+    out1=$(bundle exec ruby -Ilib -Itest test/agent_loop_test.rb -n "/reasoning_effort|reasoning_content|zai_|thinking_reply_persists|switch_model_re_resolves_the_reasoning_facts|print_mode_wires_the_thinking_facts/" 2>&1); ec=$?
+    runs1=$(echo "$out1" | grep -oE "[0-9]+ runs, " | head -1 | cut -d" " -f1)
+    [ "$ec" -eq 0 ] || { echo "FAIL thinking wire pins ec=$ec"; exit 1; }
+    [ "${runs1:-0}" -ge 11 ] || { echo "FAIL thinking wire pins runs=${runs1:-0} (want >=11)"; exit 1; }
+    out2=$(bundle exec ruby -Ilib -Itest test/settings_test.rb -n "/thinking_level|known_thinking_level_map/" 2>&1); ec=$?
+    runs2=$(echo "$out2" | grep -oE "[0-9]+ runs, " | head -1 | cut -d" " -f1)
+    [ "$ec" -eq 0 ] || { echo "FAIL settings thinking pins ec=$ec"; exit 1; }
+    [ "${runs2:-0}" -ge 8 ] || { echo "FAIL settings thinking pins runs=${runs2:-0} (want >=8)"; exit 1; }
+    echo THINKING_PINS_OK
+  expect:
+    exit_code: 0
+    stdout_match: THINKING_PINS_OK
+- id: hermeticity
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet
+    out1=$(bundle exec ruby -Ilib -Itest test/launcher_smoke_test.rb 2>&1); ec=$?
+    runs1=$(echo "$out1" | grep -oE "[0-9]+ runs, " | head -1 | cut -d" " -f1)
+    [ "$ec" -eq 0 ] || { echo "FAIL launcher smoke ec=$ec"; exit 1; }
+    [ "${runs1:-0}" -ge 8 ] || { echo "FAIL launcher smoke runs=${runs1:-0} (want >=8)"; exit 1; }
+    out2=$(bundle exec ruby -Ilib -Itest test/e2e_session_test.rb 2>&1); ec=$?
+    runs2=$(echo "$out2" | grep -oE "[0-9]+ runs, " | head -1 | cut -d" " -f1)
+    [ "$ec" -eq 0 ] || { echo "FAIL e2e session ec=$ec"; exit 1; }
+    [ "${runs2:-0}" -ge 4 ] || { echo "FAIL e2e session runs=${runs2:-0} (want >=4)"; exit 1; }
+    echo HERMETICITY_OK
+  expect:
+    exit_code: 0
+    stdout_match: HERMETICITY_OK
+- id: lock-deps
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    set -e
+    if grep -n "ruby_llm" tart.gemspec; then echo "FAIL: gemspec still carries ruby_llm"; exit 1; fi
+    grep -qF 'gem "fast-completions", "0.4.0"' Gemfile || { echo "FAIL: Gemfile pin line missing"; exit 1; }
+    env -u FAST_COMPLETIONS_PATH bundle install --quiet
+    ruby -e 'lock = File.read("Gemfile.lock"); abort "fast-completions missing from lock" unless lock =~ /^    fast-completions \(0\.4\.0\)/; %w[ruby_llm faraday faraday-net_http faraday-retry faraday-multipart].each { |g| abort "#{g} still in lock" if lock =~ /^    #{g} / }; puts "LOCK_DEPS_OK"'
+    bundle exec ruby -e 'require "fast/completions"; require "tart"; abort "gem not loadable" unless defined?(Fast::Completions::Client); puts "GEM_LOAD_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: GEM_LOAD_OK
+- id: zai-data
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet
+    grep -q "Fast::Completions::Dialect" lib/tart/models.rb || { echo "FAIL: no Dialect construction in models.rb"; exit 1; }
+    out=$(bundle exec ruby -Ilib -Itest test/models_test.rb -n "/dialect/" 2>&1); ec=$?
+    runs=$(echo "$out" | grep -oE "[0-9]+ runs, " | head -1 | cut -d" " -f1)
+    [ "$ec" -eq 0 ] || { echo "FAIL dialect pins ec=$ec"; exit 1; }
+    [ "${runs:-0}" -ge 2 ] || { echo "FAIL dialect pins runs=${runs:-0} (want >=2)"; exit 1; }
+    bundle exec ruby -Ilib -e 'require "tart"; compat = Tart::Shapes::ModelCompat.new(thinking_format: "zai", max_tokens_field: "max_tokens", supports_developer_role: false, supports_reasoning_effort: true, zai_tool_stream: true); d = Tart::Models.dialect_for(compat); abort "zai dialect values moved" unless d.thinking_format == :zai && d.max_tokens_field == "max_tokens" && d.supports_developer_role == false && d.supports_reasoning_effort == true && d.zai_tool_stream == true && d.supports_store == false; plain = Tart::Models.dialect_for(nil); abort "nil compat must yield the default dialect" unless plain.thinking_format == :openai && plain.supports_store == true; puts "ZAI_DATA_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: ZAI_DATA_OK
+- id: threads-budget
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    added=$(git diff 9db6370 -- lib | grep -E "^\+[^+].*Thread\.new" || true)
+    if [ -n "$added" ]; then echo "FAIL: new Thread.new sites in lib:"; echo "$added"; exit 1; fi
+    echo THREADS_BUDGET_OK
+  expect:
+    exit_code: 0
+    stdout_match: THREADS_BUDGET_OK
+- id: session-golden
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet && bundle exec ruby -Ilib -e 'require "tart"; require "tmpdir"; require "json"; require "digest"; FakeMsg = Struct.new(:role, :attrs) do def to_h = attrs end; VOLATILE = %w[id parentId timestamp parentSession cwd firstKeptEntryId].freeze; normalize = lambda do |obj|; case obj; when Hash then obj.each_with_object({}) { |(k, v), h| h[k] = VOLATILE.include?(k) && !v.nil? ? "<#{k}>" : normalize.call(v) }; when Array then obj.map { |v| normalize.call(v) }; else obj; end; end; digest_lines = lambda { |path| Digest::SHA256.hexdigest(File.readlines(path).map { |l| JSON.generate(normalize.call(JSON.parse(l))) }.join("\n")) }; out = {}; Dir.mktmpdir do |dir|; root = File.join(dir, "agent"); plain = Tart::Agent::Session::Recorder.new(cwd: dir, root: root); plain.append_message(FakeMsg.new(:user, {role: "user", content: "list the files"})); plain.append_message(FakeMsg.new(:assistant, {role: "assistant", content: nil, tool_calls: [{id: "call_1", name: "ls", arguments: {path: "."}}]})); plain.append_message(FakeMsg.new(:tool, {role: "tool", tool_call_id: "call_1", content: "fixture.txt"})); plain.append_message(FakeMsg.new(:assistant, {role: "assistant", content: "the listing is above"})); rec = Tart::Agent::Session::Recorder.new(cwd: dir, root: root); rec.append_message(FakeMsg.new(:user, {role: "user", content: "list the files"})); rec.append_message(FakeMsg.new(:assistant, {role: "assistant", content: nil, tool_calls: [{id: "call_1", name: "ls", arguments: {path: "."}}]})); rec.append_message(FakeMsg.new(:tool, {role: "tool", tool_call_id: "call_1", content: "fixture.txt"})); rec.append_message(FakeMsg.new(:assistant, {role: "assistant", content: "the listing is above"})); rec.append_bash_execution(Tart::Agent::Session.bash_execution_message(command: "echo hi", output: "hi", exit_code: 0, cancelled: false, truncated: false, full_output_path: nil)); rec.append_compaction(summary: "Earlier turns summarized.", first_kept_entry_id: nil, tokens_before: 15, details: "auto"); forked = Tart::Agent::Session::Recorder.new(cwd: dir, root: root, parent_session: rec.path); forked.append_message(FakeMsg.new(:user, {role: "user", content: "after the fork"})); out[:plain] = digest_lines.call(plain.path); out[:plain_context] = Digest::SHA256.hexdigest(JSON.generate(Tart::Agent::Session.context_messages(plain.path))); out[:plain_roles] = Tart::Agent::Session.context_messages(plain.path).map { |m| m[:role] }.inspect; out[:primary] = digest_lines.call(rec.path); out[:forked] = digest_lines.call(forked.path); out[:context] = Digest::SHA256.hexdigest(JSON.generate(Tart::Agent::Session.context_messages(rec.path))); out[:fork_roles] = Tart::Agent::Session.context_messages(forked.path).map { |m| m[:role] }.inspect; end; want = {plain: "928183de7736e9ad59237d6eb4bf7eb0215f8933ac1e1c2c4d8cb0e61ca38728", plain_context: "d3c1574f049f9688309656a21d42100e32b0203025f77f8afbed70819cb228ee", plain_roles: "[:user, :assistant, :tool, :assistant]", primary: "cb29e42e1ba9ecc29e28ce3d833e68fbd8f17ddfa2700b02b1b6bd98b24baa29", forked: "3a5f6d606f5952fd2e0e25bf085d442c386d18bb0d60a4bdd7c43b04b203ae8d", context: "f75f99b4516b3e69f41d847bb5266d7cac897e3fd320190f588d83e26497a029", fork_roles: "[:user, :user]"}; bad = want.keys.select { |k| out[k] != want[k] }; abort "session bytes moved: #{bad.map { |k| [k, out[k]] }.inspect}" unless bad.empty?; puts "SESSION_GOLDEN_OK"'
+  expect:
+    exit_code: 0
+    stdout_match: SESSION_GOLDEN_OK
+- id: strict-wire
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby -Ilib -Itest test/strict_sampling_test.rb 2>&1 | grep -E "[1-9][0-9]* runs, .* 0 failures, 0 errors"
+  expect:
+    exit_code: 0
+    stdout_match: runs,
+- id: error-transcript-units
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet
+    out1=$(bundle exec ruby -Ilib -Itest test/agent_loop_test.rb -n "/error_transcript/" 2>&1); ec=$?
+    runs1=$(echo "$out1" | grep -oE "[0-9]+ runs, " | head -1 | cut -d" " -f1)
+    [ "${runs1:-0}" -ge 4 ] || { echo "FAIL agent-loop pins runs=${runs1:-0} (want >=4; 0 = filter empty, declared-new)"; exit 1; }
+    [ "$ec" -eq 0 ] || { echo "FAIL agent-loop pins ec=$ec"; echo "$out1" | tail -8; exit 1; }
+    out2=$(bundle exec ruby -Ilib -Itest test/session_test.rb -n "/error_transcript/" 2>&1); ec=$?
+    runs2=$(echo "$out2" | grep -oE "[0-9]+ runs, " | head -1 | cut -d" " -f1)
+    [ "${runs2:-0}" -ge 2 ] || { echo "FAIL session pins runs=${runs2:-0} (want >=2; 0 = filter empty, declared-new)"; exit 1; }
+    [ "$ec" -eq 0 ] || { echo "FAIL session pins ec=$ec"; echo "$out2" | tail -8; exit 1; }
+    echo ERROR_TRANSCRIPT_UNITS_OK
+  expect:
+    exit_code: 0
+    stdout_match: ERROR_TRANSCRIPT_UNITS_OK
+- id: error-transcript-render-units
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet
+    out1=$(bundle exec ruby -Ilib -Itest test/chat_test.rb -n "/error_transcript/" 2>&1); ec=$?
+    runs1=$(echo "$out1" | grep -oE "[0-9]+ runs, " | head -1 | cut -d" " -f1)
+    [ "${runs1:-0}" -ge 3 ] || { echo "FAIL chat render pins runs=${runs1:-0} (want >=3; 0 = filter empty, declared-new)"; exit 1; }
+    [ "$ec" -eq 0 ] || { echo "FAIL chat render pins ec=$ec"; echo "$out1" | tail -8; exit 1; }
+    out2=$(bundle exec ruby -Ilib -Itest test/render/transcript_test.rb -n "/error_transcript/" 2>&1); ec=$?
+    runs2=$(echo "$out2" | grep -oE "[0-9]+ runs, " | head -1 | cut -d" " -f1)
+    [ "${runs2:-0}" -ge 2 ] || { echo "FAIL transcript replay pins runs=${runs2:-0} (want >=2; 0 = filter empty, declared-new)"; exit 1; }
+    [ "$ec" -eq 0 ] || { echo "FAIL transcript replay pins ec=$ec"; echo "$out2" | tail -8; exit 1; }
+    echo ERROR_TRANSCRIPT_RENDER_UNITS_OK
+  expect:
+    exit_code: 0
+    stdout_match: ERROR_TRANSCRIPT_RENDER_UNITS_OK
+- id: render-perf-units
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle exec ruby -Ilib -Itest test/render/render_perf_test.rb -n "/render_perf/"
+  expect:
+    exit_code: 0
+- id: render-perf-probe
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    if [ ! -x gems/tui-split-rig/bin/render-perf-probe ]; then echo "FAIL render-perf-probe: bin missing (declared-new)"; exit 1; fi
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/render-perf-probe --app tart --shape gate --out tmp/render-perf-gate
+  expect:
+    exit_code: 0
+    stdout_match: RENDER_PERF_OK
+- id: tool-pending-gate
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/tool-pending-probe --gate --out tmp/i66-tp
+  expect:
+    exit_code: 0
+    stdout_match: TOOL_PENDING_GATE_OK
+- id: user-bash-stream-gate
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    test -x gems/tui-split-rig/bin/user-bash-stream-probe && env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/user-bash-stream-probe --gate --out tmp/i66-ubs
+  expect:
+    exit_code: 0
+    stdout_match: USER_BASH_STREAM_GATE_OK
+- id: zai-max-tokens-units
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet
+    out1=$(bundle exec ruby -Ilib -Itest test/agent_loop_test.rb -n "/zai_max_tokens/" 2>&1); ec=$?
+    runs1=$(echo "$out1" | grep -oE "[0-9]+ runs, " | head -1 | cut -d" " -f1)
+    [ "${runs1:-0}" -ge 4 ] || { echo "FAIL agent-loop pins runs=${runs1:-0} (want >=4; 0 = filter empty, declared-new)"; exit 1; }
+    [ "$ec" -eq 0 ] || { echo "FAIL agent-loop pins ec=$ec"; echo "$out1" | tail -8; exit 1; }
+    out2=$(bundle exec ruby -Ilib -Itest test/models_test.rb -n "/zai_max_tokens/" 2>&1); ec=$?
+    runs2=$(echo "$out2" | grep -oE "[0-9]+ runs, " | head -1 | cut -d" " -f1)
+    [ "${runs2:-0}" -ge 2 ] || { echo "FAIL models pins runs=${runs2:-0} (want >=2; 0 = filter empty, declared-new)"; exit 1; }
+    [ "$ec" -eq 0 ] || { echo "FAIL models pins ec=$ec"; echo "$out2" | tail -8; exit 1; }
+    out3=$(bundle exec ruby -Ilib -Itest test/launcher_smoke_test.rb -n "/zai_max_tokens/" 2>&1); ec=$?
+    runs3=$(echo "$out3" | grep -oE "[0-9]+ runs, " | head -1 | cut -d" " -f1)
+    [ "${runs3:-0}" -ge 2 ] || { echo "FAIL launcher pins runs=${runs3:-0} (want >=2; 0 = filter empty, declared-new)"; exit 1; }
+    [ "$ec" -eq 0 ] || { echo "FAIL launcher pins ec=$ec"; echo "$out3" | tail -8; exit 1; }
+    echo ZAI_MAX_TOKENS_UNITS_OK
+  expect:
+    exit_code: 0
+    stdout_match: ZAI_MAX_TOKENS_UNITS_OK
+- id: scope
+  ac: AC4
+  cwd: repos/tart
+  cmd: |-
+    git diff --quiet 9db6370 -- Gemfile Gemfile.lock tart.gemspec bin lib/tart/agent lib/tart/tools lib/tart/models.rb lib/tart/settings.rb lib/tart/schemas lib/tart/shapes lib/tart/mcp lib/tart/subagents lib/tart/hooks.rb bench gems lib/tart/render/markdown.rb lib/tart/render/transcript.rb lib/tart/render/text.rb lib/tart/render/footer.rb lib/tart/render/editor.rb lib/tart/render/selection.rb lib/tart/tui.rb && ! git diff --name-only 9db6370 | grep -vE "^(lib/tart/render/(viewport|chat)\.rb|lib/tart/theme\.rb|test/chat_test\.rb|test/theme_test\.rb|test/support/viewport_buffer_probe\.rb)$" | grep -q . && echo SCOPE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
+- id: rail-bg
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet
+    bundle exec ruby -Ilib -e 'require "tart"
+    
+    include Tart
+    
+    W = 20
+    bg = Tart::Theme[:tool_success_bg]
+    track_fg = Tart::Theme[:scrollbarTrack]
+    vp = Tart::Render::Viewport.new
+    track = TUI.line("│", fg: track_fg)
+    
+    cells = lambda do |line|
+      out = []
+      line.spans.each do |span|
+        span.content.each_char do |ch|
+          w = TUI.text_width(ch)
+          out << [ch, span.style&.fg, span.style&.bg]
+          out << nil if w == 2
+        end
+      end
+      out
+    end
+    
+    fail_banner = lambda do |name, detail|
+      puts "RAIL_BG_FAIL #{name}: #{detail}"
+      exit 1
+    end
+    
+    row = Tart::Render::Panel.padded_fg_rows("grep ok", W, fg: Tart::Theme[:toolTitle], bg: bg).first
+    c1 = cells.call(vp.overlay_rail_cell(row, track, W))
+    fail_banner.call("full-width", "width #{c1.size} != #{W}") unless c1.size == W
+    bad = c1.each_with_index.select { |(c, _i)| c && c[2] != bg }.map(&:last)
+    fail_banner.call("full-width", "cells with non-panel bg: #{bad.inspect}") unless bad.empty?
+    last = c1.last
+    fail_banner.call("full-width", "last cell #{last.inspect} is not the track glyph") unless last[0] == "│" && last[1] == track_fg && last[2] == bg
+    
+    row2 = TUI.line([TUI.span(" hi", bg: bg)])
+    c2 = cells.call(vp.overlay_rail_cell(row2, track, W))
+    fail_banner.call("pad", "width #{c2.size} != #{W}") unless c2.size == W
+    pad_bad = (3...W).select { |i| c2[i] && c2[i][2] != bg }
+    fail_banner.call("pad", "pad cells without the panel bg: #{pad_bad.inspect}") unless pad_bad.empty?
+    fail_banner.call("pad", "last cell not the glyph") unless c2.last[0] == "│" && c2.last[1] == track_fg
+    
+    row3 = TUI.line(" plain text")
+    c3 = cells.call(vp.overlay_rail_cell(row3, track, W))
+    fail_banner.call("plain", "plain row invented a bg: #{c3.last.inspect}") unless c3.last[2].nil?
+    fail_banner.call("plain", "glyph lost on a plain row") unless c3.last[0] == "│" && c3.last[1] == track_fg
+    
+    row4 = TUI.line([TUI.span(" " * (W - 2), bg: bg), TUI.span("漢", fg: "#dee0e1", bg: bg)])
+    c4 = cells.call(vp.overlay_rail_cell(row4, track, W))
+    fail_banner.call("straddle", "width #{c4.size} != #{W} (base defect: 21)") unless c4.size == W
+    fail_banner.call("straddle", "the straddling grapheme survived") if c4.compact.any? { |c| c[0] == "漢" }
+    fail_banner.call("straddle", "the pad cell under the straddle lost the bg: #{c4[W - 2].inspect}") unless c4[W - 2] && c4[W - 2][0] == " " && c4[W - 2][2] == bg
+    fail_banner.call("straddle", "glyph not at the last column: #{c4.last.inspect}") unless c4.last[0] == "│" && c4.last[1] == track_fg && c4.last[2] == bg
+    
+    puts "RAIL_BG_OK"
+    '
+  expect:
+    exit_code: 0
+    stdout_match: RAIL_BG_OK
+- id: jump-pill-units
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet
+    out1=$(bundle exec ruby -Ilib -Itest test/chat_test.rb -n "/jump_pill/" 2>&1); ec=$?
+    runs1=$(echo "$out1" | grep -oE "[0-9]+ runs, " | head -1 | cut -d" " -f1)
+    [ "${runs1:-0}" -ge 6 ] || { echo "FAIL jump-pill pins runs=${runs1:-0} (want >=6; 0 = filter empty, declared-new)"; exit 1; }
+    [ "$ec" -eq 0 ] || { echo "FAIL jump-pill pins ec=$ec"; echo "$out1" | tail -8; exit 1; }
+    echo JUMP_PILL_UNITS_OK
+  expect:
+    exit_code: 0
+    stdout_match: JUMP_PILL_UNITS_OK
+- id: rail-bg-units
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet
+    out1=$(bundle exec ruby -Ilib -Itest test/chat_test.rb -n "/rail_background/" 2>&1); ec=$?
+    runs1=$(echo "$out1" | grep -oE "[0-9]+ runs, " | head -1 | cut -d" " -f1)
+    [ "${runs1:-0}" -ge 4 ] || { echo "FAIL rail-bg pins runs=${runs1:-0} (want >=4; 0 = filter empty, declared-new)"; exit 1; }
+    [ "$ec" -eq 0 ] || { echo "FAIL rail-bg pins ec=$ec"; echo "$out1" | tail -8; exit 1; }
+    echo RAIL_BG_UNITS_OK
+  expect:
+    exit_code: 0
+    stdout_match: RAIL_BG_UNITS_OK
+- id: viewport-probe
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    bundle install --quiet
+    if [ ! -f test/support/viewport_buffer_probe.rb ]; then echo "FAIL viewport probe: script missing (declared-new)"; exit 1; fi
+    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID bundle exec ruby test/support/viewport_buffer_probe.rb
+  expect:
+    exit_code: 0
+    stdout_match: VIEWPORT_PROBE_OK
 ```
 
 ## Builder Prompt
