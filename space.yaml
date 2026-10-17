@@ -2727,7 +2727,25 @@ project:
   - name: subagents-default-on
     ordinal: 70
     file: architecture/I70-subagents-default-on.md
-    freeze_sha:
+    freeze_sha: bab4756eba03f77d7cd5b69340659829e45d67bf
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/render/motd.rb
+      - lib/tart/settings.rb
+      - lib/tart/subagents/workflows.rb
+      - bin/tart
+      - gems/tui-split-rig/lib/tui_split_rig/runner.rb
+      - gems/tui-split-rig/bin/subagents-motd-probe
+      - gems/tui-split-rig/test/scenario_test.rb
+      - test/render/motd_test.rb
+      - test/chat_test.rb
+      - test/settings_test.rb
+      - test/subagents_test.rb
+      - test/subagents_e2e_test.rb
+    rehearsal:
+      gates_digest: c7a64131457ed03edbdf7a5fec45f827389ecf73e2c0913709be22078c773f55
+      at: '2026-10-17T15:36:39-06:00'
   integration_branch: project/pi-port
