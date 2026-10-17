@@ -357,15 +357,24 @@ BEFORE the herdr work to enumerate the moves).
 
 ### Boundaries
 
-Touch set (the scope gate's whitelist, exactly):
-`lib/tart/identity.rb`, `lib/tart/herdr.rb`, `bin/tart`,
+Touch set (the scope gate's whitelist, exactly — AMENDED at verdict
+2026-10-17 per the supervisor ruling: `lib/tart/subagents/manager.rb`
+plus the six out-of-whitelist test files below are sanctioned additions,
+the declared deviation; the as-frozen gate failing on them was the
+disclosure mechanism):
+`lib/tart/identity.rb`, `lib/tart/herdr.rb`,
+`lib/tart/subagents/manager.rb` (sanctioned), `bin/tart`,
 `gems/tui-split-rig/lib/tui_split_rig/runner.rb`,
 `gems/tui-split-rig/bin/herdr-wire-probe` (NEW),
 `gems/tui-split-rig/test/scenario_test.rb`, `test/identity_test.rb`,
 `test/settings_test.rb`, `test/herdr_test.rb`,
 `test/launcher_smoke_test.rb`, `test/e2e_session_test.rb`,
 `test/subagents_e2e_test.rb`, `test/shapes_test.rb`,
-`test/models_test.rb`, `test/agent_loop_test.rb`. Must-differ:
+`test/models_test.rb`, `test/agent_loop_test.rb`, and the sanctioned
+out-of-whitelist moves `test/subagents_test.rb`,
+`test/subagents_intercom_test.rb`, `test/bash_tool_test.rb`,
+`test/system_prompt_test.rb`, `test/chat_test.rb`,
+`test/memory_test.rb`. Must-differ:
 identity.rb, herdr.rb, bin/tart, runner.rb. Must-not-touch (pinned by the
 scope gate): `gems/tui-split-rig/scenarios/**`, Gemfile/Gemfile.lock/
 tart.gemspec, `bench/`, and every other path. If a test OUTSIDE the
@@ -392,6 +401,7 @@ deviation discipline).
   touch:
     - lib/tart/identity.rb
     - lib/tart/herdr.rb
+    - lib/tart/subagents/manager.rb
     - bin/tart
     - gems/tui-split-rig/lib/tui_split_rig/runner.rb
     - gems/tui-split-rig/bin/herdr-wire-probe
@@ -402,6 +412,12 @@ deviation discipline).
     - test/launcher_smoke_test.rb
     - test/e2e_session_test.rb
     - test/subagents_e2e_test.rb
+    - test/subagents_intercom_test.rb
+    - test/subagents_test.rb
+    - test/bash_tool_test.rb
+    - test/system_prompt_test.rb
+    - test/chat_test.rb
+    - test/memory_test.rb
     - test/shapes_test.rb
     - test/models_test.rb
     - test/agent_loop_test.rb
@@ -1163,7 +1179,13 @@ they adjudicate env-class, exactly as standing. Gates: `suite`, `bench`.
     joined = rows.map { |l| l.spans.map(&:content).join }.join("\n")
     abort "the default face lost the tart wordmark/version" unless joined.include?("tart v#{Tart::VERSION}")
     abort "the oracle version leaked into the tart face" if joined.include?("v#{Tart::Identity::ORACLE_VERSION}")
-    pi = Tart::Render::Motd.pi_header_lines(expanded: false, width: 60).map { |l| l.spans.map(&:content).join }.join("\n")
+    pi = Tart::Render::Motd.pi_header_lines(expanded: false, width: 120).map { |l| l.spans.map(&:content).join }.join("\n")
+    # JUDGE AMENDMENT 2026-10-17 (verdict session): leg 3 was frozen at
+    # width 60, where the 85-char PI_ONBOARDING_LINE wraps — unpassable at
+    # BASE too (motd.rb is outside the touch set); masked at base by the
+    # leg-1/2 aborts firing first. Width 120 preserves the discrimination
+    # (pi face keeps the oracle version + the onboarding line), matching
+    # identity_test's byte-pi pin.
     abort "the explicit pi face moved" unless pi.include?("v#{Tart::Identity::ORACLE_VERSION}") && pi.include?(Tart::Render::Motd::PI_ONBOARDING_LINE)
     puts "DEFAULT_FACE_OK"'
   expect:
@@ -1250,7 +1272,12 @@ they adjudicate env-class, exactly as standing. Gates: `suite`, `bench`.
   cwd: repos/tart
   cmd: |-
     if [ ! -x gems/tui-split-rig/bin/herdr-wire-probe ]; then echo "FAIL herdr-wire-probe: bin missing (declared-new)"; exit 1; fi
-    env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/herdr-wire-probe --out t69hwp
+    # JUDGE AMENDMENT 2026-10-17 (verdict session): rm -rf added — the
+    # frozen form lacked the out-dir clean every sibling probe gate
+    # carries, so a re-run into a populated out dir accumulated two boots
+    # and failed the ladder assert (judge-run evidence: 10 reports, two
+    # session ids). The probe appends; the gate owns the clean.
+    rm -rf t69hwp && env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/herdr-wire-probe --out t69hwp
   expect:
     exit_code: 0
     stdout_match: HERDR_WIRE_OK
@@ -1289,7 +1316,7 @@ they adjudicate env-class, exactly as standing. Gates: `suite`, `bench`.
   ac: AC4
   cwd: repos/tart
   cmd: 'git diff --quiet 3845f6a -- Gemfile Gemfile.lock tart.gemspec bench gems/tui-split-rig/scenarios
-    && ! git diff --name-only 3845f6a | grep -vE "^(lib/tart/identity\.rb|lib/tart/herdr\.rb|bin/tart|gems/tui-split-rig/lib/tui_split_rig/runner\.rb|gems/tui-split-rig/bin/herdr-wire-probe|gems/tui-split-rig/test/scenario_test\.rb|test/identity_test\.rb|test/settings_test\.rb|test/herdr_test\.rb|test/launcher_smoke_test\.rb|test/e2e_session_test\.rb|test/subagents_e2e_test\.rb|test/shapes_test\.rb|test/models_test\.rb|test/agent_loop_test\.rb)$"
+    && ! git diff --name-only 3845f6a | grep -vE "^(lib/tart/identity\.rb|lib/tart/herdr\.rb|lib/tart/subagents/manager\.rb|bin/tart|gems/tui-split-rig/lib/tui_split_rig/runner\.rb|gems/tui-split-rig/bin/herdr-wire-probe|gems/tui-split-rig/test/scenario_test\.rb|test/identity_test\.rb|test/settings_test\.rb|test/herdr_test\.rb|test/launcher_smoke_test\.rb|test/e2e_session_test\.rb|test/subagents_e2e_test\.rb|test/subagents_intercom_test\.rb|test/subagents_test\.rb|test/bash_tool_test\.rb|test/system_prompt_test\.rb|test/chat_test\.rb|test/memory_test\.rb|test/shapes_test\.rb|test/models_test\.rb|test/agent_loop_test\.rb)$"
     | grep -q . && [ -n "$(git diff 3845f6a -- lib/tart/identity.rb)" ] && [ -n "$(git
     diff 3845f6a -- lib/tart/herdr.rb)" ] && [ -n "$(git diff 3845f6a -- bin/tart)"
     ] && [ -n "$(git diff 3845f6a -- gems/tui-split-rig/lib/tui_split_rig/runner.rb)"
