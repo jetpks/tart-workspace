@@ -16,3 +16,6 @@ Plan: notes/plan-20261017T183001Z-tart-standalone.md (7 ordered ENTRYs). No ENTR
 3. Spawn architect-judge (cwd space root, task = judge I69 tart-identity-herdr, timeout 7200000, model openrouter/z-ai/glm-5.3:high); narrate judge-settled once running.
 4. On CONTINUE → ENTRY 2 spec (subagents-default-on) etc. per plan order. On KILL → narrate verdict-landed, stop.
 - Recovery-seat context: coordinator incarnations die at the harness ~30m ceiling; children (spec/builder/judge) are launched with explicit larger timeouts and survive only if nested-kill doesn't reach them — assume each coordinator death also kills in-flight nested children and verify child state on resume before relaunching.
+
+## UPDATE 2026-10-17T19:47Z
+- Builder 631ae133 raised a PHASE-flip stop-and-disclose (identity flip exposes dead `PI_IDENTITY` write in subagents/manager.rb child_env + 7 out-of-whitelist test files). Relayed verbatim to the escalation seat; RULING = OPTION (A) declared deviation (manager.rb literal `env[Identity::ENV_KEY] = @identity` replacing the dead namespaced write; 7 test files' DEFAULT-implicit pin moves per law (b); deviation list itemized in report; scope gate amended by judge before landing; AC6 full-suite 0F/0E still the bar). Steered to the builder unchanged (request 8e0253f3-d793-49e7-96ab-c59ba5c0a552). Builder resumed work.
