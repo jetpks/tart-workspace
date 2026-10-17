@@ -2602,7 +2602,19 @@ project:
   - name: viewport-polish
     ordinal: 66
     file: architecture/I66-viewport-polish.md
-    freeze_sha:
+    freeze_sha: 292da329e76c75d68eadceabc42864da99a72565
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/render/viewport.rb
+      - lib/tart/render/chat.rb
+      - lib/tart/theme.rb
+      - test/chat_test.rb
+      - test/theme_test.rb
+      - test/support/viewport_buffer_probe.rb
+    rehearsal:
+      gates_digest: '04494639fa8be0892d7601c28e93f11d97e19b07ebef9ce5a3a64fe85a339a2e'
+      at: '2026-10-16T21:28:47-06:00'
   integration_branch: project/pi-port
