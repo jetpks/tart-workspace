@@ -74,7 +74,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: render-correctness
+  current_iteration: viewport-polish
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -2599,4 +2599,10 @@ project:
     rehearsal:
       gates_digest: d8d423d0191a66255ca15db17b55f7cbfa9985d5850656e8a8fc2ee417e57a6b
       at: '2026-10-16T19:39:53-06:00'
+  - name: viewport-polish
+    ordinal: 66
+    file: architecture/I66-viewport-polish.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
