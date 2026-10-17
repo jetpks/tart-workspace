@@ -1519,10 +1519,233 @@ root-caused before any verdict.
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I70-subagents-default-on-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section subagents-default-on prompt --append --lane <lane> --from build/I70-subagents-default-on-<lane>/prompt.md`. -->
+### core
+
+You are the builder for iteration `subagents-default-on` (I70), lane `core`.
+Work ONLY in the provisioned worktree on branch
+`lane/I70-subagents-default-on-core` (base tart `project/pi-port` @ `2a33f66`
+— the I69-integrated tip, clean); NEVER commit (the integrator lands your
+tree), NEVER touch the space repo, NEVER push, NEVER touch any gem
+(published fast-completions 0.5.0 and ratatui_ruby 1.5.0 are dependencies —
+consume, never modify), NEVER write anything under `repos/pi` (the pinned
+oracle clone @ v1.1.0, branch `oracle-v1.1.0`, is ENVIRONMENT, guarded by
+the `oracle-pin-state` gate — read-only reference for you). The full
+iteration contract is the frozen Grounds/Specification/Acceptance Criteria
+in this file (verbatim below) — read them first; this header is the lane's
+operating brief. You are the ONLY lane.
+
+THE TASK IN ONE PARAGRAPH: make the native subagents core (I48/I49, built
+and merged but never bootable with the gate on) functional and
+DEFAULT-ON — the crash cure and the default flip land together, behind
+e2e gates that prove the functional state. (1) THE CURE
+(`lib/tart/render/motd.rb`, the pi-faithful PACKAGE tier): the six
+workflow templates ship with `file_path: nil`
+(`lib/tart/subagents/workflows.rb` — programmatic by design, I49) and
+motd's prompt scope path classifies by PATH, so the FIRST frame dies
+(`NoMethodError` at motd.rb:306 `under?` ← :299 `scope_group` ← :317
+`prompt_scope_entries`; the NEXT crash behind it is :331
+`scope_group_rows`' `sort_by entry[:path]`). The cure covers the WHOLE
+prompt-scope section: `prompt_scope_entries` gains pi's package tier — a
+nil-`file_path` template becomes `{path: nil, display: "/<name>", group:
+"user", package: "subagents"}` (pi's installed-package scope is "user";
+pi's label reads `npm:pi-subagents`, the port's builtin tier IS its
+subagents source — declared mapping); file-backed templates classify
+EXACTLY as today. `scope_group_rows`: per group (project → user → path,
+order unchanged) the plain path members render EXACTLY as today (4-space
+dim rows, path-sorted), THEN the package sub-lists (label-sorted): a
+label row `    <label>` — 4-space indent UNSTYLED + the label in
+`Theme[:md_link]` (two spans) — then one `      /<name>` row per member
+(6-space indent + display inside ONE dim span, name-sorted — byte-equal
+to pi's package-path sort). Every row through `wrap_resource_row`. NO
+crash anywhere in the section for ANY template mix. The COLLAPSED
+compact list shape unchanged; [Context]/[Skills]/[Extensions]
+byte-identical. (2) THE FLIP (`lib/tart/settings.rb`):
+`DEFAULTS["subagents"] => true` — the ONE literal; the gate comment
+block rewrites to the default-on law (default on; opt-out via settings
+`{"subagents": false}` or the `<IDENTITY>_SUBAGENTS` env tier — any
+non-on value, today's semantics). `RESOLUTION_ENV`,
+`resolve_setting`'s tier order, and `bin/tart`'s `subagents_enabled?`
+predicate are BYTE-UNCHANGED; the three `bin/tart` gate call-site comment
+blocks may reword to the same law (allowed, not required). (3) THE RIG
+STAGING PIN (`gems/tui-split-rig/lib/tui_split_rig/runner.rb`):
+`stage_tart_home` writes the staged settings.json ALWAYS (not just the
+context_window scenarios), carrying `"subagents" => false` — the I69
+explicit-staging ruling: NO parity path rides the app default post-flip;
+the compaction rows still ride ONLY the context_window scenarios
+(byte-identical staged bytes when present); `stage_memory`'s deep-merge
+composes unchanged. Pins in `gems/tui-split-rig/test/scenario_test.rb`:
+the always-present false row, the compaction coexistence, the existing
+staging pins stay green. (4) THE LIVE GATE (NEW
+`gems/tui-split-rig/bin/subagents-motd-probe`, the herdr-wire-probe
+shape — stdlib + optparse, `--out DIR`, scrubs its own `HERDR_*`): boots
+tart DIRECTLY in tmux (the tmp/probe-subag boot pattern — NOT through
+the Runner, which stages the opt-out): staged HOME with NO settings.json
+(the default-on boot), staged sandbox cwd, CLOSED pane env staging ONLY
+`TART_MODEL`/`TART_API_KEY`/`TART_API_BASE` mock facts (no request is
+made; the MOTD renders at boot), DEFAULT identity (no `TART_IDENTITY`
+staged — the post-I69 default boot shape), pane stderr to a log. Boot →
+bounded settle → `ctrl+o` → capture-pane (plain + `-e`) → assert →
+teardown (tmux kill-session, token-scoped session name): (a) NO crash —
+pane alive with the chat surface, stderr log free of
+`NoMethodError`/motd trace; (b) the collapsed [Prompts] row lists the
+six names sorted; (c) the expanded [Prompts] block byte-matches the
+frozen oracle capture (Grounds) with the port's label — the `  user`
+row (accent SGR `38;2;167;152;215`), the `    subagents` label row
+(mdLink SGR `38;2;105;173;208`), the six `      /<name>` rows (dim SGR
+`38;2;126;136;142`) alphabetical; (d) print `SUBAGENTS_MOTD_OK` /
+exit 0, else the failing line + exit 1. The gate command carries its own
+`rm -rf` of the out dir and the `env -u HERDR_*` scrub. (5) THE E2E
+DEFAULT-ON LEGS (`test/subagents_e2e_test.rb`): a NEW leg family (E1–E4)
+driving the I48/I49 harness with NO settings.json staged (the parent
+boots default-on; only the staged `<IDENTITY>_SUBAGENTS_HOME` + the
+closed env + explicit `TART_IDENTITY=pi` + `PI_*` mock facts, the harness
+convention): E1 foreground child round-trip (leg-A shape), E2 async
+detached + completion notify + the print-parent drain (leg-B shape), E3
+the steering receipt (correlated consumption by request id — leg-C
+shape), E4 stop (graceful interrupt, state `stopped` — leg-D shape).
+Leg names carry `default_on` (the gate's `-n` filter). The A–D opt-in
+legs stay green BYTE-UNCHANGED. (6) THE TEST MOVES + NEW PINS — run
+`bundle exec rake` IMMEDIATELY after the flip, BEFORE the motd work, and
+enumerate the blast radius yourself; the Grounds blast-radius table is
+the AUDITED head start, not the ceiling.
+
+TEST-MOVE LAW (each move itemized in your report): (a) DEFAULT pins MOVE:
+`test/settings_test.rb` :83-88 (the DEFAULTS row + no-file default-tier
+resolution) and :91+ (known-key load's default tier);
+`test/subagents_test.rb` :102 (the DEFAULTS row) and :105-108 (the
+"off = no tool" pin re-words to the OPT-OUT shape — the register
+mechanics are unchanged) — moved with discrimination preserved, and the
+OPT-OUT TIERS GAIN PINS so the off shape stays pinned (file tier, env
+tier, env-over-file); (b) audited default-on boots that stay green
+unchanged: `launcher_smoke_test` (print boot exit 0, measured),
+`e2e_session_test` (:140-141 tools-presence only), `subagents_e2e_test`
+legs A–D (explicit `true` staging), the rig s-family (protected by the
+R3 staging); (c) NEW pins: `test/render/motd_test.rb` — the package-tier
+units (nil-path entries render the `user`/label/`      /name` rows with
+the accent/md_link/dim styles; mixed tiers keep the plain path rows;
+the collapsed list unchanged; the nil-crash class stays dead);
+`test/chat_test.rb` — a MOTD render pin with a nil-path template in the
+prompts list (the section renders, no crash, the collapsed row carries
+the name). NOTHING is DELETED: moved pins keep their discrimination;
+the suite grows past the measured 1219 floor. If a test OUTSIDE the
+frozen whitelist breaks on the flip, STOP and disclose in the report —
+do not widen the touch set silently (the judge adjudicates under the
+standing deviation discipline).
+
+FROZEN EXPECTATIONS (do not redesign; the frozen sections govern on any
+conflict):
+- NO subagent machinery rewrite: `manager.rb`/`supervisor.rb`/
+  `profiles.rb`/intercom/the tool body/`workflows.rb` CONTENT untouched
+  (`workflows.rb` stays whitelisted only for a builder-found need; the
+  six prompt/description bytes are pinned by `subagents_intercom_test`).
+- The wire/session digests hold EXACT on the rig-staged parity family
+  (instruction `4209f40b…`, tools `7360fd1e…758831…`, the session
+  goldens — the parity surface pins the OPT-OUT shape via the R3
+  staging); the DEFAULT-ON wire is pinned by the NEW default-boot gate:
+  tools digest `2c744efc…`, names `read bash edit write subagent`
+  (subagent declared LAST, the I47 merge order), and the instruction
+  (system-prompt) bytes IDENTICAL off vs on in the same staged env —
+  the registration moves ONLY the tools array. NO un-declared digest
+  moves; a digest that moves is DECLARED, itemized, never silent.
+- The I48 boot-discipline invariant MOVES ITEMIZED: "default off = zero
+  bytes change" becomes "default on, OPT-OUT = the I48-off shape" (the
+  R3 staging + the opt-out digest pin `7360fd1e…` are the proof).
+- The opt-in tier is unchanged (A–D legs, the register mechanics, the
+  I47 merge order). NO [Extensions] MOTD row for subagents (the I49
+  ruling stands). NO pi package-manager port — the port's package tier
+  IS the builtin classification (nil `file_path`), the deliberate
+  mechanism choice (the spec picked the SEAM).
+- NO rig scenario-CONTENT edits (`gems/tui-split-rig/scenarios/**`
+  byte-frozen, pinned by the scope gate); the motd probe boots tart
+  directly, never through a Scenario. NO memory-gate default change
+  (memory stays default-off); no identity/herdr/models/markdown/render
+  changes beyond the motd prompt-scope path.
+- No new gems; no Gemfile/Gemfile.lock/tart.gemspec/bench changes; no
+  new `Thread.new` sites in lib (the threads-budget gate). The suite's
+  standing 1 skip stays; `SEAM_BENCH_OK` stays.
+- `lib/tart/prompts.rb`/`lib/tart/skills.rb` are FROZEN SEAMS — not
+  touched. The model-window tick stays DEAD; landing is the human's.
+
+Your tree's diff vs `2a33f66` is EXACTLY the frozen touch set
+(Specification "Boundaries"): `lib/tart/render/motd.rb`,
+`lib/tart/settings.rb`, `lib/tart/subagents/workflows.rb`
+(allowed-if-needed), `bin/tart` (comment rewords only),
+`gems/tui-split-rig/lib/tui_split_rig/runner.rb`,
+`gems/tui-split-rig/bin/subagents-motd-probe` (NEW),
+`gems/tui-split-rig/test/scenario_test.rb`,
+`test/render/motd_test.rb`, `test/chat_test.rb`,
+`test/settings_test.rb`, `test/subagents_test.rb`,
+`test/subagents_e2e_test.rb`. Must-differ: `motd.rb`, `settings.rb`,
+`runner.rb`. Must-not-touch (pinned by the scope gate): the scenarios
+tree, Gemfile/Gemfile.lock/tart.gemspec, `bench/`,
+`lib/tart/prompts.rb`, `lib/tart/skills.rb`,
+`lib/tart/subagents/manager.rb`, `lib/tart/subagents/supervisor.rb`,
+`lib/tart/subagents/profiles.rb`, `lib/tart/tools/subagent.rb`, and
+every other path.
+
+VERIFICATION (exact commands, all tested at base `2a33f66` this session;
+run at YOUR tree — the judge's venue; run every frozen gate command
+VERBATIM from the gates block, never hand-retyped):
+- `bundle install --quiet && bundle exec rake` — > 1219 runs, > 5948
+  assertions, 0 failures, 0 errors (1 standing skip; base measured
+  1219/5948 cold; a deleted pin fails the floor BY DESIGN).
+- `bundle exec ruby bench/seam_bench.rb` — `SEAM_BENCH_OK`.
+- The 7 designed-RED gates all cure at your tree (GREEN, non-vacuous):
+  `subagents-default-law`, `subagents-default-boot`,
+  `subagents-motd-units`, `subagents-motd-probe` (NEW bin),
+  `subagents-e2e-default-on` (≥4 legs), `rig-staging-units`, `scope`
+  (the must-differ legs). The 47 carried gates stay GREEN.
+- The rig battery at YOUR tree with the FROZEN SHORT out dirs —
+  `t70s1`…`t70s10`, `t70s17`, `t70s1t`, and s9's FOUR-char `t7s9`
+  (the lane tree is 84 chars: `build/I70-subagents-default-on-core/wt`;
+  the s9 AGENTS.md wrap law, row = tree + outdir + 32 fires at > 120 —
+  `t7s9` lands the row at exactly 120, the I68/I69 proven-green
+  boundary; do NOT lengthen any out dir), plus `t70wir`, `t70zwr`,
+  `t70tp`, `t70ub`, `t70hwp`, `t70mot` — every gate command prefixed
+  `env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH
+  -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID`, NO `--pi-bin` flag anywhere.
+- HERDR discipline for any direct probe: this repo's sessions run inside
+  herdr panes — strip `HERDR_*` from probe environments exactly like
+  the frozen gate prefixes, or the reporter will dial the REAL owner
+  socket. Oracle discipline: `env -u PI_PACKAGE_DIR` for every direct
+  oracle exec (the pin is ENVIRONMENT — report, never fix).
+- Bundler context may leak from parent sessions — prefix suspect tool
+  calls with `env -u BUNDLE_GEMFILE` (the full scrub: `-u RUBYOPT -u
+  RUBYLIB -u BUNDLE_GEMFILE -u BUNDLE_LOCKFILE -u BUNDLE_BIN_PATH -u
+  BUNDLER_SETUP -u BUNDLER_VERSION`).
+
+REFERENCE CITATIONS FOR THE TOUCHED SEAMS (house style — commented at
+the seam): `repos/pi/packages/coding-agent/src/modes/interactive/
+interactive-mode.ts` `getScopeGroup` :1610-1619 + `buildScopeGroups`
+:1624-1659 + `formatScopeGroups` :1661-1693 (the oracle shape: group
+label 2-space accent; plain members 4-space dim path-sorted; package
+sub-lists label 4-space mdLink then 6-space dim item rows, both
+localeCompare-sorted; missing metadata degrades gracefully); pi's
+`package-manager.ts` :2126-2134 + `resource-loader.ts` :864-883
+(sourceInfo `{source: "npm:pi-subagents", scope: "user"}` — why pi
+never has a path-less template); the LIVE MOTD capture at
+`<space>/tmp/probe-subag/` (the pinned oracle bytes + styled SGR runs,
+read-only reference: reuse the PATTERN, never the files);
+`gems/tui-split-rig/bin/herdr-wire-probe` (the probe shape);
+`architecture/I48-subagents-core.md` +
+`architecture/I49-subagents-profiles-intercom.md` (the machinery
+contracts, the e2e harness discipline, the boot-discipline pins);
+`notes/spec-digest-20261017T185618Z-tart-identity-herdr.md` (the I69
+explicit-staging ruling, the s9 wrap law, the probe-naming rule — one
+load-bearing stdout token per gate).
+
+DISCIPLINE: house style per the repo's conventions — tests through
+public interfaces, no refactors beyond the task, deviations ITEMIZED
+(every moved test pin named, every surprise, every frozen-expectation
+touch — declare, never absorb silently). The builder-report gate table
+MUST include EVERY frozen gate with its one-liner (all 54 — the I68
+lesson: an absent gate in the table is a REJECT-class violation). The
+oracle-pin gate's result is environment, not yours — report, never fix.
+
+OUTPUT: your scratch report at `build/I70-subagents-default-on-core/
+report.md` — the AC-by-AC outcome, the suite summary line, every gate
+one-liner (all 54), the itemized moved-pin table, the probe's captured
+MOTD block (the assert lines), deviations, residual risks.
 
 ## Builder Report
 
