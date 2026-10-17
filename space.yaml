@@ -4,7 +4,7 @@ id: 20261009-pi-port
 title: pi-port
 status: active
 created_at: '2026-10-09T02:03:09-06:00'
-updated_at: '2026-10-13T02:36:07-06:00'
+updated_at: '2026-10-16T18:40:46-06:00'
 repos:
 - provider: github.com
   organization: earendil-works
@@ -62,12 +62,19 @@ repos:
   clone_url: git@github.com:crmne/ruby_llm.git
   path: repos/ruby_llm
   added_at: '2026-10-13T02:36:07-06:00'
+- provider: github.com
+  organization: setdef
+  name: RatatuiRuby
+  full_name: github.com/setdef/RatatuiRuby
+  clone_url: git@github.com:setdef/RatatuiRuby.git
+  path: repos/RatatuiRuby
+  added_at: '2026-10-16T18:40:46-06:00'
 notes: []
 tickets: []
 tags: []
 project:
   status: active
-  current_iteration: strict-sampling-integration
+  current_iteration: render-correctness
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -2564,4 +2571,10 @@ project:
     rehearsal:
       gates_digest: 327b29cef7252937cc572dc89c760b99a2a25dc799f48097095bf13ba2d40291
       at: '2026-10-15T18:21:03-06:00'
+  - name: render-correctness
+    ordinal: 65
+    file: architecture/I65-render-correctness.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
