@@ -2629,7 +2629,16 @@ project:
   - name: rig-oracle-repin
     ordinal: 67
     file: architecture/I67-rig-oracle-repin.md
-    freeze_sha:
+    freeze_sha: d217aba21913e0f6caf646a7a046869c95a2ab4c
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - gems/tui-split-rig/lib/tui_split_rig/runner.rb
+      - gems/tui-split-rig/bin/tui-split-rig
+      - gems/tui-split-rig/test/oracle_bin_test.rb
+    rehearsal:
+      gates_digest: f15e2df65572a6bbb44c5d835ac3bcc74f6ed938e42c2b2ad11eed4ae7151a4e
+      at: '2026-10-16T22:52:08-06:00'
   integration_branch: project/pi-port
