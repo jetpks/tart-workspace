@@ -2685,7 +2685,7 @@ project:
     ordinal: 69
     file: architecture/I69-tart-identity-herdr.md
     freeze_sha: 844b4af77a90370e9ee75855358e7ab9fbbdcfc3
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart

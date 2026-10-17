@@ -1640,15 +1640,93 @@ HERDR_WIRE_OK
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section tart-identity-herdr verdict --from <file>`. -->
+### core
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify tart-identity-herdr`)?
+**Post-flight (mechanical, judge-run):** `architect verify` — (a) frozen
+sections untouched PASS, (b) no builder commits PASS (`git log 3845f6a..`
+empty; the whole lane is uncommitted work-tree diff), (c) scratch report
+PASS, (d) in-bounds FAIL = exactly the supervisor-sanctioned deviation set
+(verified by the scope gate's own grep: `lib/tart/subagents/manager.rb` +
+`test/{subagents,subagents_intercom,bash_tool,system_prompt,chat,memory}_
+test.rb`; `subagents_profiles_test` needed no edit, as disclosed).
+Evidence transcribed verbatim (a27278cd). `architect gate` cold at the lane
+tree: **45/48 PASS** — the 3 FAILs adjudicated below.
+
+**PHASE 0 disagreement rulings:**
+
+1. **Supervisor ruling OPTION (A) deviation — ACCEPT (governing record).**
+   Every changed out-of-whitelist file is on the sanctioned list (judge
+   re-ran the scope grep: exact match, nothing else bites). The manager.rb
+   cure is exactly the ruled shape: `env[Identity::ENV_KEY] = @identity`
+   (the literal bootstrap key — the child's resolve_identity reads only
+   that literal before any namespace is knowable), the dead namespaced
+   `PI_IDENTITY` write dropped (grep-verified: nothing read it — it only
+   worked while DEFAULT was pi), all other child_env keys keep the
+   namespaced form. Every moved pin re-read in the diff: each move adds an
+   explicit `identity: "pi"` (or the TART_* key the resolved default now
+   reads) while KEEPING its assertions and PI_* literals byte-unchanged —
+   discrimination preserved, nothing deleted; the suite grew 1211→1219.
+   The as-frozen `scope` gate failing on these files was the disclosure
+   mechanism; the gate text is amended per the ruling (commit 5743f83) and
+   the amended form re-verified cold: SCOPE_OK.
+2. **`default-face` leg 3 — FROZEN-GATE DEFECT, AMENDED (not a builder
+   defect).** Judge-measured: `PI_ONBOARDING_LINE` is 85 chars (the builder
+   said 76 — the count was wrong, the conclusion right); it wraps at width
+   60 and fits at 120; `lib/tart/render/motd.rb` is outside the touch set
+   (diff-verified untouched) so the wrap is base-identical — the gate was
+   unpassable at BASE too, masked there because the designed-RED legs 1–2
+   abort first. The amendment (leg 3 width 60→120, commit 5743f83)
+   preserves the discrimination (pi face keeps the oracle version + the
+   onboarding line) and matches identity_test's byte-pi pin. Amended form
+   re-verified cold: DEFAULT_FACE_OK. Legs 1–2 passed as frozen.
+3. **`herdr-wire-probe` judge-run FAIL — FROZEN-GATE HYGIENE DEFECT,
+   AMENDED (a judge-run discovery, distinct from the builder's disclosed
+   flake).** The frozen gate text lacked the `rm -rf t69hwp` prefix every
+   sibling probe gate carries; the probe appends to received.log
+   (`File.open(..., "a")`, no clean) — so the judge run inherited the
+   builder's 5 reports and accumulated 10 (two session ids), failing the
+   ladder assert. NOT a wire defect: a cold re-run after cleaning the out
+   dir passes (HERDR_WIRE_OK — ladder idle→working→idle, source/agent
+   "tart", seqs ~1.79×10¹⁵ strictly increasing, resume_argv on every
+   ref-carrying report). Gate amended (commit 5743f83). The builder's
+   disclosed 1-in-5 under-load timing flake (final idle vs the ≤~5 s
+   spec-frozen bounded wait) stands as a residual risk, not a defect —
+   the wait bound is spec-frozen and the standing flake class applies.
+4. **Comment-only identity.rb deviation — ACCEPT.** identity.rb is IN the
+   whitelist; the byte-unchanged list covers code constants, and a stale
+   `default "pi"` why-comment would violate the repo's comment discipline.
+   In-bounds, itemized as required.
+5. **PHASE 0 prompt.md note — ACCEPT (tooling residual, not a spec
+   disagreement).** The lane prompt does not embed the frozen contract
+   (the known space-architect dispatch self-copy defect class); the
+   builder executed every gate mechanically from the authoritative
+   architecture file — the correct discipline, and the gate table carries
+   all 48.
+6. **render-perf-probe attempt-1 BP timing flake — ACCEPT** (standing
+   I58 perf-budget class; passed on rerun and in the judge's cold run).
+7. **chat_test `with_chat(identity:)` test-only seam — ACCEPT** (test-file
+   internal; no lib change; discrimination preserved).
+
+**Acceptance Criteria integrity:** frozen sections unchanged since freeze
+at verify time (pre-amendment); the three gate amendments above are the
+judge's own declared record (commit 5743f83), each re-verified cold at the
+lane tree.
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 identity flip | identity-law PASS; default-boot PASS; default-face legs 1–2 PASS as frozen, leg 3 = amended frozen-gate defect (DEFAULT_FACE_OK cold); identity_test pins green in suite | §7/§8 | PASS |
+| AC2 honest herdr wire | herdr-units PASS; herdr-wire-probe wire bytes proven cold (judge re-run HERDR_WIRE_OK; the gate FAIL was out-dir accumulation — gate amended); seq scale, resume_argv rules, env-off inert all pinned | §7 | PASS |
+| AC3 rig staging pin | rig-identity-assert PASS; blank/nil refusal pinned; no scenario-content edits | — | PASS |
+| AC4 byte-freeze + anchors | scope amended-and-cold-green (sanctioned set only); must-differ ×4 differ; wire-delta + session-golden EXACT; pinned paths clean; all carried anchors PASS cold | §5.1 | PASS |
+| AC5 pty parity battery | s1–s10, s17, s1-tart-mode, zai-max-tokens-wire all PASS cold at the frozen SHORT out dirs; s9 wrap-law geometry holds (tree 83 + t69s9 = 120) | §8 | PASS |
+| AC6 suite + bench | 1219 runs / 5948 assertions / 0F / 0E / 1S, rake exit 0 (floor 1211/5911); SEAM_BENCH_OK — both judge-run cold | — | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+**Iteration — CONTINUE.** The decisive reason: both owner rulings landed
+faithfully to the frozen contract — the diff vs the Specification is exact
+(R1/R2/R3 verbatim, must-differ legs all differ, wire-delta/session-golden
+hold EXACT), and every gate FAIL traces to an adjudicated frozen-gate
+defect or the supervisor-sanctioned deviation, none to the lane's code.
+Residual risks: the herdr-wire-probe under-load timing flake (spec-frozen
+bounded wait), the render-perf BP-budget flake class, and the post-landing
+live restore (herdr server restart actually re-running `tart -r <id>`)
+remaining argv-shape-gated only, per the spec's own open question.
