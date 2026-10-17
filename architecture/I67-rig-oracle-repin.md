@@ -1229,11 +1229,159 @@ seam's measured resolution at your tree (the resolved absolute path + the
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I67-rig-oracle-repin-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence rig-oracle-repin --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# I67 `rig-oracle-repin` — lane `core` report
+
+Tree: `build/I67-rig-oracle-repin-core/wt` @ `lane/I67-rig-oracle-repin-core`, base `25adab9`.
+Diff vs `25adab9` is EXACTLY the declared 3-file set (`scope` gate verifies):
+`gems/tui-split-rig/lib/tui_split_rig/runner.rb` (+58/−6), `gems/tui-split-rig/bin/tui-split-rig`
+(1 line), `gems/tui-split-rig/test/oracle_bin_test.rb` (NEW, untracked). No lane commits.
+`repos/pi` untouched (pin verified read-only; see AC1).
+
+## Suite summary line
+
+```
+1211 runs, 5911 assertions, 0 failures, 0 errors, 1 skips        (rake exit 0; base 1205 + 6 new oracle_bin pins)
+bench/seam_bench.rb → SEAM_BENCH_OK                              (last line)
+```
+
+The 1 skip is the standing rig live-run skip (unchanged).
+
+## Resolution seam — measured at the lane tree
+
+```
+TuiSplitRig.resolve_pi_bin(env: {})
+  → /Users/eric/architect/spaces/20261009-pi-port/repos/pi/packages/coding-agent/dist/bundle/cli.js
+env -u PI_PACKAGE_DIR node <that> --version → 1.1.0
+PATH pi (command -v pi) = /Users/eric/.local/share/mise/installs/node/latest/bin/pi  (1.2.0 — never consulted)
+```
+
+The lane worktree resolves through the git-common-dir fallback exactly as measured in
+Grounds "Rig mechanics": worktree → `git rev-parse --git-common-dir` → canonical
+`repos/tart` → sibling `repos/pi`. `command -v pi` is DELETED from the runner;
+`Runner#default_pi_bin` delegates to the seam; `@pi_bin` ctor expansion and the pi pane's
+PATH-prepend + `exec env … --model mock/mock-1` mechanics are byte-unchanged.
+
+## AC-by-AC
+
+**AC1 — the pinned oracle (guarded environment): GREEN.** `oracle-pin-state` →
+`ORACLE_PIN_OK` (branch `oracle-v1.1.0` == tag `v1.1.0` == `abe508e1`, clean tree, `-x`
+cli.js, `--version` 1.1.0 with the env strip). Lane never touched `repos/pi`.
+
+**AC2 — the rig decoupled from PATH: GREEN.** `resolve_pi_bin(flag:, env:, tart_root:)`
+resolves flag → `TUI_SPLIT_RIG_PI_BIN` → pinned-clone default, explicit-`tart_root` gets
+no git fallback, unresolvable raises `TuiSplitRig::Error` naming the expected clone path.
+`oracle-bin-units` → `ORACLE_BIN_UNITS_OK` (6 pins, all carrying the `oracle_bin` name
+token, ≥ 5 required). `oracle-resolve` → `ORACLE_RESOLVE_OK`. `--pi-bin` help text names
+the new default.
+
+**AC3 — both panes resolve the SAME pinned install: GREEN.** `stage_tart_home` stages
+`<home>/bin/pi` as a symlink to the resolved `@pi_bin`; `tart_command` prepends that bin
+dir to the tart pane's PATH (before `dirname(@bundle_bin)`; everything else byte-identical).
+Measured on the s8 run at this tree: both panes' `<docs>` segments are byte-identical
+(1370 bytes each, sha `2381…`/`2338c16563f1` both sides — the pinned clone's README/docs/
+examples paths; system-message bytes 2848 (tart) vs 2846 (pi), the 2-byte app tail).
+`s8-parity` → exit 0. Compaction-line counts (pi 1,468 / tart 1,408) ride the frozen
+sanctioned `compaction-token-estimate` class as at base.
+
+**AC4 — parity restored cold via the DEFAULT resolution: GREEN except s9 (see Deviation 1).**
+Every s-gate run at this tree with NO `--pi-bin` anywhere, frozen env-strip prefix, short
+out dirs. s1–s8, s10, s17, s1-tart-mode, zai-max-tokens-wire all GREEN. s9 is RED by a
+deterministic, oracle-INDEPENDENT, pre-existing tree-depth artifact in frozen code —
+itemized below with the decisive falsification experiment.
+
+**AC5 — byte-freeze discipline: GREEN (scope + carried battery).** `scope` → `SCOPE_OK`;
+`threads-budget` → `THREADS_BUDGET_OK`; all carried unit/probe gates GREEN (list below);
+`wire-delta`'s mechanics all hold (instruction sha `4209f40b…` EXACT, tools bytes 2841,
+key order, `store:false`, `stream_options`, tree-prefix-tolerant `<SBX>` normalization) —
+except the gate's tools-sha CONSTANT, which carries a 1-char typo (Deviation 2).
+
+**AC6 — standing verification gates: GREEN.** `1211 runs, 5911 assertions, 0 failures,
+0 errors, 1 skips`, rake exit 0; `SEAM_BENCH_OK`.
+
+## Per-gate one-liners (rig/pty gates: exit code + candidate counts)
+
+| gate | result |
+|---|---|
+| s1-parity | ec=0, 0 candidates |
+| s2-parity | ec=0, 0 candidates |
+| s3-parity | ec=0, 0 candidates |
+| s4-parity | ec=0, 0 candidates |
+| s5-parity | ec=0, 0 candidates |
+| s6-parity | ec=0, 0 candidates |
+| s7-parity | ec=0, 0 candidates |
+| s8-parity | ec=0, 0 candidates (the R2 cure — docs segments byte-identical) |
+| s9-parity | **ec=1, 2 candidates** (`- ctrl+g for external editor`, `+`) — see Deviation 1 |
+| s10-parity | ec=0, 0 candidates |
+| s17-parity | ec=0, 0 candidates |
+| s1-tart-mode | rig ec≤1 + `TART_MODE_OK` |
+| wire-delta | rig ec=0; instruction sha `4209f40b…` EXACT, tools bytes 2841, key order/store/stream_options EXACT; tools-sha CONSTANT in the gate text has a 1-char typo — see Deviation 2 |
+| zai-max-tokens-wire | ec=0 → `ZAI_WIRE_OK tart=pi=512` |
+
+Carried gates, all GREEN at this tree: `suite`, `bench`, `md-repro`, `md-inline-units`,
+`pending-registry-units`, `footer-window` (`FOOTER_WINDOW_OK 1000000`), `thinking-pins`,
+`hermeticity`, `lock-deps` (`GEM_LOAD_OK`), `zai-data`, `session-golden`,
+`strict-wire` (8 runs, 0 failures), `error-transcript-units`,
+`error-transcript-render-units`, `render-perf-units` (7 runs, 0 failures),
+`render-perf-probe` (`RENDER_PERF_OK`), `tool-pending-gate`, `user-bash-stream-gate`,
+`zai-max-tokens-units`, `rail-bg`, `jump-pill-units`, `rail-bg-units`,
+`viewport-probe`, `scope`, `oracle-pin-state`, `oracle-bin-units` (6 runs ≥ 5),
+`oracle-resolve`.
+
+## Deviations (itemized)
+
+### 1. `s9-parity` RED at the lane tree — pre-existing frozen-code boundary artifact, oracle-independent; the Grounds' lane-depth green was measured at 77 chars, not 80
+
+Deterministic across 3 runs at the frozen gate out dir (`tmp/i67-s9`): 2
+unknown-candidates, `- ctrl+g for external editor` and `+`.
+
+Root cause (fully measured): the frozen gate's out dir at THIS tree makes tart's
+`[Context]` AGENTS.md row `"  " + <tree>/tmp/i67-s9/run-1/sandbox/tart/AGENTS.md` =
+2 + 120 = **122 chars > 120 cols** → tart's `wrap_resource_row` (motd.rb — the documented
+pi `wrapSingleLine` port: blank trimmed-indent row, then the path at column 0) wraps it,
+adding ONE row; the bottom-anchored settled window shifts one row, surfacing pi's `ctrl+g`
+hint row and tart's wrapped blank as the 2 candidates. pi's own row is 2+118 = 120 (fits —
+the `sandbox/pi` vs `sandbox/tart` 2-char name asymmetry). Decisive falsifications:
+
+- Same scenario, same tree, **system pi 1.2.0 via `--pi-bin`**: ALSO ec=1 (`["-d", "+.md"]`
+  — same wrap class). The artifact is oracle-INDEPENDENT: it exists at this tree at base
+  too; nothing my diff touches is involved (the scope gate proves `lib/` byte-identical).
+- Same scenario, same tree, shorter out dir (`tmp/s9b`, row 119 ≤ 120): **ec=0, 0
+  candidates** — the boundary is the sole cause, and with it removed pi 1.1.0's settled
+  screen matches tart's exactly (including the ctrl+g row).
+- The Grounds R3 scratch tree (`tmp/i67-deepmeas-xxxxxxxxxxxxxx/wt`) measures **77 chars**
+  (tart row = 119, fits), not the claimed "80 chars, equal to the lane tree" — their s9
+  green was 3 chars short of the boundary.
+
+Every cure candidate is OUTSIDE the frozen touch set: the wrap shape (`lib/tart/render/
+motd.rb`), the staging geometry (`boot_session`'s `sandbox/<app>` layout — the frozen s9
+instrument), the registry's sanctioned classes (byte-frozen), and the gate's out dir
+(frozen gate text). **Needs adjudication**: a registry sanction, a wrap fix in
+`motd.rb`/`text.rb`, or a gate out-dir rebase (e.g. `tmp/i67-s9` → any ≤ 7-char out dir
+keeps tart's row ≤ 120 at this tree). I changed nothing for it.
+
+### 2. The frozen `wire-delta` gate's tools-sha constant carries a 1-char transcription typo
+
+The gate text pins `tools == "7360fd1ec6419b5f9966c3067583314cdd0d29231a78346443a0002923c23707"`.
+Every run at this tree digests the normalized tools to
+`7360fd1ec6419b5f9966c3067588314cdd0d29231a78346443a0002923c23707` (hex index 27: `8` not
+`3`; both 64 chars). That is NOT a wire change: the spec session's OWN scratch drive
+capture (`tmp/i67-deepmeas-…/wt/tmp/i67-wire/run-1/tart-requests.jsonl`, still on disk)
+digests to EXACTLY my value, with identical 2841-byte tools, no path residue, stable
+across independent runs. The frozen constant can never match — not at my tree, not at
+their scratch tree. The gate's other pins all hold (instruction sha `4209f40b…` exact,
+key order, `store:false`, positive `max_completion_tokens`, `stream_options`,
+`{"role":"user","content":"hello"}`). Adjudication: correct the constant to
+`…7588314cdd…` (verified against the spec session's own measurement — not re-derived).
+I did not edit any gate text.
+
+### No other deviations
+
+The enumerated exclusions hold (s11–s16, s18, live-script, model-menu-probe untouched);
+`lib/tart/**`, scenarios/registry/fixtures, Gemfile/lock/gemspec, `bench/`, tart `bin/`+
+`test/`, and the other rig bins are untouched (`scope` GREEN). Nothing under `repos/pi`
+was read beyond the pin gate's checks.
 
 ## Verdict
 
