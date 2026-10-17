@@ -74,7 +74,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: rig-oracle-repin
+  current_iteration: markdown-parity
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -2650,4 +2650,10 @@ project:
     rehearsal:
       gates_digest: f15e2df65572a6bbb44c5d835ac3bcc74f6ed938e42c2b2ad11eed4ae7151a4e
       at: '2026-10-16T22:52:08-06:00'
+  - name: markdown-parity
+    ordinal: 68
+    file: architecture/I68-markdown-parity.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
