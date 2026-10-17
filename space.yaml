@@ -81,7 +81,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: tart-identity-herdr
+  current_iteration: subagents-default-on
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -2724,4 +2724,10 @@ project:
     rehearsal:
       gates_digest: ee5ac5e73f27685e84c731a9c179618c5887fc053faf12bc3a369f86d73088a1
       at: '2026-10-17T12:43:36-06:00'
+  - name: subagents-default-on
+    ordinal: 70
+    file: architecture/I70-subagents-default-on.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
