@@ -1144,11 +1144,250 @@ contexts — prefix suspect tool calls with `env -u BUNDLE_GEMFILE`.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I66-viewport-polish-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence viewport-polish --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# I66 viewport-polish — Builder Report (lane `core`)
+
+Tree: worktree `build/I66-viewport-polish-core/wt`, branch `lane/I66-viewport-polish-core`,
+base tart `project/pi-port` @ `9db6370` (I65 merge). NO commits made (the integrator
+lands the tree). Diff vs `9db6370` = exactly the declared 6-file touch set:
+
+```
+ lib/tart/render/chat.rb     | 115 ++++++++++++++++-
+ lib/tart/render/viewport.rb | 114 +++++++++++---
+ lib/tart/theme.rb           |   4 +
+ test/chat_test.rb           | 250 ++++++++++++++++++++++   (purely additive)
+ test/theme_test.rb          |   1 +                        (the ONE declared re-pin)
+ test/support/viewport_buffer_probe.rb | NEW (untracked; integrator adds)
+```
+
+`repos/RatatuiRuby` untouched (read-only reference); Gemfile/lock/gemspec/bin/rig/
+text.rb/footer.rb/editor.rb/selection.rb/tui.rb/markdown.rb/transcript.rb untouched;
+no new gems; no `Thread.new` sites added.
+
+## Suite summary
+
+```
+bundle install --quiet && bundle exec rake
+→ 1205 runs, 5896 assertions, 0 failures, 0 errors, 1 skips   (base: 1192 / 5709 — +13 = the new jump_pill(7) + rail_background(6) pins; the standing rig live-run skip unchanged)
+bundle exec ruby bench/seam_bench.rb → SEAM_BENCH_OK
+```
+
+## AC-by-AC outcome
+
+**AC1 — the jump-to-bottom pill (F1): GREEN.**
+`Viewport` gains `following?` (pi scroll-view.ts :172 isFollowingEnd) and
+`scroll_to_end(content_size, rows)` (pi :177-187 — offset pins to `max_offset`,
+follow re-arms, scrollbar activity marked iff the offset moved; epoch returned,
+nil on a no-op). `Theme::TOKENS` gains exactly `selected_bg: "#213b49"` (dark.json
+:27 selectedBg = the blueBg var `user_message_bg` already resolves). `transcript_widget`
+composites the pill AFTER the rail overlay and after the flash (row 0's own composite
+untouched): trigger `!following?` (a fitting view re-arms follow by construction —
+no pill while following or fitting); label EXACTLY `" ↓ Jump to latest message "`
+(pi tui-renderer.ts :30-34, flanking spaces, shortcut segment OMITTED — itemized
+below) on `fg: Theme[:text]` / `bg: Theme[:selected_bg]`; position = the transcript
+area's LAST row, `column = (width − label_width) / 2` floor; while the rail is
+visible the label truncates LEFT of the rail column (`width − 1 − column` available,
+left part kept, zero → no pill); cells replaced, neighbors keeping their own styles
+(pi compositeTuiLine tui.ts :426-452); the rect `{row:, column:, width:}` latches
+at composite and is nil whenever absent (readback `Chat#jump_pill_rect`, the
+`scroll_offset` shape). `handle_mouse` routes the pill press FIRST (after the menu
+guard, before wheel/selection — pi :940 indicator-first): a plain left press inside
+the rect consumes → `mark_scrollbar_activity(@viewport.scroll_to_end(...))` + one
+`request_draw`; wheel/drag/release/non-left presses fall through to today's arms.
+
+Pins: 7 tests carrying `jump_pill` (gate floor ≥ 6) — following→none; fits→none;
+detached→centered last-row pill with the exact 26 label bytes + `text`/`selected_bg`
+cell reads + neighbor styles kept + rect `{row: 5, column: 7, width: 26}` @ width 40;
+rail visible→truncated to 25 cells left of the rail column @ width 26 (the rail glyph
+survives at column 25); press inside→jump to max, follow re-arms, pill gone next draw,
+tail re-followed, rail fresh (activity marked); press same row outside→today's
+selection press (reversal highlights, no jump, rect re-latches); wheel + right-press
+→ today's arms while the pill is latched.
+
+**AC2 — rail background parity + the wide-grapheme straddle (F2/F3): GREEN.**
+`overlay_rail_cell` rewritten as a span-level walk (`clip_before_rail`, private —
+`text.rb` untouched, `fit`'s force-progress arm load-bearing): spans emit whole
+while they fit before `width−1`; the first span whose cell range crosses the bound
+clips cell-wise at its graphemes (a straddling wide grapheme is dropped WHOLE —
+pi getGraphemeCellRange utils.ts :335-352) and names the TARGET bg (its range
+covers the rail column); the pad span and the glyph span compose with that bg
+(pi replaceScrollbarCell preserveTargetBackground layout.ts :249-278 +
+getActiveBackgroundAnsi utils.ts :786-790), the glyph keeping its own theme fg.
+Composed line is EXACTLY `width` cells — never `width+1` (base measured 21 in a
+20-wide area). The existing scrollbar pins (hidden-at-settle, shows-while-fresh,
+user-scroll-marks, no-carved-gutter) and the panel-bg pin :148 pass UNCHANGED;
+the fade is pinned at the cell level (hide timer + redraw → the former rail column
+reads the underlying row's own panel bg again).
+
+Pins: 6 tests carrying `rail_background` (gate floor ≥ 4) — full-width panel row
+(every cell the panel bg, glyph `│`/track-fg/panel-bg, width 20); short panel row
+(pad cells carry the panel bg); plain row (no bg invented, neutral look kept);
+straddle pure (width 20, no `漢`, pad cell at 18 = space with bg, glyph at 19 with
+bg); straddle at the buffer level through `with_chat` + `enqueue_region` (the rail
+glyph paints at the LAST column on the straddle row — base measured `" "` there;
+the straddler gone; the pad carries the bg in the buffer); fade restores the
+underlying row state at the cell level.
+
+**AC3 — the bounded RatatuiRuby artifact probe (F4): GREEN, verdict letter `c`.**
+See the probe section below.
+
+**AC4 — the byte-freeze discipline (scope): GREEN.** `scope` gate passes verbatim;
+the diff is the 6-file set; every protected path byte-identical to `9db6370`;
+`threads-budget` clean (no new `Thread.new` in lib); the ONE golden change is the
+pre-declared theme EXPECTED row; wire/session/screen goldens untouched.
+
+**AC5 — the standing verification gates, cold at the lane tree: GREEN.** Suite +
+bench lines above; the carried unit families re-run at the lane tree all GREEN
+(runs floors all met — see per-gate list).
+
+## Per-gate one-liners
+
+Designed-RED members (all GREEN at the lane tree):
+
+- `rail-bg` — verbatim frozen drive → `RAIL_BG_OK` (all four legs: full-width /
+  pad / plain / straddle).
+- `jump-pill-units` — `/jump_pill/` → `JUMP_PILL_UNITS_OK runs=7` (floor ≥ 6), ec 0.
+- `rail-bg-units` — `/rail_background/` → `RAIL_BG_UNITS_OK runs=6` (floor ≥ 4), ec 0.
+- `viewport-probe` — committed script → `VIEWPORT_PROBE_OK c`, exit 0.
+- `scope` → `SCOPE_OK` (protected paths quiet; tracked diff ⊂ the 6-file set).
+
+Carried members re-run at the lane tree:
+
+- `suite` → `1205 runs, 5896 assertions, 0 failures, 0 errors, 1 skips`, exit 0.
+- `bench` → `SEAM_BENCH_OK`.
+- `md-repro` → `MD_REPRO_OK`. `md-inline-units` → markdown `/inline_scan/` 6 runs,
+  transcript 2 runs, ec 0. `pending-registry-units` → 7 runs, ec 0.
+- `thinking-pins` → agent-loop 18 runs, settings 9 runs, ec 0. `hermeticity` →
+  launcher 11 runs, e2e 4 runs, ec 0. `error-transcript-units` → agent-loop 5,
+  session 2, ec 0. `error-transcript-render-units` → chat 4, transcript 3, ec 0.
+- `zai-data` → `ZAI_DATA_OK` + `/dialect/` 5 runs. `zai-max-tokens-units` →
+  agent-loop 4, models 2, launcher 2, all ec 0. `lock-deps` → pin line present,
+  `LOCK_DEPS_OK` + `GEM_LOAD_OK`.
+- `threads-budget` → `THREADS_BUDGET_OK`. `render-perf-units` → 7 runs, ec 0.
+- Rig probes (env-strip prefix): `render-perf-probe --app tart --shape gate` →
+  `RENDER_PERF_OK`; `tool-pending-probe --gate` → `TOOL_PENDING_GATE_OK`;
+  `user-bash-stream-probe --gate` → `USER_BASH_STREAM_GATE_OK`.
+- Two carried members FAIL AS WRITTEN at ANY tree incl. base — base-inherited
+  frozen-text defects, itemized under Deviations (D4/D5); both GREEN modulo the
+  single mis-identified receiver, proven base-inherited via the scope gate's
+  byte-identity over every path they read.
+
+## F4 probe — verdict LETTER: `c` (not reproducible in-buffer)
+
+`test/support/viewport_buffer_probe.rb` (NEW, standalone — rake's glob
+`test/**/*_test.rb` never loads it) drives the frozen 3-frame method through the
+gem's own headless terminal (`TUI.run(headless:)` → `RatatuiRuby.draw` →
+`RatatuiRuby.get_cell_at`), tart drive + gem-only discrimination drive, exit 0 in
+every outcome. Honest run at the lane tree (the cured overlay):
+
+```
+== tart composition (Viewport#overlay_rail_cell + TUI.scrollbar_lines) ==
+frame 1 settle: row 0: bg="#254131" | row 1: bg="#254131" | row 2: bg="#254131"
+                | row 3 (plain): bg=nil | row 4: bg="#254131"
+                | row 5 (straddle): bg=nil (the gem's wide-char continuation cell — frame-1's OWN read)
+                | row 6: bg="#254131" | row 7: bg="#254131"   (symbols all " ", fg nil)
+frame 2 rail:   rows 0-7 sym="┃" fg="#97a0a5"; bg: #254131 everywhere except row 3 = nil (plain keeps neutral)
+artifact A (inset/missing rail): ABSENT — every overlaid line composes exactly 20 cells;
+                every glyph paints at column 19 (incl. the straddle row)
+frame 3 fade:   rows 0-7 sym=" " fg=nil; bg back to frame-1's own reads on every non-straddle row
+artifact B (stuck dark after fade): ABSENT — every non-straddle row's cell_bg(19) reads frame 1's own value
+== gem-only composition (hand-built RatatuiRuby spans, no Viewport/Text/Panel) ==
+frame 2 rail:   rows 0-7 sym="│" fg="#484e52"; bg: #254131 except row 3 = nil
+artifact A: ABSENT; artifact B: ABSENT (same frame-1-relative restoration)
+verdict: c (not reproducible in-buffer)
+VIEWPORT_PROBE_OK c   (exit 0)
+```
+
+**Instrument honesty check** (recorded correspondence): the same frame method over
+the BASE composition (verbatim 9db6370 `overlay_rail_cell`) REPRODUCES artifact A —
+straddle line width **21** in the 20-wide area, frame-2 symbols `["┃","┃"," "]`
+(the straddle row's glyph clipped off). The cures eliminate exactly that; the
+post-cure probe shows nothing reproducing in-buffer. The owner's two artifacts were
+therefore tart-composition-homed (F2/F3's root causes, confirmed by elimination);
+nothing terminal-side was observed at the cured tree.
+
+**Observed gem behavior worth the owner's attention (NOT artifact B — the frozen
+definition excludes straddle rows, and it appears identically in BOTH drives):**
+ratatui_ruby 1.5.0's diff redraw never repaints a wide grapheme's CONTINUATION cell
+— on the fade frame the straddle row's head cell (18) correctly repaints to `漢`
+but column 19 keeps the PREVIOUS frame's rail glyph (`verbatim: frame2 row5
+sym="┃" bg="#254131" → frame3 row5 col18="漢" col19: sym="┃" bg="#254131"`,
+while frame 1's own col-19 read is `sym=" " bg=nil`). A live terminal repaints the
+pair atomically so the stale continuation cell is likely invisible on real hardware,
+but it is buffer-visible via `get_cell_at`. Recorded here as an upstream note only —
+NO gem change made or proposed by this lane (owner decision).
+
+## Outcome-contingent deliverable (letter `c`)
+
+Documented terminal-side/instrument-side above: the probe's per-frame evidence
+shows the frozen artifacts (A: inset/missing rail; B: stuck dark after fade) do not
+reproduce in-buffer at the cured tree, in either the tart or the gem-only drive,
+while the same instrument reproduces the base defect verbatim. No vendoring,
+forking, or Gemfile pin change for ratatui_ruby in any outcome (held).
+
+## Re-pins (enumerated — exactly one)
+
+1. `test/theme_test.rb` EXPECTED full-table gains `selected_bg: "#213b49"` (the
+   pre-declared golden re-pin; every other row byte-identical; `user_message_bg`
+   unchanged). Theme test: 9 runs, 65 assertions, 0 failures.
+
+No other golden (wire/session digests, screens) changed; `test/chat_test.rb` is
+purely additive (250 insertions, 0 deletions — the existing scrollbar pins and the
+panel-bg pin untouched and passing).
+
+## Deviations (itemized)
+
+- **D1 (pre-declared in the spec): the pill's shortcut segment is OMITTED** — tart
+  has no `tui.altScreen.bottom` analog (the transcript is wheel-only since I35);
+  no keybinding invented. The missing analog is recorded, not implemented.
+- **D2 (contract-shape reading, declared): the TARGET-bg rule is implemented as
+  "the bg of the span whose cell range covers column width−1; when no span reaches
+  that column, the line's own bg provenance (the last bg-carrying span); nil on a
+  bg-less line."** The frozen F2 letter says "nil when no span reaches it — never
+  invent a bg", but the SAME frozen text and the frozen `rail-bg` gate's pad leg
+  (`row2 = " hi"` with bg: pad cells 3..18 must carry the panel bg though no span
+  reaches column 19) require the short-row fallback. The implementation satisfies
+  every frozen gate leg AND "never invents a bg" (only a bg some span actually
+  carries is used; a plain row keeps the neutral look). pi's real rows are
+  full-width when bged, so the fallback is unreachable on the live surface.
+- **D3 (new public readback): `Chat#jump_pill_rect`** (mutex-guarded, the
+  `scroll_offset` shape) — the AC's "latched rect (nil whenever absent)" needs a
+  pin-able readback; handle_mouse's own read stays unsynchronized per the Chat
+  class's design note.
+- **D4 (frozen carried-gate text defect, base-inherited — owner/integrator call):
+  `footer-window`'s frozen command calls `Tart::Models.resolve_boot_entry`, which
+  does not exist — the method lives on `Tart::Executable` (bin/tart :712). The gate
+  NoMethodErrors as written at ANY tree (bin/tart byte-identical at base and at the
+  canonical checkout). With the receiver corrected to `Tart::Executable.` the gate
+  body is GREEN verbatim: `FOOTER_WINDOW_OK 1000000`, footer == loop window, env
+  tier 999 holds.** Nothing my lane touches is on its read path; the scope gate's
+  byte-identity over bin/ models.rb settings.rb proves base-inheritance. The
+  one-word fix is outside my 6-file touch set — flagged for the judge.
+- **D5 (frozen carried-gate text defect, base-inherited — owner/integrator call):
+  `session-golden`'s frozen command assigns `out[:fork_roles]` from
+  `context_messages(rec.path)`, but the frozen want `[:user, :user]` is the FORKED
+  session's context roles — `context_messages(forked.path)` reads exactly
+  `[:user, :user]`, `rec.path` reads `[:user]` (the compaction with
+  `first_kept_entry_id: nil`). With that one identifier corrected the gate is GREEN
+  verbatim: `SESSION_GOLDEN_OK`, all seven digests byte-identical.** Same
+  base-inheritance proof (lib/tart/agent byte-identical to base). Flagged for the
+  judge.
+- **D6 (report note, not a code deviation): the probe's verdict letter is `c` on
+  the cured tree** — the frozen method drives the REAL (cured) overlay, so "not
+  reproducible in-buffer" is the honest post-cure classification; the
+  correspondence with the base-reproduced defects is recorded above (the instrument
+  reproduces artifact A over the base composition). The gem's wide-char
+  continuation-cell diff-redraw quirk is documented as an upstream note, not one of
+  the owner's artifacts.
+
+## Handoff
+
+Tree ready to land: 5 modified files + 1 new file (untracked
+`test/support/viewport_buffer_probe.rb` — the integrator's `git add` picks it up;
+no commits made per the I65 D1 standing ruling). No `BUNDLE_GEMFILE`-sensitive
+state left behind; `tmp/i66-tp`, `tmp/i66-ubs`, `tmp/render-perf-gate` are the rig
+probes' artifact dirs.
 
 ## Verdict
 
