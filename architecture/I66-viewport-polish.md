@@ -194,35 +194,258 @@ it."
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section viewport-polish specification --from <file>`. -->
+### Objective
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+Close plan ENTRY 2 (`notes/plan-20261017T005042Z-live-render-correctness.md`) — the two
+viewport live-run findings: port pi's jump-to-bottom pill (F1) and make the auto rail's
+composition pi-faithful over colored blocks (F2 the neutral-bg cure, F3 the wide-grapheme
+straddle), with the bounded RatatuiRuby artifact probe (F4) as a first-class deliverable.
+Done bar: **BRIEF §8** exact parity on the owner's daily-driver surface (**BRIEF §3**);
+this is the live-render-correctness program's final entry.
+
+### The contract (one lane)
+
+**F1 — the jump-to-bottom pill** (`lib/tart/render/viewport.rb` +
+`lib/tart/render/chat.rb` + `lib/tart/theme.rb`).
+
+- `Viewport` gains the two seams the pill needs:
+  - `following?` — the `isFollowingEnd` readback (true iff follow is armed);
+  - `scroll_to_end(content_size, rows)` — pi `scrollToEnd` (scroll-view.ts
+    :177-187): offset pins to `max_offset`, follow re-arms, and scrollbar
+    activity is MARKED iff the offset moved (returns the epoch for the Chat
+    seam, nil on a no-op) — pi marks on the jump; the port does too.
+- `Theme` gains `selected_bg: "#213b49"` (pi dark.json :27 `selectedBg` → the
+  blueBg var, the same value `user_message_bg` already resolves, theme.rb
+  :56-:57). The theme test's full-table EXPECTED pin is re-pinned with
+  exactly this row — the lane's ONE declared golden re-pin.
+- `transcript_widget` composites the pill AFTER the rail overlay (pi's
+  composite order: the indicator composites over the railed screen):
+  - TRIGGER: the viewport is detached (`!following?`) — while following or
+    when content fits, NO pill (a fitting view re-arms follow by
+    construction, `window`'s rule);
+  - LABEL: `" ↓ Jump to latest message "` — pi's exact shape with the
+    flanking spaces, `fg: Theme[:text]`, `bg: Theme[:selected_bg]`. The
+    shortcut segment is OMITTED (itemized deviation: tart has NO
+    `tui.altScreen.bottom` analog — the transcript is wheel-only since
+    I35; a keybinding is not invented here);
+  - POSITION: the transcript area's LAST row (window index `rows − 1`),
+    centered: `column = (width − label_width) / 2` (floor); while the rail
+    is visible the label truncates LEFT of the rail column (available
+    width `width − 1 − column`, the left part kept; zero-width → no pill);
+  - COMPOSITE: cells `[column, column + label_width)` of that row are
+    REPLACED by the pill span; the row's cells before/after keep their own
+    styles (pi `compositeTuiLine`, tui.ts :426-:452); the flash stays row
+    0's own composite, untouched;
+  - the rect `{row: rows − 1, column:, width:}` is latched for the mouse
+    (nil whenever the pill is absent).
+- `handle_mouse` routes the pill press FIRST (after the menu guard, before
+  the wheel/selection arms — pi's indicator-first route, tui-alt-screen.ts
+  :940): a plain left PRESS (`event.left?` + kind `"down"`) with
+  `y == rect.row` and `rect.column <= x < rect.column + rect.width` is
+  CONSUMED → `mark_scrollbar_activity(@viewport.scroll_to_end(
+  display_lines.size, transcript_area_rows))` + one `request_draw`;
+  everything else (wheel, presses outside the rect, drag/release) falls
+  through to today's arms unchanged.
+- Unit pins, names carrying the token `jump_pill` (`test/chat_test.rb`, the
+  `with_chat` headless family + `kernel.fire_timers`), at minimum:
+  following → no pill; content fits → no pill; detached → the pill on the
+  LAST transcript row at the centered column with the exact label bytes
+  and `selected_bg`/`text` styling (cell reads); rail visible + detached →
+  the pill truncated left of the rail column; a press inside the rect →
+  the view jumps to the end, follow re-arms, the pill is gone on the next
+  draw, the rail is fresh (activity marked); a press on the same row
+  OUTSIDE the rect → today's selection press, not consumed.
+
+**F2 — rail background parity** (`lib/tart/render/viewport.rb` ONLY —
+`overlay_rail_cell`).
+
+- The rail glyphs CARRY the underlying cell's background — pi's
+  `preserveTargetBackground` semantics (layout.ts :249-:278): the pad span
+  and the glyph span are composed with `bg:` = the TARGET bg — the bg of
+  the ORIGINAL line's span whose cell range covers column `width − 1`
+  (nil when no span reaches that column: a plain row keeps today's
+  neutral look — the fix never invents a bg). The glyph keeps its own
+  theme fg (read from the passed glyph line's span, unchanged).
+- NO neutral-bg cell is inserted inside a colored block: over a full-width
+  panel row the composed line is exactly `width` cells, every cell's bg =
+  the panel bg, the last cell's fg = the rail color. Over a short-content
+  panel row, the PAD cells carry the panel bg too (pad included — the
+  owner's letter).
+- The fade behavior is pinned at the cell level: after the hide timer
+  fires and the redraw lands, the former rail column reads the underlying
+  row's own state again (the hide frame rebuilds the original line —
+  today's mechanism, now asserted).
+
+**F3 — the wide-grapheme straddle** (`overlay_rail_cell`, same file).
+
+- A wide grapheme straddling the `width − 1` bound is REPLACED WHOLE —
+  pi's `getGraphemeCellRange` shape (utils.ts :335-:352; layout.ts
+  :258-:266): the composed line is EXACTLY `width` cells — the head clips
+  at the straddling grapheme's start cell (styles kept), the pad to
+  `width − 1` carries the target bg, the glyph lands at the LAST column,
+  and the straddling grapheme does not survive. The composed line never
+  exceeds the area width (the base defect measured 21 cells in a 20-wide
+  area).
+- `lib/tart/render/text.rb` is OUT of the touch set: `fit`'s
+  force-progress arm (:243) is load-bearing for the wrap loop; the
+  straddle-safe clip is a span-level walk in `overlay_rail_cell`
+  (`Text.take_cells`' discipline, text.rb :252-:260, is the string-level
+  analog to mirror).
+- The CJK-at-the-edge case is REQUIRED (the plan's letter): the measured
+  base shape (a bg panel row whose last two cells are `漢`) is pinned
+  pure AND at the buffer level (the rail glyph paints at the last column
+  on the straddle row — base measured `" "` there).
+
+**F4 — the bounded RatatuiRuby artifact probe**
+(`test/support/viewport_buffer_probe.rb`, NEW — a standalone script; rake
+does not load it).
+
+- The script drives the overlay case through the gem's own buffer/terminal
+  API (`TUI.run(headless:)` → `RatatuiRuby.draw` → `get_cell_at` reads),
+  method frozen:
+  - the row set: full-width panel-bg rows (the `Panel` vocabulary), a
+    plain no-bg row, and a true-straddle row (a wide grapheme occupying
+    the last two cells);
+  - frame 1 (settle): draw the rows; read the cells; frame 2 (rail): the
+    rows through the REAL `Viewport#overlay_rail_cell` +
+    `TUI.scrollbar_lines`; read; frame 3 (fade): the ORIGINAL rowset
+    again; read;
+  - artifact A (inset/missing rail) reproduced iff on frame 2 any row's
+    rail glyph fails to paint at the last column or any overlaid line's
+    span width ≠ the area width; artifact B (stuck dark after fade)
+    reproduced iff on frame 3 any non-straddle row's `cell_bg(W−1)`
+    differs from FRAME 1's own read of the same cell (never the nominal
+    bg — the gem's wide-char continuation cells read nil even pre-rail,
+    measured);
+  - discrimination: re-drive with a MINIMAL gem-only composition
+    (hand-built `RatatuiRuby` spans reproducing the same cell shapes,
+    no `Viewport`/`Text`/`Panel`) — the artifact persisting there homes
+    it in ratatui_ruby; otherwise tart's composition; neither
+    reproducing = not reproducible in-buffer;
+  - output: the per-frame cell reads + `VIEWPORT_PROBE_OK <a|b|c>` (a =
+    reproduced, tart composition home; b = reproduced, ratatui_ruby
+    home; c = not reproducible in-buffer); exit 0 in EVERY outcome — the
+    probe reports, never fails.
+- Outcome-contingent deliverables (all frozen):
+  - (a) the defect is tart's composition → the F2/F3 cures eliminate it
+    (already unit-pinned) and the report records the correspondence;
+  - (b) root-caused inside ratatui_ruby → the SMALLEST tart-side
+    compositing workaround that eliminates the VISIBLE defect
+    (unit-pinned in the `rail_background`/`jump_pill` families) + the
+    upstream finding in the Builder Report: file + failing case +
+    verbatim cells, citing the installed gem 1.5.0 with the repo clone
+    (`repos/RatatuiRuby` @ `10dd180`, v1.5.2) as the readable source;
+  - (c) not reproducible in-buffer → the report documents terminal-side
+    with the probe's evidence (the frame reads).
+- NO vendoring, forking, or Gemfile pin changes for ratatui_ruby in ANY
+  outcome — owner decision, outside the lane.
+
+### Named exclusions (Constraints, itemized)
+
+- Repo tart ONLY; `repos/RatatuiRuby` READ-ONLY (no commits, no submodule,
+  no vendored copies); no rig/oracle work (unit-pinned; the pi-1.2.0
+  banner drift keeps the rig family out).
+- The ENTRY-1 transcript content paths MUST NOT CHANGE:
+  `lib/tart/render/markdown.rb`, `lib/tart/render/transcript.rb` (the
+  pending registry, replay, every content row composer) — scope-gated.
+- `lib/tart/render/text.rb` untouched (`fit`'s force-progress arm is
+  load-bearing for the wrap loop); `lib/tart/render/footer.rb`,
+  `lib/tart/render/editor.rb`, `lib/tart/render/selection.rb` untouched;
+  the selection STATE and its highlight math are not modified (the pill
+  only guards the press route).
+- NO gem changes: Gemfile/Gemfile.lock/tart.gemspec untouched (0.4.0 pin,
+  ratatui_ruby 1.5.0); no new gems.
+- No keybinding invention: the pill's shortcut segment stays OMITTED
+  (itemized); the missing `tui.altScreen.bottom` analog is recorded, not
+  implemented.
+- The ONE declared golden re-pin: `test/theme_test.rb`'s EXPECTED table
+  gains `selected_bg: "#213b49"` (the pill's token; every other row
+  byte-identical). Everything else golden — wire/session digests, screens
+  — unchanged.
+- `problems.md`/`new_problems.md` updates are OWNER landing work, not
+  lane work.
+
+### Output format
+
+- NO lane commits (the I65 D1 standing ruling — the integrator lands the
+  tree). The deliverable is the provisioned worktree's diff vs `9db6370`:
+  exactly the 6-file touch set, nothing else.
+- Scratch report at `build/I66-viewport-polish-core/report.md`: the suite
+  summary line, every gate one-liner, the probe's verdict LETTER with its
+  per-frame cell reads, and the outcome-contingent deliverable for that
+  letter; deviations itemized (any contract-shape deviation, every test
+  re-pin enumerated — the theme EXPECTED row is pre-declared here).
+
+### Tool guidance
+
+- Verification (exact, tested this session at base `9db6370`):
+  `cd repos/tart && bundle install --quiet && bundle exec rake` →
+  `1192 runs, 5709 assertions, 0 failures, 0 errors, 1 skips` (post-lane:
+  >= 1192 runs, 0 failures, 0 errors);
+  `bundle exec ruby bench/seam_bench.rb` → last line `SEAM_BENCH_OK`.
+- The designed-RED defect gates (exact forms frozen in the AC):
+  `rail-bg` (a self-contained `ruby -Ilib` drive over
+  `Viewport#overlay_rail_cell` covering F2's bg-carry and F3's straddle —
+  RED at base by construction, measured), `jump-pill-units` +
+  `rail-bg-units` (minitest name filters `/jump_pill/` and
+  `/rail_background/` — 0 test names match at base, verified; the tokens
+  in the test NAMES are REQUIRED), and `viewport-probe` (the committed
+  script — missing at base).
+- Probes (tart-only, the env-strip house prefix):
+  `env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u HERDR_BIN_PATH
+  -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID gems/tui-split-rig/bin/
+  {render-perf-probe --app tart --shape gate, tool-pending-probe --gate,
+  user-bash-stream-probe --gate}`.
+- pi citations for the touched seams (house style — commented citations
+  at the seam): tui-alt-screen.ts :1638-:1667 (composite), :1037-:1044
+  (the click) + :940 (indicator-first routing), scroll-view.ts :177-:187
+  (scrollToEnd), layout.ts :249-:278 + :309-:330 (replaceScrollbarCell/
+  paintScrollbar), utils.ts :335-:352 (getGraphemeCellRange) + :786-:790
+  (getActiveBackgroundAnsi), tui.ts :426-:452 (compositeTuiLine),
+  tui-renderer.ts :30-:34 (the label), dark.json :27 (selectedBg).
+- `BUNDLE_GEMFILE` may leak into the lane env — prefix suspect
+  `architect` calls with `env -u BUNDLE_GEMFILE`.
+
+### Boundaries
+
+- May touch: exactly the declared 6-file set (scope gate):
+  `lib/tart/render/viewport.rb`, `lib/tart/render/chat.rb`,
+  `lib/tart/theme.rb`, `test/chat_test.rb`, `test/theme_test.rb`,
+  `test/support/viewport_buffer_probe.rb`.
+- Must not touch: everything else — including `lib/tart/render/text.rb`,
+  the ENTRY-1 surfaces (markdown/transcript), footer/editor/selection,
+  `lib/tart/tui.rb`, bin/, the rig, Gemfile/lock/gemspec, and any file
+  under `repos/RatatuiRuby`.
+- Frozen stack: **BRIEF §2** (ratatui_ruby 1.5.0 behind `TUI`;
+  fast-completions 0.4.0); house style per AGENTS: commented pi citations
+  at the touched seams, tests through public interfaces, no refactors
+  beyond the task.
+
+### Lane plan
+
+One lane — one flow, one commit, one test surface family.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision viewport-polish`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/render/viewport.rb
+    - lib/tart/render/chat.rb
+    - lib/tart/theme.rb
+    - test/chat_test.rb
+    - test/theme_test.rb
+    - test/support/viewport_buffer_probe.rb
+  effort: high
 ```
+
+### Effort call
+
+`high` — three deliverables with frozen byte-disciplines on each side (the
+overlay rewrite with the existing four scrollbar pins held green; the pill
+composited over the finished window with pi's exact trigger/label/geometry
+and a new mouse route; the probe's outcome-contingent contract), a theme
+golden re-pin, and a discriminating instrument to build honestly — not a
+routine lane.
 
 ## Acceptance Criteria
 
