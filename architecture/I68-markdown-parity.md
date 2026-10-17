@@ -198,35 +198,192 @@ launches).
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section markdown-parity specification --from <file>`. -->
+### Objective
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+Close plan ENTRY 1 (`notes/plan-20261017T081509Z-markdown-parity.md`): bring the hand-rolled
+markdown converter into VISUAL parity with pi's renderer (marked 18.0.11 through the pinned
+`repos/pi` clone @ v1.1.0) across a FROZEN 48-case battery of real-world edge cases — the
+owner's live finding (underscores eaten in thinking text, broad delimiter divergence) cured
+as observable distinctions (text content + fg/modifier distinctions), per the 2026-10-17
+owner rulings: parity is visual (BRIEF §8 refined), and the converter stays hand-rolled —
+no markdown dependency, ever. The 11 measured designed-RED classes (Grounds R1–R8) are the
+work list; the 37 GREEN cases are the regression bar.
+
+### The contract (one lane)
+
+**The fixture (frozen, spec-authored — copied, never regenerated).** Copy
+`tmp/i68-spec/markdown_battery.json` VERBATIM to `test/fixtures/markdown_battery.json`
+(byte-identical; the `md-battery-fixture` gate pins sha256
+`4ecd9cc2a5937dda7254c6553c6b9927b7af725e111ea02acf9226c2e01ac883`). 48 cases `{name,
+src, rows}`; a row is an array of spans `[text, fg, modifiers]` (fg = FG-symbol name
+string or null; modifiers = sorted string list; **compared as SETS**; zero-width spans
+absent; empty row = blank line); rendered at `width: 94`. 36 cases' rows are tart's
+measured base spans (already oracle-equal); 11 carry the oracle-frozen post-cure
+expectations. This file is DATA, not code — any change to it is out of bounds.
+
+**The battery tests** (`test/markdown_test.rb`): exactly one test per fixture case,
+named `test_md_battery_<name>` (the token `md_battery` in the name is LOAD-BEARING —
+the gate filter `/md_battery/` must match ≥ 48 runs). Each test renders
+`Render::Markdown.rows(src, width: 94)` and compares row-by-row: actual spans mapped to
+`[text, fg&.to_s, modifiers.map(&:to_s).uniq.sort]` (zero-width spans dropped) vs the
+fixture rows (rows compare as arrays of span triples; fg `null` ↔ `span.fg.nil?`).
+One shared fixture-load + compare helper in the file; tests through the public
+`Markdown.rows` interface only.
+
+**R1–R3 — the delimiter law (CommonMark/marked flanking, `_` intraword disallowed).**
+The em and strong arms of `INLINE_SCAN` gain the flanking law for BOTH delimiters:
+a delimiter can OPEN only if left-flanking, can CLOSE only if right-flanking — where
+left-flanking = not followed by whitespace and (not followed by punctuation OR preceded
+by whitespace/punctuation); right-flanking = not preceded by whitespace and (not
+preceded by punctuation OR followed by whitespace/punctuation); and for `_`
+additionally: can open iff left-flanking AND (NOT right-flanking OR preceded by
+punctuation), can close iff right-flanking AND (NOT left-flanking OR followed by
+punctuation) — the intraword disallowance that cures `some_var_name`,
+`foo__bar__baz`, `a__bold__b`, `(x_y) (p_q)`; `*` keeps intraword (CommonMark allows —
+`foo*bar*baz` / `foo**bar**baz` stay em/strong). The check applies to the matched
+pair's opener and closer (the characters immediately before/after the delimiters);
+marked's full delimiter-run analysis is the oracle shape, the battery is the bar
+(ASCII punctuation classes suffice for every battery case). A pair that FAILS the law
+follows the I65 D1 reject-emission semantics EXACTLY: emit the delimiter character
+at `m.begin(0)`, advance `m.begin(0) + 1`, re-scan (the remainder still pairs later
+delimiters) — the existing `inline_scan` pins and md-repro cases must stay green.
+
+**R4 — the em arm spans inner `*`.** The em arm's content class widens so an em pair
+can wrap inner `*`/`**` runs (recursion nests the styles — `*em **inner** em*` →
+em[plain "em ", strong+em "inner", plain " em"]). Match priority against the strong
+arm must keep every GREEN case and the existing pins exact — in particular
+`**bold *nested***` stays `[bold "bold ", bold+italic "nested"]` and
+`**bold *inner* bold**` / `**bold _inner_ bold**` stay green.
+
+**R5 — the escape arm's punctuation law.** `\\.` becomes backslash + ASCII
+punctuation ONLY (the CommonMark escapable set); a backslash before anything else
+(letter, digit, space, newline) is LITERAL text (cures `back \to *em* now`). The
+escape emission (`m[:escape][1..]`, plain-styled) is unchanged.
+
+**R6 — link destinations carry balanced parens.** The link arm's `\(…\)` alternation
+accepts destinations containing balanced `(`…`)` pairs (the closing delimiter is the
+final unbalanced `)`) — the full URL rides the gray `link_url` span. The text==href /
+mailto-strip / no-suffix rules are unchanged (green cases keep).
+
+**R7 — indented fences dedent their body.** An opening fence indented up to 3 spaces
+strips that indent from each body line (bounded by the line's own indent) — matched
+fences, display, and non-indented/tilde/unclosed fences unchanged.
+
+**R8 — task-list markers ride the bullet span.** A list item beginning `[ ] `, `[x] `,
+or `[X] ` (followed by content or end) is a task item: the marker text folds INTO the
+listBullet-styled span (`"- [x] "`, `"- [ ] "`), removed from the item text; the
+continuation prefix width follows the full marker (pi: `indent + " " *
+visible_width(marker)`). Non-task lists are unchanged (paren-ordered, nested, loose
+pins keep).
+
+### Frozen expectations (do not redesign)
+
+- The I65 D1 owner-payload pins (`OWNER_PAYLOAD`, `OWNER_PAYLOAD_SLICE`, the minimal
+  trigger, the cover walk) and the reject-emission pins stay GREEN — or move ONLY with
+  declared, oracle-verified expectations (never silently). The md-repro passthrough
+  cases (`between zai/* and openrouter/z-ai-*); tail`, `a ~~ padded ~~ b * and *`)
+  stay byte-exact.
+- NO render call-site changes: `transcript.rb` ({markdown_lines} :491,
+  {reasoning_lines} :536) and `chat.rb` :2068-:2124 are OUT OF the touch set unless a
+  battery defect demands a seam change — declared in the report if so.
+- NO rig scenario-content edits (`gems/tui-split-rig/scenarios/**`, `registry.yml`,
+  `fixtures/` byte-frozen); no new gems; no Gemfile/gemspec/lock changes; no new
+  `Thread.new` sites; the parser stays hand-rolled and gem-neutral (the file stays
+  free of the underlying gem's name — tui-seam).
+- The converter's public interface (`Markdown.rows(text, width:)`, `Span`, `FG`) is
+  unchanged — both render call paths consume it as-is.
+- The nested-strong-inside-heading duplicate `:bold` modifier (mods `[bold, bold]`) is
+  visually idempotent and NOT a battery requirement — optional span hygiene only
+  (e.g. modifier set-union in the recursion), never a gate.
+
+### Named exclusions (Constraints, itemized)
+
+- **Tables** — pi's renderTable is a full bordered-table renderer; the converter has
+  no table support and porting one is outside the plan's frozen battery letter (owner
+  backlog candidate; the battery contains no table case).
+- **Setext headings, autolinks `<…>`, images, OSC-8 hyperlinks** (standing I06
+  exclusion), **latex rendering** (pi's $…$ machinery; the battery deliberately
+  contains no `$`/`\(`/`\[` bytes).
+- **ENTRY 2 (`child-env-scrub`)** — a separate iteration; the bundler-env poison cure
+  is NOT this lane's work, even where a test touches env.
+- Plan-excluded follow-ups (owner backlog): s9 beyond the gate out-dir rebase;
+  wire-delta beyond the constant correction; s18/I60-E-3 blank-line class; fast-llm
+  releases; model-window automation re-arm; tart PR-to-main decision.
+- `problems.md`/`ARCHITECT.md` annotations are LANDING work (architect-owned), not
+  lane work.
+
+### Output format
+
+- NO lane commits (the I65 D1 standing ruling — the integrator lands the tree). The
+  deliverable is the provisioned worktree's diff vs `3845f6a`, exactly:
+  `lib/tart/render/markdown.rb` (modified), `test/markdown_test.rb` (modified),
+  `test/fixtures/markdown_battery.json` (NEW, untracked — byte-identical to the spec
+  fixture), plus `test/chat_test.rb` / `test/render/transcript_test.rb` ONLY if frozen
+  expectations legitimately move (each move declared, oracle-verified).
+- Scratch report at `build/I68-markdown-parity-core/report.md`: the suite summary
+  line, every gate one-liner, the battery's per-family outcome (the 11 designed-RED
+  cases cured, the 37 green kept), deviations itemized.
+
+### Tool guidance
+
+- Verification (exact, tested at base `3845f6a` this session):
+  `cd repos/tart && bundle install --quiet && bundle exec rake` →
+  `1211 runs, 5911 assertions, 0 failures, 0 errors, 1 skips`, exit 0 (post-lane:
+  ≥ 1211 runs, 0F/0E); `bundle exec ruby bench/seam_bench.rb` → last line
+  `SEAM_BENCH_OK`.
+- The battery unit form: `bundle exec ruby -Ilib -Itest test/markdown_test.rb -n
+  "/md_battery/"` → ≥ 48 runs, 0F; the full markdown family:
+  `bundle exec ruby -Ilib -Itest test/markdown_test.rb` → 0F (base 31 runs + your
+  battery pins).
+- The rig battery at YOUR tree (the lane worktree): the s-gate forms verbatim from
+  the Acceptance Criteria (env-strip prefix `env -u HERDR_ENV -u HERDR_TAB_ID -u
+  HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID`, the
+  frozen SHORT out dirs), NO `--pi-bin` flag anywhere.
+- Oracle probes (read-only): `cd repos/pi/packages/tui && node -e '…require("marked")…'`
+  (marked resolves via the hoisted root `node_modules`; 18.0.11). NEVER write under
+  `repos/pi` — the pin is environment, guarded.
+- `BUNDLE_GEMFILE`/bundler context may leak from parent sessions — prefix suspect
+  tool calls with `env -u BUNDLE_GEMFILE` (or the full scrub for `architect` CLI).
+
+### Boundaries
+
+- May touch: exactly the declared 5-path set (scope gate):
+  `lib/tart/render/markdown.rb`, `test/markdown_test.rb`,
+  `test/fixtures/markdown_battery.json` (NEW, spec-frozen bytes),
+  `test/chat_test.rb` + `test/render/transcript_test.rb` (declared-moves only).
+- Must not touch: everything else — including the render call sites
+  (`lib/tart/render/transcript.rb`, `lib/tart/render/chat.rb`) absent a declared
+  defect, all other `lib/tart/**`, the rig (`gems/tui-split-rig/**` — scenarios,
+  registry, fixtures, bins, runner), Gemfile/lock/gemspec, `bench/`, tart's `bin/`,
+  and anything under `repos/pi`.
+- Frozen stack: **BRIEF §2** (ratatui_ruby 1.5.0 behind `TUI`;
+  fast-completions 0.5.0); house style per AGENTS: commented citations at the
+  touched seams, tests through public interfaces, no refactors beyond the task.
+
+### Lane plan
+
+One lane — one converter, one battery, both render paths proven through it.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision markdown-parity`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/render/markdown.rb
+    - test/markdown_test.rb
+    - test/fixtures/markdown_battery.json
+    - test/chat_test.rb
+    - test/render/transcript_test.rb
+  effort: high
 ```
+
+### Effort call
+
+`high` — unlike the I67 measured-cure shape, this lane implements NEW parsing
+mechanism (the CommonMark flanking predicates woven into the existing scan/reject
+architecture without breaking the I65 reject-emission semantics or any of the 37
+green cases), plus a 48-case frozen battery and the full 13-scenario pty battery —
+the delimiter law's regex/scan interactions (R4's widened em arm vs the strong arm's
+priority) are the kind of edge that needs the extra budget.
 
 ## Acceptance Criteria
 
