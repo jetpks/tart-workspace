@@ -2653,7 +2653,18 @@ project:
   - name: markdown-parity
     ordinal: 68
     file: architecture/I68-markdown-parity.md
-    freeze_sha:
+    freeze_sha: a53ca554e5871877decd42cc1de16140e35620f0
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/render/markdown.rb
+      - test/markdown_test.rb
+      - test/fixtures/markdown_battery.json
+      - test/chat_test.rb
+      - test/render/transcript_test.rb
+    rehearsal:
+      gates_digest: 2c70ac32ef544e95174b660497252240b71efd68396b5c91fe2c44bc211ea907
+      at: '2026-10-17T02:25:45-06:00'
   integration_branch: project/pi-port
