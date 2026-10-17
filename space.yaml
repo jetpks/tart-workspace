@@ -2615,7 +2615,7 @@ project:
       - test/theme_test.rb
       - test/support/viewport_buffer_probe.rb
       base_sha: 9db637047dde26e8e148b0d9f88565850e1b54fb
-      worktree: build/I66-viewport-polish-core/wt
+      worktree:
       integration_branch: project/pi-port
       harness: pi
       model: openrouter/z-ai/glm-5.3-flash
