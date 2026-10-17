@@ -81,7 +81,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: subagents-default-on
+  current_iteration: model-catalogue
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -2756,4 +2756,10 @@ project:
     rehearsal:
       gates_digest: c7a64131457ed03edbdf7a5fec45f827389ecf73e2c0913709be22078c773f55
       at: '2026-10-17T15:36:39-06:00'
+  - name: model-catalogue
+    ordinal: 71
+    file: architecture/I71-model-catalogue.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
