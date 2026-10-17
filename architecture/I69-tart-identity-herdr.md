@@ -1281,10 +1281,174 @@ they adjudicate env-class, exactly as standing. Gates: `suite`, `bench`.
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I69-tart-identity-herdr-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section tart-identity-herdr prompt --append --lane <lane> --from build/I69-tart-identity-herdr-<lane>/prompt.md`. -->
+### core
+
+You are the builder for iteration `tart-identity-herdr` (I69), lane `core`.
+Work ONLY in the provisioned worktree on branch
+`lane/I69-tart-identity-herdr-core` (base tart `project/pi-port` @ `3845f6a`
+— tip, clean, in sync with origin); NEVER commit (the integrator lands your
+tree), NEVER touch the space repo, NEVER push, NEVER touch any gem
+(published fast-completions 0.5.0 and ratatui_ruby 1.5.0 are dependencies —
+consume, never modify), NEVER write anything under `repos/pi` (the pinned
+oracle clone @ v1.1.0, branch `oracle-v1.1.0`, is ENVIRONMENT, guarded by
+the `oracle-pin-state` gate — read-only reference for you) or `repos/herdr`
+(the herdr server source + docs are a READ-ONLY reference for the wire
+contract). The full iteration contract is the frozen Grounds/Specification/
+Acceptance Criteria in this file (verbatim below) — read them first; this
+header is the lane's operating brief. You are the ONLY lane.
+
+THE TASK IN ONE PARAGRAPH: tart stands on its own face and an honest wire —
+two owner rulings 2026-10-17, one lane. (1) THE FLIP: `lib/tart/identity.rb`
+`DEFAULT = TART` (one constant; the resolution order, free-form rule,
+clean-abort, literal `TART_IDENTITY` key, and `ORACLE_VERSION = "1.1.0"`
+all byte-unchanged) + the three `bin/tart` help rows that name the default
+(the `--identity` flag description, the `TART_IDENTITY` env row — help
+text ONLY). (2) THE WIRE: `lib/tart/herdr.rb` — `SOURCE = "tart"`,
+`AGENT = "tart"` (identity-blind, both modes; request-id prefixes follow
+SOURCE), the seq base becomes pi's `Date.now()*1000` scale
+(`epoch_ms * 1000` ≈ 1.79×10¹⁵, +1 per report, monotonic), and
+`resume_argv = ["tart", "-r", <agent_session_id>]` (fallback
+`<agent_session_path>` when no id) attached to EVERY report that carries a
+session ref — both `report_session` AND ref-carrying `report_state` —
+built ONLY when every element passes herdr's validation predicate (plain
+first word `"tart"`; NO apostrophes or control characters — an arg that
+fails attaches NOTHING, never poisons the report: herdr rejects the WHOLE
+report on invalid argv, panes.rs:1561). The OQ-5 header comment is REWRITTEN
+citing the reversal (the "identical bytes" ruling is dead —
+`source "herdr:pi"`/`agent "pi"` is a reserved native pair herdr
+gauntlet-drops; cite notes/plan-20261017T183001Z-tart-standalone.md ENTRY 1).
+(3) THE RIG PIN: `gems/tui-split-rig/lib/tui_split_rig/runner.rb` — the
+fetch default stays `"pi"`; a scenario env override staging a BLANK or NIL
+`TART_IDENTITY` is REFUSED loudly (`TuiSplitRig::Error` naming the
+requirement) — never composed into the pane command. (4) THE LIVE GATE:
+NEW `gems/tui-split-rig/bin/herdr-wire-probe` (the tool-pending-probe
+shape): listener UNIX socket in `--out DIR` (the tmp/probe-herdr/
+listener.rb pattern — accept-loop thread, one log line per request, reply
+one byte), ONE tart boot via `TuiSplitRig::Runner` (app: "tart", runs: 1,
+a Hash-built Scenario — the render-perf-probe precedent, NO yaml file)
+staging `env.tart` `TART_IDENTITY: tart` + `HERDR_ENV: 1` /
+`HERDR_SOCKET_PATH` / `HERDR_PANE_ID`, the scripted prompt, settle,
+teardown, then assert the RECEIVED bytes: every report carries
+`source == "tart"` AND `agent == "tart"` (never a `herdr:` prefix); seqs
+>= 10^15 and strictly increasing in arrival order; the state ladder
+idle (forced session_start publish) → working (agent_start) → idle
+(agent_end) across the mock turn; every ref-carrying report carries
+`resume_argv == ["tart", "-r", <that report's agent_session_id or
+path>]`; a bounded post-settle wait (≤ ~5 s) covers the final idle's
+delivery race. Print `HERDR_WIRE_OK` / exit 0, else the failing line /
+exit 1. (5) THE TEST MOVES — run `bundle exec rake` IMMEDIATELY after the
+flip, BEFORE the herdr work, and enumerate the blast radius yourself;
+the Grounds blast-radius table is the AUDITED head start, not the ceiling.
+
+TEST-MOVE LAW (each move itemized in your report): (a) real-boot stagings
+(`launcher_smoke_test` smoke_env/wire_env, `e2e_session_test` tart_env,
+`subagents_e2e_test` env stagings) stage `TART_IDENTITY=pi` explicitly —
+the pin keeps testing the pi-parity opt-in, its PI_* literals
+byte-unchanged; (b) DEFAULT-implicit resolution pins (settings_test:208,
+models_test/shapes_test boot-model env-tier legs, agent_loop_test:1045,
+the launcher footer-window test's `ENV["PI_CONTEXT_WINDOW"]`) move with
+the default — the namespaced key the RESOLVED identity reads (TART_*), or
+an explicit identity arg, whichever preserves the pin's original
+discrimination; (c) `herdr_test` byte pins move to the new wire (source/
+agent "tart", id prefix `tart:`, seq scale, resume_argv, the sanitize
+rule); (d) NEW pins: the default-mode real boot (TART_* namespace, the
+"operating inside tart, a coding agent harness" + "You can inspect TART_*
+environment variables" preamble), the resolved-default face (tart wordmark
++ `Tart::VERSION`, never the oracle version) and the explicit-pi face
+staying byte-pi (identity_test), the settings-default row. NOTHING is
+DELETED: moved pins keep their discrimination; the suite grows past the
+measured 1211 floor. If a test OUTSIDE the frozen whitelist breaks on the
+flip, STOP and disclose in the report — do not widen the touch set
+silently (the judge adjudicates under the standing deviation discipline).
+
+FROZEN EXPECTATIONS (do not redesign; the frozen sections govern on any
+conflict):
+- NO LLM wire/session byte changes: herdr rides its own socket, never the
+  model wire — the wire-delta digests (instruction `4209f40b…`, tools
+  `7360fd1e…758831…`) and the session-golden digests hold EXACT at your
+  tree.
+- Pi-parity mode is byte-exact (the rig stages it explicitly; the frozen
+  s-family battery stays green cold). `s1-tart-mode` (staged tart) stays
+  green cold. `ORACLE_VERSION` survives. `Motd`/`render/**` files are OUT
+  of the touch set (the face dispatch chat.rb:829 is identity-only).
+- NO rig scenario-CONTENT edits (`gems/tui-split-rig/scenarios/**`
+  byte-frozen, pinned by the scope gate); the probe builds its Scenario
+  from a Hash.
+- NO `pane.release_agent` report (pi's own v9 extension sends none;
+  herdr's idle-prompt safety net clears on exit) — named exclusion,
+  reopenable post-landing.
+- The send path (one retry, swallowed failures, latest-wins coalescing,
+  FIFO sessions, dedup + forced publish, TUI-only root, env gate off →
+  registers nothing) is byte-unchanged.
+- No new gems; no Gemfile/gemspec/lock/bench changes; no new
+  `Thread.new` sites in lib (the threads-budget gate).
+- Your tree's diff vs `3845f6a` is EXACTLY the frozen touch set
+  (Specification "Boundaries"): `lib/tart/identity.rb`,
+  `lib/tart/herdr.rb`, `bin/tart`,
+  `gems/tui-split-rig/lib/tui_split_rig/runner.rb`,
+  `gems/tui-split-rig/bin/herdr-wire-probe` (NEW),
+  `gems/tui-split-rig/test/scenario_test.rb`, and test moves ONLY within
+  `test/{identity,settings,herdr,launcher_smoke,e2e_session,subagents_e2e,
+  shapes,models,agent_loop}_test.rb`.
+
+VERIFICATION (exact commands, all tested at base `3845f6a` this session;
+run at YOUR tree — the judge's venue):
+- `bundle install --quiet && bundle exec rake` — ≥ 1211 runs, 0 failures,
+  0 errors (1 standing skip; base measured 1211/5911 cold).
+- `bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1` — `SEAM_BENCH_OK`.
+- The designed-RED gates all cure at your tree:
+  `bundle exec ruby -Ilib -e` identity-law / default-face / default-boot /
+  herdr-units forms (the frozen gate commands, verbatim from the gates
+  block — run them from the frozen file, never hand-retyped);
+  `gems/tui-split-rig/bin/herdr-wire-probe --out t69hwp` (after the env
+  strip) → `HERDR_WIRE_OK`; the rig-identity-assert and scope forms.
+- The rig battery at YOUR tree with the FROZEN SHORT out dirs
+  (`t69s1`…`t69s10`, `t69s17`, `t69s1t`, `t69wir`, `t69zwr`, `t69tp`,
+  `t69ub`) and the env-strip prefix `env -u HERDR_ENV -u HERDR_TAB_ID -u
+  HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u
+  HERDR_PANE_ID`, NO `--pi-bin` flag anywhere. Geometry: the out dirs are
+  load-bearing (the s9 AGENTS.md wrap law, Grounds — row = tree + outdir
+  + 32 fires at > 120); do NOT lengthen them. All 13 pty members +
+  wire-delta + zai-wire were GREEN at base — they must STAY green under
+  the runner's explicit identity staging.
+- HERDR discipline for any direct probe: this repo's sessions run inside
+  herdr panes — strip `HERDR_*` from probe environments exactly like the
+  frozen gate prefixes, or the reporter will dial the REAL owner socket.
+- Bundler context may leak from parent sessions — prefix suspect tool
+  calls with `env -u BUNDLE_GEMFILE` (the full scrub until the
+  child-env-scrub iteration lands).
+
+REFERENCE CITATIONS FOR THE TOUCHED SEAMS (house style — commented at the
+seam): `~/.pi/agent/extensions/herdr-agent-state.ts` (the v9 reference:
+seq `Date.now() * 1000` +1/report; no resume_argv; no release);
+`repos/herdr/docs/preview/website/src/content/docs/add-herdr-support.mdx`
+(the first-class contract: source must NOT start `herdr:`; `--agent` is
+the user-visible name; seq per-source increasing; resume_argv rules —
+plain PATH first word, ≤64 args, ≤8KiB, no apostrophes/control chars,
+state report precedes/rides); `repos/herdr/docs/socket-api.mdx:692`;
+`repos/herdr/src/app/api/panes.rs` `handle_pane_report_agent` :1554 /
+`handle_pane_report_agent_session` :1599 / `report_agent_resume` (the
+pane-hold + session-currency laws);
+`repos/herdr/src/detect/mod.rs:330-348` `full_lifecycle_hook_authority`
+(the reserved pairs — why `herdr:pi`/`pi` was silently dropped);
+`repos/herdr/src/terminal/state.rs:931` (the gauntlet) +
+`hook_report_is_newer` (per-source seq). The live-probe record
+`<space>/tmp/probe-herdr/` (listener.rb + received.log — tart's current
+wire bytes, wrong source + wrong seq scale visible in them) is read-only
+reference: reuse the PATTERN, never the files.
+
+DISCIPLINE: house style per the repo's conventions — tests through public
+interfaces, no refactors beyond the task, deviations ITEMIZED (every
+moved test pin named, every surprise, every frozen-expectation touch —
+declare, never absorb silently). The builder-report gate table MUST
+include EVERY frozen gate with its one-liner (the I68 lesson: an absent
+gate in the table is a REJECT-class violation). The oracle-pin gate's
+result is environment, not yours — report, never fix.
+
+OUTPUT: your scratch report at `build/I69-tart-identity-herdr-core/
+report.md` — the AC-by-AC outcome, the suite summary line, every gate
+one-liner (all 48), the itemized moved-pin table, the probe's received-bytes
+digest (the log lines), deviations, residual risks.
 
 ## Builder Report
 
