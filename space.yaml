@@ -2705,6 +2705,13 @@ project:
       - test/shapes_test.rb
       - test/models_test.rb
       - test/agent_loop_test.rb
+      base_sha: 3845f6a97dd8e2f6319055f320860e8de19ca90f
+      worktree: build/I69-tart-identity-herdr-core/wt
+      integration_branch:
+      harness: pi
+      model: openrouter/z-ai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: ee5ac5e73f27685e84c731a9c179618c5887fc053faf12bc3a369f86d73088a1
       at: '2026-10-17T12:43:36-06:00'
