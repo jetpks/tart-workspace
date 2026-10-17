@@ -2746,12 +2746,13 @@ project:
       - test/subagents_test.rb
       - test/subagents_e2e_test.rb
       base_sha: 2a33f66dc9a26ee90d2416cc289dd7b23e16735a
-      worktree: build/I70-subagents-default-on-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: openrouter/z-ai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: d0fd0e7daba0e6c2b5f7e9795178f4de6665d7c8
     rehearsal:
       gates_digest: c7a64131457ed03edbdf7a5fec45f827389ecf73e2c0913709be22078c773f55
       at: '2026-10-17T15:36:39-06:00'
