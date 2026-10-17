@@ -1143,10 +1143,138 @@ env-class, exactly as standing. Gates: `suite`, `bench`.
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I68-markdown-parity-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section markdown-parity prompt --append --lane <lane> --from build/I68-markdown-parity-<lane>/prompt.md`. -->
+### core
+
+You are the builder for iteration `markdown-parity` (I68), lane `core`.
+Work ONLY in the provisioned worktree on branch
+`lane/I68-markdown-parity-core` (base tart `project/pi-port` @ `3845f6a` —
+tip, clean, in sync with origin); NEVER commit (the integrator lands your
+tree), NEVER touch the space repo, NEVER push, NEVER touch any gem
+(published fast-completions 0.5.0 and ratatui_ruby 1.5.0 are dependencies —
+consume, never modify), NEVER write anything under `repos/pi` (the pinned
+oracle clone @ v1.1.0, branch `oracle-v1.1.0`, is ENVIRONMENT, guarded by
+the `oracle-pin-state` gate — read-only reference for you). The full
+iteration contract is the frozen Grounds/Specification/Acceptance Criteria
+in this file (verbatim below) — read them first; this header is the lane's
+operating brief. You are the ONLY lane.
+
+THE TASK IN ONE PARAGRAPH: bring the hand-rolled markdown converter
+(`lib/tart/render/markdown.rb`) into VISUAL parity with pi's renderer
+(marked 18.0.11) across the FROZEN 48-case battery — the owner's live
+finding (underscores eaten in thinking text; broad delimiter divergence)
+cured as observable distinctions, the converter staying hand-rolled (owner
+ruling: no markdown dependency, ever). (1) Copy the spec-frozen fixture
+`<space>/tmp/i68-spec/markdown_battery.json` VERBATIM (verify sha256
+`4ecd9cc2a5937dda7254c6553c6b9927b7af725e111ea02acf9226c2e01ac883` before
+writing; NEVER regenerate or edit it — it is DATA, the spec session's
+oracle captures) to `test/fixtures/markdown_battery.json` in your
+worktree. (2) Pin the battery in `test/markdown_test.rb`: exactly ONE test
+per fixture case, named `test_md_battery_<name>` (the token `md_battery`
+in the name is LOAD-BEARING — the gate filter `/md_battery/` must match
+≥ 48 runs), each rendering `Render::Markdown.rows(src, width: 94)` and
+comparing rows field-wise: spans mapped to
+`[text, fg&.to_s, modifiers.map(&:to_s).uniq.sort]` (zero-width spans
+dropped; fg `null` ↔ `span.fg.nil?`; modifiers as SETS) vs the fixture
+rows; one shared fixture-load + compare helper; public interface only.
+(3) Cure the converter per Grounds R1–R8: R1/R2/R3 the CommonMark
+flanking law in BOTH the em and strong arms for BOTH delimiters (a
+delimiter can OPEN only if left-flanking, CLOSE only if right-flanking;
+for `_` additionally can-open iff left-flanking AND (not right-flanking OR
+preceded by punctuation), can-close iff right-flanking AND (not
+left-flanking OR followed by punctuation) — intraword `_` disallowed,
+intraword `*` KEPT); R4 the em arm widened to span inner `*` delimiters;
+R5 the escape arm consumes backslash + ASCII punctuation ONLY (backslash
+before anything else is literal text); R6 link destinations carry
+balanced parens (the full URL rides the gray link_url span); R7 an
+indented opening fence (≤ 3 spaces) dedents its body lines; R8 task
+markers (`[ ] `/`[x] `/`[X] ` at item start) fold INTO the
+listBullet-styled marker span with the continuation prefix following the
+full marker width.
+
+THE REJECT PATH IS FROZEN (I65 D1): a delimiter pair that FAILS the
+flanking law emits the delimiter character AT `m.begin(0)`, advances
+`m.begin(0) + 1`, and re-scans (the remainder still pairs later
+delimiters) — the existing `inline_scan` pins, the md-repro passthrough
+cases, and the I65 owner-payload fixtures must stay green. The mechanism
+(regex reshaping vs a delimiter pre-scan) is YOUR choice within the
+hand-rolled constraint — the frozen battery is the bar: the 11
+designed-RED cases cure (owner_snake_line, intraword_double_underscore,
+multi_snake_identifiers, strong_padded, strong_intraword,
+underscore_pair_in_parens, em_nested_strong_star,
+escaped_backslash_before_letter, link_parens_url, fenced_indented,
+list_task) AND the 37 GREEN cases keep (the `*`-intraword asymmetry,
+`A _real_ emphasis case`, `**bold *nested***`, all link edges except
+parens-URL, strict-del family, headings, fences, lists, quotes).
+
+TEST-NAME TOKEN (load-bearing): `md_battery` in every battery test name.
+If a test you write fits but lacks the token, the gate reads 0 runs and
+fails — name them deliberately.
+
+FROZEN EXPECTATIONS (do not redesign; the frozen sections govern on any
+conflict):
+- The fixture is byte-frozen (the `md-battery-fixture` gate pins the sha).
+- NO render call-site changes: `transcript.rb` ({markdown_lines} :491,
+  {reasoning_lines} :536) and `chat.rb` :2068-:2124 are out of the touch
+  set unless a battery defect demands a seam change — declared in your
+  report if so. `test/chat_test.rb` / `test/render/transcript_test.rb`
+  may move ONLY as declared, oracle-verified expectation moves.
+- NO rig edits (`gems/tui-split-rig/**` byte-frozen); no new gems; no
+  Gemfile/gemspec/lock changes; no new `Thread.new` sites; the converter
+  file stays free of the underlying gem's name (tui-seam); the public
+  interface (`Markdown.rows(text, width:)`, `Span`, `FG`) unchanged.
+- Your tree's diff vs `3845f6a` is EXACTLY: `lib/tart/render/markdown.rb`
+  (modified), `test/markdown_test.rb` (modified),
+  `test/fixtures/markdown_battery.json` (NEW, untracked — the
+  integrator's `git add` picks it up), plus chat_test.rb/transcript_test.rb
+  only as declared moves.
+
+VERIFICATION (exact commands, all tested at base `3845f6a`):
+- `bundle install --quiet && bundle exec rake` — expect ≥ 1211 runs, 0
+  failures, 0 errors (1 standing skip) at your tree (base 1211/5911).
+- `bundle exec ruby bench/seam_bench.rb` — last line `SEAM_BENCH_OK`.
+- `bundle exec ruby -Ilib -Itest test/markdown_test.rb -n "/md_battery/"`
+  — ≥ 48 runs, 0F; the full file
+  `bundle exec ruby -Ilib -Itest test/markdown_test.rb` — ≥ 79 runs
+  (31 base + 48 battery), 0F.
+- The rig battery at YOUR tree, the frozen SHORT out dirs
+  (`tmp/i68s1`…`tmp/i68s10`, `tmp/i68s17`, `tmp/i68s1t`, `tmp/i68wire`,
+  `tmp/i68zwire`), env-strip prefix `env -u HERDR_ENV -u HERDR_TAB_ID -u
+  HERDR_SOCKET_PATH -u HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u
+  HERDR_PANE_ID`, NO `--pi-bin` flag anywhere. All 13 pty members were
+  GREEN at base — they must STAY green (a render-only change must not
+  move any settled screen); the wire-delta pins (instruction sha
+  `4209f40b…`, tools sha `7360fd1e…758831…`) must hold EXACT.
+- Oracle probes (read-only): `cd repos/pi/packages/tui && node -e
+  '…require("marked")…'` (marked resolves via the hoisted root
+  node_modules; 18.0.11) — replicate pi's setup (fresh `Marked` +
+  `setOptions({tokenizer: new StrictStrikethroughTokenizer()})` —
+  markdown.ts :173-176) when probing del/strikethrough cases.
+- `BUNDLE_GEMFILE`/bundler context may leak from parent sessions —
+  prefix suspect tool calls with `env -u BUNDLE_GEMFILE`.
+
+PI CITATIONS FOR THE TOUCHED SEAMS (house style — commented at the seam):
+markdown.ts :9 (STRICT_STRIKETHROUGH_REGEX), :13-28
+(StrictStrikethroughTokenizer), :173-176 (the parser setup — the flanking
+behavior is marked 18.0.11's CommonMark emphasis implementation),
+:473-493 (heading levels/prefix), :526-550 (code fences + codeBlockIndent),
+:616 (hr cap 80), :699-719 (link render + the URL fallback), :775-789
+(list normalization), the renderList block incl. `taskMarker` (the
+`[x] `/`[ ] ` marker folded into listBullet) and the continuation prefix
+(`indent + " " * visible_width(marker)`); CommonMark spec §“Emphasis and
+strong emphasis” (delimiter runs, left/right-flanking, the `_` rules) —
+marked's implementation is the oracle; your port needs the predicates,
+the battery is the acceptance bar.
+
+DISCIPLINE: house style per the repo's conventions — tests through public
+interfaces, no refactors beyond the task, deviations ITEMIZED (any
+contract-shape deviation, any surprise, any frozen-expectation move —
+declare, never absorb silently). The oracle-pin gate's result is
+environment, not yours — report, never fix.
+
+OUTPUT: your scratch report at `build/I68-markdown-parity-core/report.md`
+— the AC-by-AC outcome, the suite summary line, every gate one-liner, the
+battery's per-family outcome (the 11 designed-RED cases cured, the 37
+green kept), the enumerated deviations.
 
 ## Builder Report
 
