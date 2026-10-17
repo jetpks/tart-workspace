@@ -1474,11 +1474,142 @@ digest (the log lines), deviations, residual risks.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I69-tart-identity-herdr-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence tart-identity-herdr --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# I69 `tart-identity-herdr` — builder report, lane core
+
+STATUS: COMPLETE_WITH_CONCERNS
+
+## Result (one paragraph)
+
+Both owner rulings landed at the lane tree (base `3845f6a`, never committed): (1) `lib/tart/identity.rb` `DEFAULT = TART` — the resolution order, free-form rule, clean-abort, literal `TART_IDENTITY` key, and `ORACLE_VERSION = "1.1.0"` untouched, plus the three `bin/tart` help rows now naming tart as the default (help text only); (2) `lib/tart/herdr.rb` reports tart's own name (`SOURCE = "tart"`, `AGENT = "tart"`, request-id prefixes `tart:session:`/`tart:`), the seq base moved to pi's `epoch_ms * 1000` scale (~1.79×10¹⁵, +1 per report, monotonic), and `resume_argv = ["tart", "-r", <agent_session_id-or-path>]` rides every session-ref report (session AND ref-carrying state), built only under herdr's validation predicate — a poisoned arg attaches nothing; the OQ-5 header comment is rewritten citing the reversal; (3) the rig runner refuses a blank/nil staged `TART_IDENTITY` loudly (`TuiSplitRig::Error`, fetch default stays `"pi"`); (4) the NEW live gate `gems/tui-split-rig/bin/herdr-wire-probe` passes cold (`HERDR_WIRE_OK`); (5) the measured post-flip blast radius (56F/3E at first `bundle exec rake`) was fully moved — every pin keeps its discrimination, nothing deleted. Suite: **1219 runs / 5948 assertions / 0 failures / 0 errors / 1 skip, rake exit 0** (base floor 1211/5911) + `SEAM_BENCH_OK`. Two frozen gates do not hold as-written: `scope` fails exactly on the supervisor-sanctioned deviation files (expected, the disclosure mechanism), and `default-face` fails on a frozen-gate defect (see Concerns).
+
+## PHASE 0 notes
+
+- The lane prompt references "the frozen Grounds/Specification/Acceptance Criteria in this file (verbatim below)" but `build/I69-tart-identity-herdr-core/prompt.md` (166 lines) does not contain them; the authoritative frozen contract is `architecture/I69-tart-identity-herdr.md` (1496 lines, 48-gate gates block). All gate commands were executed mechanically from that file, never hand-retyped. Declared here, not a spec disagreement.
+- Declared deviation (comment-only): the two `lib/tart/identity.rb` comment lines naming `default "pi"` were corrected to name the tart default + cite the 2026-10-17 ruling. The resolution-order code is byte-unchanged; a stale why-comment would violate the repo's comment discipline.
+- Declared deviation (supervisor ruling 2026-10-17, relayed by the coordinator after my contact_supervisor schema-validation failure): the flip's measured blast radius broke lib-level code and test pins outside the frozen touch set. Ruling: OPTION (A) — cure `lib/tart/subagents/manager.rb` + move the out-of-whitelist DEFAULT-implicit pins in 7 named test files, each itemized; the as-frozen `scope` gate failing on these files is EXPECTED.
+
+## AC-by-AC outcome
+
+| AC | Result | Evidence |
+|----|--------|----------|
+| AC1 the identity flip | PASS | `identity-law`/`default-face`-legs-1-2/`default-boot` gates + identity_test pins; resolution order, clean-abort, `TART_IDENTITY` literal, `ORACLE_VERSION` all hold; help rows name tart |
+| AC2 the honest herdr wire | PASS | `herdr-units` + `herdr-wire-probe` (HERDR_WIRE_OK, digest below); identity-blind both modes; seq ≥10¹⁵ strictly increasing; resume_argv on every ref-carrying report; env-off inert; send path byte-unchanged |
+| AC3 the rig staging pin | PASS | `rig-identity-assert` + scenario_test blank-refusal pin; fetch default stays "pi"; no scenario-content edits |
+| AC4 byte-freeze + anchors | PASS | `scope` fails ONLY on the sanctioned deviation files (exact list verified via the gate's own grep); wire-delta digests (`4209f40b…`, `7360fd1e…758831…`) and session-golden hold EXACT; no Gemfile/lock/gemspec/bench/scenario edits; no new `Thread.new` in lib |
+| AC5 pty parity battery | PASS | s1–s10, s17, s1-tart-mode (TART_MODE_OK), zai-max-tokens-wire (tart=pi=512) — all cold at the frozen SHORT out dirs `t69s1`…`t69s17`, `t69s1t`, `t69wir`, `t69zwr`, no `--pi-bin` anywhere |
+| AC6 suite + bench | PASS | 1219/5948/0F/0E/1S, rake 0; SEAM_BENCH_OK |
+
+## Suite summary line
+
+`1219 runs, 5948 assertions, 0 failures, 0 errors, 1 skips` — `bundle install --quiet && bundle exec rake` exit 0 (base measured 1211/5911/0F/0E/1S; the suite grew +8 runs: herdr_test +6, identity_test +2, scenario_test +1, launcher_smoke +1, offset by two pre-existing pin consolidations during moves).
+
+## Frozen gate table — all 48 (executed verbatim from `architecture/I69-tart-identity-herdr.md` gates block at the lane tree)
+
+| Gate | Result | One-liner |
+|------|--------|-----------|
+| suite | PASS | SUITE_OK — 1219/5948/0F/0E/1S |
+| bench | PASS | SEAM_BENCH_OK |
+| md-repro | PASS | MD_REPRO_OK |
+| md-inline-units | PASS | MD_INLINE_UNITS_OK |
+| pending-registry-units | PASS | PENDING_REGISTRY_UNITS_OK |
+| footer-window | PASS | FOOTER_WINDOW_OK 1000000 (env tier via TART_CONTEXT_WINDOW) |
+| thinking-pins | PASS | THINKING_PINS_OK |
+| hermeticity | PASS | HERMETICITY_OK (launcher 11 runs, e2e 4 runs) |
+| lock-deps | PASS | LOCK_DEPS_OK + GEM_LOAD_OK |
+| zai-data | PASS | ZAI_DATA_OK |
+| threads-budget | PASS | THREADS_BUDGET_OK (no new Thread.new in lib) |
+| session-golden | PASS | SESSION_GOLDEN_OK (all seven digests hold) |
+| strict-wire | PASS | 8 runs, 76 assertions, 0F/0E |
+| error-transcript-units | PASS | ERROR_TRANSCRIPT_UNITS_OK |
+| error-transcript-render-units | PASS | ERROR_TRANSCRIPT_RENDER_UNITS_OK |
+| render-perf-units | PASS | 7 runs, 29 assertions, 0F/0E |
+| render-perf-probe | PASS | RENDER_PERF_OK (attempt 2 — attempt 1 flaked a BP timing budget under load, see Concerns) |
+| tool-pending-gate | PASS | TOOL_PENDING_GATE_OK at t69tp |
+| user-bash-stream-gate | PASS | USER_BASH_STREAM_GATE_OK at t69ub |
+| zai-max-tokens-units | PASS | ZAI_MAX_TOKENS_UNITS_OK |
+| rail-bg | PASS | RAIL_BG_OK |
+| jump-pill-units | PASS | JUMP_PILL_UNITS_OK |
+| rail-bg-units | PASS | RAIL_BG_UNITS_OK |
+| viewport-probe | PASS | VIEWPORT_PROBE_OK c |
+| oracle-pin-state | PASS | ORACLE_PIN_OK (environment gate — pinned clone v1.1.0 clean; not mine to fix) |
+| oracle-bin-units | PASS | ORACLE_BIN_UNITS_OK |
+| oracle-resolve | PASS | ORACLE_RESOLVE_OK |
+| s1-parity | PASS | t69s1 green |
+| s2-parity | PASS | t69s2 green |
+| s3-parity | PASS | t69s3 green |
+| s4-parity | PASS | t69s4 green |
+| s5-parity | PASS | t69s5 green |
+| s6-parity | PASS | t69s6 green |
+| s7-parity | PASS | t69s7 green |
+| s8-parity | PASS | t69s8 green |
+| s9-parity | PASS | t69s9 green (out dir 5 chars — the wrap-law geometry holds at tree length 83) |
+| s10-parity | PASS | t69s10 green |
+| s17-parity | PASS | t69s17 green |
+| s1-tart-mode | PASS | TART_MODE_OK (rig ec ≤ 1, completed, requests == expected) |
+| wire-delta | PASS | WIRE_DELTA_OK — instruction sha `4209f40b…`, tools sha `7360fd1e…758831…` EXACT |
+| zai-max-tokens-wire | PASS | ZAI_WIRE_OK tart=pi=512 |
+| identity-law | PASS | IDENTITY_LAW_OK — the designed-RED cure |
+| default-face | FAIL (frozen-gate defect) | gate legs 1–2 pass (tart wordmark + no oracle leak); leg 3 asserts PI_ONBOARDING_LINE unwrapped at width 60 — that 76-char line wraps at 60, the gate is unpassable as written (see Concerns) |
+| default-boot | PASS | DEFAULT_BOOT_OK — the designed-RED cure (tart preamble + TART_* namespace on a real boot) |
+| herdr-units | PASS | HERDR_UNITS_OK — the designed-RED cure (source/agent tart, id prefix, seq scale, resume_argv rules, env-off inert) |
+| herdr-wire-probe | PASS | HERDR_WIRE_OK at t69hwp (1 flake observed in 5 runs under load, see Concerns) |
+| rig-identity-assert | PASS | RIG_IDENTITY_OK — the designed-RED cure (blank/nil refusal) |
+| scope | FAIL (EXPECTED, sanctioned) | fails exactly on the supervisor-sanctioned deviation files; must-differ legs all differ; nothing else bites |
+
+## Itemized moved-pin table (every move; law (a)/(b)/(c)/(d))
+
+| File | Move | Law |
+|------|------|-----|
+| test/settings_test.rb | `:176/:190` resolve_setting env-tier legs → explicit `identity: "pi"` (PI_* literals byte-unchanged); `:208` resolution pin → default `"tart"`, settings-row `"pi"`, env-over-settings `TART_IDENTITY=tart` over settings pi, CLI over everything; `:234` message "the pi default"→"the tart default"; `:290` resolve_context_window legs → `identity: "pi"`; `:566` ladder legs → `identity: "pi"` | (b)/(d) |
+| test/models_test.rb | `:214/:219/:224` boot-model env-tier legs (PI_MODEL/PI_PROVIDER, no identity) → explicit `identity: "pi"` | (b) |
+| test/shapes_test.rb | `:203` three PI_ env-tier legs → explicit `identity: "pi"` | (b) |
+| test/agent_loop_test.rb | `:1045` zai no-entry env-tier pin: `ENV["PI_CONTEXT_WINDOW"]`→`ENV["TART_CONTEXT_WINDOW"]` (the key the RESOLVED default reads; keeps the DEFAULT-identity Loop route); `:1127` namespace-contrast pin: pi leg → explicit `identity: "pi"` (preserves the PI_ vs TART_ contrast) | (b) |
+| test/launcher_smoke_test.rb | `smoke_env` stages `TART_IDENTITY=pi` (cures `:30` boot pin + `:220` harness-prompt pin + `:332` zai no-entry boot, PI_* literals untouched); `:115` footer-clamps pin → `footer_data(..., identity: "pi")`; `:393` footer env-wins pin → `ENV["TART_CONTEXT_WINDOW"]="999"` + the scrub list gains the TART_* model-shaping keys (matches the frozen footer-window gate); NEW `test_default_mode_boot_speaks_the_tart_preamble_and_tart_namespace` (TART_* env only, real `bin/tart -p`, tart preamble + TART_* bullet, no PI_ leak) | (a)/(b)/(d) |
+| test/e2e_session_test.rb | `tart_env` stages `TART_IDENTITY=pi` | (a) |
+| test/subagents_e2e_test.rb | `tart_env` + `child_env` stage `TART_IDENTITY=pi` (child PI_* assertions byte-unchanged) | (a) |
+| test/herdr_test.rb | byte pins: id prefix `herdr:pi:session:`→`tart:session:`, source/agent → `"tart"`, ref now carries an id; NEW pins: seq ≥10¹⁵ scale, session resume_argv `["tart","-r","sid-9"]` (id wins), path fallback `["tart","-r","/tmp/p2.jsonl"]`, state-report resume_argv on a session ref, poisoned ref (apostrophe / control char / empty target) drops resume_argv NEVER the report, ref-less state carries none, lifecycle pin extended (source tart in both reports + resume_argv on the session report and the forced idle publish) | (c)/(d) |
+| test/identity_test.rb | NEW `test_the_resolved_default_face_is_the_tart_family` (tart wordmark + `Tart::VERSION`, never `ORACLE_VERSION`) and `test_the_explicit_pi_face_stays_byte_pi` (oracle version line + PI_ONBOARDING_LINE at width 120) | (d) |
+| gems/tui-split-rig/test/scenario_test.rb | NEW `test_blank_or_nil_staged_identity_is_refused_loudly` (nil/""/whitespace → `TuiSplitRig::Error` naming the requirement); the existing :399-417 explicit-staging pins stayed green byte-unchanged | R3 |
+| test/subagents_test.rb (deviation) | spawn-env closure pin: sanctioned list `PI_IDENTITY`→`TART_IDENTITY`, `assert_equal "pi", env["TART_IDENTITY"]` (the manager now stages the literal bootstrap key) | ruling 2 |
+| test/subagents_intercom_test.rb (deviation) | `tool_for` → `Tools::ContactSupervisor.new(..., identity: "pi")` (PI_* channel keys are the pi opt-in's namespace); `test_ask_timeout_env_tiers` PI_ legs → `identity: "pi"` | ruling 2 |
+| test/bash_tool_test.rb (deviation) | 4 session-env family pins (five-vars, inherited-scrub, spawn-time resolution, exact five-key shape) → explicit `identity: "pi"` | ruling 2 |
+| test/system_prompt_test.rb (deviation) | 3 byte-pi pins (captured-request composition, default-loadout golden sections, preamble/bash-env-rule pi leg) → explicit `identity: "pi"` | ruling 2 |
+| test/chat_test.rb (deviation) | 5 pi-face header pins → explicit `identity: "pi"`: ctrl-o startup-header flip, compaction-rebuild header restore, sigwinch header rebuild, motd-pi-header-bytes, compaction-rebuilds-kept-entries (via a new `with_chat(identity:)` test seam) | ruling 2 |
+| test/memory_test.rb (deviation) | register-recall pin → `Memory.register(hooks:, identity: "pi")` (the staged PI_MEMORY_HOME tier) | ruling 2 |
+| lib/tart/subagents/manager.rb (deviation, ruling 1) | `child_env`: the dead namespaced write `env[key.("IDENTITY")] = @identity` (PI_IDENTITY — read by nobody) REPLACED by the literal bootstrap key `env[Identity::ENV_KEY] = @identity`; all other child_env keys keep the namespaced form. Cured the 12 subagents_test failures + 3 subagents_e2e timeouts + intercom child boots (children resolved the then-pi default by coincidence pre-flip) | ruling 1 |
+
+Note: `test/subagents_profiles_test.rb` was named in the ruling's 7 but needed NO move — its pin cleared with the manager cure (15 runs green, zero edits).
+
+## The live probe's received-bytes digest (t69hwp, final gate run)
+
+```
+herdr-wire-probe received 5 report(s):
+  pane.report_agent_session seq=1792267370984001 state= source=tart agent=tart resume_argv=["tart", "-r", "01a14b75-c1e8-7dbb-b8c7-7c6cd6c79cf7"]
+  pane.report_agent seq=1792267370984002 state=idle source=tart agent=tart resume_argv=["tart", "-r", "01a14b75-c1e8-7dbb-b8c7-7c6cd6c79cf7"]
+  pane.report_agent_session seq=1792267370984003 state= source=tart agent=tart resume_argv=["tart", "-r", "01a14b75-c1e8-7dbb-b8c7-7c6cd6c79cf7"]
+  pane.report_agent seq=1792267370984004 state=working source=tart agent=tart resume_argv=["tart", "-r", "01a14b75-c1e8-7dbb-b8c7-7c6cd6c79cf7"]
+  pane.report_agent seq=1792267370984005 state=idle source=tart agent=tart resume_argv=["tart", "-r", "01a14b75-c1e8-7dbb-b8c7-7c6cd6c79cf7"]
+HERDR_WIRE_OK
+```
+
+(state field empty on the session reports is correct — `pane.report_agent_session` carries no state key; ladder idle→working→idle across the mock turn; seqs ~1.79×10¹⁵, strictly increasing.)
+
+## Deviations (complete list)
+
+1. SANCTIONED (supervisor ruling, relayed 2026-10-17): `lib/tart/subagents/manager.rb` child-identity bootstrap-key cure; out-of-whitelist DEFAULT-implicit pin moves in `test/{subagents,subagents_intercom,bash_tool,system_prompt,chat,memory}_test.rb` (6 files changed of the 7 named — `subagents_profiles_test` needed no edit). The as-frozen `scope` gate fails on exactly these files — expected, the disclosure mechanism; the judge amends the gate text before landing.
+2. Comment-only: two `lib/tart/identity.rb` comment lines naming the old default corrected (see PHASE 0).
+3. `test/chat_test.rb` gained a test-only kwarg on its `with_chat` helper (`identity:`, passed through when present) to move the pi-face pins without changing any lib code.
+4. No other frozen-expectation touch: Motd/render/**, scenarios/**, Gemfile/lock/gemspec/bench, send-path semantics, no-release exclusion, no new gems/threads — all verified untouched (threads-budget, wire-delta, session-golden, lock-deps gates green).
+
+## Residual risks / Concerns
+
+1. **`default-face` frozen gate is unpassable as written** (blocker-class for the judge, not for the code): its third assert requires `PI_ONBOARDING_LINE` to appear unwrapped in `pi_header_lines(expanded: false, width: 60)`; the 76-char line wraps at width 60 (verified directly — the failure abort is exactly "the explicit pi face moved: onboarding wraps at 60"). Legs 1–2 (tart wordmark present, oracle version absent from the default face) pass. The underlying AC1 behavior is verified correct by the frozen `default-boot` gate + the new identity_test pins. The judge must amend the gate (width 120, or assert a wrapped fragment) — the gate text is frozen and I do not edit the architecture file.
+2. **`herdr-wire-probe` flake (1 in 5 runs)**: one gate-batch run failed under heavy machine load (the dump ended on a `working` report — consistent with the final idle report not landing inside the spec-frozen ≤~5 s bounded wait; the probe prints the failing line + all received bytes on failure). 4 consecutive clean passes since, including the final gate run. No code change made (the wait bound is spec-frozen).
+3. **`render-perf-probe` timing flake (1 in 2 runs)**: attempt 1 failed one BP timing budget right after the full suite ran in the same shell; clean RENDER_PERF_OK on both reruns (including the final verbatim gate run). Standing perf-budget class (I58).
+4. Untracked gate artifacts (`t69s1`…`t69s17`, `t69s1t`, `t69wir`, `t69zwr`, `t69tp`, `t69ub`, `t69hwp`, `tmp/render-perf-gate`) remain in the worktree at the frozen short paths — the integrator should not land them (nothing is committed; `git log` untouched).
+5. The post-landing live restore (herdr server restart actually re-running `tart -r <id>`) remains argv-shape-gated only, per the spec's own open-question 3.
 
 ## Verdict
 
