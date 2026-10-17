@@ -26,3 +26,9 @@ Plan: notes/plan-20261017T183001Z-tart-standalone.md (7 ordered ENTRYs). No ENTR
 - Concerns for the judge: (1) default-face leg-3 frozen-gate defect; (2) render-perf-probe attempt-1 BP timing flake under load (attempt 2 passed); (3) herdr-wire-probe 1 flake in 5 runs under load; (4) builder note that prompt.md does not embed the frozen contract (arch file is authoritative).
 - Report file initially missing (summary-only); revived builder once (cae8c92f-e9cc-4363-987d-6d6043b781cc) to write it verbatim → build/I69-tart-identity-herdr-core/report.md (133 lines, landed 14:04 local).
 - Worktree build/I69-tart-identity-herdr-core/wt has the lane diff UNCOMMITTED? — worktree shows modified files; branch lane/I69-tart-identity-herdr-core still at base 3845f6a. Builder reported "never committed" per lane law (verify/evidence/merge flow commits via architect). NEXT: judge.
+
+## UPDATE 2026-10-17T20:5xZ — I69 CLOSED (CONTINUE)
+- Judge run 6bfd2e84-9f0f-48de-8c6d-2b1d0d208207: VERDICT CONTINUE recorded 814067f, lane merged 2a33f66 on project/pi-port, evidence a27278c, gate amendments 5743f83, index 5cb8e5c. AC1–AC6 PASS; suite 1219/5948/0F/0E/1S + SEAM_BENCH_OK on integrated tree; worktree + lane branch torn down.
+- Gate FAILs adjudicated: scope (sanctioned deviation, gate amended, SCOPE_OK cold ×2); default-face leg 3 (frozen-gate defect upheld, amended to width 120, DEFAULT_FACE_OK ×2); herdr-wire-probe (frozen-gate hygiene defect — missing `rm -rf t69hwp`; HERDR_WIRE_OK cold ×3).
+- Integration incident (honest history): first `git add -A` swept 347 gate artifacts; judge amended lane commit to intended 22-file tree, re-integrated cleanly (2a33f66).
+- NEXT: ENTRY 2 subagents-default-on spec spawn. NOTE for next lanes: I69 cured the subagents child-identity bootstrap bug in manager.rb child_env (literal env key) — ENTRY 2 spec/builder should read that cured form.
