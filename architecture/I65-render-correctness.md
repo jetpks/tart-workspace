@@ -846,10 +846,123 @@ Gates: `suite`, `bench` (+ every AC4 member cold).
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I65-render-correctness-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section render-correctness prompt --append --lane <lane> --from build/I65-render-correctness-<lane>/prompt.md`. -->
+### core
+
+You are the builder for iteration `render-correctness` (I65), lane `core`.
+Work ONLY in the provisioned worktree on branch
+`lane/I65-render-correctness-core` (base tart `project/pi-port` @
+`1b83e05`); NEVER commit (the integrator lands your tree), NEVER touch the
+space repo, NEVER push, NEVER touch `repos/fast-llm` or any gem (published
+fast-completions 0.4.0 is the dependency — consume, never modify). The full
+iteration contract is the frozen Grounds/Specification/Acceptance Criteria
+in this file (verbatim below) — read them first; this header is the lane's
+operating brief. You are the ONLY lane.
+
+THE TASK IN ONE PARAGRAPH: cure the three live-run render defects the
+owner hit on 2026-10-16/17 (all root-caused, all reproduced in Grounds,
+none needing a terminal) — (D1) the markdown inline-scan explosion:
+`lib/tart/render/markdown.rb` `inline_spans`'s two reject arms re-emit the
+pre-match prefix minus one char per loop (`src[pos]` + `pos + 1`) — fix
+them to emit the delimiter character AT THE MATCH POSITION
+(`src[m.begin(0)]`) and advance to `m.begin(0) + 1`; the pre-text is
+already emitted at the loop top; everything else in the converter is
+byte-frozen; (D2) the orphaned parallel tool-call blocks: replace
+`lib/tart/render/transcript.rb`'s single-slot `@pending_tool` with an
+id-keyed Hash registry (`enqueue_pending_tool_block(id, name, args)` — no
+supersede; `finalize_tool_block(id, name, args, result, duration, details:)`
+— in-place by call id, id-miss falls back to today's append; the drain
+links EVERY registry entry's region; `finalize_pending_as_error` loops all
+pendings; `reset` clears the registry) and thread `call.id` through the two
+`lib/tart/render/chat.rb` arms (:569-:591) — the I34 pending ROW shapes and
+the replace/swap arithmetic are UNCHANGED; (D3) the footer context window
+`?`: `bin/tart` `footer_data`'s context_window line gains the `||
+Models.entry_context_window(entry)` fallback with `entry` hoisted (the
+method already resolves it for `thinking_facts`) — the I59 D4 asymmetry
+closed, all three boot call sites one shape.
+
+GEM ENVIRONMENT (simpler than I64): the worktree bundles from the
+PUBLISHED gem — `bundle install --quiet` just works; NO
+`FAST_COMPLETIONS_PATH` export, NO path branches. The Gemfile/lock/
+gemspec are NOT in your touch set and must end byte-identical to base.
+
+TEST-NAME TOKENS (load-bearing — two gates filter by test NAME):
+your new markdown regression tests (in `test/markdown_test.rb` AND the
+`reasoning_lines` seam tests in `test/render/transcript_test.rb`) must
+carry the token `inline_scan` in their names (the `/inline_scan/` filter
+must match >=3 markdown tests and >=1 transcript test), and your new
+pending-registry tests (`test/render/transcript_test.rb`) must carry
+`pending_registry` (>=4 tests). If a test you write fits but lacks the
+token, the gate reads 0 runs and fails — name them deliberately.
+
+FROZEN EXPECTATIONS (do not redesign; the frozen sections govern on any
+conflict):
+- The markdown fix is EMISSION-only: rejected em/del pairs still reject
+  (the I06 flanking-approximation deviation stays), they now render as
+  literal text exactly once. The accepted arms, `INLINE_SCAN`, `padded?`,
+  `strict_strikethrough?`, `merge_adjacent`, `split_rows`, the block
+  parser, the FG table, and every row composer are byte-frozen. The
+  existing 25 markdown pins pass UNCHANGED.
+- The registry replaces BOOKKEEPING only. `pending_tool_rows`,
+  `tool_block_builder`, the per-family blocks, `replace_flushed_pending`,
+  `swap_queued_pending` keep today's bytes and behavior for every
+  sequential/single-call/error/replay/reset shape. The discriminating
+  new pins: N=2 concurrent in BOTH completion orders (one block per call,
+  start order, zero pending-bg survivors, no duplicate), identical-name+
+  identical-args with DISTINCT ids, the two-pending error finalize, reset,
+  the id-miss append. `test_second_pending_supersedes_and_the_stale_end_
+  appends` is REPLACED (the supersede WAS the defect — itemize it).
+- The existing pending-family tests and chat_test's `ToolCallDouble`/
+  `tool_start`/`tool_end` helpers are re-pinned MECHANICALLY to the
+  id-carrying seam (the double's construction is centralized in the two
+  helpers — every call site stays untouched); enumerate each re-pin in
+  your report.
+- The footer fix is the ONE line in footer_data's context_window plus the
+  entry hoist; `render/footer.rb` is NOT in your touch set (the `?` was
+  the DATA's defect, never the segment's); the `/model` switch overlay,
+  the env tier, and the `models: nil` legacy shape stay untouched.
+- The owner payload regression pin: new_problems.md's thinking text (the
+  exploded items 5-6 slice at minimum, full text preferred — quoted
+  verbatim in Grounds' citations) renders through BOTH `Markdown.rows`
+  and `Transcript.reasoning_lines` with the at-most-once cover property
+  (every non-empty row a source substring, rows in source order, no row
+  over the content width).
+- NO wire/tool/agent-layer edits, NO rig/oracle work, NO ENTRY-2 surface
+  (viewport/rail/jump-to-bottom stay untouched — a later iteration owns
+  them), no new gems, no Thread.new. Your tree's diff vs `1b83e05` is
+  EXACTLY the 8 declared files.
+
+VERIFICATION (exact commands, all tested):
+- `bundle install --quiet && bundle exec rake` — expect >= 1179 runs,
+  0 failures, 0 errors (1 standing skip) at your tree.
+- `bundle exec ruby bench/seam_bench.rb` — last line `SEAM_BENCH_OK`.
+- `bundle exec ruby -Ilib -e '...'` (the md-repro + footer-window frozen
+  forms — copy them VERBATIM from the Acceptance Criteria gates block;
+  both must print their OK tokens).
+- `bundle exec ruby -Ilib -Itest test/markdown_test.rb -n "/inline_scan/"`
+  and `... test/render/transcript_test.rb -n "/pending_registry/"` — the
+  frozen floors.
+- The three tart-only probes (env-strip prefix as frozen):
+  render-perf-probe `--app tart --shape gate`, tool-pending-probe
+  `--gate`, user-bash-stream-probe `--gate`.
+- The full frozen gate battery is in the Acceptance Criteria — the five
+  RED-at-base members (md-repro, md-inline-units, pending-registry-units,
+  footer-window + scope-at-canonical-checkout) must all be GREEN at your
+  tree; everything else stays GREEN.
+
+DISCIPLINE: house style per the repo's conventions — commented pi
+citations at the touched seams (the pendingTools Map at
+interactive-mode.ts :3611-:3621/:3645-:3652/:3573-3586 belongs in the
+registry's comments; the I59 boot-facts citation belongs at the footer
+line), tests through public interfaces, no refactors beyond the task,
+deviations ITEMIZED (any signature/shape deviation from the frozen seam
+contract, every test re-pin, any surprise — declare, never absorb
+silently).
+
+OUTPUT: your scratch report at `build/I65-render-correctness-core/
+report.md` — the AC-by-AC outcome, the suite summary line, the per-gate
+one-liners, the enumerated re-pins, any deviations. `BUNDLE_GEMFILE` may
+leak into your env from parent contexts — prefix suspect tool calls with
+`env -u BUNDLE_GEMFILE`.
 
 ## Builder Report
 
