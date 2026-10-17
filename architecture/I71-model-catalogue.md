@@ -129,10 +129,10 @@
 
 ### Measured base (this session, dd41ae1, fresh)
 
-- **Suite: FRESH_MEASURED** (rake exit 0, measured cold this session — the
+- **Suite: 1229 runs / 6047 assertions / 0 failures / 0 errors / 1 skips** (rake exit 0, measured cold this session — the
   floor the AC freezes; the loop-state's 1229/6047 record is superseded by
   this fresh measurement).
-- `SEAM_BENCH_OK`: BASE_BENCH (measured after the suite, same session).
+- `SEAM_BENCH_OK`: measured the same session: `bundle exec ruby bench/seam_bench.rb` → `SEAM_BENCH_OK`.
 - Lane-tree prediction: `build/I71-model-catalogue-core/wt` = 79 chars
   absolute — the s9 wrap law (row = tree + outdir + 32, fires > 120) gives
   s9 the FIVE-char out dir `t71s9` (row 116, the proven-green boundary
