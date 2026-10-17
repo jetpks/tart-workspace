@@ -2614,6 +2614,13 @@ project:
       - test/chat_test.rb
       - test/theme_test.rb
       - test/support/viewport_buffer_probe.rb
+      base_sha: 9db637047dde26e8e148b0d9f88565850e1b54fb
+      worktree: build/I66-viewport-polish-core/wt
+      integration_branch: project/pi-port
+      harness: pi
+      model: openrouter/z-ai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: '04494639fa8be0892d7601c28e93f11d97e19b07ebef9ce5a3a64fe85a339a2e'
       at: '2026-10-16T21:28:47-06:00'
