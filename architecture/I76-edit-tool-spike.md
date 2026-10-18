@@ -208,34 +208,186 @@ Source: `~/.tart/sessions/--Users-eric-architect-spaces-20261009-pi-port--/2026-
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section edit-tool-spike specification --from <file>`. -->
+- **Objective:** Attribute the 2026-10-18 malformed edit-tool emission (six
+  byte-identical folded-into-`path` calls under beam, loose wire — see
+  Grounds) to its true producing layer — model emission, gem
+  wire/parse handling, or tart argument handling — and produce a fix
+  recommendation ENTRY 2 builds from (BRIEF §8 governs the later cure;
+  this iteration is a **SPIKE**: investigate-only, deliverable = a
+  report, NOT code). Per the ruling
+  (`notes/decisions-20261018T1726Z-successor-plan-adjustments.md` item 1),
+  ENTRY 2's spec is written FROM this attribution result.
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+- **Output format:** `build/I76-edit-tool-spike-edit-probe/report.md` —
+  raw, tables-first (the structure is frozen below). Every measured
+  claim backed by a preserved raw artifact in
+  `build/I76-edit-tool-spike-edit-probe/scratch/`. The spend ledger is
+  a machine-readable file (`scratch/spend-ledger.jsonl`, one JSON line
+  per live API call: leg, timestamp, model, prompt-shape, tokens in/out,
+  http status, outcome-tag).
+
+- **Tool guidance:**
+  - The driver is a **minimal Ruby script** run against tart's own
+    stack: `Fast::Completions` (the 0.5.0 gem tart pins) with the
+    openrouter provider base URL + key, `Tart::Tools::Edit` registered
+    as the tool, and the model entry built exactly as tart builds it
+    (`Tart::Models.wire_model` / the beam entry from
+    `~/.tart/models.json`, READ-ONLY). Run it with
+    `cd repos/tart && bundle exec ruby <scratch>/driver.rb` (read-only
+    use of the checkout; all writes go to scratch) or from the lane
+    worktree — either, recorded in the report.
+  - **Two prompt shapes, both within budget:** (1) EXACT-CONTEXT
+    replay — the effective message sequence extracted from the failing
+    session jsonl (user turn 41 + the assistant/tool history the model
+    had when it emitted call #1, i.e. through line 40's stop-turn +
+    turn 41; prior tool_calls re-serialized as the gem's Codec would);
+    (2) SIMPLIFIED one-shot — system-less (or minimal) single user
+    message asking for the same narrator-model edit against a staged
+    copy of `architect.yaml` in scratch.
+  - **The provider key rides `~/.tart/models.json` (read) or env** —
+    never printed, never written to scratch, never in any artifact.
+  - **Raw-args capture (the discriminator):** for every beam/glm leg,
+    capture the RAW streamed tool-arguments bytes BEFORE any
+    parse/repair — at minimum by logging each SSE delta fragment
+    verbatim (the client's raw chunk stream) to a
+    `scratch/raw-args-<leg>-<n>.txt` artifact, plus the final parsed
+    arguments hash. If the gem's streaming client does not expose the
+    fragments, drive the wire directly (raw `Net::HTTP`/SSE against the
+    openrouter endpoint with the same request body the gem builds —
+    dump the request JSON and the response chunks). Record which
+    mechanism was used per leg.
+  - Verify gem API shapes against the INSTALLED 0.5.0 source before
+    relying on them (`bundle info fast-completions --path`), never from
+    memory.
+  - **Spend discipline:** single-digit calls per leg, hard caps below.
+    No busy-wait retries; a failed leg is recorded with its exact error
+    and moved past.
+  - The pi leg: pi hosts the model through the pinned clone
+    `repos/pi` @ v1.1.0 (ENVIRONMENT — never write under it). Register
+    beam for pi via a STAGED config (pi's custom-model mechanism under
+    a staged HOME/config dir — discover it from pi's own docs/source in
+    the clone; record the mechanism). If pi cannot host beam without
+    writing global config, report infeasibility with the exact blocker
+    — that is a finding, not a failure.
+
+- **Boundaries:**
+  - **May touch:** `build/I76-edit-tool-spike-edit-probe/scratch/**`
+    and `build/I76-edit-tool-spike-edit-probe/report.md` ONLY (space
+    dir). NOTHING inside any repo is written — the worktree(s) stay
+    pristine; the driver's `bundle exec` use of `repos/tart` is
+    read-only.
+  - **Must not touch:** `repos/**` (any write, any git write command),
+    `~/.tart/**` (READ-ONLY: models.json, the session jsonls),
+    `~/.pi/**` (stage instead), `architecture/**`, `tmp/**`, no rig
+    scenario edits, no global gem installs (use the existing bundle).
+    **NO production code changes anywhere — including
+    `repos/fast-llm`.** The strict-forced leg runs on a DRIVER-LEVEL
+    dialect override, never an edited gem.
+  - **Out of scope:** the fix itself (ENTRY 2), the subagent-runner /
+    status-box / encoding entries, the devstral-docs parked trial, any
+    session-file change (ENTRY 2's AC3).
+
+### THE EXPERIMENT MATRIX (frozen — six legs)
+
+**E0 — static forensics (zero spend).** Re-derive and preserve in the
+report: the six calls' byte-identity (hash them), the six rejections,
+the per-round thinking quotes (including "The system seems to merge?"),
+the no-model-field key-set audit, the beam registration transcript
+(the plan-premise correction), and the as-shipped strict resolution
+(strict OFF — `dialect_for` + `apply_tools` cited). This is
+verification of the Grounds at the tree, not re-argument.
+
+**E1 — live reproduction, beam AS SHIPPED (loose).** The driver with
+beam + the Edit tool, both prompt shapes. Up to **6 calls** total
+(e.g. exact-context ×2 rounds, simplified ×2 shapes; a `temperature: 0`
+variant counts inside the cap). OUTCOME either way is a finding:
+reproduced (any malformed tool-call emission — the folded shape or a
+cousin) or NOT reproduced after the capped attempts (record every
+attempt's parsed args + raw bytes).
+
+**E2 — raw-wire control (THE attribution discriminator).** The same
+task driven at the RAW wire level (see Tool guidance) so the streamed
+argument bytes are captured with no gem parse in between — beam, ≤ **3
+calls**. Decides among the three Grounds hypotheses: raw bytes already
+folded (escaped `\n` inside `path`) → model-side verbatim; raw bytes
+carry RAW newlines/malformed JSON that the gem's `repair_json` would
+fold → model-side malformation + gem silent normalization; raw bytes
+well-formed → receive-path fold (gem or tart).
+
+**E3 — strict-forced leg.** Same driver, beam, with the strict arm
+forced ON at the driver level (a `Dialect` declaring
+`supports_strict_mode: true` — the free-boolean vocabulary — so
+`apply_tools` ships the strict rewrite + `"strict": true`). ≤ **3
+calls**. Two measurements: does openrouter accept the strict key for
+this model (or reject — record the exact HTTP error), and does the
+forced grammar change the emission shape at all.
+
+**E4 — glm-5.3 control, SAME path.** The identical driver (loose, same
+dialect path, same prompt shapes) with `z-ai/glm-5.3` on openrouter —
+≤ **3 calls**. Well-formed edit args through the same stack = the
+malformation is model-specific, not path-inherent.
+
+**E5 — pi oracle.** Beam registered for pi (staged config), same edit
+task through pi's own harness, ≤ **3 calls**. Same malformed shape
+under pi = model-inherent (tart exonerated end-to-end); well-formed
+under pi = tart-stack-specific. Infeasibility recorded with the exact
+blocker is an acceptable outcome (declared, not silent).
+
+**Total live-spend hard cap: 18 calls across E1–E5.** The ledger
+proves the caps.
+
+### Attribution decision rules (frozen)
+
+The report's ATTRIBUTION section names **exactly one primary layer** —
+`model-emission` / `gem-wire-or-parse` / `tart-argument-handling` —
+and quotes the discriminating artifact for each leg it leans on. The
+E2 raw-bytes capture is MANDATORY evidence for any attribution that
+the emission was or was not model-side. If the legs conflict (e.g. E2
+says model-side verbatim but E5 shows pi clean), the report says so
+explicitly and attributes the CONFLICT, not a wish.
+
+### Recommendation requirements (frozen shape — ENTRY 2 consumes it)
+
+1. The fix shape (tolerance in tart's `prepareEditArguments`, gem
+   grammar/wire change, or both) with the one-line mechanism.
+2. The repo it lands in, and the ENTRY 2 routing consequence (the
+   plan's rule: gem-implicated ⇒ gem entry first).
+3. A yes/no with argument on whether `prepareEditArguments` should
+   RECOVER the folded-into-`path` shape (syntactically unambiguous per
+   Grounds) versus reject with an error naming the shape problem
+   precisely — and what pi's oracle behavior is for malformed tool
+   arguments (read `repos/pi`'s prepareEditArguments/edit tool source,
+   read-only, and cite it).
+4. Named residuals/unknowns ENTRY 2 must handle (e.g. the
+   session-records-no-model forensics gap, the bare-rejection message).
+
+### Report structure (raw, tables-first)
+
+1. `STATUS: <done|blocked>` line first.
+2. EVIDENCE — the E0 table (six calls hashed, rejections, thinking
+   quotes, registration transcript, strict-resolution citations).
+3. EXPERIMENTS — one table per leg: prompt shape, calls made, raw
+   artifact paths, parsed args, raw-bytes findings, exact errors.
+4. ATTRIBUTION — the named layer + quoted discriminators + the
+   conflict statement if any.
+5. RECOMMENDATION — the four frozen items above.
+6. SPEND — the ledger summary table (per leg: calls, tokens, cost).
+
+- **Lane plan:** ONE lane, `edit-probe`, repo `tart` (the stack under
+  test; the lane's git surface is scratch-only by design — spike
+  rules). Touch set = the scratch dir + report, space-relative; no
+  repo file is written; single lane ⇒ no overlap possible.
+- **Effort:** high — the load-bearing skills are live-API experimental
+  discipline (raw-wire capture, controlled A/B, honest non-repro
+  reporting) and reading two codebases' receive paths cold; set at
+  dispatch with `--effort high`.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision edit-tool-spike`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: edit-probe
+  repo: tart
+  touch:
+    - build/I76-edit-tool-spike-edit-probe/scratch/**
+    - build/I76-edit-tool-spike-edit-probe/report.md
 ```
 
 ## Acceptance Criteria
