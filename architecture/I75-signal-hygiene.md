@@ -212,34 +212,263 @@ The gem-side poll_event-on-dead-pty wedge is ENVIRONMENT (ratatui
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section signal-hygiene specification --from <file>`. -->
+### Objective
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+Cure the orphan/SIGHUP class: when tart's TUI loses its terminal (tmux
+kill-session, herdr pane close, ssh drop), the process must DIE —
+reactor stopped, children reaped, session flushed, exit non-zero —
+within a bounded window, with zero residual CPU. The root cause is
+PROVEN this session (Grounds F1–F9: unrouted HUP/TERM + the native
+poll_event wedge + the VM-exit thread join); the lane VERIFIES the
+findings at the lane tree, cures at that root, and proves the cure
+live with the frozen harness.
+
+### THE CURE (frozen — the routing law + the bounded ladder + the hard exit)
+
+**`Tart::TUI::SignalGuard`** (new, in `lib/tart/tui.rb` — the named
+seam; the loop's `install_trap_net` pattern extended, NOT replaced):
+
+- **The routing table, frozen:**
+  `SignalGuard::EXIT_FOR = {"HUP" => 129, "TERM" => 143}` (the
+  128+signum Unix convention — matches the gem's own declared
+  `exit(128 + signum)` intent and the default-disposition observable
+  pi dies with). **The bound, frozen:** `SignalGuard::EXIT_BOUND_S =
+  10` (delivery → process exit, all legs, hard guarantee).
+- **Trapping:** HUP and TERM are trapped by TART for the duration of
+  the real TUI run (the `TUI.run` real-path bracket or the loop's net
+  — the builder picks the bracket; previous handlers are captured and
+  RESTORED after, exactly the INT net's discipline). The gem's
+  require-time TERM trap (`ratatui_ruby.rb` :550-553) is thereby
+  overridden during the run and restored after. **SIGINT is NOT
+  touched** — the loop's trap net stays the one INT authority.
+- **Routing (no raise):** the trap handler runs on the main thread and
+  routes IN-BAND — it records the FIRST signal's exit code
+  (thread-safe) and wakes the loop's stop path (the sentinel-queue
+  pattern `install_trap_net` already uses; cross-thread-safe push).
+  The frame loop then exits through its NORMAL return path, so the
+  bin/tart flush tail (`kernel.run` returns → the `session_shutdown`
+  reason "quit" emit at :570-572, hooks = the sink's bounded terminal
+  POST + herdr) RUNS — this is the load-bearing difference from the
+  base behavior (F5).
+- **The bounded ladder (all waits bounded by construction):** stop the
+  loop (the existing ensure: request_stop → tasks stop → children
+  reaped via the bash `kill_process_group`/`reap_after_kill` and the
+  subagents ladder) → the flush tail (sink ≤ ~3 s, herdr
+  IO.select-bounded) → **the hard exit** with the recorded code. A
+  per-step deadline check against `EXIT_BOUND_S` (measured from
+  delivery) skips remaining steps when exceeded. **Second-signal
+  escalation:** a second HUP/TERM while the ladder is running
+  escalates IMMEDIATELY to the hard exit (first signal's code wins).
+- **The hard exit (the join-bypass — the orphan cure proper):** after
+  the ladder, the process exits with the recorded code through a
+  primitive that does NOT join the wedged poller: `exit!(code)` or
+  self-SIGKILL (`Process.kill("KILL", Process.pid)` after the flush).
+  The builder PICKS one and the frozen harness PROVES it live — every
+  harness leg has a genuinely wedged poller (F4), so the legs are the
+  primitive's proof; if `exit!` is found to join threads (hangs), the
+  primitive must be the self-KILL. The poller thread is ABANDONED on
+  this path (never joined, never waited on beyond the standing 1 s
+  linger guard).
+- **Containment:** on the signal path, `PollerLingerError` and dead-
+  tty draw/restore errors (`Errno::EIO`, the gem's "Failed to show the
+  cursor" class, F8) are CONTAINED (logged to stderr, ≤ 1 line each,
+  never masking the exit code, never re-raised into the ladder). The
+  terminal-restore safety net (TUI.run's ensure) still runs; its
+  failure is contained the same way.
+- **No new threads:** the signal path is main-thread + trap context +
+  the loop's EXISTING transient `Loop#signal` push pattern. NO new
+  persistent `Thread.new` sites (the threads-budget law holds, gate
+  carried verbatim modulo its declared base re-base).
+
+**The frozen reasoning (why this is the ROOT):** the two stacked
+defects are (a) unrouted signals (HUP default-raise skips the flush
+tail; the gem's TERM-exit wedges) and (b) the VM-exit thread join on a
+poller that can NEVER exit from Ruby. Routing fixes (a) end-to-end;
+the hard exit fixes (b) unconditionally. A poller-side "cure"
+(health checks before polling, shorter timeouts) CANNOT work — the
+wedge is INSIDE one native call (F4) — and is explicitly NOT the
+deliverable; optional hygiene beyond the frozen law is out of scope.
+
+### THE HARNESS (frozen — `test/support/signal_hygiene_harness.rb`, NEW)
+
+A standalone Ruby script (`bundle exec ruby
+test/support/signal_hygiene_harness.rb --out <dir>`, SHORT out dir —
+the gate uses `t75sig`), built on the probe-herdr/rig boot pattern
+(token-scoped tmux session names, staged HOME per leg, one
+`MockLLMServer` per leg, `exec`-wrapped app so the pane pid tree is
+tart → children). The wrapper pane command ignores HUP (`trap ""
+HUP`) so it survives kill-session to RECORD the app's exit code; it
+writes `EXIT=<code>` to a per-leg file and exits when tart does.
+
+**The six legs (frozen):**
+
+1. `hup-idle` — boot, settle (no turn), `tmux kill-session`; expect
+   tart exit code 129 within `EXIT_BOUND_S`; no survivor.
+2. `hup-mid-stream` — boot, submit a prompt (tmux send-keys), mock
+   scripted as a `slow_stream` drip; kill-session mid-drip; expect
+   129 within the bound; no survivor; the leg's session file exists,
+   every line parses, and carries the submitted turn.
+3. `hup-mid-tool` — boot, submit a prompt, mock scripted with a bash
+   tool `sleep 90`; kill-session while the tool is in flight; expect
+   129 within the bound; no tart survivor AND no orphaned tool child
+   (the `sleep` descendant must be gone).
+4. `term-idle` (the flush leg) — staged HOME carries
+   `~/.tart/session-sink.json` pointing at a local
+   `MockIngestServer` (127.0.0.1, `test/support/mock_ingest_server.rb`
+   reused unedited); boot, settle, deliver `kill -TERM` to the tart
+   pid DIRECTLY (not via tmux); expect exit 143 within the bound; no
+   survivor; the ingest server RECEIVED the terminal POST
+   (`X-Session-Complete: true`) BEFORE the process exit.
+5. `term-mid-stream` — the hup-mid-stream shape with direct TERM;
+   expect 143, bound, no survivor.
+6. `term-mid-tool` — the hup-mid-tool shape with direct TERM; expect
+   143, bound, no survivors (app + child).
+
+**Per-leg assertions (frozen):** (a) the recorded exit code is
+exactly the mapped one; (b) delivery → exit ≤ `EXIT_BOUND_S` (the
+harness polls the exit file with a deadline); (c) after the bound plus
+a small grace, NO process matches the leg's token-scoped sandbox path
+(`pgrep -f` — covers tart, wrapper-written descendants, and tool
+children — "zero residual CPU" = no survivor); (d) the leg's tmux
+session is gone (own-token scoped). Prints one line per leg
+(`<leg>: exit=<code> in=<s>s`) and `SIGNAL_ORPHAN_OK` only if all six
+pass; non-zero exit with the failing leg's name otherwise. The harness
+owns `rm -rf` of its out dir contents per run (the gate also rm -rf's
+the out dir before booting). The harness must NOT touch the real HOME
+or any file outside its out dir + tmux sessions + staged tmpdirs.
+
+### Root-cause verification (the builder's FIRST task)
+
+Before curing, the builder re-verifies the Grounds findings at the
+lane tree with this session's instrument set (copied from
+`tmp/i75-spec/` — boot scripts, mocks, the sample/observe loop — into
+the lane's own scratch; `tmp/i75-spec/` itself is spec scratch, not a
+lane dependency): kill-session on the pristine base leaves the orphan
+(F1), the stderr chain shows the PollerLingerError/SignalException
+cause (F5), the sample shows the poller wedge (F4). The verification
+record (commands + observed lines) lands in the Builder Report. If
+any frozen finding FAILS to reproduce at the lane tree, that is an
+exception — do not silently re-plan.
+
+### Tests (the builder's pins, filter-frozen by the gates)
+
+- `test/signal_hygiene_test.rb` (NEW) — the unit table, filter names
+  frozen: `/routing/` (≥ 6 runs) and `/teardown/` (≥ 6 runs).
+  - `/routing/`: EXIT_FOR/EXIT_BOUND_S constants; HUP/TERM trapped
+    during the real-path run seam and restored after (previous-handler
+    capture — the INT-net pattern); INT is NOT trapped by the guard;
+    the first-signal code wins; second-signal escalation.
+  - `/teardown/`: the ladder order (loop stop before flush, flush
+    before hard exit — via a scripted seam double); PollerLingerError
+    contained on the signal path (logged, never re-raised, never
+    masking the code); dead-tty draw errors contained; the hard exit
+    fires with the recorded code (primitive stubbed in units — the
+    LIVE proof is the harness); the deadline check skips remaining
+    steps; idempotence (a second shutdown call is a no-op).
+- `test/loop_test.rb` / `test/tui_test.rb` / `test/kernel_carryin_test.rb`
+  may grow re-pins for the touched seams (teardown ordering, trap
+  restore) — the standing interrupt/deadline-pacing pins must pass
+  UNMODIFIED (the frozen discipline).
+- `test/subagents_test.rb` — EXACTLY the declared one-line hermeticity
+  repair: `test_unknown_agent_names_the_three` threads the staged root
+  (`new_manager(root: File.join(@home, ".tart"))` — the sibling
+  pattern), decoupling the pin from the real `~/.tart/agents` (the
+  Grounds env class). NOTHING else in that file moves.
+
+### Frozen expectations (do not redesign)
+
+- The esc/ctrl+c/ctrl+d interrupt semantics, the steering/follow-up
+  queues, and the mid-run abort ladder are BYTE-FROZEN — no semantic
+  or pin churn (the carried suite + loop pins enforce).
+- The SIGINT trap net stays the loop's (install_trap_net's shape and
+  restore discipline unchanged); the guard ADDS HUP/TERM handling, it
+  does not refactor INT.
+- ratatui_ruby 1.5.0 is environment: no gem forks, no vendoring, no
+  version changes, no Gemfile family edits. The poll_event-on-dead-
+  pty wedge is recorded for upstream (the Builder Report carries the
+  one-paragraph upstream note; the owner files it — landing is the
+  human's).
+- The rig is untouched (no scenario-content edits, no runner edits).
+  If the rig's exec-wrap kill-9 teardown becomes UNNECESSARY with the
+  cure (tart now dies on kill-session), the builder NOTES it in the
+  report — no rig churn in-lane (the plan's own ruling).
+- The session recorder is untouched; the sink and herdr are untouched
+  (their bounded shutdown paths are reused as-is).
+- `-p` (print) mode is OUT OF SCOPE (no poller, no TUI traps; default
+  disposition applies; parents own print-mode children).
+- tty-EOF WITHOUT a signal is RULED A FINDING, not a gate: the builder
+  records what poll_event does on a pure EOF read (no HUP delivered)
+  in the report; no frozen gate depends on it (every observed
+  real-world terminal loss delivered HUP — F1/F9).
+
+### Named exclusions (Constraints, itemized)
+
+- Touch set (9 paths): `lib/tart/core/loop.rb`,
+  `lib/tart/core/poller.rb`, `lib/tart/tui.rb`,
+  `test/signal_hygiene_test.rb` (NEW),
+  `test/support/signal_hygiene_harness.rb` (NEW), `test/loop_test.rb`,
+  `test/tui_test.rb`, `test/kernel_carryin_test.rb`,
+  `test/subagents_test.rb` (the declared one line). NOTHING else —
+  `bin/tart` is ruled UNTOUCHED this iteration (the flush tail at
+  :570-572 already runs on the normal return path the guard routes
+  through; if the builder believes a bin/tart edit is unavoidable,
+  that is an EXCEPTION, not a license).
+- No changes to abort/cancel/interrupt semantics. No rig
+  scenario-content edits. No new gems. No new persistent threads.
+- The owner-backlog residuals stay parked (s9 out-dir rebase, herdr
+  socket-path re-freeze, wire-delta constants, model-window re-arm,
+  tart PR-to-main).
+
+### Output format
+
+Report per house norms: the gate table with EVERY frozen gate (76/76)
+and a measured one-liner; the root-cause verification record
+(commands + observed lines at the lane tree); the chosen hard-exit
+primitive + why; the harness leg table (leg, exit code, seconds,
+survivor check); the upstream gem note; deviations itemized-and-
+defended (an absent gate entry is REJECT-class).
+
+### Tool guidance
+
+Standard loop discipline: the arch file is the contract; run gates
+verbatim from the frozen ```gates block (never hand-retype — the I58
+lesson); the harness and unit filters are frozen names; the oracle
+(repos/pi) is read-only environment; scratch under the lane's own tmp.
+
+### Boundaries
+
+In: everything enumerated above. Out: gem changes, rig changes,
+bin/tart, print-mode signal handling, recorder/sink/herdr edits, new
+threads, interrupt-semantics churn, the parked owner-backlog items.
+
+### Lane plan
+
+ONE lane, `core` (repo tart): the SignalGuard + routing + ladder in
+`lib/tart/tui.rb`/`lib/tart/core/loop.rb`/`lib/tart/core/poller.rb`
+containment, the harness, the unit table, the subagents one-liner, the
+gate table. Routing rides `architect.yaml` as-is.
+
+### Effort call
+
+**High** — live tmux instrument work (a six-leg real-process harness
+with exit-code capture), signal-path reasoning against a native-code
+wedge, and a regression battery of 76 gates. Single lane, high
+effort, one repo.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision signal-hygiene`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/core/loop.rb
+    - lib/tart/core/poller.rb
+    - lib/tart/tui.rb
+    - test/signal_hygiene_test.rb
+    - test/support/signal_hygiene_harness.rb
+    - test/loop_test.rb
+    - test/tui_test.rb
+    - test/kernel_carryin_test.rb
+    - test/subagents_test.rb
+  effort: high
 ```
 
 ## Acceptance Criteria
