@@ -135,35 +135,180 @@ Boot: the pinned pi 1.1.0 + pi-subagents 0.79.1, tmux `-x 120 -y 40`, staged HOM
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section subagent-status-box specification --from <file>`. -->
+ONE lane `core` (repo `tart`). Frozen touch set (8 paths):
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+- `lib/tart/render/subagent_box.rb` — **NEW**: the box renderer. The frozen row law (form
+  selection, header/title, glyph frames + tone law, context badge, state-label
+  mapping, `⎿` details, hint row, output row, error row), the retention window,
+  the render-key cache, and the frozen formatDuration/formatActivityLabel ports.
+  Pure rendering over a snapshot — no IO.
+- `lib/tart/render/chat.rb` — the composition + refresh seam: the box consumes the
+  dock-spacer row region between `pending` and `editor` in `build_widget`'s
+  layout (the widgetsAbove slot, pi `chat-viewport.ts:29-34`); the box's cached
+  rows map to spans per frame (allocation-free when absent); the request-draw
+  wiring (render-key change + the 1s glyph animation while any row runs).
+- `lib/tart/subagents/manager.rb` — the box snapshot seam: a thread-safe,
+  box-facing fleet snapshot (in-memory records reconciled on the watcher's
+  existing 250ms tick; foreign-disk adoption via the I78 sweep at a ≤5s box
+  cadence), `base_status` gains the additive `model` + `context` fields, and
+  the per-run attention fact (a pending supervisor ask for the run id).
+- `lib/tart/subagents.rb` — the register slot: `Subagents.register` records the
+  Manager in a module-level `current_manager` accessor (the Chat surface's only
+  bin/tart-untouched reach; `resolve_model` and every existing surface
+  byte-unchanged).
+- `test/subagent_box_test.rb` — **NEW**: this iteration's pins (the row law per
+  state against the frozen fixture bytes, the cadence/retention laws, the
+  absent-box law, thread-safety, the state-label mapping).
+- `test/subagents_health_test.rb`, `test/subagents_test.rb` — DECLARED re-pin
+  files (the additive `model`/`context` status fields may touch existing
+  assertions; any edit is behavior-preserving re-pinning only — permission,
+  not obligation).
+- `gems/tui-split-rig/bin/subagent-status-probe` — **NEW**: the oracle-parity
+  gate (AC1's live leg).
+- `gems/tui-split-rig/fixtures/subagent-box/` — **NEW**: the frozen fixture set
+  (this session's captures, byte-copied from `tmp/i79-spec/fixtures/` — never
+  regenerated from a re-capture).
+
+Everything else in `repos/tart` is out of bounds (the scope gate bites exactly
+this set, with the three load-bearing lib seams changed). No rig
+scenario-content edits (the new probe + fixtures are additive bins, the
+I69/I70 precedent); no gem changes; `bin/tart`, `lib/tart.rb`,
+`lib/tart/agent/` are hard-frozen (the child-runner status wire is a named
+residual); `repos/pi` and `~/.pi/agent/npm/node_modules/pi-subagents/` are
+READ-ONLY oracles.
+
+### Law 1 — the box renders the frozen oracle bytes (AC1)
+
+The box's rendered rows are BYTE-IDENTICAL to the frozen fixtures
+(`gems/tui-split-rig/fixtures/subagent-box/<state>-norm.txt` and
+`-styled-norm.txt`) after the frozen normalization classes
+(`◖SPIN◗`/`◖DUR◗`/`◖PATH◗` — Grounds), for the eight states: multi
+running/attention/completed, single running/failed/completed/stopped, empty.
+The row law (all shapes cited in Grounds; the renderer implements pi's law
+verbatim):
+
+1. **Form selection**: ≥2 visible runs → the multi form (header
+   `<glyph> Async agents · background`; one `├─`/`└─` row per run, running
+   first, then terminal, newest-last within class; dim `│  `/3-space
+   continuation rows; `+N more (X running, Y finished)` overflow beyond
+   `MAX_WIDGET_JOBS = 4` — cited law). Exactly 1 → the single form (title
+   `async subagent · background`).
+2. **Job/step rows**: `<glyph> <agent><[context] badge> · <stats>`; the
+   single form's running row is `  <glyph> <agent> [fresh] · running
+   (<model>)` (no elapsed); a terminal step with error evidence uncollapses
+   to `  <glyph> Step 1/1: <agent> [fresh] · <state> (<model>) · <dur>` plus
+   the `error: <first line>` row.
+3. **Glyphs + colors**: RUNNING_FRAMES charset + `●` static;
+   `✓` success / `✗` error / `■` warning(stopped,paused); the running tone =
+   the child's thinking border color else the main session's else accent
+   (runningTone); the SGR runs frozen in the styled fixtures.
+4. **State labels (display-layer mapping)**: the port's disk vocabulary
+   `completed/failed/stopped` renders as pi's `complete/failed/stopped`;
+   the step state follows pi's `childState` law (result success → complete;
+   failure → failed; else the run state).
+5. **Detail rows**: `⎿  <activity label>` (formatActivityLabel verbatim,
+   snapshot = the run's lastUpdate/endedAt; `thinking…` fallback);
+   `Press ctrl+o for live detail` (running only); `output: <shortened
+   runner.stdout.log path>` (running only; shortenPath = HOME-prefix
+   contraction); `error: <one line>`.
+6. **The task text NEVER renders** (pi's redaction law — no task row exists
+   in any frozen state).
+
+### Law 2 — the box's lifecycle (AC2)
+
+- The box renders ONLY while ≥1 run is VISIBLE (live, or terminal within the
+  10s retention window ending at its `ended_at`); with none, ZERO rows and a
+  per-frame cost of ZERO (the absent path allocates nothing — BP1–BP5 hold).
+- The box PERSISTS across redraws: it is composed from a render-key-cached
+  row set (rebuilt only when the snapshot's observable key changes or a glyph
+  frame boundary passes), so streaming, scrolling, resize, and menu/picker
+  overlays never drop or duplicate it.
+- Terminal rows drop 10s after the terminal transition (pi's
+  `completionRetentionMs`); the box disappears with the last row.
+- No new thread: the watcher's existing 250ms tick reconciles in-memory
+  records; a ≤5s box sweep adopts foreign/staged dirs through the I78 fleet
+  sweep (pi's `DEFAULT_LIVENESS_INTERVAL_MS`); the 1s glyph animation and any
+  render-key change request draws through the existing kernel bridge (the
+  I58 request-render discipline — no fixed-rate rendering).
+
+### Law 3 — the data seams (AC3)
+
+- `Manager#base_status` gains `model` (the resolved `provider/id` string,
+  recorded at spawn — the I71/I78 resolution seat) and `context`
+  (`"fork"` when the spawn resumes the parent session, else `"fresh"`).
+  Additive only: every existing key, the reaper's writes, the sweep's
+  adoption law, and the nil/legacy tolerance are byte-unchanged; a status
+  without the fields (historical dirs) renders no badge/model — never raises.
+- The box snapshot is a mutex-guarded, allocation-bounded structure read
+  under the chat mutex; the supervisor channel's `pending` registry is the
+  attention fact (a run is `needs_attention` iff a pending ask names its run
+  id); reads never block the render frame (worst case one tick stale).
+- `Subagents.register` records the Manager (`current_manager`); nil in print
+  boots/tests — the box is TUI-only and absent when the slot is empty.
+
+### Law 4 — the probe (AC1's live leg)
+
+`gems/tui-split-rig/bin/subagent-status-probe --out <dir>` (stdlib only,
+the subagents-motd-probe shape): boots TART in tmux (staged HOME with the
+runs root `<HOME>/.tart/subagents`, staged status.json dirs in the port's
+schema carrying the same staged facts as the oracle captures — agent/model/
+context/startedAt/lastUpdate deltas, live sleep pids; mock env facts, closed
+env, default identity, HERDR vars scrubbed), drives the eight states on disk
+(supervisor-ask file for attention; `result.json` in the port's in-dir schema
+for the terminal transitions — the I78 reaper derives them), captures the box
+region per state (plain + `-e`), applies the frozen normalization, and
+byte-compares against the fixtures. Prints `SUBAGENT_STATUS_OK` and exits 0;
+any mismatch prints the failing state + the first differing row and exits 1.
+Hermetic: zero network, zero live API, `kill -9` teardown of the pane tree
+(the I27 discipline).
+
+### Output format (frozen)
+
+The lane lands code + tests + the probe + the fixtures; no README/docs
+changes; no rig scenario-content edits; the fixtures are committed
+byte-copies of this session's captures.
+
+### Operating constraints (lane)
+
+- The frozen wire/session observables do not move: wire-delta
+  (`4209f40b…` + `7360fd1e…`) and session-golden EXACT (the box is
+  render-only; the manager seam is read-path only).
+- BP1–BP5 hold (the render-perf-probe gate); the absent-box path is
+  allocation-free; the box's per-frame work is a cached-rows map.
+- No live API spend: every pin and probe leg is hermetic (staged homes,
+  sleep pids, disk-driven transitions).
+- The declared-RED pattern: the new gates fail at the base tree for exactly
+  their declared reasons; the rehearsal preamble states the MEASURED vector.
+- PHASE 0: every disagreement with this spec is raised with reasons in the
+  Builder Report (or an explicit statement of what was checked before
+  concluding the spec is sound) — silent compliance is a defect.
+
+- **Lane plan.** ONE lane, `core`, repo `tart`, base `project/pi-port` @
+  `12a7ece` (the port tip; `origin/main` holds squashed PR merges and is NOT
+  an ancestor — `architect provision` REQUIRES `--base 12a7ece`, verified
+  this session). Touch set (the source of truth `architect provision`
+  materializes — byte-identical to the frozen scope gate's set):
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision subagent-status-box`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/render/subagent_box.rb
+    - lib/tart/render/chat.rb
+    - lib/tart/subagents/manager.rb
+    - lib/tart/subagents.rb
+    - test/subagent_box_test.rb
+    - test/subagents_health_test.rb
+    - test/subagents_test.rb
+    - gems/tui-split-rig/bin/subagent-status-probe
+    - gems/tui-split-rig/fixtures/subagent-box/
 ```
+
+- **Effort:** high — the load-bearing skills are render-composition reasoning
+  under the I58 request-render discipline and BP budgets, exact byte-parity
+  against frozen fixtures through a tmux probe, and thread-safe snapshot
+  design across the watcher/supervisor seams; set at dispatch with
+  `--effort high`.
 
 ## Acceptance Criteria
 
