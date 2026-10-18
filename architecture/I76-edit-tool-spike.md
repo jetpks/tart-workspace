@@ -562,10 +562,43 @@ before concluding the spec is sound) — silent compliance is a defect.
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I76-edit-tool-spike-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section edit-tool-spike prompt --append --lane <lane> --from build/I76-edit-tool-spike-<lane>/prompt.md`. -->
+### edit-probe
+
+# Builder lane prompt — iteration `edit-tool-spike` (I76), lane `edit-probe`, repo `tart`
+
+You are the builder for iteration `edit-tool-spike` (I76), lane `edit-probe`, repo `tart`. You are the ONLY lane. This iteration is a **SPIKE**: investigate-only. The deliverable is a REPORT — there is NO production code change, in any repo.
+
+## THE CONTRACT — read it first, in full
+
+The authoritative, FROZEN contract is `architecture/I76-edit-tool-spike.md` in the space repo: its **Grounds**, **Specification**, and **Acceptance Criteria** sections (objective, output format, tool guidance, boundaries, THE EXPERIMENT MATRIX E0–E5, attribution decision rules, recommendation requirements, report structure, the frozen ```gates block). READ THE WHOLE FILE before doing anything. Where this header and the arch file differ, THE ARCH FILE WINS.
+
+Supporting read: `notes/spec-digest-20261018T173542Z-edit-tool-spike.md` and the spec scratch `tmp/i76-spec/` (grounds/spec/AC + `beam-registration.txt`). Copy any instrument you depend on into your own scratch — never depend on spec scratch staying put.
+
+## WHAT YOU ARE PROVING
+
+Attribute the 2026-10-18 malformed edit-tool emission (six byte-identical calls with the whole intended payload folded INTO the `path` string, `"edits": []` beside it, six bare `edits must contain at least one replacement` rejections, model fell back to bash+python) to EXACTLY ONE primary layer: `model-emission`, `gem-wire-or-parse`, or `tart-argument-handling`. The plan's two premises are already corrected in Grounds (beam HAS `supportsStrictMode: true`; strict was OFF at the wire anyway because beam's compat is `"openrouter"` → `DEFAULT_DIALECT`; no `temperature` key was ever on the wire) — do not re-litigate them, verify at the tree and cite.
+
+The E2 raw-bytes capture is MANDATORY evidence for any attribution. Preserve the RAW streamed tool-argument bytes BEFORE any parse/repair for at least the beam legs; record the capture mechanism. If the legs conflict, state the conflict and attribute it — never smooth it.
+
+## THE MATRIX (frozen — execute all six legs, or record exact infeasibility)
+
+E0 static forensics (zero spend); E1 live reproduction beam as shipped (≤6 calls); E2 raw-wire control (≤3, the discriminator); E3 strict-forced-on (≤3); E4 glm-5.3 control same path (≤3); E5 pi oracle, beam registered for pi (≤3). TOTAL HARD CAP 18 live calls; every call gets one machine-readable line in `scratch/spend-ledger.jsonl`. A failed leg is recorded with its exact error and moved past — no silent drops, no busy-wait retries.
+
+## Operating constraints (lane)
+
+- Work ONLY in your provisioned worktree `build/I76-edit-tool-spike-edit-probe/wt` (space-relative), branch `lane/I76-edit-tool-spike-edit-probe`, base tart `project/pi-port` @ `6451f1e`.
+- **May touch (space dir):** `build/I76-edit-tool-spike-edit-probe/scratch/**` and `build/I76-edit-tool-spike-edit-probe/report.md` ONLY. The lane's git surface is scratch-only by design.
+- **NO repo writes anywhere.** `repos/**` untouched (any write, any git write command — you NEVER commit, NEVER branch, NEVER push). `repos/fast-llm` and `repos/pi` are READ-ONLY (the driver-level strict override is a `Dialect` object in your script, never a gem edit). `~/.tart/**` is READ-ONLY (models.json, the session jsonls) — the provider key is read from there or env, NEVER printed, NEVER written to an artifact. `~/.pi/**` — stage instead; register beam for pi only via a staged config dir. Never write under `architecture/**`, `tmp/**`, or any rig scenario file. No global gem installs — use the existing bundle (`cd repos/tart && bundle exec ruby <your-scratch-script>`).
+- Scenario/out dirs stay SHORT. Give every long command an explicit timeout; run nothing in the background.
+- The provider key: if a leg dies on auth/funding, record the exact HTTP error as the leg's outcome — a key failure makes the leg recorded-infeasible, not a silent skip.
+- Run the frozen ```gates block yourself as your final tripwire set and record the measured one-liners.
+
+## Deliverable + report
+
+- Deliverable: `build/I76-edit-tool-spike-edit-probe/report.md` with a single `STATUS:` line first and the five frozen sections in order — `## EVIDENCE`, `## EXPERIMENTS`, `## ATTRIBUTION`, `## RECOMMENDATION`, `## SPEND` — plus raw artifacts (≥6 files, one per leg) preserved in `build/I76-edit-tool-spike-edit-probe/scratch/`, including `raw-args-*` captures and the scripts that produced the numbers. Raw results only: tables, numbers, verbatim command output — no verdicts.
+- `## RECOMMENDATION` carries the four frozen items: (1) fix shape with one-line mechanism, (2) landing repo(s) + the ENTRY 2 routing consequence (gem-implicated ⇒ gem entry first), (3) yes/no WITH argument on whether `prepareEditArguments` should RECOVER the folded-into-`path` shape, citing pi's oracle behavior for malformed tool arguments (read `repos/pi`'s edit-tool source, read-only), (4) named residuals ENTRY 2 must handle.
+- `## PHASE 0` (or the report's first section after STATUS): every disagreement with this spec and its reasons citing real files — or an explicit statement of what you checked before concluding the spec is sound. Silent compliance is a defect.
+- The report's FIRST line is its ONLY status line (the `report-present` gate counts `^STATUS: ` lines and requires exactly 1): `STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them) | BLOCKED (exact blocker + what you tried)`. Do not repeat it at the end.
 
 ## Builder Report
 
