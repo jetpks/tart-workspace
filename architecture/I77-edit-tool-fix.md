@@ -2089,7 +2089,7 @@ Frozen discipline you must not drift from: `Tart::Schemas::Tools::PINNED_EDITS_M
 
 ## Deliverable (frozen Output format)
 
-- `lib/tart/tools/edit.rb` + `lib/tart/agent/message.rb` changed; `test/edit_fold_test.rb` (NEW, ≥10 runs, every name containing `edit_fold` or the legacy-shapes guard) + `test/session_test.rb` (≥6 new `model_identity` runs) per the frozen pin lists in the Specification — NOTHING else (the scope gate freezes exactly this 4-path set and requires BOTH lib seams changed).
+- `lib/tart/tools/edit.rb` + `lib/tart/agent/message.rb` changed; `test/edit_fold_test.rb` (NEW, ≥10 runs, every name containing `edit_fold` or the legacy-shapes guard) + `test/session_test.rb` (≥6 new `model_identity` runs) per the frozen pin lists in the Specification — NOTHING else, apart from the two DECLARED re-pin files `test/agent_loop_test.rb` + `test/flow_test.rb` (AMENDMENT 2026-10-18T19:56Z, escalation-seat ruling — the two model-bearing pins move to the law-conformant bytes, see Output format; the scope gate freezes exactly this 6-path set and requires BOTH lib seams changed).
 - Scratch report at `build/I77-edit-tool-fix-core/report.md`: raw tables only (gate one-liners, suite counts, no verdicts), `## PHASE 0` as its first section after the STATUS line, and a single `STATUS:` line first: `STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them) | BLOCKED (exact blocker + what you tried)`. PHASE 0: every disagreement with the spec with reasons citing real files — or an explicit statement of what you checked before concluding the spec is sound. Silent compliance is a defect.
 
 ## Operating constraints (lane)
