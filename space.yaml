@@ -2863,12 +2863,13 @@ project:
       - test/support/mock_ingest_server.rb
       - test/subagents_test.rb
       base_sha: 8d81291b5ea0a7508a98639fad963f596eda1920
-      worktree: build/I74-session-sink-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: openrouter/z-ai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 1992880d9779cea9aaf90eb52b14967d801f1c8d
     rehearsal:
       gates_digest: 3f26505a4f32c39e8806d1c84f16ba17bdac062e692cd9bdaf3afb3c0e695771
       at: '2026-10-18T01:30:10-06:00'
