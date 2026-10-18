@@ -172,35 +172,202 @@ carry-audit-before-rehearsal rule).
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section markdown-parity-revisit specification --from <file>`. -->
+### Objective
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+Close plan ENTRY 4 (`notes/plan-20261017T183001Z-tart-standalone.md`): **re-freeze the
+I68 markdown-parity cure with the O(n) delimiter guard** — the parity substance the I68
+judge adjudicated SOUND (48/48 battery, R1–R8 exact, I65 D1 reject semantics preserved,
+scope exact, anchors EXACT) lands, minus the complexity defect that killed it. The
+battery, the fixture, the cure law, and the frozen expectations are NOT re-litigated —
+carried verbatim from I68. The iteration's own work is exactly one thing: **make the
+cured converter's inline scan+resolve pipeline effectively linear in paragraph size,
+hard-gated at both the micro and integration scales.**
+
+### The contract (one lane)
+
+**The fixture (frozen, spec-authored — copied, never regenerated).** Copy
+`tmp/i68-spec/markdown_battery.json` VERBATIM to `test/fixtures/markdown_battery.json`
+(byte-identical; the `md-battery-fixture` gate pins sha256
+`4ecd9cc2a5937dda7254c6553c6b9927b7af725e111ea02acf9226c2e01ac883`, 48 cases). This
+file is DATA, not code — any change to it is out of bounds. The expected distinctions
+are the I68 spec session's oracle captures, not builder output.
+
+**The battery tests** (`test/markdown_test.rb`): exactly one test per fixture case,
+named `test_md_battery_<name>` (the `md_battery` token is LOAD-BEARING — the gate
+filter `/md_battery/` must match ≥ 48 runs). Each test renders
+`Render::Markdown.rows(src, width: 94)` and compares row-by-row: actual spans mapped to
+`[text, fg&.to_s, modifiers.map(&:to_s).uniq.sort]` (zero-width spans dropped) vs the
+fixture rows; fg `null` ↔ `span.fg.nil?`; modifiers compare as SETS. One shared
+fixture-load + compare helper; tests through the public `Markdown.rows` interface
+only — the I68 landed shape verbatim.
+
+**The cure (re-derived from the preserved diff).** The R1–R8 mechanism is re-derived
+from `build/I68-markdown-parity-core/lane-core.diff` (the retained worktree
+`build/I68-markdown-parity-core/wt` is reference; `lib/tart/render/markdown.rb` and
+`test/markdown_test.rb` are byte-unchanged since that diff's base `3845f6a`, measured
+— the diff's context applies at `870e3f8`). The cure law is frozen (Grounds): the
+CommonMark flanking predicates in both em and strong arms for both delimiters, `_`
+intraword disallowed, `*` kept, the rule of 3, nearest-opener with run splitting; em
+spanning inner `*`; the escapable-set escape arm; balanced-paren link destinations;
+indented-fence dedent; task markers in the listBullet span; the I65 D1
+reject-emission semantics as the reject path; the I68 PHASE-0 rulings as settled law.
+Mechanism beyond the law is the builder's choice (hand-rolled, gem-neutral — the file
+stays free of the underlying gem's name, tui-seam).
+
+**THE O(n) GUARD — the iteration's own work (the I68 kill's cure).** The whole inline
+scan+resolve pipeline must be effectively linear in paragraph size. Named, frozen:
+(1) **the `~` guard** — `tokenize_inline` (or its successor) NEVER attempts the
+strict-delimiter probe (`STRICT_DEL.match` on a tail slice) at a character that cannot
+open the strict delimiter: a `~` character-class pre-check before any regex/slice work
+(the judge's suggested shape; a builder-refined equivalent that provably skips the
+probe on non-`~` chars is equally valid). (2) **the `close_emphasis` cost** — the
+`toks.index { |t| t.equal?(…) }` identity scans (and the `openers.reject!` /
+`children.any?` nested walk in the same arm) are replaced with O(1) bookkeeping
+(index/position carried with the stack) or an otherwise-provably-linear equivalent —
+measured this session, the bare `~` guard alone leaves the cure QUADRATIC (ratio 4.23;
+the `toks.index` scans dominate on delimiter-dense text). (3) **the linear constant** —
+per-CHARACTER text-Node emission is the remaining hog (~7,000 Struct allocations per
+80-line paragraph); coalesce runs of plain text into single nodes (a boring-segment
+fast path is the obvious shape — a segment with none of `\ ` ` * _ [ ~` is one text
+node). The frozen `md-micro-perf` gate is the bar: **≤ 8.0 ms/conversion AND scale
+ratio (160-line / 80-line) ≤ 3.0** on the gate's embedded markdown-heavy block (base
+measures 2.69–2.83 / 2.14 this session; the I68 defect 83.55 / 4.12; guard-only
+76.95 / 4.23 — both fail both legs). **`render-perf-probe` BP2 ≤ 250 stays the
+integration-scale HARD gate** (at-base control 237.6 this session, the machine's
+standing regime 236.7–241.7 — headroom is ~5%; the converter must be at or below
+base-class cost on the probe's real transcript mix). The perf gates are measured
+BEFORE the report claims green — benchmark first (micro + probe), then write the
+table.
+
+**Itemize-and-defend (the I68 lesson, standing ruling).** The builder's gate table
+MUST include EVERY frozen gate — 66 of 66, `render-perf-probe` and `md-micro-perf`
+included — each with its measured one-liner. An absent gate in the table is a
+REJECT-class violation, exactly as the I68 Builder Report's "every local gate is
+green" claim was REJECTed for tabling only 24 of 46.
+
+**All other I68 frozen semantics preserved.** The I65 D1 owner-payload pins
+(`OWNER_PAYLOAD`, `OWNER_PAYLOAD_SLICE`, the minimal trigger, the cover walk) and
+reject-emission pins stay GREEN or move ONLY with declared, oracle-verified
+expectations (never silently); the md-repro passthrough cases stay byte-exact. NO
+render call-site changes: `transcript.rb` ({markdown_lines} :491, {reasoning_lines}
+:536) and `chat.rb` :2068-:2124 are OUT of the touch set unless a battery defect
+demands a seam change — declared in the report if so. The converter's public
+interface (`Markdown.rows(text, width:)`, `Span`, `FG`) is unchanged — both render
+paths consume it as-is.
+
+### Frozen expectations (do not redesign)
+
+- The wire/session/oracle anchors all hold EXACT at the lane tree: wire-delta
+  (instruction sha `4209f40b…`, tools sha `7360fd1e…758831…`, key order,
+  `store:false`, `stream_options`), session-golden (7/7 digests),
+  zai-max-tokens-wire (tart=pi=512), the oracle-pin family, and every
+  I69/I70/I71 landed-behavior gate — a render-only change never moves a settled
+  byte.
+- No rig scenario-content edits (`gems/tui-split-rig/scenarios/**`,
+  `registry.yml`, `fixtures/` byte-frozen); no new gems; no
+  Gemfile/gemspec/lock changes; no new `Thread.new` sites (the threads-budget
+  law with the standing `lib/tart/models/listing.rb` exclusion).
+- The frozen out dirs (`t72s1`…`t72s10`, `t72s17`, `t72s1t`, `t72tp`, `t72ub`,
+  `t72wir`, `t72zwr`, `t72hwp`, `t72mot` — SHORT, ≤ 5 chars rel the tart root)
+  keep the s9 AGENTS.md context row inside the measured-green boundary at the
+  87-char lane tree (measured this session, Grounds).
+
+### Named exclusions (Constraints, itemized)
+
+- **Tables** (pi's renderTable is a full bordered-table renderer — owner backlog
+  candidate; the battery contains no table case); setext headings; autolinks
+  `<…>`; images; OSC-8 hyperlinks (standing I06 exclusion); latex rendering (the
+  battery contains no `$`/`\(`/`\[` bytes by design); paragraph soft breaks
+  (row-per-line parity already holds, GREEN).
+- The plan's post-landing follow-ups (owner backlog, NOT loop work): model-window
+  automation re-arm; tart PR-to-main decision; a `~/bin/architect` wrapper; the
+  I71-era gate re-freeze backlog items (the s9 wrap-suffix constants, the scope
+  `-uall`/`t70mot` rebase misses) — none re-litigated here; the s9 gate is
+  carried in its I71 frozen form and was measured GREEN at this base at the
+  predicted I72 lane geometry.
+- `problems.md`/`ARCHITECT.md` annotations are LANDING work (architect-owned), not
+  lane work.
+
+### Output format
+
+- NO lane commits (the I65 D1 standing ruling — the integrator lands the tree). The
+  deliverable is the provisioned worktree's diff vs `870e3f8`, exactly:
+  `lib/tart/render/markdown.rb` (modified — MUST differ, the core touch),
+  `test/markdown_test.rb` (modified), `test/fixtures/markdown_battery.json` (NEW,
+  untracked — byte-identical to the spec fixture), plus `test/chat_test.rb` /
+  `test/render/transcript_test.rb` ONLY if frozen expectations legitimately move
+  (each move declared, oracle-verified).
+- Scratch report at `build/I72-markdown-parity-revisit-core/report.md`: the suite
+  summary line, the FULL 66-gate table (every gate, one measured one-liner each —
+  itemize-and-defend), the battery per-family outcome (11 designed-RED cured, 37
+  green kept), the perf evidence (md-micro-perf number + ratio, render-perf-probe
+  BP-line) measured BEFORE the claims, deviations itemized.
+
+### Tool guidance
+
+- Verification (exact, tested at base `870e3f8` this session):
+  `cd repos/tart && bundle install --quiet && bundle exec rake` →
+  `1255 runs, 6141 assertions, 0 failures, 0 errors, 1 skips`, exit 0 (post-lane:
+  ≥ 1255 runs, 0F/0E); `bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1` →
+  `SEAM_BENCH_OK`. The standing flake classes (spinner-dwell margin
+  `render_perf_test.rb:265`, chat interrupt-timing) — re-run cold before
+  adjudicating, note-and-pass per the standing ledger.
+- The battery unit form: `bundle exec ruby -Ilib -Itest test/markdown_test.rb -n
+  "/md_battery/"` → ≥ 48 runs, 0F; the full markdown family:
+  `bundle exec ruby -Ilib -Itest test/markdown_test.rb` → 0F (base 31 runs + your
+  48 battery pins, floor ≥ 79).
+- The micro gate form (frozen, embedded): the `md-micro-perf` gate verbatim —
+  measure, do not re-derive the block.
+- The rig battery at YOUR tree (the lane worktree): the s-gate forms verbatim
+  from the Acceptance Criteria (HERDR_* scrub prefix, the frozen SHORT out dirs,
+  NO `--pi-bin` flag anywhere — the default resolution serves the pinned clone).
+- Oracle probes (read-only): `cd repos/pi/packages/tui && node -e '…require("marked")…'`
+  (marked 18.0.11 resolves via the hoisted root `node_modules`); `env -u
+  PI_PACKAGE_DIR` for direct cli.js execs. NEVER write under `repos/pi`.
+- `BUNDLE_GEMFILE`/bundler context may leak from parent sessions — prefix suspect
+  tool calls with `env -u BUNDLE_GEMFILE` (the FULL scrub for `architect` CLI
+  calls).
+
+### Boundaries
+
+- May touch: exactly the declared 5-path set (scope gate):
+  `lib/tart/render/markdown.rb`, `test/markdown_test.rb`,
+  `test/fixtures/markdown_battery.json` (NEW, spec-frozen bytes),
+  `test/chat_test.rb` + `test/render/transcript_test.rb` (declared-moves only).
+- Must not touch: everything else — including the render call sites
+  (`lib/tart/render/transcript.rb`, `lib/tart/render/chat.rb`) absent a declared
+  defect, all other `lib/tart/**`, the rig (`gems/tui-split-rig/**`), Gemfile/
+  lock/gemspec, `bench/`, tart's `bin/`, `vendor/`, and anything under `repos/pi`.
+- Frozen stack: **BRIEF §2** (ratatui_ruby 1.5.0 behind `TUI`;
+  fast-completions 0.5.0); house style per AGENTS: commented citations at the
+  touched seams, tests through public interfaces, no refactors beyond the task.
+
+### Lane plan
+
+One lane — one converter, one battery, one guard, both render paths proven through it.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision markdown-parity-revisit`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/render/markdown.rb
+    - test/markdown_test.rb
+    - test/fixtures/markdown_battery.json
+    - test/chat_test.rb
+    - test/render/transcript_test.rb
+  effort: high
 ```
+
+### Effort call
+
+`high` — the lane re-derives the full I68 cure (the CommonMark delimiter machinery
+woven into the scan/reject architecture without breaking the I65 D1 semantics or any
+of the 37 green cases) AND re-engineers the scan/resolve cost profile to linear
+(guard + O(1) index bookkeeping + text-run coalescing) against hard two-scale perf
+gates with ~5% integration headroom, plus the 48-case battery and the full
+13-scenario pty battery. The R4-vs-strong-arm priority edge and the
+close_emphasis rewrite (semantics byte-preserved while the index scans go away) are
+the risky edges that need the budget.
 
 ## Acceptance Criteria
 
