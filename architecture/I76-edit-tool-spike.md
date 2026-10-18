@@ -9,11 +9,202 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section edit-tool-spike grounds --from <file>`. -->
+### Standing frame (facts, cited)
+
+- Plan: `notes/plan-20261018T1745Z-live-run-successor.md` **ENTRY 1** —
+  `edit-tool-spike`, repo `tart`, 1 lane, **SPIKE** (investigate-only,
+  deliverable = a report; ENTRY 2 builds the cure from this spike's
+  recommendation; the ENTRY 2 routing rule — gem-first if the gem is
+  implicated — consumes the attribution).
+- The ruling this spike implements:
+  `notes/decisions-20261018T1726Z-successor-plan-adjustments.md` item 1 —
+  the edit-tool dig happens INLINE, BEFORE the plan entry; attribution
+  via live A/B strict-on vs strict-off through the fast-completions gem,
+  plus a pi-oracle A/B; "the plan entry is written from the attribution
+  result, not before it."
+- Repo state (measured this session): `repos/tart` @ **`6451f1e`**
+  (branch `project/pi-port`, tracked tree clean; 18 untracked `t75*`
+  dirs are standing I75 rehearsal scratch — do not commit, do not
+  touch). tart pins the published gem `fast-completions` **0.5.0**
+  (`repos/tart/Gemfile` :13, lock sha256 `dedda554…`); `repos/fast-llm`
+  @ `0c1949c` (gem main, 0.5.0, clean).
+- The oracle is ENVIRONMENT: `repos/pi` @ **v1.1.0** (the pinned clone,
+  clean, tag verified this session) — never write under it
+  (the I67 standing ruling).
+- BRIEF §8 (exact-parity bar) governs ENTRY 2's cure, not this spike —
+  this iteration only attributes and recommends.
+- Prior handoff: `notes/spec-digest-20261018T104858Z-signal-hygiene.md`
+  (I75) — house conventions: judge runs gates at the lane tree; short
+  out dirs; declared-RED rehearsal classes are adjudicated, never
+  silently patched.
+
+### The failing session (measured fresh this session — the evidence, cited not restated)
+
+Source: `~/.tart/sessions/--Users-eric-architect-spaces-20261009-pi-port--/2026-10-18T06-58-52-352Z_01a14dce-5d40-73e1-8291-40db22b525dd.jsonl`
+(57 lines, all parse).
+
+- The task (07:06:03Z user turn): "in this space, lets setup the
+  architect.yaml to have the narrator use
+  openrouter/mistralai/devstral-2512".
+- **Six edit calls, 07:06:05–07:06:12, BYTE-IDENTICAL** — canonical-JSON
+  sha256 prefix `16b4bc25c33c8795` × 6 (computed this session). Each
+  call's arguments, verbatim:
+  `{"path": "architect.yaml\nedits: [\n{\"oldText\": \"  narrator:\n    model: openrouter/z-ai/glm-5.3-flash\n    thinking: low\",\n \"newText\": \"  narrator:\n    model: openrouter/mistralai/devstral-2512\n    thinking: low\"}]", "edits": []}`
+  — the whole intended payload folded INTO the `path` string (real
+  newlines inside it), with a literal empty `"edits": []` beside it.
+- Six identical rejections: `{"error":"Edit tool input is invalid.
+  edits must contain at least one replacement."}` — then the model gave
+  up and edited via bash+python (07:06:14, success 07:06:15).
+- **The determinism signature:** the per-round THINKING differs every
+  time (line 44 "I mistakenly passed empty edits second?"; 46
+  "duplicate `edits`"; 52 "Why is edits empty?"; 54 "**The system seems
+  to merge?**") while the emitted arguments stay byte-identical across
+  six rounds of evolving context.
+- **The forensics gap:** the session records NO model identity anywhere
+  (key-set audit across all 57 lines: type/id/parentId/timestamp/
+  message{role, content, tool_calls, thinking, thinking_signature,
+  finish_reason, token counts} — no model field). ENTRY 2's AC3 closes
+  this; this spike reproduces with beam explicitly.
+- **Temperature is NOT temp-0 on the wire:** zero `temperature` hits
+  under `repos/tart/lib/` — tart never sets it, and the gem ships the
+  key only when explicitly set (`fast/completions/protocol.rb` :43).
+  The failing requests carried NO temperature key (provider default).
+  The plan's "temp-0 determinism" premise is unverified on the wire; the
+  spike records the outgoing params and may probe a `temperature: 0`
+  variant as a cheap discrimination knob.
+
+### The beam registration (measured fresh — a PLAN-PREMISE CORRECTION)
+
+- The 06:56Z session (`…2026-10-18T06-56-17-196Z_01a14dcb…jsonl`, same
+  sessions dir) registered beam into `~/.tart/models.json` at
+  **06:58:11Z — 41 seconds before the failing session booted** — via a
+  WELL-FORMED edit call (ironically, through the same edit tool). The
+  registration edit's newText (transcript-verbatim, preserved in
+  `tmp/i76-spec/beam-registration.txt`) shows the entry AS SHIPPED:
+  `compat: {supportsDeveloperRole: false, thinkingFormat: "openrouter",
+  supportsStrictMode: TRUE, supportsReasoningEffort: true}`,
+  `thinkingLevelMap` off..max, id `reflection/beam-1.0-501b-a23b:nitro`,
+  followed by a raw-API smoke test at 06:58:15Z ("model:
+  reflection/beam-1.0-501b-a23b, reply: OK").
+- **The plan's premise "the model's compat entry lacks
+  supportsStrictMode" is WRONG** — the registration transcript proves it
+  was present from the first minute. (`~/.tart/models.json`'s mtime
+  07:44Z postdates the failure, but the beam entry byte-matches the
+  registration edit — the current file IS the as-shipped beam entry.)
+- Every turn in the failing session carries reasoning blocks (reasoning.text,
+  format "unknown" — openrouter reasoning passthrough), consistent with
+  beam's mandatory-reasoning profile. Effective-model identity remains
+  UNPROVEN (the gap above); beam is "very likely" (the plan's word) and
+  is what the spike reproduces with.
+
+### The strict-resolution law AS SHIPPED (code-cited — strict was OFF)
+
+- `repos/tart/lib/tart/models.rb` `dialect_for` (:235-253): ONLY a
+  `thinkingFormat: "zai"` compat builds the zai dialect; ANY other compat
+  (nil, `"openrouter"`) rides `DEFAULT_DIALECT`; "a non-zai compat
+  declaring supportsStrictMode is tolerated-and-DROPPED: the frozen
+  boundary" (the file's own comment). `DEFAULT_DIALECT` (:255) declares
+  no `supports_strict_mode` → false.
+- Beam's compat is `"openrouter"` → `DEFAULT_DIALECT` → **strict OFF at
+  the wire, regardless of `supportsStrictMode: true`**.
+- Gem side: `fast/completions/protocol.rb` `apply_tools` (:81-102) —
+  `strict = ConstrainedSampling.resolve_json_schema_strict_sampling(tool,
+  dialect.supports_strict_mode)`; with strict-incapable + `"prefer"` the
+  resolver returns nil (SILENT loose fallback,
+  `constrained_sampling.rb` :54-60) → parameters ship VERBATIM, no
+  `"strict"` key on the function object.
+- **Frozen conclusion:** the failing session ran the edit tool LOOSE —
+  no grammar, no strict rewrite, no strict key. The malformed emission
+  CANNOT be grammar-forced by the gem as shipped. The A/B matrix's
+  leg (b) is therefore strict-FORCED-ON (the discrimination leg), not
+  forced-off. (Forcing on is legal at the driver level:
+  `Dialect`'s vocabulary declares `supports_strict_mode` a free boolean,
+  `dialects.rb` :31-33.)
+
+### The gem receive path (the candidate transform — why a raw-bytes capture is the discriminator)
+
+- `fast/completions/args_streamer.rb` (0.5.0): the live view is grown
+  incrementally, but the AUTHORITATIVE parse happens exactly once at
+  finalize — `Protocol.parse_streaming_json` (`protocol.rb` :222-235):
+  `JSON.parse` → on failure `repair_json` (:239+) → re-parse → `{}`
+  last resort.
+- `repair_json` "escapes raw control characters inside strings; doubles
+  backslashes before invalid escape characters" — a CANDIDATE
+  TRANSFORM: an emission carrying RAW newlines inside the `path` string
+  value would be repaired into EXACTLY the recorded folded shape (raw
+  newline → escaped `\n` inside the string; the parse then succeeds and
+  the folded payload survives).
+- The recorded final hash is therefore consistent with (at least) three
+  raw-emission hypotheses, distinguishable ONLY by capturing the RAW
+  streamed argument bytes before any parse/repair:
+  1. the model emitted the folded shape verbatim (escaped `\n` already
+     inside `path`) — pure model-side malformation;
+  2. the model emitted RAW newlines and the gem's `repair_json` folded
+     them into a parseable-but-nonsense shape — model-side malformation
+     + gem-side silent normalization;
+  3. the model emitted a well-formed call and something in the
+     gem/tart receive path folded it — refuted or confirmed by the same
+     capture.
+- The 0.4.1 history (gem commit `ce19841`): "streaming live-parse leak —
+  repaired tool-args re-parse gets its own rescue ({} last resort); a
+  delta splitting an escape sequence killed the step mid-stream" — the
+  streaming/parse interplay is an established defect class in this gem
+  (the plan's own live hypothesis).
+
+### tart's tolerance hook and the bare rejection (the recovery seam)
+
+- `repos/tart/lib/tart/tools/edit.rb` `prepareEditArguments`
+  (`self.normalize_arguments` :76-103): handles edits-as-JSON-string,
+  a single edit object, and legacy top-level oldText/newText — but NOT
+  the payload-folded-into-`path` shape. The rejection the model saw six
+  times is `validate_input`'s bare "edits must contain at least one
+  replacement".
+- The folded shape is SYNTACTICALLY UNAMBIGUOUS: `edits == []` AND
+  `path` contains a newline AND the tail after the first newline parses
+  as an `edits:`-prefixed JSON array of `{oldText, newText}` objects.
+  Whether `prepareEditArguments` should recover it is the plan's named
+  question — answered with an argument in the recommendation, NOT
+  frozen here (ENTRY 2 freezes the cure).
+
+### The seams (cited)
+
+- `repos/tart/lib/tart/tools/edit.rb` — PARAMETERS_SCHEMA :33-58
+  (string-keyed root, well-formed `items`); `constrained_sampling`
+  declaration :66; `normalize_arguments` :76-103; `execute`/validate
+  :107+.
+- `repos/tart/lib/tart/models.rb` — `dialect_for` :235-253,
+  `DEFAULT_DIALECT` :255 (the strict gate).
+- `repos/fast-llm/gems/completions/lib/fast/completions/protocol.rb` —
+  `apply_tools` :81-102 (strict resolution + verbatim parameters);
+  `parse_streaming_json` :222-235; `repair_json` :239+ (the finalize
+  path and the candidate fold).
+- `repos/fast-llm/gems/completions/lib/fast/completions/args_streamer.rb`
+  — the live-view machine (L1-L9), `#scratch` the raw bytes.
+- `repos/fast-llm/gems/completions/lib/fast/completions/
+  constrained_sampling.rb` — the resolver :54-60 (prefer/require,
+  silent loose).
+- `repos/fast-llm/gems/completions/lib/fast/completions/dialects.rb` —
+  the closed vocabulary :14-33 (strict a free boolean), the shipped
+  `:zai` declaration :152-161.
+- The session recorder (no model field) — the failing jsonl's own key
+  set, above.
+
+### Open questions carried INTO the spike (each maps to a leg)
+
+- OQ-1 Which raw bytes did beam actually stream for the edit call?
+  (E2 — the attribution discriminator.)
+- OQ-2 Is the malformed emission reproducible live through tart's stack
+  at all (exact-context replay AND simplified one-shot)? (E1.)
+- OQ-3 Does forcing the strict arm on (driver-level dialect override)
+  change beam's emission — and does openrouter accept the strict key
+  for this model? (E3.)
+- OQ-4 Does glm-5.3 through the SAME loose path emit well-formed edit
+  args (model-side vs path-side)? (E4.)
+- OQ-5 Does pi's own harness, hosting the same model on the same task,
+  produce the same malformed shape (tart-stack-specific vs
+  model-inherent)? (E5.)
+- OQ-6 Where does the fix land, and does `prepareEditArguments` recover
+  the folded shape? (The recommendation — ENTRY 2 freezes the cure.)
 
 ## Specification
 
