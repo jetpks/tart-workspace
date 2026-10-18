@@ -25,7 +25,11 @@ roles:
     model: openrouter/z-ai/glm-5.3-flash
     thinking: high
   coordinator:
-    model: openrouter/z-ai/glm-5.3-flash
+    # TEMPORARY (owner 2026-10-18): glm-5.3-flash regressed on multi-field tool-call
+    # emission (task key omitted from subagent spawns, 4-for-4 coordinators + probe
+    # repro; see notes/exception-20261018T013530Z.md). Swap back to
+    # openrouter/z-ai/glm-5.3-flash when the provider recovers.
+    model: openrouter/deepseek/deepseek-v4.1-flash
     thinking: high
   narrator:
     model: openrouter/z-ai/glm-5.3-flash
