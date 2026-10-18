@@ -2876,7 +2876,22 @@ project:
   - name: signal-hygiene
     ordinal: 75
     file: architecture/I75-signal-hygiene.md
-    freeze_sha:
+    freeze_sha: 92cbf63563e91fb07ca2428653d2b0f5b3051e5b
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/core/loop.rb
+      - lib/tart/core/poller.rb
+      - lib/tart/tui.rb
+      - test/signal_hygiene_test.rb
+      - test/support/signal_hygiene_harness.rb
+      - test/loop_test.rb
+      - test/tui_test.rb
+      - test/kernel_carryin_test.rb
+      - test/subagents_test.rb
+    rehearsal:
+      gates_digest: 9178465825bcb76a311e364948d40e10788fd4d6b527db05affc277f6ba1a444
+      at: '2026-10-18T04:32:29-06:00'
   integration_branch: project/pi-port
