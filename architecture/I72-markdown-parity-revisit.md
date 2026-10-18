@@ -1686,11 +1686,344 @@ Supporting reads named by the specification (do not skip): `notes/spec-digest-20
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I72-markdown-parity-revisit-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence markdown-parity-revisit --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# Builder report — I72 `markdown-parity-revisit`, lane `core`
+
+Repo `tart`, worktree `build/I72-markdown-parity-revisit-core/wt`, branch
+`lane/I72-markdown-parity-revisit-core`, base `870e3f8`. NO lane commits
+(`git log 870e3f8..` = 0 commits). Deliverable diff = exactly:
+`lib/tart/render/markdown.rb` (M, +436/−78 net with tests aside), `test/markdown_test.rb`
+(M, +31), `test/fixtures/markdown_battery.json` (NEW, untracked).
+`test/chat_test.rb` / `test/render/transcript_test.rb`: NOT touched (zero diff —
+no frozen expectation moved). `git diff 870e3f8 --stat`:
+`lib/tart/render/markdown.rb | 514 +++++++++++++++++++++++++++++++++++++-------`,
+`test/markdown_test.rb | 31 +++`; 2 tracked files, 467 insertions, 78 deletions.
+Untracked besides the fixture: only the frozen `t72*` gate out dirs (each gate
+owns its `rm -rf`; left in place per the standing precedent) and
+`tmp/render-perf-gate`.
+
+## Suite + bench (AC6, cold, this session)
+
+- `bundle install --quiet && bundle exec rake && echo SUITE_OK` →
+  **1303 runs, 6187 assertions, 0 failures, 0 errors, 1 skips** — rake exit 0,
+  `SUITE_OK` printed. (Base floor 1255 runs; +48 = the battery pins, exactly.)
+  The standing 1 skip unchanged.
+- `bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1` → `SEAM_BENCH_OK`.
+- Standing flake ledger: NEITHER class manifested this session —
+  `render_perf_test.rb:265` spinner-dwell margin and the
+  `chat_test.rb:1613` interrupt-timing class (both forms) never fired across
+  two full suite runs; note-and-pass ledger carries nothing new.
+
+## Perf evidence (measured before any green claim)
+
+### md-micro-perf (AC4a, the frozen embedded form, verbatim)
+
+```
+MD_MICRO_OK 4.64 ms/conv ratio 1.99        (gate-form run)
+MD_MICRO_OK 4.44 ms/conv ratio 2.23        (repeat 1)
+MD_MICRO_OK 4.72 ms/conv ratio 1.78        (repeat 2)
+```
+
+Both legs: ≤ 8.0 ms/conversion ✓ (margin ~42%) and ratio ≤ 3.0 ✓. Anchors on
+record: base `870e3f8` 2.69–2.83 / 2.14 (linear); I68 defect 83.55 / 4.12
+(quadratic); judge's bare `~`-guard-only 76.95 / 4.23 (still quadratic).
+
+### render-perf-probe (AC4b, frozen form, at the lane tree)
+
+```
+AV marker: PASS observed
+AV requests: PASS 3 (want == 3)
+AV frames: PASS 3013 (want >= 1500)
+AV live-bytes: PASS 44677 (want >= 30,000)
+AV transcript-rows: PASS 12535 (want >= 11,000)
+BP1: PASS 2.20 (median frame_ms <= 3.0)
+BP2: PASS 214.9 (render-ms/s <= 250)
+BP3: PASS 9.6 (md conversions/s <= 25)
+BP4: PASS 22.4 (paints/s <= 35)
+BP5: PASS 8.8 (burst->top-row-change ms <= 40)
+RENDER_PERF_OK
+```
+
+**BP2 = 214.9 ≤ 250** — the lane tree sits 35 under the frozen budget and ~23
+BELOW this machine's base-class regime (237.6 spec-session control, 242.0
+digest control, standing band 236.7–241.7): the converter is FASTER than base
+on the probe's real transcript mix, not merely inside headroom.
+
+### The O(n) guard law, per-term (AC4c)
+
+- **The `~` guard**: `tokenize_inline` pre-gates the strict-del probe on a
+  literal `~~` (`ch == "~" && src[i + 1] == "~"`); every other probe branch is
+  pre-gated on its opening character. No regex or slice work runs on a
+  character that cannot open a construct. The probe itself is a
+  StringScanner-anchored scan of the frozen `STRICT_DEL` body (no
+  `src[i..]` tail-slice allocation per attempt — the I68 kill's dominant term).
+- **O(1) closer bookkeeping**: the token run is doubly linked with sentinel
+  ends; a match = one O(children) unlink walk (each node absorbed from the
+  flow exactly once) + O(1) splice; the opener stack prunes by
+  `slice!(j..)` truncation (the I68 `toks.index` identity scans and the
+  `openers.reject!`/`children.any?` containment walk are gone). The failed-
+  closer path binds the reference openers-bottom law: the bound rides just
+  below the failed closer and a closer that can no longer open leaves the
+  stack — the I68 cure's degenerate `nil` bound re-walked the whole
+  accumulated stack on EVERY failed closer. Measured:
+  - I68 cure's bound mechanism (instrumented, this session): 19,680 search
+    steps @ 80 lines → 77,760 @ 160 → 309,120 @ 320 (4x per 2x — quadratic);
+    per-1k-token resolve cost 3.24 → 5.18 → 9.19 ms.
+  - After the fix: per-1k-token resolve cost 1.15 → 1.15 → 1.17 ms
+    (80/160/320 lines) — flat, linear.
+- **Text-run coalescing**: `BORING_RUN` fast path — a run with no
+  construct-opening character is ONE text node. The gate's 80-line block
+  tokenizes to 1921 nodes (the I68 cure emitted ~8,000+ per-char Struct
+  nodes for the same block; ~7,000-allocation-per-paragraph hog retired).
+
+## The frozen battery — per-family outcome (AC1/AC2/AC3)
+
+Fixture: copied VERBATIM from `tmp/i68-spec/markdown_battery.json`; sha256
+`4ecd9cc2a5937dda7254c6553c6b9927b7af725e111ea02acf9226c2e01ac883` ✓
+48 cases ✓ (gate `md-battery-fixture` PASS). 48 battery tests
+(`/md_battery/` filter: **48 runs, 48 assertions, 0 failures**) through the
+public `Markdown.rows(src, width: 94)`, field-wise
+`[text, fg&.to_s, sorted-unique modifiers]`, zero-width spans dropped — the
+I68 landed shape verbatim. Markdown family: **79 runs (31 base + 48 battery),
+148 assertions, 0 failures** (≥ 79 floor ✓).
+
+Designed-RED measured at base (`870e3f8`, this session, per-case probe) —
+all 11 cured at the lane tree:
+
+| # | case | family |
+|---|------|--------|
+| 1 | owner_snake_line | R1a `_` intraword em disallowed |
+| 2 | intraword_double_underscore | R2 `__` intraword strong disallowed |
+| 3 | multi_snake_identifiers | R1a |
+| 4 | strong_padded | R3 `**` flanking (padded literal) |
+| 5 | strong_intraword | R2 |
+| 6 | underscore_pair_in_parens | R1a |
+| 7 | em_nested_strong_star | R4 em spans inner `*` |
+| 8 | escaped_backslash_before_letter | R5 escape arm = ASCII punctuation only |
+| 9 | link_parens_url | R6 balanced-paren link destinations |
+| 10 | fenced_indented | R7 indented-fence body dedent (≤ 3) |
+| 11 | list_task | R8 task markers fold into the listBullet span |
+
+37 GREEN kept: the base-mismatch probe renders **0 mismatching cases** at the
+lane tree (base: the 11 above; lane: none) — nothing deleted, nothing
+re-litigated. The 12 embedded `md-flanking-repro` assertions (R1a/R1b/R2/
+R3/R3b/R3c/R4/R5/R6/R7/R8 + the I65 D1 reject-emission pin) all EXACT
+(`MD_FLANKING_OK`); `md-repro` passthrough byte-exact (`MD_REPRO_OK`).
+
+## The frozen 66-gate table (itemize-and-defend — 66 of 66)
+
+| # | gate | result | measured one-liner |
+|---|------|--------|--------------------|
+| 1 | suite | PASS | `bundle install --quiet && bundle exec rake` → 1303 runs, 6187 assertions, 0F, 0E, 1 skip, exit 0, SUITE_OK (cold, ×2) |
+| 2 | bench | PASS | `SEAM_BENCH_OK` |
+| 3 | md-repro | PASS | `MD_REPRO_OK` — both passthrough cases byte-exact (42-byte trigger + `a ~~ padded ~~ b * and *`) |
+| 4 | md-inline-units | PASS | `/inline_scan/` markdown 3 runs 0F + transcript 2 runs 0F → `MD_INLINE_UNITS_OK` |
+| 5 | pending-registry-units | PASS | `/pending_registry/` transcript 4 runs 0F → `PENDING_REGISTRY_UNITS_OK` |
+| 6 | footer-window | PASS | `FOOTER_WINDOW_OK 1000000` — footer/loop window agreement + env tier |
+| 7 | thinking-pins | PASS | agent-loop 11 runs + settings 8 runs, 0F → `THINKING_PINS_OK` |
+| 8 | hermeticity | PASS | launcher smoke 8 runs + e2e session 4 runs, 0F → `HERMETICITY_OK` |
+| 9 | lock-deps | PASS | no ruby_llm; `fast-completions 0.5.0` pin; lock clean; `GEM_LOAD_OK` |
+| 10 | zai-data | PASS | dialect pins 2 runs 0F; zai dialect values exact → `ZAI_DATA_OK` |
+| 11 | threads-budget | PASS | `git diff 870e3f8 -- lib` (listing.rb excluded): zero new `Thread.new` sites → `THREADS_BUDGET_OK` |
+| 12 | session-golden | PASS | 7/7 digests exact → `SESSION_GOLDEN_OK` |
+| 13 | strict-wire | PASS | strict_sampling 8 runs, 76 assertions, 0F |
+| 14 | error-transcript-units | PASS | agent-loop 4 + session 2 runs, 0F → `ERROR_TRANSCRIPT_UNITS_OK` |
+| 15 | error-transcript-render-units | PASS | chat 3 + transcript 2 runs, 0F → `ERROR_TRANSCRIPT_RENDER_UNITS_OK` |
+| 16 | render-perf-units | PASS | render_perf 7 runs, 29 assertions, 0F |
+| 17 | render-perf-probe | PASS | `RENDER_PERF_OK` — **BP2 214.9 ≤ 250**; BP1 2.20, BP3 9.6, BP4 22.4, BP5 8.8, frames 3013, transcript-rows 12535 (base control 237.6/242.0) |
+| 18 | tool-pending-gate | PASS | `TOOL_PENDING_GATE_OK` (out dir t72tp) |
+| 19 | user-bash-stream-gate | PASS | `USER_BASH_STREAM_GATE_OK` (out dir t72ub) |
+| 20 | zai-max-tokens-units | PASS | agent-loop 4 + models 2 + launcher 2 runs, 0F → `ZAI_MAX_TOKENS_UNITS_OK` |
+| 21 | rail-bg | PASS | `RAIL_BG_OK` — full-width/pad/plain/straddle legs |
+| 22 | jump-pill-units | PASS | `/jump_pill/` chat 6 runs, 0F → `JUMP_PILL_UNITS_OK` |
+| 23 | rail-bg-units | PASS | `/rail_background/` chat 4 runs, 0F → `RAIL_BG_UNITS_OK` |
+| 24 | viewport-probe | PASS | `VIEWPORT_PROBE_OK` |
+| 25 | oracle-pin-state | PASS | pin branch = tag v1.1.0, clean tree, cli.js v1.1.0 → `ORACLE_PIN_OK` |
+| 26 | oracle-bin-units | PASS | `/oracle_bin/` 5 runs, 0F → `ORACLE_BIN_UNITS_OK` |
+| 27 | oracle-resolve | PASS | default resolves the pinned clone cli; flag/env tiers intact → `ORACLE_RESOLVE_OK` |
+| 28 | s1-parity | PASS | exit 0 (out dir t72s1) |
+| 29 | s2-parity | PASS | exit 0 (t72s2) |
+| 30 | s3-parity | PASS | exit 0 (t72s3) |
+| 31 | s4-parity | PASS | exit 0 (t72s4) |
+| 32 | s5-parity | PASS | exit 0 (t72s5) |
+| 33 | s6-parity | PASS | exit 0 (t72s6) |
+| 34 | s7-parity | PASS | exit 0 (t72s7) |
+| 35 | s8-parity | PASS | exit 0 (t72s8) |
+| 36 | s9-parity | **FAIL** | deterministic lane-tree GEOMETRY — see the geometry section below (candidates `- / for commands`, `+md`; exit 1; reproduced ×2) |
+| 37 | s10-parity | PASS | exit 0 (t72s10) |
+| 38 | s17-parity | PASS | exit 0 (t72s17) |
+| 39 | s1-tart-mode | PASS | rig ec 0 ≤ 1 + `TART_MODE_OK` (tart completed, requests == expected) (t72s1t) |
+| 40 | wire-delta | PASS | `WIRE_DELTA_OK` — instruction sha `4209f40b…` EXACT, tools sha `7360fd1e…758831…` EXACT, key order/store:false/stream_options exact (t72wir) |
+| 41 | zai-max-tokens-wire | PASS | `ZAI_WIRE_OK tart=pi=512` (t72zwr) |
+| 42 | identity-law | PASS | `IDENTITY_LAW_OK` — default tart, all opt-in tiers, ORACLE_VERSION 1.1.0 |
+| 43 | default-face | PASS | `DEFAULT_FACE_OK` — tart face + pi face legs |
+| 44 | default-boot | PASS | `DEFAULT_BOOT_OK` — tart preamble + TART_* namespace on a default boot |
+| 45 | herdr-units | PASS | `HERDR_UNITS_OK` — session/state ladder, seq scale, apostrophe path drop, env-off |
+| 46 | herdr-wire-probe | **FAIL** | deterministic lane-tree GEOMETRY — see the geometry section below (`HERDR_WIRE_FAIL: no reports received`, reproduced ×3) |
+| 47 | rig-identity-assert | PASS | `RIG_IDENTITY_OK` — staged TART_IDENTITY=pi + override + blank refusal |
+| 48 | subagents-default-law | PASS | `SUBAGENTS_DEFAULT_LAW_OK` — DEFAULTS on, env/file tiers, namespacing |
+| 49 | subagents-default-boot | PASS | `SUBAGENTS_DEFAULT_BOOT_OK` — on-shape digest exact; off-shape = the I48 constant exact; instruction bytes unchanged |
+| 50 | subagents-motd-units | PASS | `SUBAGENTS_MOTD_UNITS_OK` — six builtins, expanded/collapsed rows exact |
+| 51 | subagents-motd-probe | PASS | `SUBAGENTS_MOTD_OK` (t72mot) |
+| 52 | subagents-e2e-default-on | PASS | `/default_on/` 4 runs, 0F → `SUBAGENTS_E2E_DEFAULT_OK` |
+| 53 | rig-staging-units | PASS | `RIG_STAGING_OK` — opt-out staged; compaction rows present only with a window |
+| 54 | vendored-attribution | PASS | `VENDORED_ATTRIBUTION_OK` — attribution + offline refresh task + oracle-identical file set |
+| 55 | vendored-units | PASS | `VENDORED_UNITS_OK` — gap fill, cap fill, thinking map, dialect legs |
+| 56 | listing-units | PASS | models_listing 5 runs, 0F → `LISTING_UNITS_OK` |
+| 57 | model-menu-live-merge | PASS | live_list 3 + menu refresh 2 runs, 0F → `MODEL_MENU_LIVE_MERGE_OK` |
+| 58 | launcher-listing-thread | PASS | `/listing_endpoint/` 1 run, 0F → `LAUNCHER_LISTING_THREAD_OK` |
+| 59 | vendored-no-boot-network | PASS | `VENDORED_NO_BOOT_NETWORK_OK` — no HTTP tokens; listing only in the menu path |
+| 60 | listing-thread-law | PASS | exactly one `Thread.new` site, in listing.rb only → `LISTING_THREAD_LAW_OK` |
+| 61 | md-battery-fixture | PASS | sha256 `4ecd9cc2…` ✓, 48 cases → `MD_BATTERY_FIXTURE_OK` |
+| 62 | md-battery-units | PASS | `/md_battery/` → 48 runs, 48 assertions, 0F → `MD_BATTERY_UNITS_OK` |
+| 63 | md-regression-units | PASS | markdown family → 79 runs, 148 assertions, 0F (31 base + 48 battery, nothing deleted) |
+| 64 | md-flanking-repro | PASS | `MD_FLANKING_OK` — R1a/R1b/R2/R3/R3b/R3c/R4/R5/R6/R7/R8 + I65 D1 reject-emission EXACT |
+| 65 | md-micro-perf | PASS | `MD_MICRO_OK 4.64 ms/conv ratio 1.99` (≤ 8.0 / ≤ 3.0; repeats 4.44/2.23, 4.72/1.78) |
+| 66 | scope | PASS | `SCOPE_OK` — diff vs `870e3f8` = exactly markdown.rb (M, must-differ ✓) + markdown_test.rb (M) + the fixture (NEW); zero bites outside the 5-path set |
+
+Tally: **64 PASS / 2 FAIL / 0 BROKEN**. Both FAILs are the same measured
+lane-tree geometry class (below), each with a complete three-leg record.
+
+## The two geometry-class gate FAILs (raw evidence)
+
+### `s9-parity` — FAIL, deterministic, zero lane attribution
+
+- Command byte-verbatim (`rm -rf t72s9 && env -u …tui-split-rig run …
+  s9_startup_help.yml --out t72s9`), exit 1, reproduced twice.
+- `t72s9/summary.json`: both apps completed 1/1, requests 1/1;
+  `candidates: ["- / for commands", "+md"]`, exit_code 1. The ONLY new
+  unknown-candidate vs the recorded base/regime vector is `+md`.
+- Mechanism (measured): tart's [Context] AGENTS.md row =
+  tree(87 chars) + `/t72s9/run-1/sandbox/tart/AGENTS.md`(35) = **122 chars**
+  against the 120-col pane (`GEOMETRY = %w[-x 120 -y 40]`) → the row wraps
+  with a 2-char fragment `md`; the frozen registry class
+  `staged-path-wrap-fragment` forgives only `^\s*\S+\.md$` — `md` is not
+  `.md`-suffixed → unknown-candidate. pi's row (120 chars) fits unwrapped.
+- Geometry arithmetic (the I68 digest's own s9 law): I68 tree 79 +
+  `/tmp/i68s9/…`(39) = 118 ≤ 120 ✓ GREEN; I72 tree 87 + `/t72s9/…`(35) =
+  122 ✗ — the frozen out-dir shortening (tmp/ dropped, −5) did not cover the
+  tree growth (+8). The fragment is `.md`-suffixed (absorbed) iff row ≥ 123,
+  i.e. **tree ≥ 88**; rows ≤ 120 (tree ≤ 85) do not wrap at all; **tree 86–87
+  is the dead zone** (fragments `d` / `md`).
+- Attribution: the row is a staged PATH rendered by motd.rb/formatDisplayPath
+  and pi's word-wrap — none of which is in the lane's 5-path touch set; the
+  lane diff (`markdown.rb`, tests) cannot move a path row's length. The
+  Grounds' "s9 GREEN at the predicted 87-char geometry" scratch measurement
+  is NOT reproducible at tree length exactly 87 — measured here
+  deterministically twice.
+
+### `herdr-wire-probe` — FAIL, deterministic, zero lane attribution
+
+- Command byte-verbatim (`rm -rf t72hwp && env -u …
+  herdr-wire-probe --out t72hwp`), exit 1, reproduced three times:
+  `HERDR_WIRE_FAIL: no reports received … received 0 report(s)`.
+- The pane boot is healthy: the staged session jsonl shows the user turn and
+  the scripted mock reply landed (`"content":"ok"`, finish stop).
+- Mechanism (measured): the probe's fake herdr socket path =
+  tree(87) + `/t72hwp/herdr.sock` = **105 bytes**; macOS `sockaddr_un`
+  accepts ≤ 104 → `UNIXServer.new` raises
+  `ArgumentError: too long unix socket path (105bytes given but 104bytes
+  max)` inside the probe's listener thread (silently rescued) → the listener
+  never binds → 0 reports ever received. Reproduced standalone:
+  `BIND FAIL` at the exact lane-tree path; `BIND OK` at a 100-byte path.
+- At-base control, same machine, same command bytes, `repos/tart` @ `870e3f8`
+  (78-char root → 96-byte socket path): **`HERDR_WIRE_OK`** with the exact
+  5-report ladder — session(idle) → working → idle, seqs 1792294905866001–05
+  (the Date.now()*1000 class), source=tart agent=tart, resume_argv
+  `["tart", "-r", <session id>]` on every ref-carrying report. Rig bytes
+  identical between the lane tree and base (`diff -r` clean).
+- Attribution: zero — the socket path is constructed by the byte-frozen rig
+  bin from the byte-frozen out dir; no lane-touched file participates. No
+  frozen out dir fits at this tree (min socket path with a 1-char dir =
+  100 bytes; the frozen 6-char dir gives 105): the gate as frozen is
+  geometrically impossible at an 87-char lane tree; a re-freeze decision
+  (shorter socket name in the rig, shorter out dir, or a shorter tree) is
+  coordinator/judge territory.
+
+## Deviations (itemized)
+
+1. **The I68 cure's scan-resume overshoot is NOT emulated** (declared).
+   The cure's outer scan resumes at an ARRAY INDEX (`ci_old + 1`) after
+   closer splices shrank the array — when a closer-remnant call ends
+   unmatched after ≥ 1 splice, the landing index overshoots by the total
+   shrink (in the cure's per-CHARACTER token units) and up to S unscanned
+   tokens are skipped from closer examination. That arithmetic is coupled to
+   the per-char token granularity that AC4c itself mandates coalescing away
+   ("plain-text runs coalesced"), so it has no clean analogue in the
+   coalesced linked run. The lane's walk examines every token. Evidence:
+   (a) all 48 battery cases + all 31 base pins + the 12 embedded
+   flanking-repro assertions byte-identical; (b) 20 hand shapes identical to
+   the preserved cure worktree; (c) a 2,000-case seeded adversarial fuzz
+   (delimiter-dense atom salad): 74/2000 diverge from the preserved cure,
+   and the pinned marked 18.0.11 oracle (pi's StrictStrikethroughTokenizer
+   setup, hoisted node_modules) agrees with NEITHER implementation on the 51
+   inline-comparable mismatch cases (0/51 both) — the divergence is
+   invisible to the frozen gates and to the oracle-shape bar; (d) an
+   overshoot-emulating variant (skip = total array-shrink, clamped at the
+   sentinel) was built and fuzz-verified to 20 diffs before being rejected —
+   its residual diffs trace to cure-unit/per-char bookkeeping that cannot be
+   reproduced on coalesced nodes without reintroducing per-char emission.
+2. **del_token probes via a StringScanner-anchored scan** (no `src[i..]`
+   tail slice) under the `~~` pre-guard — semantics-equivalent to the cure's
+   `STRICT_DEL.match(src[i..])` (verified: same matches on the battery,
+   pins, 20 shapes, fuzz corpus); removes the per-attempt slice allocation.
+3. **Failed-closer bookkeeping follows the reference openers-bottom law**
+   (bound = the entry just below the failed closer; a closer that can no
+   longer open leaves the stack) instead of the cure's degenerate nil-bound
+   form. Result-neutral on the 2,000-case fuzz corpus: the overshoot-
+   emulating variant with the cure's exact fail path produced the same
+   residual diff set (20) as with the strong bound + pop — the two changes
+   add zero additional divergences. (Proven sound: everything below the
+   bound was examined by this or an earlier same-key walk — hit eligibility
+   depends only on ch + can_open, both immutable.)
+4. **code_token counts backtick runs without tail slices**
+   (`m += 1 while src[i + m] == "\`"`) — equivalent to the cure's
+   `src[i..][/\A\`+/]`.
+5. `test/chat_test.rb` / `test/render/transcript_test.rb`: NOT touched —
+   no frozen expectation moved (zero diff vs `870e3f8`, gate-verified by
+   `scope`).
+6. House style: commented citations at the touched seams carried from the
+   cure diff; the file stays gem-neutral (name-scan pin green, the
+   `test_converter_source_is_gem_neutral` pin among the 79).
+
+## PHASE 0 record (plan + disagreements, before code)
+
+- Plan: copy the fixture → re-derive the I68 cure from the preserved diff →
+  weave the O(n) guard (pre-gated probes, O(1) closer bookkeeping, run
+  coalescing) → land the battery tests → measure perf BEFORE claiming → run
+  all 66 gates → report. Executed as planned.
+- Disagreement 1 (Grounds' s9 scratch-tree claim): the Grounds state s9 was
+  measured GREEN at the predicted 87-char lane geometry; at tree length
+  exactly 87 the gate is deterministic-RED (mechanism above). This is a
+  factual correction to the measurement claim, not a contract change — the
+  gate stays frozen; the evidence is tabled for judge adjudication.
+- Disagreement 2 (geometry coverage): the Grounds' lane-geometry section
+  measured only the s9 form at the scratch tree; the herdr-wire-probe's
+  unix-socket path was never geometry-checked at the lane tree and cannot
+  fit at 87 chars as frozen. Same class, same handling.
+- Disagreement 3 (overshoot): none with the contract as written — AC4c's
+  bar is "the battery + every existing pin", which the law-faithful
+  implementation satisfies byte-exactly; the overshoot is cure-internal
+  mechanism (and incompatible with AC4c's coalescing mandate). Declared in
+  deviation 1 above.
+
+STATUS: COMPLETE_WITH_CONCERNS
+- Concern 1: `s9-parity` FAIL at the lane tree — deterministic lane-tree
+  geometry (122-char AGENTS.md row → non-`.md`-suffixed fragment `md`),
+  zero lane attribution, three-leg evidence complete (cold ×2, base-state
+  analysis, geometry law); needs judge adjudication or an out-dir/tree
+  re-freeze (coordinator).
+- Concern 2: `herdr-wire-probe` FAIL at the lane tree — deterministic
+  geometry (105-byte unix-socket path > 104-byte sun_path; silent listener
+  bind failure), zero lane attribution, three-leg evidence complete
+  (cold ×3, at-base control GREEN with the identical command bytes, socket
+  mechanism standalone-reproduced); needs judge adjudication or a re-freeze.
+- Concern 3: deviation 1 (the scan-resume overshoot not emulated) —
+  battery/pin/oracle-shape invisible, declared with fuzz evidence; the
+  judge may rule it must be emulated, in which case the emulating variant
+  exists but cannot reach exact cure-unit fidelity on coalesced nodes
+  (structurally).
 
 ## Verdict
 
