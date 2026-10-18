@@ -392,18 +392,21 @@ concluding the spec is sound) — silent compliance is a defect.
 >   because the three lib seams are untouched pre-dispatch, the standing
 >   I77/I78 class). GREEN arrives only with the lane work; BROKEN would be
 >   a gate defect, not a finding.
-> - The carried 83, MEASURED at the base tip `12a7ece` by THIS spec's
->   first rehearsal (transcript recorded at freeze time in the AC
->   preamble's rehearsal record): the measured vector is stated in the
->   Builder Prompt header, never predicted — including `render-perf-probe`
->   (the I75-frozen LOAD-MARGIN adjudication stands: BP2-only →
->   note-and-pass, idle-machine cold re-run operative). The standing
+> - The carried 83, MEASURED at the base tip `12a7ece` by THIS spec's first
+>   and only rehearsal (transcript
+>   `build/rehearse/I79-subagent-status-box-20261018T173557.976770.md`):
+>   **82 GREEN + the 3 declared-RED** — including `render-perf-probe` GREEN
+>   this idle-machine run (the I75-frozen LOAD-MARGIN adjudication stands
+>   either way: BP2-only → note-and-pass, idle-machine cold re-run
+>   operative), `s9-parity` and `herdr-wire-probe` GREEN at canonical depth.
+>   The 82 GREEN are the no-regression proof at freeze time; the standing
 >   adjudication classes above are adjudicated at the lane tree, never
 >   silently patched.
 > - The `t79*` out dirs the gates create are rehearsal/judge scratch:
 >   never committed; the integrator's out-of-bounds guard may trip on them
 >   (the I73–I78 judge-scratch precedent — clean and re-verify, no
 >   accept-bounds override).
+
 
 ```gates
 ---
