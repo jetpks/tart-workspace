@@ -2163,10 +2163,34 @@ env-class, exactly as standing. Gates: `suite`, `bench`.
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I74-session-sink-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section session-sink prompt --append --lane <lane> --from build/I74-session-sink-<lane>/prompt.md`. -->
+### core
+
+# Builder lane prompt — iteration `session-sink` (I74), lane `core`
+
+You are the builder for iteration `session-sink` (I74), lane `core`, repo `tart`. You are the ONLY lane.
+
+## THE CONTRACT — read it first, in full
+
+The authoritative, FROZEN contract is `architecture/I74-session-sink.md` in the space repo: its **Grounds**, **Specification**, and **Acceptance Criteria** sections (the `Objective`, `THE MODULE`, `Tests`, `Frozen expectations`, `Named exclusions`, `Output format`, `Tool guidance`, `Boundaries`, `Lane plan`, the 74-gate frozen ```gates block). READ THE WHOLE FILE before doing anything. Where this header and the arch file differ, THE ARCH FILE WINS.
+
+Supporting reads: `notes/spec-digest-20261018T074028Z-session-sink.md`, `tmp/i74-spec/` scratch, and (READ-ONLY) the deck contract references under `~/architect/spaces/20261014-all-fax-no-printer/` (`repos/pi-extensions/session-sink.ts`, `repos/all-fax-no-printer/lib/space/server/conversations/ingest.rb`).
+
+## Operating constraints (lane)
+
+- Work ONLY in your provisioned worktree: `build/I74-session-sink-core/wt` in the space, on branch `lane/I74-session-sink-core`, base tart `project/pi-port` @ `8d81291`.
+- NEVER commit (the integrator lands your tree). NEVER touch the space repo. NEVER push. NEVER write into the sibling all-fax-no-printer space.
+- NEVER touch any gem (`ratatui_ruby 1.5.0`, `fast-completions 0.5.0` are dependencies). No new runtime gems (existing HTTP stack only); no Gemfile/gemspec/lock changes.
+- NEVER write anything under `repos/pi` (pinned oracle clone @ v1.1.0, read-only). `env -u PI_PACKAGE_DIR` for direct oracle execs.
+- Touch set is EXACTLY the 6 paths in `Boundaries`/`Lane plan` (scope gate): `lib/tart/session_sink.rb` (NEW, MUST differ — the core touch), `bin/tart`, `lib/tart/subagents/manager.rb`, `test/session_sink_test.rb` (NEW), `test/support/mock_ingest_server.rb` (NEW), `test/subagents_test.rb`. `lib/tart/agent/session.rb` (THE RECORDER) and all of `lib/tart/render/` are HARD-FROZEN.
+- Scenario out dirs stay SHORT (≤ ~10 chars rel the tart root); each gate owns `rm -rf` of its out dir. No rig scenario-content edits.
+- Embedded gate `-e '…'` bodies carry NO apostrophes (the I73 rehearsal lesson — grep before rehearsing).
+- Standing flake classes (`chat_test.rb` interrupt-timing BOTH forms incl. the 900s gate-hang; `render_perf_test.rb:265` spinner-dwell): re-run COLD before adjudicating; note-and-pass.
+- ITEMIZE-AND-DEFEND: your gate table MUST carry EVERY frozen gate — 74 of 74 — each with a measured one-liner. An absent gate is a REJECT-class violation.
+
+## Deliverable + report
+
+- Deliverable: the worktree diff vs `8d81291` — exactly the 6-path set (session_sink.rb NEW + bin/tart wiring + manager.rb child-carry + 3 test files incl. the mock ingest server). NO lane commits.
+- Scratch report at `build/I74-session-sink-core/report.md`: the suite summary line, the FULL 74-gate table (one measured one-liner each), deviations itemized, and a final `STATUS:` line.
 
 ## Builder Report
 
