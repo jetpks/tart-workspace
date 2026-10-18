@@ -290,35 +290,190 @@ this entry ports. All citations below are from the installed tree
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section subagent-runner-health specification --from <file>`. -->
+ONE lane `core` (repo `tart`). Frozen touch set (4 paths):
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+- `lib/tart/subagents/manager.rb` — the reaper seam (sweep + repair +
+  ownership flags) and the validation call site.
+- `lib/tart/subagents.rb` — the registry consult in `resolve_model`
+  (the dormant `catalog:` kwarg armed).
+- `test/subagents_health_test.rb` — NEW: this iteration's pins.
+- `test/subagents_test.rb` — DECLARED re-pin file (the ownership-flag
+  distinction may touch existing assertions; any edit is
+  behavior-preserving re-pinning only).
 
-```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision subagent-runner-health`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
-```
+Everything else in `repos/tart` is out of bounds (the scope gate bites
+exactly this set, with BOTH lib seams changed). No rig
+scenario-content edits; no gem changes; `repos/pi` and
+`~/.pi/agent/npm/node_modules/pi-subagents/` are READ-ONLY oracles.
+
+### Law 1 — the fleet sweep (pi async-status parity)
+
+`Manager#status(id: nil)` (the fleet read) FIRST reconciles the runs
+root, then lists — pi's `async-status.js` :373/:436 shape:
+
+1. Scan `@home`'s child directories for a readable `status.json`
+   (parse failures and non-run dirs are SKIPPED, never fatal —
+   pi's best-effort reconcile discipline).
+2. A dir whose disk state is TERMINAL (`completed`/`failed`/`stopped`)
+   is NOT adopted (the fleet stays this-process's runs + stale ones;
+   terminal foreign history stays invisible, as today — historical
+   dirs must not flood the fleet list).
+3. A dir whose disk state is NON-TERMINAL and not already in `@runs`
+   is adopted via the existing `disk_find` (dedupe unchanged) and
+   reconciled (Law 2) — ONCE per fleet read, synchronously, in-line
+   before the list renders.
+4. `status(id:)` (the targeted read) keeps its existing
+   adopt-and-reconcile behavior, now routed through the SAME reaper
+   seam (Law 2) — the 12:47-style accidental convergence becomes the
+   designed convergence.
+5. The existing watcher's belt-and-braces exit sweep
+   (`watch_loop`'s `settle_run if exited?` leg) routes non-owned
+   records through the SAME reaper seam — no notification, no
+   settle-shape (Law 2/3).
+
+NO new thread: the sweep is synchronous on read paths only; the
+watcher stays the one background thread it already is; the deadline
+supervisors stay per-owned-run as today. The threads-budget gate
+(diff base `2365176`) holds by construction.
+
+### Law 2 — the reaper: convergence for non-owned runs
+
+One seam (a private `reap`-family method set on Manager, the
+`stale-run-reconciler.js` port), reached from the three read paths
+above. For a NON-OWNED record (adopted from disk; Law 3's flag) whose
+disk state is non-terminal, in pi's exact ORDER:
+
+a. **Result-derive leg** (pi `terminalStatusFromResult`): if
+   `result.json` exists on disk, it is AUTHORITATIVE — derive the
+   terminal state from it (`success == true` → `completed`;
+   `success == false && timedOut == true` → `stopped`; else
+   `failed`), and write ONLY the atomic `status.json` flip
+   (`state`/`lastUpdate`/`endedAt` now, `error` from the result's
+   `error` when present, `timedOut` from the result). `result.json`
+   is never rewritten on this leg. This is the crash-between-writes
+   recovery: the owner died after the result write but before the
+   flip.
+b. **Dead-pid repair leg** (pi `writeFailedRepair`): else, if the pid
+   is unrecoverably gone (the EXISTING `exited?` law: ESRCH on BOTH
+   pid and pgid; EPERM = live, never converged), fabricate the
+   repair:
+   - `result.json` FIRST (atomic temp+rename — the frozen
+     watcher-compatible discipline): `{"output": <runner.stdout.log
+     content, "" when absent>, "success": false, "timedOut": false,
+     "error": <message>}`.
+   - The message, BYTE-PINNED to pi (Grounds citation):
+     `Async runner process <pid> exited or disappeared before
+     writing a result. Marked run failed by stale-run
+     reconciliation.` — with the stderr-tail diagnostics appended
+     when `runner.stderr.log` is non-empty, pi's
+     `readRunnerStartupDiagnostics` discipline verbatim: read the
+     last ≤64KB, take the LAST 30 lines, ≤4000 chars else truncate
+     to the last 4000 + `\n[stderr tail truncated]`; the append
+     shape is `\n\nRunner stderr tail:\n<tail>`.
+   - Then the atomic `status.json` flip to `"failed"`:
+     `base_status` shape (the port's schema, NOT pi's steps schema),
+     `state: "failed"`, `error:` = the same message, `endedAt`/
+     `lastUpdate` = now, `timedOut: false` — the port's terminal
+     vocabulary (the Grounds decision: `failed`, never a new state).
+     A poller watching `status.json` observes `running` → `failed`.
+   - `pid` stays recorded verbatim (pi keeps it); nil/legacy fields
+     (`startedAt: null`, `taskChars: null`, missing `timeoutMs`)
+     pass through untouched and never raise.
+c. **Live-pid leg**: a live or unprobeable (EPERM) pid is LEFT
+   ALONE — no file is written, the record stays `running`, the fleet
+   lists it as `running`. The live orphan's deadline is enforced by
+   its OWN child self-deadline (`RUN_DEADLINE_MS`, already shipped);
+   when it dies, the next read path (or the watcher's exit sweep)
+   converges it through (b).
+d. **Already-terminal-on-disk**: adopt the terminal state, write
+   nothing (the existing `reconcile_run` first leg, unchanged).
+
+### Law 3 — ownership flags (the adopter never lies, never wedges)
+
+Every record carries an owned flag, true exactly when THIS process
+spawned it (`spawn_run`), false for every `disk_find` synthesis:
+
+- `outstanding?` and `drain` count ONLY owned non-terminal runs — a
+  foreign live run adopted by any read path can never wedge the
+  adopter's print-agent-end drain (the latent hazard closed).
+- `notify_completion` + the wake kick fire ONLY for owned runs — a
+  foreign run's convergence is disk state only; the adopter's chat
+  never gets a completion notification for a run it never spawned
+  (the specimen's spurious-notification defect closed).
+- `arm_deadline_supervisor` arms ONLY owned runs (unchanged in
+  effect today for owned; explicitly never armed for adopted).
+- `shutdown`'s stop ladder runs ONLY owned runs (stopping a foreign
+  child from teardown would signal another session's run).
+- The non-owned convergence path (Law 2) is the ONLY path that
+  writes terminal state for a non-owned record; the owned path
+  (`settle_run`) keeps its frozen first-error-line error shape and
+  notification behavior byte-for-byte — this lane does not touch
+  any owned-run observable.
+
+### Law 4 — loud dispatch validation (the devstral-2512 cure)
+
+`Subagents.resolve_model(spec, catalog:, fallback:)` gains the
+registry consult on the dormant `catalog:` kwarg — armed by
+`Manager#spawn_run` passing the loaded catalog
+(`Models.load(root: @root)` — fresh from disk per spawn, the Profiles
+discipline; the same staged root, so the law is hermetic by
+construction):
+
+- `catalog: nil` (every existing caller/test) → NO validation — the
+  parse-only behavior, byte-identical.
+- An EMPTY registry (a catalog whose `model_entries` is empty — no
+  `models.json`, or a load failure) → NO validation — pi's
+  never-validate-without-a-registry law; the never-raise boot law
+  (a corrupt `models.json` must not turn dispatch into a raise).
+- An explicit spec (the `model:` call argument OR the profile's
+  `model:` — both are chosen strings; `Manager#spawn_run` passes the
+  catalog in BOTH arms, so the profile tier validates identically)
+  is valid iff it resolves through the catalog's own reference
+  resolution (`Config#resolve` on the `provider/id` pair — the
+  I71-frozen exact-match law, no new fuzzy machinery) OR it equals
+  the fallback pair (the parent's live provider+id, level ignored —
+  the Grounds exemption). Invalid → `ArgumentError` with the
+  BYTE-PINNED pi message:
+  `Unknown subagent model '<spec>' in the active Pi model registry.`
+  (`<spec>` = the raw requested string verbatim, pi's interpolation).
+- The INHERITED arm (no `model:` call, no profile model → the
+  parent pair) is NEVER validated — pi's law; the parent is running
+  on it.
+- The raise happens BEFORE any side effect: no run dir, no
+  `status.json`, no `Process.spawn` (the `spawn_run` order: resolve
+  → validate → mkdir). A foreground or async dispatch through the
+  `subagent` tool surfaces the ArgumentError as the tool's
+  `{error:}` result — the caller learns the model is unknown at
+  call time, never via a 1-token `finish_reason: "length"` success.
+- `Config#resolve`'s reference form is `provider/id` — the
+  validation joins the parsed pair; the `:level` suffix rides
+  beside it and never blocks resolution.
+
+### Output format (frozen)
+
+The lane lands code + tests; no README/docs changes (the tool
+description string gains no new rows — the model parameter's
+description already documents `provider/id`; a rejection message is
+not a schema change).
+
+### Operating constraints (lane)
+
+- The frozen wire/session observables do not move: wire-delta
+  (`4209f40b…` + `7360fd1e…`) and session-golden EXACT — this lane
+  touches no wire or session path (the child env's model keys are
+  written exactly as today for every VALID dispatch).
+- The `control/` protocol dirs, the steer/stop receipts, the
+  fleet-line format, and the notification shapes are UNCHANGED —
+  the reaper's writes are the existing result/status schemas only.
+- No live API spend: every pin is hermetic (staged homes, staged
+  catalogs, reaped-real-pids for ESRCH).
+- The declared-RED pattern (I76/I77): the new gates fail at the base
+  tree for exactly their declared reasons; the rehearsal preamble
+  states the MEASURED vector.
+- PHASE 0: every disagreement with this spec is raised with reasons
+  in the Builder Report (or an explicit statement of what was
+  checked before concluding the spec is sound) — silent compliance
+  is a defect.
 
 ## Acceptance Criteria
 
