@@ -9,11 +9,147 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section child-env-scrub grounds --from <file>`. -->
+### Standing frame (facts, cited)
+
+- Plan: `notes/plan-20261017T183001Z-tart-standalone.md` ENTRY 5 —
+  `child-env-scrub` (carried verbatim from the killed 2026-10-17 plan's
+  ENTRY 2, unstarted; the tart-standalone plan re-issued it). Coordinator
+  deltas at dispatch: base = `repos/tart` @ **`ff235e4`** ("Merge
+  lane/I72-markdown-parity-revisit-core", the I72 integrate tip, suite
+  green). Entries I69 (tart-identity-herdr), I70 (subagents-default-on),
+  I71 (model-catalogue) and I72 (markdown-parity-revisit) have LANDED —
+  their behavior is baseline (identity default TART; subagents default-on
+  with the rig staging the opt-out on every parity path; the vendored
+  catalogue + live listing; the 48-case markdown battery + the O(n)
+  converter).
+- **Measured base suite THIS session (fresh, cold, never predicted):**
+  `cd repos/tart && bundle install --quiet && bundle exec rake` →
+  **1303 runs / 6187 assertions / 0 failures / 0 errors / 1 skip, rake
+  exit 0, 231.7 s wall** — identical to the last recorded suite at the
+  I72 integrate (the coordinator's record) — plus
+  `bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1` →
+  **`SEAM_BENCH_OK`**. This is the frozen regression floor. The stale
+  untracked `t72*` gate-scratch dirs at the tip were REMOVED this session
+  (regenerable; every out-dir gate owns its `rm -rf`) — the tracked tree
+  is clean at `ff235e4`.
+- **The defect, reproduced live THIS session (the owner's 2026-10-17
+  root cause, confirmed):** from a bundle-exec'd context in `repos/tart`,
+  a child carrying the raw parent env fails to activate any rubygems CLI
+  outside tart's bundle — `architect --version` under the raw env →
+  **ec=1** (`bundler/rubygems_integration.rb:236`, the
+  `Gem.activate_and_load_bin_path` interception under
+  `RUBYOPT=-r…/bundler/setup` + `BUNDLE_GEMFILE`). Measured poison chain
+  this session (bundler **4.0.22**, mise ruby **4.0.7**): `BUNDLE_GEMFILE`
+  + `BUNDLE_LOCKFILE` → tart's Gemfile, `BUNDLE_BIN_PATH`,
+  `BUNDLER_VERSION=4.0.22`, `BUNDLER_SETUP=<site_ruby>/bundler/setup`,
+  `RUBYOPT=-r<site_ruby>/bundler/setup`, `RUBYLIB=<site_ruby>`,
+  `GEM_HOME=<mise ruby gem dir>`, and the bundler-bin dir PREPENDED to
+  `PATH` — plus one `BUNDLER_ORIG_*` record for EVERY one of them.
+
+### The bundler mechanism (measured against the installed bundler 4.0.22 source — the scrub's authority)
+
+- `bundler/environment_preserver.rb`: `BUNDLER_KEYS` = exactly 12 keys
+  (`BUNDLE_BIN_PATH BUNDLE_GEMFILE BUNDLE_LOCKFILE BUNDLER_VERSION
+  BUNDLER_SETUP GEM_HOME GEM_PATH MANPATH PATH RB_USER_INSTALL RUBYLIB
+  RUBYOPT`), `BUNDLER_PREFIX = "BUNDLER_ORIG_"`, `INTENTIONALLY_NIL =
+  "BUNDLER_ENVIRONMENT_PRESERVER_INTENTIONALLY_NIL"` — the one literal
+  the law must know.
+- `bundler/shared_helpers.rb#set_env` (the ONLY writer of every key above):
+  it writes `ENV["BUNDLER_ORIG_#{key}"] ||= (orig || INTENTIONALLY_NIL)`
+  BEFORE mutating the key — **so under any real `bundle exec` every
+  bundler-set key carries a record of the pre-exec user value** (measured:
+  all 12 records present). Companion setters in the same file:
+  `set_rubyopt` unshifts `-r<abs>/bundler/setup` (falling back to
+  `-rbundler/setup` when the path has spaces), `set_rubylib` unshifts
+  bundler's own lib dir (the dir CONTAINING `bundler/`), `set_path`
+  unshifts `<bundle_path>/bin`. The law's belt arm inverts exactly these
+  three additions (token/entry-level, never key-delete) for the
+  no-record case.
+- Consequence frozen into this spec: the scrub needs NO hardcoded key
+  list (lists rot across bundler versions) — the records are DISCOVERED
+  from the env's own `BUNDLER_ORIG_*` keys, which bundler guarantees
+  exist whenever it set anything.
+
+### The spawn seam inventory (every `Process.spawn` in `lib/`, measured)
+
+- `lib/tart/tools/bash.rb` **:234** — the model-facing tool arm:
+  `session_env_for_spawn` (:214) composes `ENV.to_h` + the identity
+  session keys, and the spawn passes it with `unsetenv_others: true`
+  (the composed hash IS the child env) → **poisoned** (the composed base
+  is the bundler env).
+- `lib/tart/tools/bash.rb` **:238** — the run_user arm (`!cmd`, the
+  user-bash executor): bare inheritance, no env → **poisoned** (the
+  child inherits the full bundler env). Frozen in-file comment: "pi's
+  user-bash executor passes no env and never scrubs".
+- `lib/tart/subagents/manager.rb` **:175** — the subagent child:
+  `child_env` (:369) composes a FRESH minimal hash (PATH, HOME, the
+  identity keys) picked from `@env`, spawned with `unsetenv_others: true`
+  → the only leak surface is the **`PATH` pick**: under a bundle-exec'd
+  parent the child gets the bundler-bin-PREPENDED `PATH`, not the user's
+  (measured this session: bundle-exec `PATH` = `BUNDLER_ORIG_PATH` with
+  `<gem dir>/bin` unshifted). The child tart then re-bundles itself
+  (bin/tart's `BUNDLE_GEMFILE ||=` boot) — existing behavior, unchanged.
+  `spawn_argv_and_env` (:344) is PUBLIC (the tests drive it directly).
+- `lib/tart/mcp/stdio.rb` **:121** — the MCP stdio child:
+  `Process.spawn(*(@env ? [@env] : []), …)` with NO `unsetenv_others` →
+  Ruby MERGES the config env OVER the full inherited (poisoned) env →
+  **poisoned**. pi's `packages/mcp/src/transports/stdio.ts:94`:
+  `env = inheritEnv === false ? {...options.env} : {...process.env,
+  ...options.env}` — node's spawn REPLACES the env with that full copy, so
+  pi's letter is "explicit full env copy (+ config overlay)"; the current
+  Ruby merge-over-inherit is ALREADY letter-divergent — an explicit
+  scrubbed copy with `unsetenv_others: true` is CLOSER to pi's letter.
+- `lib/tart/tools/find.rb` **:118** + `lib/tart/tools/grep.rb` **:107** —
+  fd/rg bare inheritance (no env arg) — native binaries, no ruby/rubygems
+  in their exec path; the poison chain is inert there (OQ-3, ruled OUT
+  below; mechanically enforced by the scope gate).
+- `lib/tart/render/footer.rb` **:27** — `Open3.capture3("git", …)` — git,
+  poison-irrelevant, out of scope.
+- The pi letters for the other two arms: `bash.ts:186-208
+  resolveSpawnContext` (the tool arm) composes `{...getShellEnv()}`,
+  scrubs pi's five `PI_*`, then sets the reader values — and
+  `shell.ts:138 getShellEnv()` is `process.env` (+ pi's bin-dir PATH
+  prepend); pi's user-bash executor passes NO env (node inherits) — the
+  frozen comment's citation.
+
+### The live cure, measured THIS session (the OQ evidence)
+
+The law (Specification §The LAW) applied from inside a bundle-exec'd
+parent in `repos/tart`, children spawned with the scrubbed env
+(`unsetenv_others: true`): **`ruby -v` ec=0, `gem --version` ec=0,
+`mise --version` ec=0, `architect --version` ec=0 (9.5.0 — the exact
+owner-defect CLI, raw env ec=1), `ruby -rjson` ec=0**; the child env
+carries ZERO `BUNDLE_*`/`BUNDLER_*`/`RUBYOPT`/`RUBYLIB` residue;
+`PATH` == the `BUNDLER_ORIG_PATH` record (the user's shell PATH);
+**`GEM_HOME` deleted per its `INTENTIONALLY_NIL` record with NO child
+regression** — the OQ-2 answer measured, not argued (the user shell has
+no `GEM_HOME`: the record says so). The same probe re-run GREEN-side
+through the actual `Tart::Tools::Bash` tool arms (tool + run_user, the
+live gate's exact assertion body) → `BASH_CHILD_ENV_LIVE_OK` — and RED
+at base for the right reason (`BUNDLE_GEMFILE` reaches the child).
+
+### Standing environment (carried verbatim from I72, unchanged)
+
+Oracle: the pinned `repos/pi` clone @ v1.1.0 (branch `oracle-v1.1.0`)
+is ENVIRONMENT guarded by `oracle-pin-state` — never re-performed from a
+lane; `env -u PI_PACKAGE_DIR` for every direct oracle exec; the judge
+runs gates at the LANE tree; scenario out dirs stay SHORT (≤ ~10 chars
+rel the tart root); carry audit BEFORE every rehearsal; freeze ONLY on a
+fresh clean rehearsal stamp. ENV GOTCHA (standing until THIS entry
+lands): every `architect` CLI call from a bundle-exec'd tart context
+needs the full scrub. Routing rides `architect.yaml` as-is; the
+model-window tick is DEAD. Landing is the human's.
+
+### Prior handoffs
+
+`notes/spec-digest-20261018T031345Z-markdown-parity-revisit.md` (I72 —
+the generation/audit/rehearsal/freeze mechanics, the short-out-dir law,
+the flake ledger, the scrub forms, the successor protocol: coordinator
+owns prompt copy at dispatch); `notes/i71-judge-wrapup-20261018T0155Z.md`
+(the judge-at-lane-tree venue precedent); the I72 Verdict (in
+`architecture/I72-markdown-parity-revisit.md`) for the two owner-backlog
+gate-geometry residuals (s9 out-dir rebase, herdr socket-path re-freeze)
+— NOT re-litigated here.
 
 ## Specification
 
