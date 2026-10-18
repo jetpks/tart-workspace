@@ -1796,11 +1796,211 @@ from-source daily driver only, flagged for the human).
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I71-model-catalogue-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence model-catalogue --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# I71 model-catalogue — lane core — Builder Report
+
+## Result (one paragraph)
+
+`/model` knows what is available. R1 landed `vendor/pi-models/` — all 42 provider JSON files copied byte-verbatim from the pinned oracle clone (`repos/pi/packages/ai/src/providers/data/`, verified byte-identical + sha256-manifested by the `vendored-attribution` gate) plus `ATTRIBUTION.md` (Mario Zechner / MIT / source link / refresh command / local-clone-only law) and tart's own `.manifest.json` (source, revision `abe508e1…` = the clone HEAD, generatedAt, per-file sha256 over exactly the vendored set; pi's own manifest NOT copied) — and the offline operator-run `rake models:vendor:refresh` (reads `ENV["PI_REPO"]`, default `../pi`; fails LOUDLY when absent — exercised; zero network tokens in the Rakefile — gated). R2 landed the vendored tier (`lib/tart/models/vendored.rb`): raw-JSON lazy per-file cached loader, `__dir__`-relative, never-raise (missing/corrupt ⇒ provider absent); the frozen match rule (baseUrl EXACT case-insensitive one-trailing-slash first across the vendored providers — indexed per-model because 8 vendored files legitimately serve models under multiple baseUrls; provider KEY only when the block declares no baseUrl, with load-path-registered block baseUrls carried on a WeakMap keyed by the typed entry objects so hand-built test catalogs are inert by construction); fill-only at the four seams — `entry_context_window`/`entry_max_tokens` (declared → vendored → `DEFAULT_ENTRY_*`; nil entry ⇒ nil), `Settings.thinking_facts` (map: entry → vendored → known-tables; reasoning: entry flag → vendored → today's flag), and the new public `Models.dialect_for_entry(entry)` = `dialect_for(resolved_compat(entry))` with the boot kwargs + `apply_model_selection` threading the vendored-filled compat; the loaded catalog (`Models.load`/`Config`/`model_entries`/`Shapes::Model#to_h`) is byte-stable (pinned). R3 landed `Models::Listing.fetch` — ONE bounded (5 s frozen constant) authenticated GET `<base_url>/models` inside ONE dedicated background thread (the tree's single new thread site, gate-pinned), Async::HTTP one-off client, every failure class ⇒ nil, no retries; an optional `on_result:` callback delivers fire-and-forget so the surface never blocks. R4/R5 landed the menu merge + launcher threading: `Render::Chat` gains `endpoint:` (default nil ⇒ no listing — every pre-existing construction unchanged; the lazy require keeps the async stack out of boot), `open_model_menu` (plain and seeded) fires exactly one fetch per open resolved for the CURRENT model ref's provider (block baseUrl/apiKey, per-field fallback to the threaded boot facts, unresolvable ⇒ no attempt), the menu renders user entries immediately and merges when the fetch lands (merge under the Chat mutex + `request_draw`, open-generation guard), live entries are typed `Shapes::Model` under the configured provider key, vendored-enriched through the same match rule, deduped (user wins), selectable through the unchanged switch seam; `ModelMenu#refresh(entries:)` re-sorts/re-filters with the query preserved and clamps per the existing empty-query rule, and the failure flag renders exactly one muted `  (live listing unavailable)` row after the list rows; `bin/tart`'s `build_surface` threads the boot `endpoint_facts` via the new `endpoint:` parameter. R6 added the enumerated pins: `test/models_test.rb` /vendored/ ×8, `test/settings_test.rb` /vendored/ ×1, `test/models_listing_test.rb` ×10 (NEW), `test/chat_test.rb` /live_list/ ×4, `test/render/model_menu_test.rb` /refresh/ ×2, `test/launcher_smoke_test.rb` /listing_endpoint/ ×1, and the mock server's `:models` spec type. Final tree: **1255 runs / 6141 assertions / 0 failures / 0 errors / 1 skips** (base floor 1229/6047 — strictly greater, nothing deleted), `SEAM_BENCH_OK`, and 59 of the 61 frozen gates GREEN; the 2 REDs (s9-parity, scope) are disclosed below with decisive evidence — neither is a lane regression.
+
+## Suite summary line
+
+```
+1255 runs, 6141 assertions, 0 failures, 0 errors, 1 skips   (rake exit 0; base floor 1229/6047/0/0/1)
+SEAM_BENCH_OK   (bundle exec ruby bench/seam_bench.rb)
+```
+
+(The standing chat_test interrupt-during-streaming timing flake reproduced once mid-iteration; re-run cold → green, per the carried Grounds note.)
+
+## The 61-gate table
+
+Executed mechanically from the frozen gates block in `architecture/I71-model-catalogue.md` (extracted byte-verbatim by `/tmp/i71-gates/run_gates.rb`, never hand-retyped), cwd = the lane tree (`build/I71-model-catalogue-core/wt` standing in for `repos/tart`).
+
+| gate | verdict | load-bearing token / failing line |
+|---|---|---|
+| suite | GREEN | 1255 runs, 6141 assertions, 0 failures, 0 errors, 1 skips; SUITE_OK |
+| bench | GREEN | SEAM_BENCH_OK |
+| md-repro | GREEN | MD_REPRO_OK |
+| md-inline-units | GREEN | MD_INLINE_UNITS_OK (markdown ≥3, transcript-reasoning ≥1) |
+| pending-registry-units | GREEN | PENDING_REGISTRY_UNITS_OK (≥4) |
+| footer-window | GREEN | FOOTER_WINDOW_OK 1000000 |
+| thinking-pins | GREEN | THINKING_PINS_OK (agent-loop ≥11, settings ≥8) |
+| hermeticity | GREEN | HERMETICITY_OK (launcher 12 runs, e2e ≥4) |
+| lock-deps | GREEN | LOCK_DEPS_OK + GEM_LOAD_OK |
+| zai-data | GREEN | ZAI_DATA_OK |
+| threads-budget | GREEN | THREADS_BUDGET_OK (no new Thread.new in lib outside the listing exclusion) |
+| session-golden | GREEN | SESSION_GOLDEN_OK (7 digests exact) |
+| strict-wire | GREEN | 8 runs, 76 assertions, 0 failures, 0 errors |
+| error-transcript-units | GREEN | ERROR_TRANSCRIPT_UNITS_OK |
+| error-transcript-render-units | GREEN | ERROR_TRANSCRIPT_RENDER_UNITS_OK |
+| render-perf-units | GREEN | 7 runs, 29 assertions, 0 failures |
+| render-perf-probe | GREEN | RENDER_PERF_OK (BP2 238.2 ≤ 250) |
+| tool-pending-gate | GREEN | TOOL_PENDING_GATE_OK |
+| user-bash-stream-gate | GREEN | USER_BASH_STREAM_GATE_OK |
+| zai-max-tokens-units | GREEN | ZAI_MAX_TOKENS_UNITS_OK |
+| rail-bg | GREEN | RAIL_BG_OK |
+| jump-pill-units | GREEN | JUMP_PILL_UNITS_OK |
+| rail-bg-units | GREEN | RAIL_BG_UNITS_OK |
+| viewport-probe | GREEN | VIEWPORT_PROBE_OK |
+| oracle-pin-state | GREEN | ORACLE_PIN_OK (repos/pi @ oracle-v1.1.0 == v1.1.0, clean, cli 1.1.0) |
+| oracle-bin-units | GREEN | ORACLE_BIN_UNITS_OK |
+| oracle-resolve | GREEN | ORACLE_RESOLVE_OK |
+| s1-parity … s8-parity | GREEN | rig exit 0 each (t71s1…t71s8) |
+| **s9-parity** | **RED** | rig exit 1 — diff candidates `['-d']`: the staged-path rows wrap at the frozen 120-col rig width (see disclosure D1) |
+| s10-parity | GREEN | rig exit 0 (t71s10) |
+| s17-parity | GREEN | rig exit 0 (t71s17) |
+| s1-tart-mode | GREEN | TART_MODE_OK |
+| wire-delta | GREEN | WIRE_DELTA_OK (instruction digest 4209f4…, tools digest 7360fd… exact) |
+| zai-max-tokens-wire | GREEN | ZAI_WIRE_OK tart=pi=512 (staged catalog fill-inert) |
+| identity-law | GREEN | IDENTITY_LAW_OK |
+| default-face | GREEN | DEFAULT_FACE_OK |
+| default-boot | GREEN | DEFAULT_BOOT_OK |
+| herdr-units | GREEN | HERDR_UNITS_OK |
+| herdr-wire-probe | GREEN | HERDR_WIRE_OK |
+| rig-identity-assert | GREEN | RIG_IDENTITY_OK |
+| subagents-default-law | GREEN | SUBAGENTS_DEFAULT_LAW_OK |
+| subagents-default-boot | GREEN | SUBAGENTS_DEFAULT_BOOT_OK (default-on digest 2c744e…, opt-out digest 7360fd…) |
+| subagents-motd-units | GREEN | SUBAGENTS_MOTD_UNITS_OK |
+| subagents-motd-probe | GREEN | SUBAGENTS_MOTD_OK |
+| subagents-e2e-default-on | GREEN | SUBAGENTS_E2E_DEFAULT_OK (4 runs) |
+| rig-staging-units | GREEN | RIG_STAGING_OK |
+| vendored-attribution | GREEN | VENDORED_ATTRIBUTION_OK 42 (byte-identical to the pinned oracle, manifest hashes exact, rake -T lists the task, Rakefile grep clean) |
+| vendored-units | GREEN | VENDORED_UNITS_OK + /vendored/ pins 8 runs green + settings /vendored/ 1 run green |
+| listing-units | GREEN | LISTING_UNITS_OK (10 runs) |
+| model-menu-live-merge | GREEN | MODEL_MENU_LIVE_MERGE_OK (/live_list/ 4 runs, /refresh/ 2 runs) |
+| launcher-listing-thread | GREEN | LAUNCHER_LISTING_THREAD_OK |
+| vendored-no-boot-network | GREEN | VENDORED_NO_BOOT_NETWORK_OK |
+| listing-thread-law | GREEN | LISTING_THREAD_LAW_OK (exactly one thread site in listing.rb, none elsewhere in the models family) |
+| **scope** | **RED** | FAIL — the frozen untracked sweep flags the COLLAPSED directory names `lib/tart/models/` and `vendor/` (see disclosure D2); tracked frozen-path diff clean, must-differ legs all pass |
+
+## The strict_sampling declared move (evidence, as pre-declared in Grounds)
+
+Probe against the staged `zai`@`https://api.z.ai/api/coding/paas/v4` gap entry (reasoning+contextWindow+compat declared; maxTokens+thinkingLevelMap omitted):
+
+```
+max_tokens seam: 131072 (base 16384 -> vendored 131072)
+reasoning_effort for session level medium: "high" (base medium -> vendored-clamped high)
+dialect: :zai (compat declared — does not move)
+```
+
+`strict_sampling_test.rb` itself: 8 runs / 76 assertions / 0 failures / 0 errors — its own assertions (tool-rewrite digests, loadout order, dialect pins) stay green. No OTHER staged catalog matches a vendored provider (verified by sweep: `http://localhost:1/v1`, `https://example.test/v1`, and the mock-server baseUrls match nothing; the hand-built `glm`/`zai` test catalogs are unregistered ⇒ inert, and their `glm-5-air` id does not exist in the vendored data anyway).
+
+## Deviations and judgment calls (itemized — none silent)
+
+1. **42 files, not 44.** Grounds says "44 provider JSON files (~1.9 MB)"; the pinned clone holds 42 non-hidden provider JSON files (~1.0 MB) — the 43rd json file is pi's own `.manifest.json` (a dotfile, explicitly NOT copied). The frozen `vendored-attribution` gate compares non-recursive `Dir` globs on both sides; 42 is what binds and what shipped. Disclosed to the supervisor mid-run.
+2. **`dialect_for_entry` threading mechanics.** The brief names "the threading call sites that today pass `dialect_for(entry.compat)`" — no such literal call sites exist at base (the dialect derives inside `wire_model` from the threaded compat; grep-verified). Implemented as specified functionally: new public `Models.dialect_for_entry(entry)` = `dialect_for(resolved_compat(entry))`, with `Models.resolved_compat(entry)` (the compat fill: entry's declared compat || vendored compat through `build_compat`'s six-key pick) threaded at the named sites (`bin/tart` boot kwargs ×2 — `boot_thinking_kwargs` and the interactive `start_session` loop kwargs — and `chat.rb apply_model_selection`). `dialect_for` and `wire_model` signatures UNCHANGED.
+3. **Provider-block baseUrl carrier for the match rule.** The seams receive the bare entry, which carries the provider KEY but not the block's baseUrl the rule needs. `Models.build_providers` records each typed entry's block baseUrl on an `ObjectSpace::WeakMap` (weak-keyed, dies with the entry); entries that never rode the load path (hand-built test configs) match NOTHING — which keeps every hand-staged hermetic catalog inert by construction (stricter than the frozen rule's letter, and the reason the blast-radius rule never fired).
+4. **Per-model baseUrl indexing.** The vendored index is keyed (downcased model baseUrl → id → facts) + (downcased provider name → id → facts) rather than one baseUrl per file, because 8 vendored files (openrouter, fireworks, cloudflare×2, opencode×2, amazon-bedrock, vercel) legitimately carry models under multiple baseUrls; the frozen rule is evaluated per the model's OWN baseUrl. Rule (a) still dominates (b); collisions resolve first-in-sorted-file-order.
+5. **reasoning fill semantics.** A loaded typed entry's omitted reasoning is indistinguishable from declared-false (the load normalizes `reasoning == true`), so the reasoning fill rides the slot order literally: entry flag true wins; else the matched vendored reasoning; else today's flag (false) — `model_reasoning_capable` remains reachable only on the no-entry arm, byte-today. Consequence (accepted, unobservable in the suite): a user DECLARING `reasoning: false` on a vendored-reasoning model would be filled to true. The owner's live file declares reasoning true on all four entries — the merge no-op holds.
+6. **`name` fill locus.** The loaded catalog is byte-stable, so `name` fills only where construction happens: live entries (name = vendored name or id). Catalog-entry names ride the load's declared-or-id fallback (no seam consumes them).
+7. **Listing delivery mechanism.** The frozen `fetch(base_url:, api_key:, timeout: 5) → Array|nil` contract has no non-blocking delivery path, and the threads-budget gate forbids a new Thread.new in chat.rb — so `fetch` gained an OPTIONAL `on_result:` kwarg (callback delivered ON the worker thread; fire-and-forget) while the no-callback form keeps the exact frozen synchronous contract (used by the tests). The Chat merges via the callback under its mutex + `request_draw` (herdr-sender discipline). Additive kwarg on a NEW module — no frozen signature touched.
+8. **Open-generation guard.** A landed listing merges only when its menu open is still the latest (`@listing_seq`) — a closed/superseded menu never merges stale rows. Not spelled out in the brief; the natural reading of "merge under the Chat mutex".
+9. **Refresh selection clamp.** Copied the existing `edit_query` empty-query rule verbatim (`[@selected, size-1].max`) PLUS an in-range bound (`[...].min`) — needed because a SHRINKING merged list can leave the frozen form out of range, which would crash the `Model Name:` row render. `edit_query` itself untouched.
+10. **Live-entry seam registration.** Live entries are registered on the same WeakMap against the provider BLOCK's own baseUrl (not the env-fallback fetch URL) so `entry_max_tokens` at the switch seam re-derives the same vendored match the menu enrichment used.
+11. **Two comment greps.** My Rakefile and listing.rb COMMENTS originally contained the literal tokens the frozen gates grep for ("Async::HTTP/URI.open/open-uri"; "Thread.new") — reworded to token-free prose. Behavior unchanged.
+12. **Lazy listing require.** `Models::Listing` (and its async-http stack) loads only at the menu-open demand path (`require_relative` inside `spawn_listing_fetch`), keeping boot free of it.
+
+## Disclosures: the 2 RED gates (neither is a lane regression)
+
+**D1 — s9-parity RED: lane-tree wrap geometry, base-inherited (proven).** The frozen command runs the s9_startup_help rig with out dir `t71s9` from the lane tree whose absolute path is 79 chars. The staged-path rows are then 122 chars (pi: tree + `/t71s9` + `/run-1/sandbox/pi/.pi/skills/demo.md` = 79+6+37) and 125 (tart: …`/tart/.tart/skills/demo.md` = 79+6+40) against the frozen 120-column rig width; both wrap, and pi's lone wrapped fragment `-d` is an `unknown-candidate` for the rig's diff classifier → exit 1. Proof of base-inheritance: I extracted base `dd41ae1` via `git archive` (read-only) into a scratch tree of EXACTLY 79 chars (`build/sss…s/wt`, verified) and ran the IDENTICAL frozen command with the pinned oracle — identical RED with identical diff classes (`parity-run-path 6, unknown-candidate 1, staged-path-wrap-fragment 3, footer-provider-prefix 2`) and identical candidates `['-d']`. Scratch tree removed after. The arch's wrap-law formula ("row = tree + outdir + 32, fires > 120") undercounts the real suffix by ~6-8 chars (actual: pi 37, tart 40 after the out dir); at this tree no out-dir length is green (tart's row is ≥121 even with a 1-char dir; and 3-4-char dirs just move the unrecognized fragment). Green needs tree ≤ ~74 chars at `t71s9`. The lane's diff does not touch motd.rb, the rig, or the scenario; the diff classes are purely geometric plus the two standing known classes. **The frozen command as written cannot pass at this lane tree; it needs a re-freeze (shorter out dir from a shorter rehearsal tree, or a wider rig width).**
+
+**D2 — scope RED: frozen-gate/untracked-collapse collision, tree itself clean.** The frozen sweep uses plain `git status --porcelain`, which COLLAPSES the two fully-untracked directories to `lib/tart/models/` and `vendor/`; the frozen whitelist lists only the file forms (`lib/tart/models/vendored.rb`, `lib/tart/models/listing.rb`, `vendor/pi-models/.*`, `vendor/pi-models/`). Evidence captured: the identical sweep under `git status --porcelain -uall` is CLEAN (exit 1 = nothing outside the whitelist), and `git diff --quiet dd41ae1 -- <every frozen must-not-touch path>` passes; all must-differ legs (models.rb, chat.rb, ATTRIBUTION.md, .manifest.json, vendored.rb, listing.rb) pass. The gate needs `-uall` (or intent-to-add entries) to pass in a never-committed lane tree; `git add`/commit is forbidden to this lane, so I could not make the collapsed form disappear.
+
+## Residual risks (named for the human)
+
+1. **The live `/v1/models` against a REAL provider key is statically pinned only** — every pin runs against the hermetic mock; the real z.ai/openrouter endpoints were never fetched (by law — no live keys, no network). The named human checkpoint.
+2. **The vendor dir does not ship in the gem package** (`vendor/` is outside the gemspec's file list) — the vendored tier resolves `__dir__`-relative and degrades to provider-absent in an installed gem. From-source daily driver only.
+3. **s9-parity re-freeze needed** (D1): the frozen out-dir law cannot pass at this tree length; the judge/spec session should re-freeze with the corrected suffix constants (pi 37 / tart 40, not 32) or run from a ≤74-char tree.
+4. **scope gate mechanics** (D2): add `-uall` to the frozen sweep (or accept intent-to-add trees) at re-freeze.
+5. **reasoning fill on a declared-false typed entry** (deviation 5): the fill-only law is unenforceable for that one normalized field; the owner's live catalog is unaffected (all entries declare true), but a user pinning `reasoning: false` against a vendored reasoning model would see it flipped to true at the thinking_facts seam.
+6. **First seam consultation parses all 42 vendored files once** (~1 MB JSON, cached) — the owner's fully-specified catalog never triggers it (declared values short-circuit); a gap entry pays it once at boot. Unmeasured beyond "suite unchanged"; no timeout risk observed.
+7. **The listing fetch-per-open** has no cache/TTL by design (frozen); a user toggling the /model menu rapidly fires one bounded fetch per open against their provider.
+
+## PHASE 0 disagreements with the task spec
+
+Checked before concluding the spec sound: the frozen arch file (Grounds/Specification/AC + the 61-gate block) vs the prompt header vs the actual base tree (all seam files read; the oracle data dir enumerated; the suite floor re-measured). Disagreements found — none blocking, all resolved as itemized deviations above: (a) the "44 provider JSON files" Grounds count vs the actual 42 (deviation 1); (b) the non-existent `dialect_for(entry.compat)` call sites (deviation 2); (c) the wrap-law constant that cannot hold at this tree (disclosure D1 — discovered at gate time, not Phase 0, since it is a rehearsal-tree property); (d) the scope sweep's porcelain collapse (D2, same). No gate command was edited, no arch file touched, nothing committed, nothing pushed, `repos/pi` untouched (oracle-pin-state gate re-verified GREEN post-run).
+
+## Changed files
+
+Tracked (12): `Rakefile`, `bin/tart`, `lib/tart/models.rb`, `lib/tart/render/chat.rb`, `lib/tart/render/model_menu.rb`, `lib/tart/settings.rb`, `test/chat_test.rb`, `test/launcher_smoke_test.rb`, `test/models_test.rb`, `test/render/model_menu_test.rb`, `test/settings_test.rb`, `test/support/mock_llm_server.rb` (+777/−33). Untracked (new): `lib/tart/models/vendored.rb` (146 lines), `lib/tart/models/listing.rb` (110), `test/models_listing_test.rb` (147), `vendor/pi-models/` (42 data JSON + `ATTRIBUTION.md` + `.manifest.json`). Nothing committed; nothing under `repos/` modified; Gemfile/Gemfile.lock/tart.gemspec/bench/rig untouched.
+
+Report also mirrored byte-identically to `build/I71-model-catalogue-core/report.md` per the arch's transcription law.
+
+STATUS: COMPLETE_WITH_CONCERNS (s9-parity RED — base-inherited wrap geometry at this lane tree, proven by a base-at-same-path-length experiment, needs gate re-freeze; scope RED — frozen untracked sweep collides with git's untracked-directory collapse, sweep clean under -uall; live /v1/models against a real provider key remains the named human checkpoint; vendor dir does not ship in the gem package)
+
+```acceptance-report
+{
+  "criteriaSatisfied": [
+    {
+      "id": "criterion-1",
+      "status": "satisfied",
+      "evidence": "Concise result + residual risks delivered above: suite 1255/6141/0F/0E/1S (base floor 1229 strictly exceeded), SEAM_BENCH_OK, 61/61 frozen gates executed mechanically with a per-gate verdict table, 59 GREEN / 2 RED with decisive base-inheritance and mechanics evidence for each RED, 12-itemized deviation list, 7 residual risks."
+    }
+  ],
+  "changedFiles": [
+    "Rakefile",
+    "bin/tart",
+    "lib/tart/models.rb",
+    "lib/tart/models/vendored.rb",
+    "lib/tart/models/listing.rb",
+    "lib/tart/settings.rb",
+    "lib/tart/render/chat.rb",
+    "lib/tart/render/model_menu.rb",
+    "vendor/pi-models/ATTRIBUTION.md",
+    "vendor/pi-models/.manifest.json",
+    "vendor/pi-models/*.json (42 files)",
+    "test/models_test.rb",
+    "test/settings_test.rb",
+    "test/models_listing_test.rb",
+    "test/chat_test.rb",
+    "test/render/model_menu_test.rb",
+    "test/launcher_smoke_test.rb",
+    "test/support/mock_llm_server.rb"
+  ],
+  "testsAddedOrUpdated": [
+    "test/models_test.rb (/vendored/ x8)",
+    "test/settings_test.rb (/vendored/ x1)",
+    "test/models_listing_test.rb (NEW x10)",
+    "test/chat_test.rb (/live_list/ x4)",
+    "test/render/model_menu_test.rb (/refresh/ x2)",
+    "test/launcher_smoke_test.rb (/listing_endpoint/ x1)",
+    "test/support/mock_llm_server.rb (:models spec type)"
+  ],
+  "commandsRun": [
+    {"command": "bundle exec rake (full suite, lane tree)", "result": "passed", "summary": "1255 runs, 6141 assertions, 0 failures, 0 errors, 1 skips"},
+    {"command": "bundle exec ruby bench/seam_bench.rb", "result": "passed", "summary": "SEAM_BENCH_OK"},
+    {"command": "61 frozen gates via /tmp/i71-gates/run_gates.rb (extracted verbatim from the arch gates block)", "result": "passed", "summary": "59 GREEN; s9-parity and scope RED with disclosed causes"},
+    {"command": "git archive dd41ae1 | tar -x into a 79-char scratch tree; re-ran the frozen s9 command there", "result": "passed", "summary": "identical RED at BASE — proves s9 is base-inherited geometry, not a lane regression (scratch removed)"},
+    {"command": "git status --porcelain -uall sweep against the frozen scope whitelist", "result": "passed", "summary": "clean — the scope RED is purely the porcelain directory collapse"},
+    {"command": "PI_REPO=<pinned clone> bundle exec rake models:vendor:refresh; PI_REPO=/nope …; default ../pi …", "result": "passed", "summary": "copies 42 files verbatim + regenerates manifest; fails LOUDLY when the clone is missing"}
+  ],
+  "validationOutput": [
+    "1255 runs, 6141 assertions, 0 failures, 0 errors, 1 skips",
+    "SEAM_BENCH_OK",
+    "VENDORED_ATTRIBUTION_OK 42; VENDORED_UNITS_OK; LISTING_UNITS_OK; MODEL_MENU_LIVE_MERGE_OK; LAUNCHER_LISTING_THREAD_OK; VENDORED_NO_BOOT_NETWORK_OK; LISTING_THREAD_LAW_OK; THREADS_BUDGET_OK; SCOPE: RED (collapse only)",
+    "strict_sampling declared move confirmed: max_tokens 16384->131072, reasoning_effort medium->high, dialect stays :zai; its own 8 runs green"
+  ],
+  "residualRisks": [
+    "Live /v1/models against a REAL provider key statically pinned only — the named human checkpoint",
+    "vendor/pi-models does not ship in the gem package — from-source daily driver only",
+    "s9-parity frozen command cannot pass at this 79-char lane tree (wrap geometry, base-inherited, proven) — needs re-freeze",
+    "scope frozen sweep needs -uall (or intent-to-add) in a never-committed lane tree — collapse collision, tree itself clean",
+    "reasoning fill flips a user-DECLARED reasoning:false on a vendored-reasoning model (normalization ambiguity, itemized)",
+    "first seam consultation parses all 42 vendored files once (cached; never triggered by fully-declared catalogs)",
+    "no listing cache/TTL by design — one bounded fetch per menu open"
+  ],
+  "noStagedFiles": true,
+  "diffSummary": "12 tracked files (+777/−33) plus new vendored.rb/listing.rb/models_listing_test.rb and vendor/pi-models/ (42 verbatim oracle data files + ATTRIBUTION.md + tart's own .manifest.json); fill-only fact seams, one gate-pinned background thread, menu merge + refresh + failure row, launcher endpoint threading, additive pins",
+  "reviewFindings": [
+    "blocker (gate-level, not code): s9-parity frozen command RED at this lane tree — base-inherited wrap geometry, proven by base-at-identical-path-length experiment",
+    "blocker (gate-level, not code): scope frozen untracked sweep RED via porcelain directory collapse — clean under -uall",
+    "no code blockers found; no frozen pin shifted outside the pre-declared strict_sampling wire dimensions"
+  ],
+  "manualNotes": "Report mirrored to build/I71-model-catalogue-core/report.md. Oracle pin re-verified (oracle-pin-state GREEN). Nothing committed/pushed; repos/pi untouched; rig untouched. Two mid-run comments were reworded because their prose contained the frozen gates' literal grep tokens (Async::HTTP/URI.open/open-uri in the Rakefile; Thread.new in listing.rb) — behavior unchanged.",
+  "notes": ""
+}
+```
 
 ## Verdict
 
