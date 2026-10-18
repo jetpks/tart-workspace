@@ -539,10 +539,26 @@ sun_path bound) — if it REDs by socket-path geometry, the I69/I72
 adjudication class applies. The standing chat interrupt-timing class
 (BOTH forms — failure and 900 s gate-hang) and the
 `render_perf_test.rb:265` spinner-dwell margin stay latent: re-run
-cold before adjudicating; note-and-pass per the standing ledger. The
-rehearsal measures the true at-base vector; any member that
-contradicts this preamble is amended and re-rehearsed before the
-freeze (the I67/I71 protocol — never freeze on a stale or
+cold before adjudicating; note-and-pass per the standing ledger.
+**`render-perf-probe` (the rig probe, NOT the suite member) carries a
+MEASURED at-base load-margin declaration this session:** its BP2
+render-ms/s budget (≤ 250, the I58 freeze) measured **238.0 at the
+I73 rehearsal and 238.7 at the I74 rehearsal (idle-machine nights)**
+but **255.7 and 266.4 in this session's two runs** — the machine now
+carries the owner's LIVE tart (PID 12677, the `tart` tmux session) and
+session watchers concurrently (load avg ~2.5); the probe's settle
+geometry is IDENTICAL (final settle ~139 s in all four runs — the
+shape's own AV window, not a regression). BP2 is wall-clock-sensitive
+(CPU-bound md conversions / wall time), so under concurrent owner
+load it can breach the 250 margin by ~5-10% with nothing on the lane
+tree. Adjudication: a render-perf-probe RED whose ONLY failing line
+is BP2 (every other line PASS, settle geometry unchanged) is the
+declared load-margin class — note-and-pass, the idle-machine cold
+re-run is the operative form (the I57 env-artifact precedent). Any
+OTHER render-perf-probe failure line is NOT this class. The rehearsal
+measures the true at-base vector; any member that contradicts this
+preamble beyond the declared classes is amended and re-rehearsed
+before the freeze (the I67/I71 protocol — never freeze on a stale or
 corrected-without-rerun vector).
 
 **AC1 — the routing law.** `Tart::TUI::SignalGuard` exists with the
