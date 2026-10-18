@@ -2850,7 +2850,19 @@ project:
   - name: session-sink
     ordinal: 74
     file: architecture/I74-session-sink.md
-    freeze_sha:
+    freeze_sha: 732f51030a88eb5c3fcc23f5792a2391db723b37
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/session_sink.rb
+      - bin/tart
+      - lib/tart/subagents/manager.rb
+      - test/session_sink_test.rb
+      - test/support/mock_ingest_server.rb
+      - test/subagents_test.rb
+    rehearsal:
+      gates_digest: 3f26505a4f32c39e8806d1c84f16ba17bdac062e692cd9bdaf3afb3c0e695771
+      at: '2026-10-18T01:30:10-06:00'
   integration_branch: project/pi-port
