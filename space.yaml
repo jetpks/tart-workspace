@@ -81,7 +81,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: session-sink
+  current_iteration: signal-hygiene
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -2873,4 +2873,10 @@ project:
     rehearsal:
       gates_digest: 3f26505a4f32c39e8806d1c84f16ba17bdac062e692cd9bdaf3afb3c0e695771
       at: '2026-10-18T01:30:10-06:00'
+  - name: signal-hygiene
+    ordinal: 75
+    file: architecture/I75-signal-hygiene.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
