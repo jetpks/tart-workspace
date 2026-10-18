@@ -2936,6 +2936,13 @@ project:
       - lib/tart/agent/message.rb
       - test/edit_fold_test.rb
       - test/session_test.rb
+      base_sha: 6451f1e074ff097238a69b29911f921ddc71d86f
+      worktree: build/I77-edit-tool-fix-core/wt
+      integration_branch:
+      harness: pi
+      model: openrouter/z-ai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: 3f374adfd0e3dd0b6987fb59171fc9fabe5c977f215c43a50f86efc9bc2dabf9
       at: '2026-10-18T12:16:24-06:00'
