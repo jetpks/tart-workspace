@@ -81,7 +81,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: edit-tool-fix
+  current_iteration: subagent-runner-health
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -2954,4 +2954,10 @@ project:
     rehearsal:
       gates_digest: 3f374adfd0e3dd0b6987fb59171fc9fabe5c977f215c43a50f86efc9bc2dabf9
       at: '2026-10-18T12:16:24-06:00'
+  - name: subagent-runner-health
+    ordinal: 78
+    file: architecture/I78-subagent-runner-health.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
