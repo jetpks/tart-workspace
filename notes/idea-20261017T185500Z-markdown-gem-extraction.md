@@ -65,6 +65,62 @@ The tree layer gets pinned as a free byproduct if wanted.
 Owner-confirmed: happy to attribute. NOTICE/CREDITS in the gem pointing at
 pi's MIT `markdown.ts` (Mario Zechner) and the marked 18.0.11 oracle.
 
+## Scope fork (owner discussion 2026-10-18): extract the port, or build the full set?
+
+The converter is a pi **subset**: ATX headings, paragraphs, fences, quotes,
+hr, lists (nest/loose), bold/em/del, inline code, inline links, escapes.
+"Full set" = CommonMark 0.31 + GFM. The gap inventory, verified against
+`lib/tart/render/markdown.rb` as it stands:
+
+- **Block layer gaps:** indented code blocks (needs container-context
+  indent tracking, not line regexes), setext headings, link reference
+  definitions + reference links (pre-pass + resolution), lazy blockquote
+  continuation, CommonMark list content-indent rules, two-blank-lines list
+  end, tab-to-next-4-stop (we do flat \t → 3 spaces), ordered-list paragraph
+  interruption rule.
+- **Inline layer gap — the deep one:** CommonMark emphasis is the
+  delimiter-run algorithm (left/right flanking, unicode ws/punct classes,
+  precedence stack). Our INLINE_SCAN regex + `padded?` approximation
+  cannot reach conformance; full set = rewrite as process_emphasis stack.
+  Plus multi-backtick code spans, autolinks, link titles, images, hard
+  breaks, entities.
+- **GFM:** tables (needs a column policy — rows-of-spans has no grid
+  vocabulary), task lists, autolink extensions.
+- **HTML — the unsolvable-at-render problem:** CommonMark mandates raw-HTML
+  passthrough, meaningless in styled rows. Must be a declared policy
+  (literal / map-common-tags / strip). Hence the ruling shape holds: parse
+  layer can be fully conformant; render layer stays declared policy.
+- **Rig:** 48-case battery → CommonMark spec suite (~650) + GFM (~200) + an
+  adjuDICATED golden-rows corpus (HTML-semantic tests don't map to rows;
+  each needs an applies/doesn't-apply ruling — that adjudication is the
+  gem's documented render policy).
+
+### Market reality check (owner question 2026-10-18: "is this a true gap in
+### the Ruby community?")
+
+Honest answer: **no — it's a thin differentiator.** The landscape:
+kramdown (full-featured, tree + custom converters, actively maintained),
+commonmarker (cmark-gfm, fast C), redcarpet (stale), tty-markdown
+(markdown → ANSI, tty-family deps), mdless (terminal pager app). What is
+actually scarce: a **zero-dep, span-structured (not ANSI-string),
+terminal-policy-oriented converter with a frozen battery**. Audience:
+Ruby TUI/agent-tool builders — real but a niche within a niche.
+
+### Work to "yes"
+
+One-time: block container-stack rewrite + delimiter-run inline rewrite +
+link-ref machinery + tables/HTML/task-list policy + spec-suite harness —
+3–5× the entire subset's effort. Ongoing: spec tracking, GFM drift, issue
+  queue, benchmarks vs C-backed gems (they win speed; the pitch must be
+  zero-dep + structured output, not perf). "Lots", confirmed — and it's a
+  stewardship commitment, not a project.
+
+### Standing lean (owner, 2026-10-18)
+
+Extract the port as-is; treat "grow to full CommonMark" as a separate
+successor decision that requires a real second consumer asking for it.
+No-dependency law survives either path (no markdown lib dep ever).
+
 ## Preconditions & sequencing
 
 1. The whole coordinator program
