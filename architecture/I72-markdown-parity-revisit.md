@@ -1653,10 +1653,36 @@ env-class, exactly as standing. Gates: `suite`, `bench`.
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I72-markdown-parity-revisit-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section markdown-parity-revisit prompt --append --lane <lane> --from build/I72-markdown-parity-revisit-<lane>/prompt.md`. -->
+### core
+
+# Builder lane prompt — iteration `markdown-parity-revisit` (I72), lane `core`
+
+You are the builder for iteration `markdown-parity-revisit` (I72), lane `core`, repo `tart`. You are the ONLY lane.
+
+## THE CONTRACT — read it first, in full
+
+The authoritative, FROZEN contract is `architecture/I72-markdown-parity-revisit.md` in the space repo: its **Grounds**, **Specification**, and **Acceptance Criteria** sections (the `Objective`, `The contract (one lane)`, `THE O(n) GUARD`, `Frozen expectations`, `Named exclusions`, `Output format`, `Tool guidance`, `Boundaries`, `Lane plan`, the 66-gate frozen ```gates block, and the `## Builder Prompt`-adjacent laws). READ THE WHOLE FILE before doing anything. Where this header and the arch file differ, THE ARCH FILE WINS.
+
+Supporting reads named by the specification (do not skip): `notes/spec-digest-20261018T031345Z-markdown-parity-revisit.md`, `architecture/I68-markdown-parity.md` (§Verdict), `notes/spec-digest-20261017T083354Z.md`, `notes/report-20261017T090112Z.md`, and the preserved cure `build/I68-markdown-parity-core/lane-core.diff` (reference worktree `build/I68-markdown-parity-core/wt` @ 3845f6a).
+
+## Operating constraints (lane)
+
+- Work ONLY in your provisioned worktree: `build/I72-markdown-parity-revisit-core/wt` in the space, on branch `lane/I72-markdown-parity-revisit-core`, base tart `project/pi-port` @ `870e3f8`.
+- NEVER commit (the integrator lands your tree). NEVER touch the space repo. NEVER push.
+- NEVER touch any gem: `ratatui_ruby 1.5.0` and `fast-completions 0.5.0` are dependencies — consume, never modify. No new gems; no Gemfile/gemspec/lock changes.
+- NEVER write anything under `repos/pi` — the pinned oracle clone (branch `oracle-v1.1.0` @ v1.1.0) is ENVIRONMENT, guarded by `oracle-pin-state`; read-only reference. `env -u PI_PACKAGE_DIR` for every direct oracle exec.
+- Touch set is EXACTLY the 5 paths in the Specification's `Boundaries`/`Lane plan` (scope gate): `lib/tart/render/markdown.rb`, `test/markdown_test.rb`, `test/fixtures/markdown_battery.json` (NEW), `test/chat_test.rb`, `test/render/transcript_test.rb`.
+- Battery fixture: copy `tmp/i68-spec/markdown_battery.json` VERBATIM to `test/fixtures/markdown_battery.json` (byte-identical; sha256 `4ecd9cc2a5937dda7254c6553c6b9927b7af725e111ea02acf9226c2e01ac883`, 48 cases) — never regenerate.
+- Scenario out dirs stay SHORT (≤ ~10 chars rel the tart root); each gate owns `rm -rf` of its out dir. No rig scenario-content edits (`gems/tui-split-rig/scenarios/**`, `registry.yml`, `fixtures/` byte-frozen).
+- Full env scrub for every `architect` CLI call: `env -u RUBYOPT -u RUBYLIB -u BUNDLE_GEMFILE -u BUNDLE_LOCKFILE -u BUNDLE_BIN_PATH -u BUNDLER_SETUP -u BUNDLER_VERSION architect …`.
+- Standing flake classes (`render_perf_test.rb:265` spinner-dwell margin; `chat_test.rb:1613` interrupt-timing, BOTH the failure and the 900s-hang forms): re-run COLD before adjudicating; note-and-pass per the standing ledger.
+- ITEMIZE-AND-DEFEND (the I68 lesson, frozen into AC): your gate table MUST carry EVERY frozen gate — 66 of 66, `render-perf-probe` and `md-micro-perf` INCLUDED — each with a measured one-liner. An absent gate in the table is a REJECT-class violation.
+- PERF FIRST: measure the perf gates (micro + probe) BEFORE your report claims green — benchmark, then table.
+
+## Deliverable + report
+
+- Deliverable: the worktree diff vs `870e3f8` — exactly the 5-path set (markdown.rb MUST differ — the core touch; markdown_battery.json NEW untracked; chat_test.rb / transcript_test.rb ONLY if frozen expectations legitimately move, each declared oracle-verified). NO lane commits.
+- Scratch report at `build/I72-markdown-parity-revisit-core/report.md`: the suite summary line, the FULL 66-gate table (one measured one-liner each), the battery per-family outcome (11 designed-RED cured / 37 green kept), the perf evidence (md-micro-perf number + scale ratio, render-perf-probe BP-line), deviations itemized, and a final `STATUS:` line.
 
 ## Builder Report
 
