@@ -2851,7 +2851,7 @@ project:
     ordinal: 74
     file: architecture/I74-session-sink.md
     freeze_sha: 732f51030a88eb5c3fcc23f5792a2391db723b37
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
@@ -2862,6 +2862,13 @@ project:
       - test/session_sink_test.rb
       - test/support/mock_ingest_server.rb
       - test/subagents_test.rb
+      base_sha: 8d81291b5ea0a7508a98639fad963f596eda1920
+      worktree: build/I74-session-sink-core/wt
+      integration_branch:
+      harness: pi
+      model: openrouter/z-ai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: 3f26505a4f32c39e8806d1c84f16ba17bdac062e692cd9bdaf3afb3c0e695771
       at: '2026-10-18T01:30:10-06:00'
