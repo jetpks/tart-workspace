@@ -2004,15 +2004,56 @@ STATUS: COMPLETE_WITH_CONCERNS (s9-parity RED — base-inherited wrap geometry a
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section model-catalogue verdict --from <file>`. -->
+**Decision: CONTINUE — integrate lane `core`.**
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify model-catalogue`)?
+## Mechanical post-flight (this session, cold)
+
+- `architect verify model-catalogue`: 4/4 PASS (frozen sections untouched; no builder commits; scratch report present; in-bounds).
+- `git diff 4abec38 HEAD -- architecture/I71-model-catalogue.md`: the frozen region is byte-identical since the freeze; the only iteration-file change is the declared Builder Report transcription (verbatim, `3d145a8`).
+- `git -C build/I71-model-catalogue-core/wt log dd41ae1..` — EMPTY (lane committed nothing; the integrator lands the tree).
+- `architect gate model-catalogue core` — **59/61 gates PASS cold at the lane tree; s9-parity and scope RED, both reproducing the builder's disclosures byte-for-byte** (transcript `build/gate/I71-model-catalogue-20261017T190702.159455.md`), including `suite` (1255 runs / 6141 assertions / 0F / 0E / 1S — strictly above the measured base floor 1229/6047; base re-measured fresh at freeze, never predicted) and `bench` (`SEAM_BENCH_OK`).
+- **The judge independently replicated the builder's s9 base-inheritance experiment**: base `dd41ae1` extracted (read-only `git archive`) into a fresh scratch tree of EXACTLY 79 chars (`build/<24×s>/wt`, verified by `wc -c`), sibling `pi` symlink to the pinned oracle, and the IDENTICAL frozen command run there — **exit 1 at BASE** with the identical class counts (`parity-run-path 6, unknown-candidate 1, staged-path-wrap-fragment 3, footer-provider-prefix 2`). The frozen s9 command as written cannot pass at a 79-char tree: the AC block's wrap-law formula (row = tree + outdir + 32) undercounts the real suffix (pi 37 / tart 40 after the out dir), so s9's staged-path rows are 121–125 cols against the frozen 120-col rig width. **s9-parity's RED is base-inherited lane-tree geometry, NOT a lane regression.** Needs a gate re-freeze at the next iteration (corrected suffix constants, or a shorter rehearsal tree, or a wider rig width). Scratch removed after the experiment.
+- **Scope RED verified a gate-mechanics collision, not a tree bite** — with one under-disclosure corrected below. `git diff --quiet dd41ae1 -- <every frozen must-not-touch path>` passes (judge-run); all must-differ legs pass (models.rb, chat.rb, ATTRIBUTION.md, .manifest.json, vendored.rb, listing.rb); the untracked set is exactly the frozen touch set (expanded) plus gate-produced scratch. The frozen sweep's plain `git status --porcelain` collapses the fully-untracked `lib/tart/models/` and `vendor/` directories to forms the whitelist does not carry, so the gate cannot pass in a never-committed lane tree. **Correction to D2 (found by the judge): the builder's "identical sweep under `-uall` is CLEAN" claim does not hold against the frozen whitelist as written** — under `-uall`, the expanded gate-scratch paths (`t71s9/report.md`, …) fail the collapsed-form exclusion `t71[0-9a-z]*/?`, and the frozen `subagents-motd-probe` gate itself creates `t70mot/` (an out-dir rebase miss: `t70mot` was not rebased `t70*→t71*` with the rest of the family), which the `t71*`-only whitelist excludes in NO mode. The scope gate as frozen cannot pass at a lane tree for three independent mechanical reasons; the AC5 scope SUBSTANCE was judged from the direct tracked-diff and expanded-untracked evidence above, which is clean.
+
+## PHASE 0 disagreement rulings
+
+- **(a) "44 provider JSON files" vs the actual 42 — ACCEPT.** The pinned oracle clone is the authority; its data dir holds 42 non-hidden provider JSONs plus pi's own `.manifest.json` dotfile (explicitly not copied). The frozen `vendored-attribution` gate compares Dir globs on both sides and binds 42 — the Grounds count was a stale enumeration including the dotfile. No semantics moved.
+- **(b) Non-existent `dialect_for(entry.compat)` call sites — ACCEPT.** Grep at base confirms no such literal sites exist (the dialect derives inside `wire_model` from the threaded compat); the builder implemented the functionally specified seam (`Models.dialect_for_entry` = `dialect_for(resolved_compat(entry))`, threading the vendored-filled compat at the named boot/switch sites) with `dialect_for` and `wire_model` signatures UNCHANGED. Spec intent preserved exactly.
+- **(c) s9 wrap-law constant (disclosed D1) — ACCEPT.** Proven base-inherited by the judge's own replication; not a Phase-0 catchable defect (a rehearsal-tree property), disclosed at gate time with the decisive experiment. Routed to the next re-freeze.
+- **(d) scope sweep porcelain collapse (disclosed D2) — ACCEPT, with a correction.** The RED cause is confirmed as frozen-gate mechanics colliding with a never-committed lane tree. The builder's `-uall`-is-clean claim was imprecise (see post-flight above: the expanded `t71*` deep paths and the un-rebased `t70mot` out-dir fail the collapsed-form whitelist in any mode); the load-bearing fact — the tree bites nothing outside the touch set — is independently verified and holds. Re-freeze note: add `-uall` AND fix the whitelist/out-dir mismatch (`t70mot` or the `t71*` family).
+
+## Deviation rulings (all itemized, none silent)
+
+- **D1 `dialect_for_entry` threading mechanics — ACCEPT.** See PHASE 0 (b).
+- **D2 WeakMap carrier for the block baseUrl — ACCEPT (stricter than the letter).** The seams receive bare typed entries that cannot carry the provider block's baseUrl; the WeakMap record dies with the entry and hand-built test catalogs match NOTHING by construction — this is what makes every hermetic staged catalog provably inert (the blast-radius rule never fired), which is stronger than the frozen rule's letter and consistent with its intent.
+- **D3 Per-model baseUrl indexing — ACCEPT.** 8 vendored files legitimately serve models under multiple baseUrls; indexing per the model's OWN baseUrl preserves rule (a)'s semantics with rule (a) still dominating (b). Deterministic first-in-sorted-order collision resolution.
+- **D4 reasoning fill semantics — ACCEPT, with a standing residual.** The load path normalizes `reasoning == true`, so a loaded typed entry's omitted reasoning is indistinguishable from declared-false at the seam — the fill slots entry-flag → vendored → today's-flag. Narrow consequence (a user DECLARING `reasoning: false` on a vendored-reasoning model would be filled to true) is unreachable from the suite, itemized, and the owner's live catalog (all four entries declare true) is unaffected. Logged as residual risk; a future iteration could thread provenance if the owner rules it.
+- **D5 `name` fill locus — ACCEPT.** The byte-stable catalog law dominates; `name` fills only at construction (live entries), where it is unobservable in the frozen pins.
+- **D6 `fetch`'s optional `on_result:` kwarg — ACCEPT.** The frozen `fetch` contract had no non-blocking delivery path, and the threads-budget gate forbids a `Thread.new` in chat.rb; the additive kwarg on a NEW module touches no frozen signature and the no-callback form keeps the exact frozen synchronous contract (used by the tests).
+- **D7 open-generation guard — ACCEPT.** The natural reading of "merge under the Chat mutex"; prevents stale merges into closed/superseded menus.
+- **D8 refresh clamp in-range bound — ACCEPT.** Required to keep a shrinking merged list from crashing the `Model Name:` row render; `edit_query` untouched.
+- **D9 live-entry seam registration — ACCEPT.** Same match rule re-derived at the switch seam; consistent with D2's carrier.
+- **D10 comment rewording (two grep-token collisions) — ACCEPT.** Prose-only; the frozen gates grep for literal tokens and the builder's comments contained them; behavior unchanged.
+- **D11 lazy `Models::Listing` require — ACCEPT.** Keeps the async-http stack out of boot, serving AC4's no-network-at-boot law.
+
+## AC rollup
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | `vendored-attribution` GREEN: 42 files byte-identical to the pinned oracle (sha256-manifested, tart's own manifest, pi's dotfile manifest NOT copied); `rake -T` lists the task; refresh task offline and loud-failing; no network tokens in the Rakefile | AC1 | **PASS** (the "44" count in the AC text is the stale Grounds enumeration — 42 is what the oracle holds and the gate binds) |
+| AC2 | `vendored-units` GREEN; catalog byte-stable (`wire-delta` EXACT, `session-golden` EXACT, `zai-max-tokens-wire` tart=pi=512, `strict-wire` 8 runs/76 assertions); hermetic catalogs inert; the declared `strict_sampling` move verified (max_tokens 16384→131072, reasoning_effort medium→high, dialect stays `:zai`) | AC2 | **PASS** |
+| AC3 | `listing-units`, `model-menu-live-merge`, `launcher-listing-thread` GREEN; one bounded 5s fetch per open, demand-only, user entries immediate, merged under the Chat mutex + `request_draw`, user-wins dedupe, typed live entries through the unchanged switch seam | AC3 | **PASS** |
+| AC4 | `vendored-no-boot-network`, `listing-thread-law`, `threads-budget` GREEN; every failure class ⇒ nil with ONE muted failure row, no retries; exactly one sanctioned background thread (listing.rb) | AC4 | **PASS** |
+| AC5 | s1–s8/s10/s17, s1-tart-mode, oracle gates, render/markdown/error-transcript/tool-pending/user-bash pins, I70 flip pins ALL GREEN cold; `s9-parity` RED and `scope` RED | AC5 | **PASS** — s9-parity and scope are INVALID as regression evidence (s9 base-inherited, proven by the judge's own replication; scope a frozen-gate mechanics collision, tree independently verified clean); the parity substance holds |
+| AC6 | `suite` 1255/6141/0F/0E/1S > base floor 1229/6047 (measured fresh, never predicted); nothing deleted; `bench` `SEAM_BENCH_OK` | AC6 | **PASS** |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+## Residual risks (named for the human)
+
+1. **The live `/v1/models` fetch against a REAL provider key is statically pinned only** (hermetic mock); the real z.ai/openrouter endpoints were never fetched — by law. The named human checkpoint: the owner's interactive test-drive.
+2. **`vendor/pi-models/` does not ship in the gem package** (outside the gemspec file list; the vendored tier degrades to provider-absent in an installed gem). Pre-declared in Grounds ("from-source daily driver only, flagged for the human").
+3. **Gate re-freeze needed at the next iteration**: (a) s9's wrap-law suffix constants (pi 37 / tart 40, not 32) or a shorter tree / wider rig width; (b) the scope sweep's porcelain collapse (`-uall`) AND the `t70mot` out-dir rebase miss against the `t71*`-only whitelist.
+4. **A user-declared `reasoning: false` on a vendored-reasoning model flips to true at the thinking_facts seam** (D4's normalization ambiguity); the owner's live catalog is unaffected.
+5. First seam consultation parses all 42 vendored files once (~1 MB JSON, cached); never triggered by a fully-declared catalog.
+6. No listing cache/TTL by design (frozen): one bounded fetch per menu open.
+
+Integration disposition: lane `core` merges to `project/pi-port` (the only lane; base `dd41ae1`, clean fast-forward expected — the lane made no commits); teardown of the worktree and lane branch after merge.
