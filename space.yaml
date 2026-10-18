@@ -2926,7 +2926,17 @@ project:
   - name: edit-tool-fix
     ordinal: 77
     file: architecture/I77-edit-tool-fix.md
-    freeze_sha:
+    freeze_sha: 3210c2cdb33ee3582e4b0c19b6e6bb42c26ac7ed
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/tools/edit.rb
+      - lib/tart/agent/message.rb
+      - test/edit_fold_test.rb
+      - test/session_test.rb
+    rehearsal:
+      gates_digest: 3f374adfd0e3dd0b6987fb59171fc9fabe5c977f215c43a50f86efc9bc2dabf9
+      at: '2026-10-18T12:16:24-06:00'
   integration_branch: project/pi-port
