@@ -2981,7 +2981,22 @@ project:
   - name: subagent-status-box
     ordinal: 79
     file: architecture/I79-subagent-status-box.md
-    freeze_sha:
+    freeze_sha: 3f8cc9ba6a071c3fc00b798123b7c478e9fa7e8e
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/render/subagent_box.rb
+      - lib/tart/render/chat.rb
+      - lib/tart/subagents/manager.rb
+      - lib/tart/subagents.rb
+      - test/subagent_box_test.rb
+      - test/subagents_health_test.rb
+      - test/subagents_test.rb
+      - gems/tui-split-rig/bin/subagent-status-probe
+      - gems/tui-split-rig/fixtures/subagent-box/
+    rehearsal:
+      gates_digest: 9513b9a918b494a7ab32f1021151ccd5f9c2eba274e2448763c677d9641923fe
+      at: '2026-10-18T17:35:57-06:00'
   integration_branch: project/pi-port
