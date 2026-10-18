@@ -2927,7 +2927,7 @@ project:
     ordinal: 77
     file: architecture/I77-edit-tool-fix.md
     freeze_sha: 3210c2cdb33ee3582e4b0c19b6e6bb42c26ac7ed
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
