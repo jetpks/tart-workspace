@@ -2306,6 +2306,175 @@ Code + tests; no README/docs changes (the tool description string gains no rows)
 
 Write your report to `build/I78-subagent-runner-health-core/report.md`: what landed (file by file), the measured gate table (cold, foreground, at YOUR tree), PHASE 0 findings, and the honest residual list. The architect transcribes it VERBATIM into the arch file.
 
+### core
+
+STATUS: COMPLETE_WITH_CONCERNS (1: s9-parity RED at the lane tree — declared judge-owned adjudication class; the at-base triangle leg is also RED with the same `unknown-candidate` driver class, raw evidence below; 2: suite assert-count floor measured 6561 at base vs the frozen 6562 — runs/0F/0E/1S identical, assert counts are dynamic between runs at fixed run count)
+
+## PHASE 0
+
+What was checked before concluding the spec is sound (no blocking disagreements found):
+
+- Read `architecture/I78-subagent-runner-health.md` in full (Grounds, Specification, AC, the 83-gate block). Where the lane-prompt header and the arch file could differ (gate list, touch set, message pins), the arch file was used as the source of truth; no conflicts found.
+- Gate↔API consistency verified against the code before implementing: the `stale-run-reaper` gate's `Manager.new(cwd:, home:, env:, identity:, hooks:, root:)` kwargs all exist; `Hooks#pending_next_turn` drains-on-read (the gate's post-convergence empty assert is consistent with one fleet read); the gate's fabricated `status.json` shape matches `base_status`'s keys.
+- Discovered and fixed en route (declared, within the frozen touch set): `disk_find` read `status["started_at"]` (underscore key) — always nil for any on-disk status (the port writes `startedAt`); fixed to read `status["startedAt"]` (the Grounds "nil-tolerant by accident, not by law" note). Effect: adopted records now carry their real `startedAt`; nil stays nil (the legacy-tolerance law).
+- Interpretation declared: pi's reconciler THROWS on an unreadable result file; the frozen Law 1 sweep must be "never fatal", so a corrupt `result.json` is treated as NOT authoritative and the flow falls through to the pid probe (live → left alone; dead → the honest repair). Never fabricates over a live pid.
+- Nil-pid repair message: pi's interpolation fallback (`typeof status.pid === "number" ? status.pid : "unknown"`) — a nil pid reads `Async runner process unknown exited or disappeared…`; pinned as such in the units.
+- `resolve_model` returns the RAW parse on a valid registry match (validation is never canonicalization) — preserves the parse-only byte behavior for the case-insensitive resolution arm (`MOCK/CALL-MODEL:high` → `["MOCK", "CALL-MODEL", "high"]`).
+- `settle_run`'s notify condition gained the belt-and-braces `record[:owned] &&` guard — for owned records (the only ones that reach `settle_run`) the behavior is byte-identical.
+- `test/subagents_test.rb` stayed GREEN UNEDITED (34 runs / 282 assertions) — the declared re-pin file required no re-pinning; the scope gate's must-differ legs are satisfied by the two lib seams only, which is exactly the gate's requirement.
+- Measured at the lane tree (clean, pre-work): base suite `rake` = 1402 runs / 6561 asserts / 0F / 0E / 1S; `bench/seam_bench.rb` → `SEAM_BENCH_OK`. The frozen floor's 6562 asserts differs by 1 from this session's measurement at the same commit; run count/0F/0E/1S match exactly (see Concern 2).
+- `s9-parity` RED at the lane tree: declared judge-owned adjudication class (AC5: "s9-parity + herdr-wire-probe at LANE-TREE depth (judge-own at-base triangle decides)"). Provided the at-base leg: scratch shared clone at `2365176` (`build/I78-subagent-runner-health-core/scratch/tart-base-clone`, symlink `scratch/pi → repos/pi`), s9 run cold → ec=1 with `unknown-candidate` present at base too. Raw class counts below. `herdr-wire-probe` GREEN at the lane tree.
+
+## What landed (file by file)
+
+- `lib/tart/subagents/manager.rb`
+  - `require_relative "../models"` (the Law 4 catalog source).
+  - `spawn_run`: loads `Models.load(root: @root)` fresh per spawn when an explicit model exists (call `model:` or profile `model:`); inherited arm (nil source) never loads, never validates; record gains `owned: true`.
+  - `disk_find`: gains `owned: false`; reads `startedAt` (was the always-nil `started_at` key).
+  - `status(id: nil)`: calls `sweep_home` before listing (Law 1 — the fleet sweep: scan `@home` children for a readable `status.json`; parse failures/non-run dirs skipped, never fatal; terminal-on-disk NOT adopted; non-terminal unknown dirs adopted via `disk_find` and reaped synchronously; NO new thread).
+  - `reconcile_run`: non-owned records route to the reaper seam (`reap_run`).
+  - `watch_loop`'s belt-and-braces exit sweep: non-owned records route through `reap_run`; owned keep `settle_run`.
+  - New private reap seam (pi `stale-run-reconciler.js` port): `reap_run` (leg order d→a→b/c), `adopt_terminal_disk` (existing first leg unchanged), `reap_from_result` (pi `terminalStatusFromResult` — result authoritative, ONLY the atomic status flip, result never rewritten), `reap_dead_repair` (pi `writeFailedRepair` — result.json FIRST `{"output": <stdout or "">, "success": false, "timedOut": false, "error": <message>}`, then the atomic status flip to `"failed"`, pid verbatim, base_status nil-tolerant shape), `stderr_tail_diagnostics` (pi `readRunnerStartupDiagnostics` — ≤64KB end-read, last 30 lines, >4000 chars → last 4000 + `\n[stderr tail truncated]`), and the BYTE-PINNED base message `Async runner process <pid> exited or disappeared before writing a result. Marked run failed by stale-run reconciliation.` + `\n\nRunner stderr tail:\n<tail>` when non-empty.
+  - `outstanding?` counts only OWNED non-terminal runs; `shutdown`'s stop ladder arms only OWNED runs; `settle_run` notifies only OWNED async runs (owned observables byte-for-byte unchanged).
+- `lib/tart/subagents.rb`
+  - `resolve_model`: the dormant `catalog:` kwarg armed — `catalog: nil` parse-only byte-identical; EMPTY registry (`model_entries` empty) → no validation (pi's never-validate-without-a-registry law); fallback (parent) pair exempt (provider+id, level ignored); otherwise valid iff `Config#resolve("provider/id")` matches (the I71 exact-match law); invalid → `ArgumentError` BYTE-PINNED `Unknown subagent model '<spec>' in the active Pi model registry.` (raw requested string verbatim).
+- `test/subagents_health_test.rb` (NEW — 11 runs / 104 assertions)
+  - Pins: dead-run specimen convergence through the fleet read (reaped-real-pid ESRCH, pinned message + stderr tail, fleet line, pid kept, legacy nils, NO notification, no outstanding?); result-derive leg (completed/stopped/failed derivations, result bytes untouched); live-pid leg (status.json byte-identical, listed running, drain returns); ownership across outstanding?/drain/notify/shutdown (owned gates drain + notifies exactly once; foreign convergence notifies nothing); shutdown spares a live foreign child (kill(0) still answers); kill -9 owned child settles terminal through the watcher sweep with result.json + the owned notification; validation law at `resolve_model` level (all exemption arms + pinned message) AND at spawn level (call arm + profile arm, pinned message, ZERO run dirs; a registry-resolvable explicit model still dispatches with the child env written exactly as today); legacy/null-field tolerance incl. nil pid → "unknown"; stderr-tail discipline (last-30-lines + the 4000-char marker, both bounds); targeted id read converges through the same seam without notifying.
+- `test/subagents_test.rb` — UNTOUCHED (stayed green; the declared re-pin file required no re-pinning).
+
+## Gate table (cold, foreground, at the lane tree — byte-verbatim extraction from the frozen arch ```gates block, never hand-retyped)
+
+| # | gate | verdict | ec | secs | marker |
+|-----|------|---------|----|------|--------|
+| 1 | stale-run-reaper | GREEN | 0 | 0.9 | STALE_RUN_REAPER_OK |
+| 2 | unknown-model-reject | GREEN | 0 | 0.4 | UNKNOWN_MODEL_REJECT_OK |
+| 3 | subagents-health-units | GREEN | 0 | 6.9 | SUBAGENTS_HEALTH_UNITS_OK |
+| 4 | edit-fold-repro | GREEN | 0 | 0.4 | EDIT_FOLD_REPRO_OK |
+| 5 | edit-fold-units | GREEN | 0 | 0.4 | EDIT_FOLD_UNITS_OK |
+| 6 | session-model-identity | GREEN | 0 | 0.4 | SESSION_MODEL_IDENTITY_OK |
+| 7 | session-model-units | GREEN | 0 | 0.4 | SESSION_MODEL_UNITS_OK |
+| 8 | suite | GREEN | 0 | 251.6 | SUITE_OK |
+| 9 | bench | GREEN | 0 | 16.7 | SEAM_BENCH_OK |
+| 10 | md-repro | GREEN | 0 | 0.3 | MD_REPRO_OK |
+| 11 | md-inline-units | GREEN | 0 | 0.7 | MD_INLINE_UNITS_OK |
+| 12 | pending-registry-units | GREEN | 0 | 0.4 | PENDING_REGISTRY_UNITS_OK |
+| 13 | footer-window | GREEN | 0 | 0.3 | FOOTER_WINDOW_OK |
+| 14 | thinking-pins | GREEN | 0 | 1.0 | THINKING_PINS_OK |
+| 15 | hermeticity | GREEN | 0 | 9.7 | HERMETICITY_OK |
+| 16 | lock-deps | GREEN | 0 | 0.5 | GEM_LOAD_OK |
+| 17 | zai-data | GREEN | 0 | 0.7 | ZAI_DATA_OK |
+| 18 | threads-budget | GREEN | 0 | 0.0 | THREADS_BUDGET_OK |
+| 19 | session-golden | GREEN | 0 | 0.4 | SESSION_GOLDEN_OK |
+| 20 | strict-wire | GREEN | 0 | 0.3 | runs, |
+| 21 | error-transcript-units | GREEN | 0 | 1.2 | ERROR_TRANSCRIPT_UNITS_OK |
+| 22 | error-transcript-render-units | GREEN | 0 | 0.8 | ERROR_TRANSCRIPT_RENDER_UNITS_OK |
+| 23 | render-perf-units | GREEN | 0 | 0.7 | (exit 0) |
+| 24 | render-perf-probe | GREEN | 0 | 146.4 | RENDER_PERF_OK |
+| 25 | tool-pending-gate | GREEN | 0 | 20.6 | TOOL_PENDING_GATE_OK |
+| 26 | user-bash-stream-gate | GREEN | 0 | 14.0 | USER_BASH_STREAM_GATE_OK |
+| 27 | zai-max-tokens-units | GREEN | 0 | 2.2 | ZAI_MAX_TOKENS_UNITS_OK |
+| 28 | rail-bg | GREEN | 0 | 0.4 | RAIL_BG_OK |
+| 29 | jump-pill-units | GREEN | 0 | 0.4 | JUMP_PILL_UNITS_OK |
+| 30 | rail-bg-units | GREEN | 0 | 0.4 | RAIL_BG_UNITS_OK |
+| 31 | viewport-probe | GREEN | 0 | 0.4 | VIEWPORT_PROBE_OK |
+| 32 | oracle-pin-state | GREEN | 0 | 0.1 | ORACLE_PIN_OK |
+| 33 | oracle-bin-units | GREEN | 0 | 0.6 | ORACLE_BIN_UNITS_OK |
+| 34 | oracle-resolve | GREEN | 0 | 0.4 | ORACLE_RESOLVE_OK |
+| 35 | s1-parity | GREEN | 0 | 5.2 | (exit 0) |
+| 36 | s2-parity | GREEN | 0 | 5.2 | (exit 0) |
+| 37 | s3-parity | GREEN | 0 | 5.2 | (exit 0) |
+| 38 | s4-parity | GREEN | 0 | 5.2 | (exit 0) |
+| 39 | s5-parity | GREEN | 0 | 5.2 | (exit 0) |
+| 40 | s6-parity | GREEN | 0 | 5.2 | (exit 0) |
+| 41 | s7-parity | GREEN | 0 | 5.2 | (exit 0) |
+| 42 | s8-parity | GREEN | 0 | 5.2 | (exit 0) |
+| 43 | s9-parity | RED | 1 | 6.9 | 2x unknown-candidate (raw evidence below) |
+| 44 | s10-parity | GREEN | 0 | 7.4 | (exit 0) |
+| 45 | s17-parity | GREEN | 0 | 8.1 | (exit 0) |
+| 46 | s1-tart-mode | GREEN | 0 | 5.2 | TART_MODE_OK |
+| 47 | wire-delta | GREEN | 0 | 5.3 | WIRE_DELTA_OK |
+| 48 | zai-max-tokens-wire | GREEN | 0 | 5.2 | ZAI_WIRE_OK tart=pi=512 |
+| 49 | identity-law | GREEN | 0 | 0.4 | IDENTITY_LAW_OK |
+| 50 | default-face | GREEN | 0 | 0.4 | DEFAULT_FACE_OK |
+| 51 | default-boot | GREEN | 0 | 0.9 | DEFAULT_BOOT_OK |
+| 52 | herdr-units | GREEN | 0 | 0.7 | HERDR_UNITS_OK |
+| 53 | herdr-wire-probe | GREEN | 0 | 3.2 | HERDR_WIRE_OK |
+| 54 | rig-identity-assert | GREEN | 0 | 0.3 | RIG_IDENTITY_OK |
+| 55 | subagents-default-law | GREEN | 0 | 0.3 | SUBAGENTS_DEFAULT_LAW_OK |
+| 56 | subagents-default-boot | GREEN | 0 | 0.9 | SUBAGENTS_DEFAULT_BOOT_OK |
+| 57 | subagents-motd-units | GREEN | 0 | 0.3 | SUBAGENTS_MOTD_UNITS_OK |
+| 58 | subagents-motd-probe | GREEN | 0 | 2.8 | SUBAGENTS_MOTD_OK |
+| 59 | subagents-e2e-default-on | GREEN | 0 | 37.5 | SUBAGENTS_E2E_DEFAULT_OK |
+| 60 | rig-staging-units | GREEN | 0 | 0.2 | RIG_STAGING_OK |
+| 61 | vendored-attribution | GREEN | 0 | 0.4 | VENDORED_ATTRIBUTION_OK |
+| 62 | vendored-units | GREEN | 0 | 1.1 | VENDORED_UNITS_OK |
+| 63 | listing-units | GREEN | 0 | 6.5 | LISTING_UNITS_OK |
+| 64 | model-menu-live-merge | GREEN | 0 | 0.8 | MODEL_MENU_LIVE_MERGE_OK |
+| 65 | launcher-listing-thread | GREEN | 0 | 0.4 | LAUNCHER_LISTING_THREAD_OK |
+| 66 | vendored-no-boot-network | GREEN | 0 | 0.0 | VENDORED_NO_BOOT_NETWORK_OK |
+| 67 | listing-thread-law | GREEN | 0 | 0.0 | LISTING_THREAD_LAW_OK |
+| 68 | md-battery-fixture | GREEN | 0 | 0.0 | MD_BATTERY_FIXTURE_OK |
+| 69 | md-battery-units | GREEN | 0 | 0.4 | MD_BATTERY_UNITS_OK |
+| 70 | md-regression-units | GREEN | 0 | 0.4 | MD_REGRESSION_UNITS_OK |
+| 71 | md-flanking-repro | GREEN | 0 | 0.3 | MD_FLANKING_OK |
+| 72 | md-micro-perf | GREEN | 0 | 1.6 | MD_MICRO_OK |
+| 73 | child-env-law-repro | GREEN | 0 | 0.3 | CHILD_ENV_LAW_OK |
+| 74 | child-env-units | GREEN | 0 | 0.4 | CHILD_ENV_UNITS_OK |
+| 75 | child-env-site-units | GREEN | 0 | 4.8 | CHILD_ENV_SITE_UNITS_OK |
+| 76 | bash-child-env-live | GREEN | 0 | 0.7 | BASH_CHILD_ENV_LIVE_OK |
+| 77 | session-sink-config-units | GREEN | 0 | 0.7 | SESSION_SINK_CONFIG_UNITS_OK |
+| 78 | session-sink-projection-units | GREEN | 0 | 0.7 | SESSION_SINK_PROJECTION_UNITS_OK |
+| 79 | session-sink-engine-e2e | GREEN | 0 | 6.8 | SESSION_SINK_ENGINE_E2E_OK |
+| 80 | session-sink-child-e2e | GREEN | 0 | 3.9 | SESSION_SINK_CHILD_E2E_OK |
+| 81 | signal-hygiene-units | GREEN | 0 | 3.9 | SIGNAL_HYGIENE_UNITS_OK |
+| 82 | signal-orphan-e2e | GREEN | 0 | 30.6 | SIGNAL_ORPHAN_OK |
+| 83 | scope | GREEN | 0 | 0.0 | SCOPE_OK |
+
+Totals: 82 GREEN / 1 RED of 83. The 4 declared-RED gates (`stale-run-reaper`, `unknown-model-reject`, `subagents-health-units`, `scope`) all arrived GREEN. Gate run order in the block run: 1–83 sequential, foreground, never under nohup; t78* out dirs self-owned and removed after.
+
+## s9-parity raw evidence (declared judge-owned adjudication class)
+
+Lane tree (twice, second run cold): ec=1, per-class diff counts:
+
+```
+2x unknown-candidate
+6x parity-run-path
+4x staged-path-wrap-fragment
+2x footer-provider-prefix
+```
+
+```
+- / for commands -> unknown-candidate
++d -> unknown-candidate
+```
+
+(the expanded-header hint list renders a different visible top line under the pane height; pi's capture line 1 is ` / for commands`, tart's is ` ! to run bash` — motd.rb `TART_EXPANDED_HINTS` is out of the touch set; no render file changed in this lane)
+
+At-base triangle leg (scratch shared clone at `2365176`, cold, same rig/pi oracle): ec=1 with `1x unknown-candidate` (a status-bar path-wrap line: `…/t78s9/run…` truncation) + `6x staged-path-wrap-fragment` + `2x footer-provider-prefix` + `1x parity-run-path`. The `unknown-candidate` exit-1 driver class exists AT BASE TOO. Both legs RED at lane-tree depth → judge-own decides (AC5's declared class; herdr-wire-probe, the sibling class, is GREEN at the lane tree).
+
+## Suite counts (raw)
+
+| tree | command | runs | asserts | F | E | S |
+|------|---------|------|---------|---|---|---|
+| base `2365176` (lane tree, pre-work, cold) | `bundle exec rake` | 1402 | 6561 | 0 | 0 | 1 |
+| lane (post-work, gate-8 suite leg) | `bundle exec rake` | 1413 | 6660 | 0 | 0 | 1 |
+| lane (post-work, re-run) | `bundle exec rake` | 1413 | 6655 | 0 | 0 | 1 |
+| lane | `bundle exec ruby bench/seam_bench.rb` | — | — | — | — | — (SEAM_BENCH_OK) |
+| lane | `test/subagents_test.rb` | 34 | 282 | 0 | 0 | 0 |
+| lane | `test/subagents_health_test.rb` | 11 | 104 | 0 | 0 | 0 |
+
+Suite delta vs base: +11 runs (= the new health battery; nothing deleted). Assert counts vary between runs at fixed run count (suite-internal dynamic assertions); every measurement is recorded above.
+
+## Residual list (honest)
+
+- s9-parity RED at the lane tree — declared judge-owned adjudication class; both lane-tree and at-base legs carry the `unknown-candidate` driver; no render file is in the touch set. Judge triangle decides.
+- Suite assert-count floor measured 6561 at base vs the frozen floor's 6562 (runs/0F/0E/1S identical); dynamic assert counting between runs — recorded, not adjudicated here.
+- pi's `staleAlivePidMs` 24h live-pid arm and the `events.jsonl` `subagent.run.repaired_stale` append remain unported (named residuals in the frozen Grounds — NOT this lane).
+- pi's fuzzy model suggestions remain unported (the I71 exact-match law) — named residual in the Grounds.
+- Foreign-run ACTION ownership (stop/steer on an adopted run can signal another session's child) — pre-existing `disk_find` surface, untouched per the Grounds' named residual.
+- Corrupt-result.json corner: the port best-effort falls through to the pid probe instead of pi's throw (the never-fatal sweep law); a dead pid fabricates the repair over an unreadable result — declared interpretation in PHASE 0.
+- Scratch clone `build/I78-subagent-runner-health-core/scratch/tart-base-clone` (+ `scratch/pi` symlink) left in scratch as s9 at-base evidence; never part of the repo tree.
+
 ## Builder Report
 
 <!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
