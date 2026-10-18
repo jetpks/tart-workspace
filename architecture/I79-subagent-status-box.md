@@ -2073,10 +2073,42 @@ concluding the spec is sound) — silent compliance is a defect.
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I79-subagent-status-box-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section subagent-status-box prompt --append --lane <lane> --from build/I79-subagent-status-box-<lane>/prompt.md`. -->
+### core
+
+# Builder lane prompt — iteration `subagent-status-box` (I79), lane `core`, repo `tart`
+
+You are the builder for iteration `subagent-status-box` (I79), lane `core`, repo `tart`. You are the ONLY lane. Your worktree is `build/I79-subagent-status-box-core/wt` (base `12a7ece`, branch `lane/I79-subagent-status-box-core`) — do all work THERE; the space's main checkout is read-only for you. **ZERO live API calls of any kind** — no provider keys, no driver scripts, no spend (every pin and probe leg is hermetic: staged homes, live sleep pids for liveness, disk-driven state transitions).
+
+## THE CONTRACT — read it first, in full
+
+The authoritative, FROZEN contract is `architecture/I79-subagent-status-box.md` in the space repo: its **Grounds**, **Specification**, and **Acceptance Criteria** sections (the four Laws, Output format, Operating constraints, Lane plan, the 85-gate frozen ```gates block with its rehearsal declarations). READ THE WHOLE FILE before doing anything. Where this header and the arch file differ, THE ARCH FILE WINS.
+
+Supporting read: `notes/spec-digest-20261018T221313Z-subagent-runner-health.md` (the I78 handoff — the carry/adjudication classes, the declared-RED pattern, judge-runs-gates-at-the-lane-tree, never gates under nohup, short out dirs) and this spec's scratch `tmp/i79-spec/` (grounds/spec/AC, the carried-gates rebases, and `tmp/i79-spec/fixtures/` — the SOURCE of the frozen fixture bytes you commit to `gems/tui-split-rig/fixtures/subagent-box/`, byte-copied, never regenerated). The oracle harness (`tmp/i79-spec/oracle/capture*.rb`) is READ-ONLY reference for the probe's design — never re-run it to regenerate fixtures.
+
+## WHAT YOU ARE LANDING (four frozen laws, one lane)
+
+1. **LAW 1 — the box renders the frozen oracle bytes** (`lib/tart/render/subagent_box.rb`, NEW): the renderer implements pi's row law verbatim (all shapes/labels/glyphs/colors cited in the Grounds with file:line): form selection (multi ≥2 runs / single), the `RUNNING_FRAMES` charset + `●`, the running tone (child thinking border color → main level → accent), `✓`/`✗`/`■` terminal glyphs, `[fresh]`/`[fork]` context badge, the display-layer state map (completed→`complete`, stopped→`stopped` — the disk vocabulary stays), `⎿  <activity>` details (formatActivityLabel + `thinking…` fallback, snapshot = the run's lastUpdate/endedAt), `Press ctrl+o for live detail` (running only), `output: <HOME-contracted runner.stdout.log>` (running only), `error: <one line>`, `formatDuration` verbatim, NO task row ever (pi's redaction law), the `+N more` overflow beyond 4 runs. PURE rendering over a snapshot — no IO, no threads.
+2. **LAW 2 — the box's lifecycle** (`lib/tart/render/chat.rb` + the renderer): the box occupies the dock-spacer/widgetsAbove region between `pending` and `editor` in `build_widget`; ZERO rows and ZERO allocation when no run is visible (BP1–BP5 are gates); the render-key cache means a row set is rebuilt only on observable change or a 1s glyph frame — streaming/scroll/resize/mounted pickers never drop or duplicate it; terminal rows drop 10s after the flip (retention); NO new thread — the watcher's existing 250ms tick reconciles in-memory records, a ≤5s box sweep adopts foreign dirs through the I78 fleet sweep, draws are requested through the existing kernel bridge (I58: no fixed-rate rendering).
+3. **LAW 3 — the data seams** (`lib/tart/subagents/manager.rb` + `lib/tart/subagents.rb`): a thread-safe box-facing snapshot (mutex-guarded, never blocking the render frame); `base_status` gains EXACTLY the additive `model` (resolved `provider/id` at spawn) + `context` (`"fork"` when the spawn resumes the parent session, else `"fresh"`) fields — the I78 reaper/sweep/ownership laws and every existing key byte-unchanged, nil/legacy tolerance holds, historical dirs without the fields render no badge and never raise; the attention fact = the supervisor channel's pending registry keyed by run id; `Subagents.register` records the Manager in a module-level `current_manager` accessor (nil in print boots/tests — the Chat surface's only bin/tart-untouched reach; `bin/tart` is hard-frozen).
+4. **LAW 4 — the probe** (`gems/tui-split-rig/bin/subagent-status-probe`, NEW + the fixtures dir): the subagents-motd-probe shape (stdlib only, HERDR scrub, token-scoped tmux session, kill -9 teardown): boots TART with a staged HOME whose runs root carries staged status.json dirs in the PORT's schema with the SAME staged facts as the oracle captures (agents worker/reviewer, `model: "mock/mock-1"`, `context: "fresh"`, startedAt/lastUpdate with the same fixed deltas, live sleep pids), drives the eight states on disk (the supervisor-ask file `<home>/<run>/control/supervisor-requests/<id>.json` for attention; the PORT's in-dir `result.json` for the terminal transitions — the I78 reaper derives them through the box's reads), captures the box region per state (plain + `-e`), applies the FROZEN normalization classes (`◖SPIN◗` the ten frames, `◖DUR◗` every elapsed/age token incl. the word `now`, `◖PATH◗` the output row's path), and byte-compares against `gems/tui-split-rig/fixtures/subagent-box/`. Prints `SUBAGENT_STATUS_OK`; a mismatch prints the state + first differing row. Zero network.
+
+Frozen discipline you must not drift from: wire-delta + session-golden hold EXACT (the box is render-only; the manager seam is read-path only); the I78 fleet-line, notification, and control/ shapes stay byte-identical; no rig scenario-content edits (the new bin + fixtures dir are additive); `bin/tart`, `lib/tart.rb`, `lib/tart/agent/` untouched (hard-frozen — the child-runner status wire is a named residual).
+
+## Deliverable (frozen Output format)
+
+Code + tests + the probe + the fixtures. The pin battery lives in `test/subagent_box_test.rb` (≥ 12 runs — the `subagent-box-units` gate floor): at minimum, pins for (1) the row law per state against the FROZEN fixture bytes (all eight, plain + styled spans); (2) form selection incl. the `+N more` overflow law; (3) the retention window and the absent-box law (zero rows, no allocation on the absent path); (4) the cadence laws (250ms in-memory / ≤5s sweep / 1s animation via request-draw — no new thread, assertable via the threads-budget gate and unit seams); (5) the additive `model`/`context` status fields + the nil/legacy tolerance; (6) the attention mapping from a staged supervisor-ask file; (7) the display-layer state map; (8) the render-key cache (no rebuild without observable change); (9) `test/subagents_health_test.rb` + `test/subagents_test.rb` stay green — any edit there is behavior-preserving re-pinning only (the DECLARED re-pin files). The mock-server harness discipline in `test/subagents_test.rb` is your seam for owned-run legs.
+
+## Operating constraints (lane)
+
+- Touch set (frozen, the scope gate bites exactly): `lib/tart/render/subagent_box.rb`, `lib/tart/render/chat.rb`, `lib/tart/subagents/manager.rb`, `lib/tart/subagents.rb`, `test/subagent_box_test.rb`, `test/subagents_health_test.rb`, `test/subagents_test.rb`, `gems/tui-split-rig/bin/subagent-status-probe`, `gems/tui-split-rig/fixtures/subagent-box/` — the THREE load-bearing lib seams (`subagent_box.rb` NEW, `chat.rb`, `manager.rb`) must all change.
+- No live API spend. No new gems. No new threads. No rig scenario edits.
+- PHASE 0: every disagreement with this spec is raised with reasons in your report (or an explicit statement of what was checked before concluding the spec is sound) — silent compliance is a defect.
+- The three declared-RED gates (`subagent-box-units`, `subagent-status-probe`, `scope` — scope REDs on the empty must-differ legs pre-work) turn GREEN only with your lane work; everything else is a regression anchor that must not move. The standing adjudication classes (s9/herdr lane-tree depth, render-perf BP2 load margin, the suite's env/interrupt classes) are declared in the AC — never silently patched.
+- Scratch under `build/I79-subagent-status-box-core/scratch/`; never commit the `t79*` gate out dirs.
+
+## Builder Report
+
+Write your report to `build/I79-subagent-status-box-core/report.md`: what landed (file by file), the measured gate table (cold, foreground, at YOUR tree), PHASE 0 findings, and the honest residual list. The architect transcribes it VERBATIM into the arch file.
 
 ## Builder Report
 
