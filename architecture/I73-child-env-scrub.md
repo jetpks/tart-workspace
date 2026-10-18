@@ -1761,7 +1761,7 @@ env-class, exactly as standing. Gates: `suite`, `bench`.
       end
       abort "LIVE(#{arm}): RUBYOPT carries bundler poison: #{env["RUBYOPT"].inspect}" if env["RUBYOPT"].to_s.include?("bundler/setup")
       want_path = expected.call("PATH")
-      abort "LIVE(#{arm}): no BUNDLER_ORIG_PATH record — the gate parent is not bundle-exec'd" if want_path == :absent
+      abort "LIVE(#{arm}): no BUNDLER_ORIG_PATH record — the gate parent is not under bundle exec" if want_path == :absent
       abort "LIVE(#{arm}): PATH #{env["PATH"].inspect} is not the user-shell PATH" unless env["PATH"] == want_path
       abort "LIVE(#{arm}): BUNDLER_ORIG residue in the child" unless env.keys.grep(/\ABUNDLER_ORIG_/).empty?
     end
