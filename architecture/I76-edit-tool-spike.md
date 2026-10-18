@@ -392,51 +392,172 @@ explicitly and attributes the CONFLICT, not a wish.
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse edit-tool-spike` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze edit-tool-spike` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+**AC1 (the deliverable — architect-read, per spike rules).** `report.md`
+exists with a single `STATUS:` line and the five frozen sections
+(EVIDENCE / EXPERIMENTS / ATTRIBUTION / RECOMMENDATION / SPEND). The
+ATTRIBUTION section names **exactly one primary layer** (`model-emission`
+/ `gem-wire-or-parse` / `tart-argument-handling`) and QUOTES the
+discriminating artifact(s) it leans on; if the legs conflict, the
+conflict is stated and attributed, not smoothed. The gates below are
+tripwires and artifact floors — the proof is the architect reading the
+attribution against the preserved artifacts.
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+**AC2 (the matrix + spend).** Every leg E0–E5 was executed live, or is
+reported infeasible with the exact recorded error (no silent drops).
+The spend ledger is complete and machine-readable, and the caps held:
+E1 ≤ 6, E2 ≤ 3, E3 ≤ 3, E4 ≤ 3, E5 ≤ 3, total ≤ 18 live calls. The E1
+outcome is explicit either way: reproduced (malformed emission captured)
+or documented non-reproduction with EVERY capped attempt's parsed args
+and raw bytes recorded.
 
-**AC1.** ...
+**AC3 (evidence floor).** Every measured claim in the report is backed
+by a raw artifact preserved in scratch (≥ 6 files, one per leg); the
+RAW streamed tool-argument bytes (pre-parse, pre-repair) are captured
+for at least the beam legs (E1/E2), with the capture mechanism
+recorded; the scripts/drivers that produced the numbers remain in
+scratch.
+
+**AC4 (recommendation floor).** The RECOMMENDATION names (1) the fix
+shape, (2) the landing repo(s) with the ENTRY 2 routing consequence,
+(3) a yes/no WITH argument on whether `prepareEditArguments` should
+recover the folded-into-`path` shape, citing pi's oracle behavior for
+malformed tool arguments (read from `repos/pi`, read-only), and (4) the
+named residuals ENTRY 2 must handle.
+
+**AC5 (spike discipline).** Zero writes in any repo: the tart tree
+pristine (tracked clean; no untracked outside the standing `t75*`
+family), `repos/fast-llm` and `repos/pi` untouched; zero writes under
+`~/.tart` and `~/.pi` (read-only / staged respectively); the beam entry
+in `~/.tart/models.json` unchanged vs the 06:58:11Z registration
+transcript. All experiments confined to the lane scratch dir.
+
+**AC6 (PHASE 0).** Disagreements with this spec were raised with
+reasons in the report (or an explicit statement of what was checked
+before concluding the spec is sound) — silent compliance is a defect.
+
+> **Rehearsal declarations (frozen):**
+> - `report-present`, `report-structure`, `attribution-named`,
+>   `spend-ledger`, `leg-artifacts` are **declared-RED at rehearsal** —
+>   the builder artifacts they check do not exist before dispatch; a
+>   clean RED here discriminates, GREEN arrives only with the lane
+>   deliverable. BROKEN would be a gate defect, not a finding.
+> - `tart-pristine`, `gem-pi-untouched`, `models-json-beam-invariant`
+>   are GREEN at rehearsal (measured this session) and must STAY green.
+> - `models-json-beam-invariant`: `~/.tart/models.json` is the owner's
+>   LIVE config — a RED caused by an owner edit to the beam entry
+>   itself (not the lane) is an adjudication class (diff vs the
+>   registration transcript decides), never an auto-fail.
+> - `tart-pristine`'s `t75*` allowlist is the standing I75 rehearsal
+>   scratch in the MAIN checkout; at judge time the gate remaps into
+>   the lane worktree where that family is absent — any untracked file
+>   there REDs, which is the intended tripwire.
+> - **The I75 76-gate block is NOT carried — declared deviation:** this
+>   is an investigate-only spike with a zero-repo-write contract (the
+>   plan's ENTRY 1 constraint list names no gate floor; ENTRY 2
+>   restores the full floor per its own acceptance direction). The
+>   pristine gates ARE the no-regression proof for a no-write lane.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse edit-tool-spike` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: report-present
+  ac: AC1
+  cwd: .
+  cmd: |-
+    test -f build/I76-edit-tool-spike-edit-probe/report.md && test "$(grep -c "^STATUS: " build/I76-edit-tool-spike-edit-probe/report.md)" -eq 1 && echo REPORT_OK
+  expect:
+    exit_code: 0
+    stdout_match: REPORT_OK
+
+- id: report-structure
+  ac: AC1
+  cwd: .
+  cmd: |-
+    grep -q "^## EVIDENCE" build/I76-edit-tool-spike-edit-probe/report.md && grep -q "^## EXPERIMENTS" build/I76-edit-tool-spike-edit-probe/report.md && grep -q "^## ATTRIBUTION" build/I76-edit-tool-spike-edit-probe/report.md && grep -q "^## RECOMMENDATION" build/I76-edit-tool-spike-edit-probe/report.md && grep -q "^## SPEND" build/I76-edit-tool-spike-edit-probe/report.md && echo STRUCTURE_OK
+  expect:
+    exit_code: 0
+    stdout_match: STRUCTURE_OK
+
+- id: attribution-named
+  ac: AC1
+  cwd: .
+  cmd: |-
+    awk "/^## ATTRIBUTION/,/^## RECOMMENDATION/" build/I76-edit-tool-spike-edit-probe/report.md | grep -Eq "model-emission|gem-wire-or-parse|tart-argument-handling" && echo ATTRIB_OK
+  expect:
+    exit_code: 0
+    stdout_match: ATTRIB_OK
+
+- id: spend-ledger
+  ac: AC2
+  cwd: .
+  cmd: |-
+    python3 - <<'PY'
+    import json, collections
+    p = "build/I76-edit-tool-spike-edit-probe/scratch/spend-ledger.jsonl"
+    lines = [l for l in open(p) if l.strip()]
+    assert lines, "ledger missing or empty"
+    caps = {"E1": 6, "E2": 3, "E3": 3, "E4": 3, "E5": 3}
+    c = collections.Counter()
+    for l in lines:
+        d = json.loads(l)
+        assert d.get("leg") in caps, "unknown leg: %r" % d.get("leg")
+        c[d["leg"]] += 1
+    assert sum(c.values()) <= 18, "total cap exceeded: %d" % sum(c.values())
+    for k, v in caps.items():
+        assert c[k] <= v, "leg cap exceeded: %s %d" % (k, c[k])
+    print("LEDGER_OK", dict(c))
+    PY
+  expect:
+    exit_code: 0
+    stdout_match: LEDGER_OK
+
+- id: leg-artifacts
+  ac: AC3
+  cwd: .
+  cmd: |-
+    test "$(find build/I76-edit-tool-spike-edit-probe/scratch -type f | wc -l | tr -d " ")" -ge 6 && test -n "$(find build/I76-edit-tool-spike-edit-probe/scratch -name "raw-args-*" -type f -size +0c)" && echo ARTIFACTS_OK
+  expect:
+    exit_code: 0
+    stdout_match: ARTIFACTS_OK
+
+- id: tart-pristine
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    test -z "$(git status --porcelain | grep -v "^?? t75")" && echo CLEAN_OK
+  expect:
+    exit_code: 0
+    stdout_match: CLEAN_OK
+
+- id: gem-pi-untouched
+  ac: AC5
+  cwd: .
+  cmd: |-
+    test -z "$(git -C repos/fast-llm status --porcelain)" && test -z "$(git -C repos/pi status --porcelain)" && echo ENV_OK
+  expect:
+    exit_code: 0
+    stdout_match: ENV_OK
+
+- id: models-json-beam-invariant
+  ac: AC5
+  cwd: .
+  cmd: |-
+    python3 - <<'PY'
+    import json
+    m = json.load(open("/Users/eric/.tart/models.json"))
+    e = [x for x in m["providers"]["openrouter"]["models"] if x["id"] == "reflection/beam-1.0-501b-a23b:nitro"]
+    assert len(e) == 1, "beam entry missing or duplicated"
+    e = e[0]
+    c = e["compat"]
+    assert c["thinkingFormat"] == "openrouter", "thinkingFormat changed"
+    assert c["supportsStrictMode"] is True, "supportsStrictMode changed"
+    assert c["supportsReasoningEffort"] is True, "supportsReasoningEffort changed"
+    tlm = e["thinkingLevelMap"]
+    for k in ("low", "medium", "high", "xhigh", "max"):
+        assert tlm.get(k) == k, "thinkingLevelMap changed at %s" % k
+    print("MODELS_OK")
+    PY
+  expect:
+    exit_code: 0
+    stdout_match: MODELS_OK
 ```
 
 ## Builder Prompt
