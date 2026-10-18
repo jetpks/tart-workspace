@@ -2958,7 +2958,7 @@ project:
     ordinal: 78
     file: architecture/I78-subagent-runner-health.md
     freeze_sha: c1b227105a8139000189206d078f8af895b9a6d7
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
@@ -2967,6 +2967,13 @@ project:
       - lib/tart/subagents.rb
       - test/subagents_health_test.rb
       - test/subagents_test.rb
+      base_sha: 236517674bca1fd0680e71905c0a964b670222ed
+      worktree: build/I78-subagent-runner-health-core/wt
+      integration_branch:
+      harness: pi
+      model: openrouter/z-ai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: a8102a5f955b9a2c593c8933456508c878b8368fa55bf546e9c2b8025e379c14
       at: '2026-10-18T16:01:54-06:00'
