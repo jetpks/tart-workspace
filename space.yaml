@@ -81,7 +81,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: model-catalogue
+  current_iteration: markdown-parity-revisit
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -2794,4 +2794,10 @@ project:
     rehearsal:
       gates_digest: 764cbfd5e6fc3bc9f568167261a07a43e5ece6d84806b13b5c8a39b976d42180
       at: '2026-10-17T17:17:00-06:00'
+  - name: markdown-parity-revisit
+    ordinal: 72
+    file: architecture/I72-markdown-parity-revisit.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
