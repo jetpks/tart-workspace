@@ -2862,9 +2862,9 @@ project:
       - test/session_sink_test.rb
       - test/support/mock_ingest_server.rb
       - test/subagents_test.rb
-      base_sha: 8d81291b5ea0a7508a98639fad963f596eda1920
+      base_sha: b326399bc942bc8fa3f4b640b6bb0fff12872e1a
       worktree:
-      integration_branch: project/pi-port
+      integration_branch:
       harness: pi
       model: openrouter/z-ai/glm-5.3-flash
       variant: false
