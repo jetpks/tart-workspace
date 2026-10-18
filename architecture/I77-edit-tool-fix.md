@@ -587,7 +587,13 @@ before concluding the spec is sound) — silent compliance is a defect.
       rec.append_message(Tart::Agent::Message.user("hi"))
       rec.append_message(m)
       lines = File.readlines(rec.path).map { |l| JSON.parse(l) }
-      asst = lines.find { |entry| entry["message"]["role"] == "assistant" }["message"]
+      # AMENDMENT 2026-10-18 (escalation-seat ruling, disclosed in the
+      # builder-report PHASE 0): the frozen form dereferenced
+      # entry["message"] on the session-header line (no "message" key) and
+      # raised NoMethodError on its own recorder leg — BROKEN-class, green
+      # with no implementation. Nil-safe find only; the discrimination (the
+      # first assistant record model identity) is preserved.
+      asst = lines.find { |entry| entry["message"] && entry["message"]["role"] == "assistant" }["message"]
       abort "the recorded session lost the model identity: #{asst.keys.inspect}" unless asst["model"] == "reflection/beam-1.0-501b-a23b:nitro" && asst["provider"] == "openrouter"
       seed = Tart::Agent::Message.from_seed_hash(asst)
       abort "the replay seed must stay model-inert: #{seed.model.inspect} #{seed.provider.inspect}" unless seed.model.nil? && seed.provider.nil?
