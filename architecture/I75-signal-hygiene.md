@@ -2067,10 +2067,39 @@ one-line repair is somehow absent. Gates: `suite`, `bench`.
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I75-signal-hygiene-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section signal-hygiene prompt --append --lane <lane> --from build/I75-signal-hygiene-<lane>/prompt.md`. -->
+### core
+
+# Builder lane prompt — iteration `signal-hygiene` (I75), lane `core`
+
+You are the builder for iteration `signal-hygiene` (I75), lane `core`, repo `tart`. You are the ONLY lane.
+
+## THE CONTRACT — read it first, in full
+
+The authoritative, FROZEN contract is `architecture/I75-signal-hygiene.md` in the space repo: its **Grounds**, **Specification**, and **Acceptance Criteria** sections (the `Objective`, `THE CURE`, `THE HARNESS`, `Root-cause verification`, `Tests`, `Frozen expectations`, `Named exclusions`, `Output format`, `Tool guidance`, `Boundaries`, `Lane plan`, the 76-gate frozen ```gates block). READ THE WHOLE FILE before doing anything. Where this header and the arch file differ, THE ARCH FILE WINS.
+
+Supporting read: `notes/spec-digest-20261018T104858Z-signal-hygiene.md` and `tmp/i75-spec/` scratch (grounds/spec/AC + this session's instrument set — COPY the boot scripts/mocks into the lane's own scratch, don't depend on spec scratch).
+
+## THIS LANE'S FIRST TASK — root-cause verification
+
+Before curing anything, re-verify the Grounds findings (F1–F9) at the LANE tree with the instrument set: kill-session on pristine base → the orphan survives; the stderr chain shows the PollerLingerError/SignalException cause; the sample shows the poller wedge inside the native `poll_event`. Record commands + observed lines in your Builder Report. If any frozen finding FAILS to reproduce at the lane tree, that is an EXCEPTION — do not silently re-plan.
+
+## Operating constraints (lane)
+
+- Work ONLY in your provisioned worktree: `build/I75-signal-hygiene-core/wt` in the space, on branch `lane/I75-signal-hygiene-core`, base tart `project/pi-port` @ `b326399`.
+- NEVER commit (the integrator lands your tree). NEVER touch the space repo. NEVER push.
+- NEVER touch any gem (`ratatui_ruby 1.5.0`, `fast-completions 0.5.0`). No gem forks, no vendoring, no Gemfile family edits. No new gems; no new persistent threads.
+- NEVER write anything under `repos/pi` (pinned oracle clone, read-only). `env -u PI_PACKAGE_DIR` for direct oracle execs.
+- Touch set is EXACTLY the 9 paths in `Boundaries`/`Lane plan` (scope gate): `lib/tart/core/loop.rb`, `lib/tart/core/poller.rb`, `lib/tart/tui.rb`, `test/signal_hygiene_test.rb` (NEW), `test/support/signal_hygiene_harness.rb` (NEW), `test/loop_test.rb`, `test/tui_test.rb`, `test/kernel_carryin_test.rb`, `test/subagents_test.rb` (the declared ONE-LINE hermeticity repair ONLY).
+- `bin/tart` is ruled UNTOUCHED — if you believe a bin/tart edit is unavoidable, that is an EXCEPTION, not a license.
+- Scenario out dirs stay SHORT (≤ ~10 chars rel the tart root; the harness gate uses `t75sig`); each gate owns `rm -rf` of its out dir. No rig scenario-content edits; if the rig's exec-wrap kill-9 teardown becomes unnecessary with the cure, NOTE it in the report (no in-lane rig churn).
+- The esc/ctrl+c/ctrl+d interrupt semantics + steering/abort ladder are BYTE-FROZEN; SIGINT stays the loop's trap net — the guard ADDS HUP/TERM, does not refactor INT.
+- Standing flake classes: re-run COLD before adjudicating; note-and-pass per the standing ledger.
+- ITEMIZE-AND-DEFEND: your gate table MUST carry EVERY frozen gate — 76 of 76 — each with a measured one-liner. An absent gate is a REJECT-class violation.
+
+## Deliverable + report
+
+- Deliverable: the worktree diff vs `b326399` — exactly the 9-path set (the SignalGuard + routing + bounded ladder + hard exit in tui.rb/loop.rb/poller.rb containment; the harness; the unit table; the subagents one-liner). NO lane commits.
+- Scratch report at `build/I75-signal-hygiene-core/report.md`: the gate table (76/76, measured one-liners), the root-cause verification record, the chosen hard-exit primitive + why, the harness leg table (leg / exit code / seconds / survivor check), the upstream ratatui_ruby note, deviations itemized, and a final `STATUS:` line.
 
 ## Builder Report
 
