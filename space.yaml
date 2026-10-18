@@ -81,7 +81,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: signal-hygiene
+  current_iteration: edit-tool-spike
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -2902,4 +2902,10 @@ project:
     rehearsal:
       gates_digest: 9178465825bcb76a311e364948d40e10788fd4d6b527db05affc277f6ba1a444
       at: '2026-10-18T04:32:29-06:00'
+  - name: edit-tool-spike
+    ordinal: 76
+    file: architecture/I76-edit-tool-spike.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
