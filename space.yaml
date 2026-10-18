@@ -2784,12 +2784,13 @@ project:
       - test/launcher_smoke_test.rb
       - test/support/mock_llm_server.rb
       base_sha: dd41ae1624b7291a30fdd11277a59b9ebe70ecf2
-      worktree: build/I71-model-catalogue-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: openrouter/z-ai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 7febec2ee3ee04ab0b7bfe809421f918a4b1e71b
     rehearsal:
       gates_digest: 764cbfd5e6fc3bc9f568167261a07a43e5ece6d84806b13b5c8a39b976d42180
       at: '2026-10-17T17:17:00-06:00'
