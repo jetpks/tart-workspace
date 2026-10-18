@@ -9,11 +9,284 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section subagent-runner-health grounds --from <file>`. -->
+# I78: subagent-runner-health
+
+## Grounds
+
+### Standing frame (facts, cited)
+
+- Plan: `notes/plan-20261018T1745Z-live-run-successor.md` **ENTRY 3** —
+  `subagent-runner-health`, repo `tart`, 1 lane. The successor queue's
+  position: ENTRY 1 (I76 edit-tool-spike, verdict CONTINUE) and ENTRY 2
+  (I77 edit-tool-fix, verdict CONTINUE, lane merged as `896392f` →
+  port tip **`2365176`** = "Merge lane/I77-edit-tool-fix-core") are
+  DONE; this is the plan's third entry. ENTRY 4 (subagent-status-box)
+  is deliberately sequenced AFTER this one — the box renders the
+  runner state machine, so the state must be honest first (the plan's
+  own sequencing note).
+- Repo state (measured this session): `repos/tart` @ **`2365176`**,
+  branch `project/pi-port`, tracked tree clean; the standing untracked
+  `t75*` scratch dirs and the `t77*` rehearsal-era dirs are
+  judge/rehearsal scratch — never commit, never touch. The tart remote
+  fact that forces `--base` at provision: `origin/main` @ `8eafc22`
+  is a stack of SQUASHED PR merges — `2365176` is NOT an ancestor
+  (verified: `git -C repos/tart merge-base --is-ancestor 2365176
+  origin/main` → false), so the default fast-forward sync
+  diverges-refuses; provision MUST pass `--base 2365176`.
+- Gate floor (measured THIS session, cold, at `2365176`): full suite
+  `rake` = **1402 runs / 6562 asserts / 0F / 0E / 1S** (the I77-era
+  1382/6507 floor + I77's 20 additive runs), plus `SEAM_BENCH_OK`;
+  wire-delta constants (`4209f40b…` instruction, `7360fd1e…` tools)
+  and session-golden digests hold EXACT unless declared. Per the I77
+  digest's carry instruction this entry carries the **80-gate block**
+  with the standing rebases: the `t78*` out-dir era prefix
+  (`t77*`→`t78*`), the threads-budget diff base re-based
+  `6451f1e`→`2365176`, and the scope gate REWRITTEN to this
+  iteration's frozen touch set.
+- Prior handoffs: `notes/spec-digest-20261018T182752Z-edit-tool-fix.md`
+  (I77 — the carry instruction, the declared-RED pattern, the
+  provision `--base` law, judge-runs-gates-at-the-lane-tree, short out
+  dirs, never gates under nohup) and
+  `notes/spec-digest-20261018T104858Z-signal-hygiene.md` (I75 —
+  itemize-and-defend).
+- BRIEF §8 (the exact-parity bar): pi in one tab, tart in another,
+  indistinguishable — deviations itemized, never silent.
+- Constraint (the plan's): no rig scenario-content edits; the
+  `control/` protocol dirs and the watcher contract stay compatible
+  (a poller watching status.json must see the terminal transition);
+  the threads-budget gate counts any new monitor thread — this spec
+  declares **NO new monitor thread** (the reaper is synchronous on
+  read paths; see Specification).
+- PARKED by owner ruling (the plan's standing context): the
+  devstral-docs docs-loop trial — do NOT resume or clean it up; the
+  specimen dir below is READ-ONLY evidence.
+
+### The proof cases (cited, not restated)
+
+**The dead run** — `~/.tart/subagents/01a14e3c-6650-717a-a3c1-c7945b425a82/`
+(re-measured this session, read-only): `status.json` now reads
+`state: "failed"` — but that terminal state was written **2026-10-18
+12:47 local, ~10 hours after the fact**, by a LATER tart session's
+targeted status read (`Manager#status(id:)` → `disk_find` adopt →
+`reconcile_run` → `exited?` ESRCH → `settle_run`), NOT by anything
+that owned the run. Until that accidental read, the dir said
+`running` with `pid: 43767` long gone, no `result.json`, and the 1h
+deadline never observed to fire — both the spawning parent and the
+child died in the 2026-10-18 coordinator-timeout tree kill. Three
+defects are visible in the specimen itself:
+
+1. **No convergence arm** — nothing sweeps `~/.tart/subagents/` for
+   orphaned runs; the fleet read (`status(id: nil)`) lists only this
+   process's registry and never looks at disk, so a stale `running`
+   dir stays `running` forever unless someone happens to name its id.
+2. **The convergence that did happen LIED about why** — the 12:47
+   settle wrote `error:` = the FIRST line of `runner.stderr.log`, which
+   is a Ruby `$stderr` warning
+   (`…/json-3.0.2/lib/json/common.rb:382: warning: JSON.generate:
+   UTF-8 string passed as BINARY…`), not the run's failure story; and
+   the settle's `notify_completion` fired a completion notification
+   into a session that never owned the run (`disk_find` sets
+   `async: true`).
+3. **Legacy-shape intolerance** — the specimen's status carries
+   `task: null`, `taskChars: null`, `startedAt: null` (spawned by an
+   older harness schema); `disk_find` synthesizes `started_at: nil`
+   from it, and nothing in the reconcile path is written to tolerate
+   that.
+
+**The silent model dispatch** — the devstral-2512 incident
+(`~/architect/spaces/20261018-devstral-docs/notes/devstral-docs-run-1.md`
+:13-17, cited): `openrouter/mistralai/devstral-2512` was not
+registered in `~/.tart/models.json`; the subagent runs "completed"
+instantly with `finish_reason: "length"` and 1 output token — the
+unknown model caused a degenerate `max_tokens`. Two failed dispatches
+were indistinguishable from success until a human read the output.
+Root cause (code-cited): `Tart::Subagents.resolve_model`
+(`lib/tart/subagents.rb` :256-284) is a PURE SYNTAX parser
+(`provider/id[:level]`, the `:level` suffix validated, the `catalog:`
+kwarg accepted but NEVER consulted) — no registry check exists between
+the tool call and `Process.spawn`; the child then boots on the env
+tier alone (`Models.resolve_boot_model`, `lib/tart/models.rb`
+:282-293: env `MODEL` → `ModelRef` with NO catalog consult), so an
+unregistered id sails to the wire and the degenerate completion is
+indistinguishable from a real one.
+
+### pi's oracle behavior (read-only, cited — pi-subagents 0.79.1 installed)
+
+The port's subagents header pins 0.77.0 as the observable-shape
+oracle; the installed `~/.pi/agent/npm/node_modules/pi-subagents/`
+is **0.79.1** (`package.json`), and 0.79 carries exactly the two arms
+this entry ports. All citations below are from the installed tree
+(read-only; the parity TARGET is the behavior, cited to file:line).
+
+- **The stale-run reconciler** —
+  `src/runs/background/stale-run-reconciler.js`:
+  - `reconcileAsyncRun(asyncDir, …)` (:442+): read `status.json`;
+    if a result file already exists and the status is still
+    `running`, `terminalStatusFromResult` (:105-151) derives the
+    terminal status FROM the result file (state from
+    `success`/`state`/`exitCode`) and writes ONLY the status flip —
+    the result is authoritative, never fabricated. Otherwise, for a
+    `running` status with a numeric pid: `checkPidLiveness`
+    (:370-389) — `kill(pid, 0)`: ESRCH = "dead", EPERM = "unknown"
+    (never converged); **dead → `writeFailedRepair`** (:305-329).
+  - `buildFailedRepair` (:222-266): the repair message is
+    `Async runner process <pid> exited or disappeared before writing
+    a result. Marked run failed by stale-run reconciliation.` —
+    with the runner's stderr TAIL appended as diagnostics
+    (`readRunnerStartupDiagnostics` :27-52: read ≤64KB from the end,
+    last 30 lines, ≤4000 chars else `…\n[stderr tail truncated]`,
+    message = base + `\n\nRunner stderr tail:\n<tail>`). The repair
+    writes `result` (success: false, state: "failed") and THEN the
+    terminal `status.json` atomically — result-before-flip, the same
+    discipline the port already freezes in `settle_run`.
+  - The convergent state is **`failed`** — pi has no
+    `crashed`/`lost` state; the repair message is what says why.
+  - **Where pi reconciles: every read path.** `async-status.js`
+    :373 scans the runs root (`readdirSync(asyncDirRoot)` filtered to
+    run dirs) and :436-437 runs `reconcileAsyncRun` on EACH dir
+    before listing; the same reconciler is called by steer, stop,
+    resume, retention, and the executor (grep: 12 call sites).
+  - `staleAlivePidMs` (24h no-update + live pid → failed, the
+    pid-reuse paranoia arm) and the `events.jsonl`
+    `subagent.run.repaired_stale` diagnostic append exist in pi;
+    BOTH are ruled out of this lane (named residuals, below).
+- **The model-resolution rejection** —
+  `src/runs/shared/model-resolution.js`:
+  `resolveRequiredSubagentModelCandidate` (:265-272) THROWS
+  `Unknown subagent model '<model>' in the active Pi model registry.`
+  (+ fuzzy "Did you mean" / "Closest registry models" suggestions) —
+  reached from `resolveSubagentModelOverride` (:330+) for an
+  EXPLICIT requested model; the INHERITED parent model is never
+  validated against the registry (it is the session's live model),
+  and an EMPTY registry disables validation
+  (`if (!availableModels || availableModels.length === 0) return
+  model;` — the never-validate-without-a-registry law).
+
+### The seams (code-cited, measured this session)
+
+- `repos/tart/lib/tart/subagents/manager.rb` (949 lines):
+  - `TERMINAL_STATES = %w[completed failed stopped]` (:56) — pi-0.77's
+    terminal vocabulary, already frozen by the fleet line, the
+    notification header, and the stop/deadline tests.
+  - `disk_find` (:738-758): synthesizes a record from a foreign
+    `status.json` (`async: true`, `exit_pipe: nil`, `started_at:`
+    and `pid` read verbatim from disk — nil-tolerant by accident,
+    not by law); `reconcile_run` (:655-668) routes a dead pid to
+    `settle_run` — the lie path (first-stderr-line error +
+    `notify_completion` because `record[:async]` is true).
+  - `settle_run` (:513-551): result.json BEFORE the status flip
+    (atomic temp+rename), `outstanding? == false ⇒ notification
+    queued` under the same mutex — the watcher-contract discipline
+    this entry's repair must preserve.
+  - `exited?` (:474-485): ESRCH on BOTH pid and pgid = dead; EPERM =
+    live — already pi's `checkPidLiveness` law (cited above).
+  - `watch_loop` (:609-631): the watcher's belt-and-braces sweep
+    settles any `:running` registry record whose pid is gone —
+    INCLUDING adopted foreign records (the notify-lie again).
+  - `outstanding?` (:431) counts EVERY non-terminal registry record,
+    including adopted foreign ones; `drain` (:439-445) sleeps while
+    `outstanding?` — a live foreign run adopted by a targeted read
+    WEDGES the adopter's print-agent-end drain today.
+  - `status(id: nil)` (:652-660): the fleet read — `@runs` only,
+    never scans `@home`. THE convergence gap.
+  - `spawn_run` (:155-215): the model tier resolution
+    (:165-167 `Subagents.resolve_model(source, catalog: nil,
+    fallback: parent_model_pair)`) — the validation seat's call site.
+  - `Manager#initialize` takes `root:` (the agent root,
+    `Agent::Session.default_root` default) — the SAME root
+    `Models.load(root:)` reads `models.json` from, so the validation
+    seat is hermetic by construction (the staged-home law,
+    `test_hermeticity_everything_under_the_staged_home`
+    `test/subagents_test.rb` :706).
+- `repos/tart/lib/tart/subagents.rb` :256-284 `resolve_model`: the
+  pure-syntax parser (the `:level` suffix law, `provider/id`
+  partition, the pinned suffix-error messages) — `catalog:` accepted,
+  never read. The registry consult belongs HERE (the parse law and
+  the registry law are one model-string law), armed by the caller
+  passing the loaded catalog.
+- `repos/tart/lib/tart/models.rb`: `Models.load(root:)` (:94-108,
+  never raises — parse/schema failure → `Config.error`, empty
+  providers); `Config#resolve(reference)` (:70-88, pi's
+  findExactModelReferenceMatch reduced: unique canonical
+  `provider/id`, explicit pair, unique bare id — case-insensitive);
+  `model_entries` (:35). The vendored tier
+  (`lib/tart/models/vendored.rb`) is FACTS-FILL ONLY — never a
+  resolution surface (cited in-file) — so it is NOT part of the
+  validation registry.
+- The deadline arms already in place (this entry REGRESSION-GUARDS
+  them, does not rebuild them): the parent-side supervisor
+  (`arm_deadline_supervisor` :752-763, the graceful ladder in
+  `enforce_deadline` :741-750) + the CHILD self-deadline
+  (`RUN_DEADLINE_MS` env :423 → `lib/tart/print.rb` :110-115 arms
+  sleep(remaining) → TERM on its own pgroup) — pinned by
+  `test_run_deadline_ends_stopped_with_timed_out` and
+  `test_child_self_deadline_holds_without_the_parent_supervisor`
+  (`test/subagents_test.rb` :597-627). The dead-run proof case does
+  NOT implicate these arms: both processes died before the deadline;
+  an orphaned-but-live child is still enforced by its OWN
+  self-deadline (the T2 both-sides design paying off).
+
+### Decisions taken this session (one-line reasons)
+
+- **Converge to `failed`, not a new `crashed`/`lost` state** — pi's
+  repair vocabulary is `failed` (cited above); a new state would break
+  the frozen `TERMINAL_STATES`, the fleet-line format, and ENTRY 4's
+  box parity; "never lie" is satisfied by never-`running` plus the
+  repair message that says why (the plan's `crashed`/`lost` is
+  direction, not a state-name mandate — declared refinement).
+- **The reaper is READ-PATH-SYNCHRONOUS, no new thread** — pi
+  reconciles on read paths (cited); a monitor thread would spend the
+  threads budget for no parity gain; the watcher's EXISTING sweep
+  covers between-reads convergence for adopted records.
+- **Repair shape for non-owned runs, settle shape for owned runs** —
+  the parent that saw a child live owns the first-stderr-line story;
+  a reaper that never observed the run must say the pi repair
+  message + stderr tail, never a random $stderr warning (the
+  specimen's lie, cured).
+- **Result-derive before fabricate** — pi's `terminalStatusFromResult`
+  ordering (cited): a result.json already on disk is authoritative;
+  fabricating over it both lies and races the live owner's settle.
+- **Validation seat: `Subagents.resolve_model`'s dormant `catalog:`
+  kwarg** — the parse law and the registry law are one law; the
+  kwarg was scaffolded for exactly this; `nil` catalog = unvalidated
+  (every existing caller/test unaffected).
+- **Byte-exact pi base message, no fuzzy suggestions** —
+  `Unknown subagent model '<model>' in the active Pi model registry.`
+  carried verbatim (BRIEF §8 indistinguishability; pi's
+  "Did you mean"/"Closest" arms need fuzzy machinery the port's
+  reduced `Config#resolve` deliberately lacks — named residual).
+- **Inherited pair + empty registry never validated** — pi's law
+  (cited); the parent's live model resolved at its own boot, and a
+  registry-less boot must never raise (the never-raise boot law).
+- **The parent-pair exemption** — the inherited pair is also legal
+  when named EXPLICITLY (it is what the child inherits by default;
+  rejecting it would break a working dispatch class).
+- **Scope excludes pi's 24h stale-alive arm + `events.jsonl`** —
+  both are pi-parity extras beyond the plan's acceptance floor; the
+  events file would extend the frozen on-disk protocol contract
+  (ENTRY 4 may want it; named residuals).
+
+### Open questions / named residuals (NOT this lane)
+
+- pi's `staleAlivePidMs` 24h live-pid-stale arm (pid-reuse
+  paranoia) — unported; reopen on owner pain.
+- pi's `events.jsonl` `subagent.run.repaired_stale` diagnostic
+  append — unported (the frozen on-disk contract stays exactly
+  today's file set); ENTRY 4's transition rendering may want it.
+- pi's fuzzy model suggestions ("Did you mean", edit-distance
+  closest-set) — unported; the port's reduced exact-match resolution
+  is the I71-frozen law.
+- Foreign-run ACTION ownership (stop/steer on an adopted run can
+  signal another session's child — a PRE-EXISTING `disk_find`
+  surface, not introduced by the sweep) — untouched this lane;
+  reopen if owner pain.
+- The `runner.stderr.log` JSON.generate BINARY warnings in the
+  specimen — the ENCODING entry's scope (plan ENTRY 5), not this
+  lane's; the repair's stderr-tail discipline makes them diagnostics
+  instead of the headline, which is all this lane owes.
+- The specimen's `startedAt: null` provenance (an older harness
+  schema wrote it) — the reaper must TOLERATE nil/legacy fields
+  (Specification law), not explain them.
 
 ## Specification
 
