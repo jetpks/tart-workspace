@@ -2760,7 +2760,7 @@ project:
     ordinal: 71
     file: architecture/I71-model-catalogue.md
     freeze_sha: 4abec38db8c260f9b66d18222f6461fd6da37f7f
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
