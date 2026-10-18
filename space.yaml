@@ -2809,12 +2809,13 @@ project:
       - test/chat_test.rb
       - test/render/transcript_test.rb
       base_sha: 870e3f86cf6c0b50a14318a4fe7e18e7db4e1fe9
-      worktree: build/I72-markdown-parity-revisit-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: openrouter/z-ai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 548630b335cc599e11e64fb3b73bfe78af9dd022
     rehearsal:
       gates_digest: 8774427a72d7dfab70f24206b62008f67c0af33acac6da3cb983cf3f9abe8474
       at: '2026-10-17T21:03:28-06:00'
