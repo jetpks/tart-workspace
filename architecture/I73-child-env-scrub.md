@@ -1795,10 +1795,35 @@ env-class, exactly as standing. Gates: `suite`, `bench`.
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I73-child-env-scrub-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section child-env-scrub prompt --append --lane <lane> --from build/I73-child-env-scrub-<lane>/prompt.md`. -->
+### core
+
+# Builder lane prompt — iteration `child-env-scrub` (I73), lane `core`
+
+You are the builder for iteration `child-env-scrub` (I73), lane `core`, repo `tart`. You are the ONLY lane.
+
+## THE CONTRACT — read it first, in full
+
+The authoritative, FROZEN contract is `architecture/I73-child-env-scrub.md` in the space repo: its **Grounds**, **Specification**, and **Acceptance Criteria** sections (the `Objective`, `THE LAW`, `The seams`, `The OQ rulings`, `Tests`, `Frozen expectations`, `Named exclusions`, `Output format`, `Tool guidance`, `Boundaries`, `Lane plan`, the 70-gate frozen ```gates block). READ THE WHOLE FILE before doing anything. Where this header and the arch file differ, THE ARCH FILE WINS.
+
+Supporting read: `notes/spec-digest-20261018T052855Z-child-env-scrub.md` and the `tmp/i73-spec/` scratch (grounds.md, specification.md, acceptance-criteria.md, the reference `scrub` implementation).
+
+## Operating constraints (lane)
+
+- Work ONLY in your provisioned worktree: `build/I73-child-env-scrub-core/wt` in the space, on branch `lane/I73-child-env-scrub-core`, base tart `project/pi-port` @ `ff235e4`.
+- NEVER commit (the integrator lands your tree). NEVER touch the space repo. NEVER push.
+- NEVER touch any gem (`ratatui_ruby 1.5.0`, `fast-completions 0.5.0` are dependencies — consume, never modify). No new gems; no Gemfile/gemspec/lock changes; no new `Thread.new` sites.
+- NEVER write anything under `repos/pi` (pinned oracle clone @ v1.1.0, `oracle-pin-state`-guarded, read-only). `env -u PI_PACKAGE_DIR` for every direct oracle exec.
+- Touch set is EXACTLY the 8 paths in the Specification's `Boundaries`/`Lane plan` (scope gate): `lib/tart/child_env.rb` (NEW), `lib/tart/tools/bash.rb`, `lib/tart/subagents/manager.rb`, `lib/tart/mcp/stdio.rb`, `test/child_env_test.rb` (NEW), `test/bash_tool_test.rb`, `test/subagents_test.rb`, `test/mcp_test.rb`. `lib/tart/tools/find.rb` + `lib/tart/tools/grep.rb` are HARD-FROZEN (OQ-3) — any diff there fails scope.
+- Scenario out dirs stay SHORT (≤ ~10 chars rel the tart root); each gate owns `rm -rf` of its out dir. No rig scenario-content edits.
+- The `bash-child-env-live` gate MUST run from its bundle-exec'd parent (the gate command is itself `bundle exec ruby …`) — do NOT wrap it in env scrubs.
+- Full env scrub for every `architect` CLI call: `env -u RUBYOPT -u RUBYLIB -u BUNDLE_GEMFILE -u BUNDLE_LOCKFILE -u BUNDLE_BIN_PATH -u BUNDLER_SETUP -u BUNDLER_VERSION architect …`.
+- Standing flake classes (`chat_test.rb:1613` interrupt-timing BOTH forms incl. the 900s gate-hang; `render_perf_test.rb:265` spinner-dwell): re-run COLD before adjudicating; note-and-pass.
+- ITEMIZE-AND-DEFEND: your gate table MUST carry EVERY frozen gate — 70 of 70 — each with a measured one-liner. An absent gate is a REJECT-class violation.
+
+## Deliverable + report
+
+- Deliverable: the worktree diff vs `ff235e4` — exactly the 8-path set (bash.rb MUST differ — the core touch; child_env.rb NEW; the four test files). NO lane commits.
+- Scratch report at `build/I73-child-env-scrub-core/report.md`: the suite summary line, the FULL 70-gate table (one measured one-liner each), deviations itemized (esp. the §5.1 run_user mechanism deviation), and a final `STATUS:` line.
 
 ## Builder Report
 
