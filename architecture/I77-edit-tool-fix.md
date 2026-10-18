@@ -2041,10 +2041,40 @@ before concluding the spec is sound) — silent compliance is a defect.
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I77-edit-tool-fix-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section edit-tool-fix prompt --append --lane <lane> --from build/I77-edit-tool-fix-<lane>/prompt.md`. -->
+### core
+
+# Builder lane prompt — iteration `edit-tool-fix` (I77), lane `core`, repo `tart`
+
+You are the builder for iteration `edit-tool-fix` (I77), lane `core`, repo `tart`. You are the ONLY lane. The I76 spike attributed the malformed emission to **`model-emission`** and recommended the tart-side tolerance; this iteration lands it. **ZERO live API calls of any kind** — no provider keys, no driver scripts, no spend (the spike's residual (e) carve-out is honored by absence; the reproduction is pinned as frozen unit + execution tests).
+
+## THE CONTRACT — read it first, in full
+
+The authoritative, FROZEN contract is `architecture/I77-edit-tool-fix.md` in the space repo: its **Grounds**, **Specification**, and **Acceptance Criteria** sections (the Objective, THE RECOVERY LAW, THE IDENTITY LAW, Output format, Tool guidance, Boundaries, Lane plan, the 80-gate frozen ```gates block with its rehearsal declarations). READ THE WHOLE FILE before doing anything. Where this header and the arch file differ, THE ARCH FILE WINS.
+
+Supporting read: `notes/spec-digest-20261018T173542Z-edit-tool-spike.md` (the spike's handoff — the carry instruction, the live-spend discipline, the declared-RED pattern) and the spec scratch `tmp/i77-spec/` (grounds/spec/AC). The recorded failing session is READ-ONLY evidence at the Grounds path under `~/.tart/sessions/`; the recorded payload is embedded VERBATIM in the `edit-fold-repro` gate — you do not need the session file to reproduce.
+
+## WHAT YOU ARE LANDING (two frozen laws, one lane)
+
+1. **THE RECOVERY** — `Tart::Tools::Edit.normalize_arguments` (`lib/tart/tools/edit.rb`) learns the folded-into-`path` shape under the frozen trigger/transform law (Specification, verbatim): `edits` absent/nil/empty (either key spelling) + `path` a String with ≥1 real newline + tail after the FIRST newline matching `/\Aedits:\s*\[/` + the tail from that first `[` parsing as a JSON Array whose EVERY element satisfies the existing `single_edit?` predicate, under the frozen two-step parse (STRICT `JSON.parse` first; on `JSON::ParserError`, `JSON.parse(Fast::Completions::Protocol.repair_json(tail))`). On success: `path` = first line, `edits` = parsed array VERBATIM, every other key unchanged. On ANY trigger failure: arguments UNCHANGED — the byte-identical pinned rejection applies exactly as today. A NON-empty `edits` beside a folded-looking `path` WINS. The wire declarations (`PARAMETERS_SCHEMA`, `constrained_sampling`, DESCRIPTION) do not move by one byte.
+2. **THE IDENTITY** — `Tart::Agent::Message#assistant_to_h` (`lib/tart/agent/message.rb`) emits `out[:provider] = provider if provider` and `out[:model] = model if model`, present-only, IMMEDIATELY AFTER the `tool_calls` line and before `thinking`. Nothing else: user/tool messages, the `error_failure` assistant, key order, and every existing byte shape untouched. The session sink already projects the pair — NO sink change.
+
+Frozen discipline you must not drift from: `Tart::Schemas::Tools::PINNED_EDITS_MESSAGE` stays BYTE-IDENTICAL (byte-frozen to pi `edit.ts:138`) — the recovery is the declared divergence, the message is NOT reworded. The recovery is a DECLARED DIVERGENCE from pi's `prepareEditArguments` (which does not recover this shape) — the spike's frozen recommendation 3.
+
+## Deliverable (frozen Output format)
+
+- `lib/tart/tools/edit.rb` + `lib/tart/agent/message.rb` changed; `test/edit_fold_test.rb` (NEW, ≥10 runs, every name containing `edit_fold` or the legacy-shapes guard) + `test/session_test.rb` (≥6 new `model_identity` runs) per the frozen pin lists in the Specification — NOTHING else (the scope gate freezes exactly this 4-path set and requires BOTH lib seams changed).
+- Scratch report at `build/I77-edit-tool-fix-core/report.md`: raw tables only (gate one-liners, suite counts, no verdicts), `## PHASE 0` as its first section after the STATUS line, and a single `STATUS:` line first: `STATUS: COMPLETE | COMPLETE_WITH_CONCERNS (list them) | BLOCKED (exact blocker + what you tried)`. PHASE 0: every disagreement with the spec with reasons citing real files — or an explicit statement of what you checked before concluding the spec is sound. Silent compliance is a defect.
+
+## Operating constraints (lane)
+
+- Work ONLY in your provisioned worktree `build/I77-edit-tool-fix-core/wt` (space-relative), branch `lane/I77-edit-tool-fix-core`, base tart `project/pi-port` @ `6451f1e`. NEVER commit (the integrator lands your tree). NEVER push. NEVER touch the space repo.
+- **Must not touch:** `repos/fast-llm` + `repos/pi` (READ-ONLY; `env -u PI_PACKAGE_DIR` for direct pi execs); `~/.tart/**` (read-only — the failing session jsonl is evidence) and `~/.pi/**`; `architecture/**`; any rig scenario file or rig code (`gems/**`); `bin/tart`; `lib/tart/agent/chat.rb` + `lib/tart/agent/loop.rb` + `lib/tart/agent/session.rb` (the stamps/recording seam/entry factories are already correct — the identity cure is the projection line alone); `lib/tart/session_sink.rb`; `lib/tart/schemas/tools.rb`; the edit tool's wire declaration bytes. No new gems, no Gemfile changes, no rig scenario-content edits, no live API calls.
+- The gem API the recovery depends on — `Fast::Completions::Protocol.repair_json` — verify against the INSTALLED 0.5.0 source (`bundle info fast-completions --path`) before relying on it (verified callable at spec time).
+- Run the frozen ```gates block yourself as your final tripwire set (`architect gate`-style, from the arch file, never hand-retyped) and record the measured one-liners. **ITEMIZE-AND-DEFEND: your gate table MUST carry EVERY frozen gate — 80 of 80.** An absent gate is a REJECT-class violation.
+- **The 5 declared-RED gates** (`edit-fold-repro`, `edit-fold-units`, `session-model-identity`, `session-model-units`, `scope`) are RED only because your deliverable does not exist yet — GREEN arrives only with the lane work.
+- **Standing adjudication classes (declared, NOT re-litigated — the I72–I75 verdicts):** `render-perf-probe` BP2-only load-margin (measured RED at BOTH this spec's rehearsals — BP2 265.1/266.6, every other line PASS, settle geometry unchanged; note-and-pass per the I75 rule, idle-machine cold re-run operative — any OTHER failing line is NOT this class); `s9-parity` + `herdr-wire-probe` at LANE-TREE depth (the wrap-geometry / socket-path classes — GREEN at canonical depth); the suite's chat-interrupt timing class and real-HOME env class (`test_unknown_agent_names_the_three` scans the live `~/.tart` — stage a HOME, the I74 precedent). Re-run COLD before adjudicating; note-and-pass per the standing ledger.
+- The judge runs gates at the LANE tree. NEVER run gates under nohup (the I75 HUP-disposition lesson). Scenario/out dirs stay SHORT (`t77*` family, self-owned `rm -rf`); never commit them.
+- The suite floor: base is **1382 runs / 6507 asserts / 0F / 0E / 1S** at `6451f1e` — strictly greater, nothing deleted; `SEAM_BENCH_OK`; wire-delta (`4209f40b…` instruction + `7360fd1e…` tools) and session-golden (7/7) EXACT with NO re-pin (the identity emission is nil-gated additive-only — the fixture seeds carry no model).
 
 ## Builder Report
 
