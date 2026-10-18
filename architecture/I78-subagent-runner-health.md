@@ -475,6 +475,30 @@ not a schema change).
   checked before concluding the spec is sound) — silent compliance
   is a defect.
 
+- **Lane plan (AMENDMENT 2026-10-18T22:1xZ — arch commit, pre-dispatch,
+  the I77 `efe0d41` precedent).** ONE lane, `core`, repo `tart`, base
+  `project/pi-port` @ `2365176` (the port tip; `origin/main` holds
+  squashed PR merges and is NOT an ancestor, so `architect provision`
+  REQUIRES `--base 2365176` — the diverges-refuse fact, verified this
+  session). Touch set (the source of truth `architect provision`
+  materializes — byte-identical to the frozen scope gate's set):
+
+```lanes
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/subagents/manager.rb
+    - lib/tart/subagents.rb
+    - test/subagents_health_test.rb
+    - test/subagents_test.rb
+```
+
+- **Effort:** high — the load-bearing skills are process-lifecycle
+  reasoning (reaped-pid ESRCH semantics, adopter/owner races, the
+  result-before-flip discipline under a foreign writer) and exact
+  pi-citation discipline (two byte-pinned messages against the
+  0.79.1 reconciler); set at dispatch with `--effort high`.
+
 ## Acceptance Criteria
 
 Property-level, each independently judgeable. The frozen ```gates block
