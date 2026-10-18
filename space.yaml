@@ -2892,12 +2892,13 @@ project:
       - test/kernel_carryin_test.rb
       - test/subagents_test.rb
       base_sha: b326399bc942bc8fa3f4b640b6bb0fff12872e1a
-      worktree: build/I75-signal-hygiene-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: openrouter/z-ai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 2bb516ad988d61c7ff5dea6b5f0e44510dd49efe
     rehearsal:
       gates_digest: 9178465825bcb76a311e364948d40e10788fd4d6b527db05affc277f6ba1a444
       at: '2026-10-18T04:32:29-06:00'
