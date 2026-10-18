@@ -153,35 +153,237 @@ gate-geometry residuals (s9 out-dir rebase, herdr socket-path re-freeze)
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section child-env-scrub specification --from <file>`. -->
+### Objective
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+Close plan ENTRY 5 (`notes/plan-20261017T183001Z-tart-standalone.md`): **cure the
+bundler env leak at tart's child-spawn seams** — tart launched via `bundle exec`
+(from-source daily-driver form) currently exports bundler's environment into every
+spawned child, and any rubygems CLI not in tart's bundle dies in activation there
+(the owner's `architect` CLI, root-caused 2026-10-17 and reproduced live this
+session). Observable-parity framing (BRIEF §8): pi's children see the user's shell
+env; tart's children must too, **regardless of how tart itself was launched**. One
+self-describing scrub law, applied at the env-composing spawn sites; a no-op when
+tart is launched clean. This entry cures the root cause the standing
+`env -u …` workaround papers over.
+
+### THE LAW (frozen — `Tart::ChildEnv.scrub(env_hash) -> new Hash`)
+
+A new module, `lib/tart/child_env.rb` (`Tart::ChildEnv`, module-function
+`scrub`), required via `require_relative` from each consuming seam. The law is
+SELF-DESCRIBING — no hardcoded bundler key list (lists rot; bundler's own
+preserver records what it touched):
+
+1. **ORIG restore (records authoritative).** For every key in the input
+   matching `/\ABUNDLER_ORIG_/`: read the record, drop the `BUNDLER_ORIG_*`
+   key itself, and apply it to its target (`key.sub(/\ABUNDLER_ORIG_/, "")`):
+   a record equal to the literal `BUNDLER_ENVIRONMENT_PRESERVER_INTENTIONALLY_NIL`
+   DELETES the target (the pre-exec user value was nil — the record wins even
+   when the belt would have kept entries); any other record value RESTORES the
+   target to it.
+2. **RUBYOPT belt.** If `RUBYOPT` survives step 1 (no record covered it —
+   hand-exported poison): strip exactly the tokens bundler's `set_rubyopt`
+   adds — `-r<abs path ending in bundler/setup>` and the `-rbundler/setup`
+   fallback — keep every other token; delete the key if nothing survives.
+3. **RUBYLIB belt.** If `RUBYLIB` survives step 1: strip exactly the entries
+   bundler's `set_rubylib` adds — entries that contain a `bundler/setup.rb`
+   (i.e. `<entry>/bundler/setup.rb` exists; the entry IS bundler's lib dir) —
+   keep every other entry; delete the key if nothing survives.
+
+The function NEVER mutates its argument (a copy in, a new hash out —
+`Hash#to_h` returns self; the scrub copies). **Clean env in → identity** (the
+law is a no-op on an env with no records and no bundler additions — measured
+both ways this session; the reference implementation used for the spec probes
+is recorded in `tmp/i73-spec/` scratch and the digest). The belts preserve
+non-bundler tokens by construction — a rig/`render-perf-probe` `RUBYOPT`
+require rides through untouched (that is why the belt filters tokens rather
+than deleting keys).
+
+### The seams (one lane — one law, four arms)
+
+- **(a) The bash tool, model-facing arm** (`lib/tart/tools/bash.rb`):
+  `session_env_for_spawn` composes its base as `Tart::ChildEnv.scrub(ENV.to_h)`
+  BEFORE the five-`<IDENTITY>_*` session-key scrub + reader sets (the pi
+  `resolveSpawnContext` letter, bash.ts:186-208, byte-preserved on top of the
+  scrubbed base). Spawn shape (`unsetenv_others: true`) unchanged.
+- **(b) The bash tool, run_user arm** (OQ-1 RULED: observable parity — scrub
+  it): `run_user` passes `Tart::ChildEnv.scrub(ENV.to_h)` explicitly with
+  `unsetenv_others: true`; the bare-inheritance else arm at :238 is DEAD and is
+  deleted; the frozen comments ("pi's user-bash executor passes no env and
+  never scrubs", "Plain inheritance") are REWRITTEN citing this iteration. The
+  mechanism deviation is itemized per BRIEF §5.1 (pi cannot be bundler-launched;
+  passing an explicit scrubbed copy is observably IDENTICAL to inheritance when
+  the parent is clean — the child env is exactly `ENV.to_h` — and is the cure
+  when it is not; pi's letter citation stays in the comment). The daily-driver
+  pain lives here: the owner types `!architect …` inside a bundle-exec'd tart.
+  The existing run_user pin (inherited `PI_*` rides through, the session
+  readers never fire) keeps holding — the bundler scrub touches bundler keys
+  only, never `<IDENTITY>_*`.
+- **(c) The subagents child env** (`lib/tart/subagents/manager.rb`): `child_env`
+  picks from `Tart::ChildEnv.scrub(@env.to_h)` as its source — the `PATH` pick
+  restores the user's shell PATH under a bundle-exec'd parent (the measured
+  leak surface; the pick list itself is byte-unchanged; the public
+  `spawn_argv_and_env` surface unchanged; the spawn's `unsetenv_others: true`
+  unchanged). The identity bootstrap key and every `<IDENTITY>_*` pick are
+  untouched by the law (bundler keys only).
+- **(d) The MCP stdio child** (`lib/tart/mcp/stdio.rb`): `spawn_child` composes
+  `Tart::ChildEnv.scrub(ENV.to_h)` merged with the config env (config wins,
+  the current `@env` handling byte-preserved) and spawns it EXPLICITLY with
+  `unsetenv_others: true` — replacing the merge-over-inherit shape. This is
+  CLOSER to pi's letter, not further (stdio.ts:94: node always passes a full
+  env copy; Ruby's `Process.spawn(env,…)` merges — the current seam was the
+  letter-divergent one). Observable-identical when tart is launched clean.
+
+### The OQ rulings (frozen, with the measured evidence)
+
+- **OQ-1 (user-bash): scrub** — ruled above. The alternative (letter-parity:
+  leave inheriting) preserves the poison at the exact seam the owner types
+  into; the entry's own framing ("regardless of how tart itself was launched")
+  decides it. Declared §5.1 mechanism deviation, itemized in the parity table.
+- **OQ-2 (GEM_HOME): follow the law uniformly** — restore-or-delete per the
+  record, NO special case. Measured this session from a bundle-exec'd parent:
+  with `GEM_HOME` deleted per its `INTENTIONALLY_NIL` record, every child
+  probe resolves clean (`ruby`, `gem`, `mise`, `architect`, default-gem
+  requires) — the user shell itself has no `GEM_HOME` (the record says so), so
+  children land in the same working class as the owner's own shell. The
+  `bash-child-env-live` gate pins the no-regression leg permanently.
+- **OQ-3 (fd/rg): OUT of the site set** — native binaries with no ruby/rubygems
+  in their exec path; the poison chain (`RUBYOPT`/`BUNDLE_*`/`GEM_*`) is inert
+  for them, and their own env contract (`RIPGREP_CONFIG_PATH`, `FD_*`, `PATH`)
+  is unaffected by either shape. Composing explicit envs there is a mechanism
+  change for zero observable delta. Enforced mechanically: the scope gate
+  hard-freezes `lib/tart/tools/find.rb` + `lib/tart/tools/grep.rb` (any
+  diff there fails scope).
+
+### Tests (the builder's pins, filter-frozen by the gates)
+
+- NEW `test/child_env_test.rb`, ≥ 8 tests under the `/child_env/` name filter:
+  both-ways law pins — the poisoned-env-in → user-env-out transform (ORIG
+  restore, INTENTIONALLY_NIL deletion, zero `BUNDLER_ORIG_*` residue, user
+  keys preserved), the belt arms (RUBYOPT token strip keeping other tokens;
+  RUBYLIB entry strip; the record-authoritative case where a NIL record
+  deletes and the belt never overrides), non-mutation, clean/empty identity.
+- `test/bash_tool_test.rb` +2 `/child_env/` pins: the tool arm's composed base
+  is the scrub (a poisoned in-process ENV → scrubbed child env + session
+  keys on top); the run_user child env scrubbed with `PI_*`-ride-through
+  preserved (the standing session-env family stays green, nothing deleted).
+- `test/subagents_test.rb` +1 `/child_env/` pin through the PUBLIC
+  `spawn_argv_and_env`: a poisoned source env → child PATH = the user PATH,
+  no bundler keys, the identity picks unchanged.
+- `test/mcp_test.rb` +1 `/child_env/` pin, behavioral: a Stdio child that
+  dumps its own env (the existing pure-Ruby echo-server fixture pattern),
+  asserting the scrubbed base (no bundler keys, user PATH) AND config-env
+  precedence (a config var wins over the base).
+
+### Frozen expectations (do not redesign)
+
+- Env-only change: **wire/session bytes unaffected** — wire-delta (instruction
+  `4209f40b…`, tools `7360fd1e…`), session-golden (7/7), zai wire tart=pi=512,
+  the oracle family, and every I69–I72 landed-behavior gate carry as standing
+  guards (the 65-gate carried block).
+- No tool-semantics changes beyond the child env: timeouts, process groups,
+  output accumulation, truncation, the session-env five-key law, the MCP
+  close ladder, the subagent argv/timeout machinery — all byte-preserved.
+- No rig scenario-content edits (`gems/tui-split-rig/scenarios/**`,
+  `registry.yml`, `fixtures/` byte-frozen); no new gems; no
+  Gemfile/lock/gemspec changes; no new `Thread.new` sites (the
+  threads-budget law, base rebased to `ff235e4`).
+- The frozen out dirs (`t73s1`…`t73s10`, `t73s17`, `t73s1t`, `t73tp`,
+  `t73ub`, `t73wir`, `t73zwr`, `t73hwp`, `t73mot` — SHORT, ≤ 5 chars rel
+  the tart root) carry the s9/herdr geometry precedents (AC preamble).
+
+### Named exclusions (Constraints, itemized)
+
+- The plan's post-landing follow-ups (owner backlog, NOT loop work):
+  model-window automation re-arm; tart PR-to-main decision; the
+  `~/bin/architect` wrapper (MOOT once this entry lands — recorded in the
+  digest, not acted on); the s9 gate out-dir rebase / herdr-wire-probe
+  socket-path re-freeze / wire-delta constant items (the I72 verdict
+  residuals, carried in their frozen forms).
+- fd/rg spawn sites (OQ-3, above) and the footer git spawn: out of scope.
+- `problems.md`/`ARCHITECT.md` annotations are LANDING work
+  (architect-owned), not lane work.
+
+### Output format
+
+- NO lane commits (the I65 D1 standing ruling — the integrator lands the
+  tree). The deliverable is the provisioned worktree's diff vs `ff235e4`,
+  exactly: `lib/tart/child_env.rb` (NEW), `lib/tart/tools/bash.rb` (MUST
+  differ — the core touch), `lib/tart/subagents/manager.rb`,
+  `lib/tart/mcp/stdio.rb`, `test/child_env_test.rb` (NEW),
+  `test/bash_tool_test.rb`, `test/subagents_test.rb`, `test/mcp_test.rb`.
+- Scratch report at `build/I73-child-env-scrub-core/report.md`: the suite
+  summary line, the FULL 70-gate table (every gate, one measured one-liner
+  each — itemize-and-defend), deviations itemized, a final `STATUS:` line.
+
+### Tool guidance
+
+- Verification (exact, measured at base `ff235e4` this session):
+  `cd repos/tart && bundle install --quiet && bundle exec rake` →
+  `1303 runs, 6187 assertions, 0 failures, 0 errors, 1 skips`, exit 0
+  (post-lane: ≥ 1303 runs, 0F/0E); `bundle exec ruby bench/seam_bench.rb
+  2>&1 | tail -1` → `SEAM_BENCH_OK`.
+- The unit forms: `bundle exec ruby -Ilib -Itest test/child_env_test.rb -n
+  "/child_env/"` → ≥ 8 runs, 0F; the three seam legs under the same filter
+  in `test/bash_tool_test.rb` (≥ 2), `test/subagents_test.rb` (≥ 1),
+  `test/mcp_test.rb` (≥ 1).
+- The live gate (`bash-child-env-live`) MUST run from its bundle-exec'd
+  parent — the gate command itself is `bundle exec ruby -Ilib …`, so the
+  poison is real, never fabricated; do not wrap it in env scrubs.
+- The rig battery at YOUR tree (the lane worktree): the s-gate forms verbatim
+  from the Acceptance Criteria (HERDR_* scrub prefix, the frozen SHORT out
+  dirs, NO `--pi-bin` flag anywhere).
+- Standing flake classes (`chat_test.rb:1613` interrupt-timing BOTH forms
+  (failure and 900 s-gate-hang), `render_perf_test.rb:265` spinner-dwell
+  margin): re-run COLD before adjudicating; note-and-pass per the standing
+  ledger.
+- The full env scrub on `architect` CLI calls from bundle-exec'd contexts
+  (standing until this entry lands): `env -u RUBYOPT -u RUBYLIB -u
+  BUNDLE_GEMFILE -u BUNDLE_LOCKFILE -u BUNDLE_BIN_PATH -u BUNDLER_SETUP -u
+  BUNDLER_VERSION architect …`.
+
+### Boundaries
+
+- May touch: exactly the declared 8-path set (scope gate):
+  `lib/tart/child_env.rb` (NEW), `lib/tart/tools/bash.rb`,
+  `lib/tart/subagents/manager.rb`, `lib/tart/mcp/stdio.rb`,
+  `test/child_env_test.rb` (NEW), `test/bash_tool_test.rb`,
+  `test/subagents_test.rb`, `test/mcp_test.rb`.
+- Must not touch: everything else — including `lib/tart/tools/find.rb` +
+  `lib/tart/tools/grep.rb` (OQ-3: hard-frozen by the scope gate), all of
+  `lib/tart/render/`, the rig (`gems/tui-split-rig/**`), Gemfile/lock/
+  gemspec, `bench/`, tart's `bin/`, `vendor/`, and anything under
+  `repos/pi`.
+- Frozen stack: **BRIEF §2** (ratatui_ruby 1.5.0 behind `TUI`;
+  fast-completions 0.5.0); house style per AGENTS: commented citations at
+  the touched seams, tests through public interfaces, no refactors beyond
+  the task.
+
+### Lane plan
+
+One lane — one law, four arms, both-ways pins, the standing battery.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision child-env-scrub`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/child_env.rb
+    - lib/tart/tools/bash.rb
+    - lib/tart/subagents/manager.rb
+    - lib/tart/mcp/stdio.rb
+    - test/child_env_test.rb
+    - test/bash_tool_test.rb
+    - test/subagents_test.rb
+    - test/mcp_test.rb
+  effort: medium
 ```
+
+### Effort call
+
+`medium` — a bounded, fully-specified mechanism (the law is frozen with a
+reference implementation validated both ways this session; the four arm shapes
+are named; no perf exposure, no wire exposure), but it still owes the
+both-ways unit battery, three seam pin families, the live bundle-exec cure
+gate, and the full 13-scenario pty battery + the 65-gate standing block.
 
 ## Acceptance Criteria
 
