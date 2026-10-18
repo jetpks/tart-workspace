@@ -2823,7 +2823,7 @@ project:
     ordinal: 73
     file: architecture/I73-child-env-scrub.md
     freeze_sha: ed481edda36bb4ffbf8afac3b08c5fe472052c08
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
@@ -2836,6 +2836,13 @@ project:
       - test/bash_tool_test.rb
       - test/subagents_test.rb
       - test/mcp_test.rb
+      base_sha: ff235e46a425ab651c4329942e318df9c511cb1e
+      worktree: build/I73-child-env-scrub-core/wt
+      integration_branch:
+      harness: pi
+      model: openrouter/z-ai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: 92510e396f8f7c1749f14337c405a74042691d97ee7dd12d779738f2ddc96ddd
       at: '2026-10-17T23:19:00-06:00'
