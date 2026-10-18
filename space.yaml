@@ -2822,7 +2822,21 @@ project:
   - name: child-env-scrub
     ordinal: 73
     file: architecture/I73-child-env-scrub.md
-    freeze_sha:
+    freeze_sha: ed481edda36bb4ffbf8afac3b08c5fe472052c08
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/child_env.rb
+      - lib/tart/tools/bash.rb
+      - lib/tart/subagents/manager.rb
+      - lib/tart/mcp/stdio.rb
+      - test/child_env_test.rb
+      - test/bash_tool_test.rb
+      - test/subagents_test.rb
+      - test/mcp_test.rb
+    rehearsal:
+      gates_digest: 92510e396f8f7c1749f14337c405a74042691d97ee7dd12d779738f2ddc96ddd
+      at: '2026-10-17T23:19:00-06:00'
   integration_branch: project/pi-port
