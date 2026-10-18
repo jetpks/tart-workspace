@@ -415,6 +415,18 @@ the builder and judge alike: re-run cold before adjudicating that class);
 machine's standing regime 236.7–241.7 across the I71-era runs); the s9
 gate form GREEN at the exact predicted 87-char lane-tree geometry
 (scratch worktree, exit 0, both apps completed, zero unknown-candidates).
+**The standing chat interrupt-timing class manifested TWICE this session,
+in both its forms:** once as the spinner-dwell FAILURE noted above, and
+once as a HANG under rehearsal #1 (`chat_test.rb:1613`
+`test_kernel_interrupt_during_streaming_cancels_and_leaves_render_coherent`
+blocked in `wait_until` until the harness SIGTERMed at the 900 s gate
+timeout — the identical test the I70/I71 ledgers record flaking as a
+failure) — while the same suite measured GREEN twice directly in this
+session (227 s wall each) and every other rehearsal member ran green.
+The standing re-run-cold-before-adjudicating ledger governs BOTH forms
+for builder and judge alike; a suite BROKEN-by-timeout carrying this
+test's hang signature is that environment class, never an unadjudicated
+lane-defect claim.
 The rehearsal measures the true at-base vector; any member that
 contradicts this preamble is amended and re-rehearsed before the freeze
 (the I67/I71 protocol — never freeze on a stale or
