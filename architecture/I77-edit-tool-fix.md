@@ -2105,11 +2105,177 @@ Frozen discipline you must not drift from: `Tart::Schemas::Tools::PINNED_EDITS_M
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I77-edit-tool-fix-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence edit-tool-fix --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+STATUS: COMPLETE_WITH_CONCERNS (concern 1: `s9-parity` RED at lane-tree depth — the declared standing wrap-geometry/staged-path adjudication class, note-and-pass per the frozen ruling, GREEN at canonical depth; concern 2: the scratch gate runner's 5-line/600-char stdout-then-stderr capture window truncated `SUITE_OK` and `VIEWPORT_PROBE_OK`, recording suite + viewport-probe RED on the first cold pass — re-measured PASS with the runner's capture fixed and every gate cmd byte-verbatim unchanged, predecessor runner preserved at tmp/gaterun.rb.orig)
+
+## PHASE 0
+
+Replacement builder (prior run ee672855 killed by the pi 1.2.x→1.3.0 update at ~2026-10-18T20:19Z — infrastructure death, not timeout). Audited the inherited uncommitted diff BEFORE writing anything; decision: **REUSE** — the inherited work is complete and defect-free against the frozen laws; no rewrite.
+
+### Inherited-diff audit (measured)
+
+- `git status --short` in the lane worktree: 5 modified (`lib/tart/agent/message.rb`, `lib/tart/tools/edit.rb`, `test/agent_loop_test.rb`, `test/flow_test.rb`, `test/session_test.rb`) + untracked `test/edit_fold_test.rb` + `t77*` scratch dirs. `git diff --stat`: `185 insertions(+), 5 deletions(-)` — matches the continuation record's 185+/5− across 5 files exactly.
+- **Continuation-record DISCREPANCY VERIFIED WRONG (as briefed):** `test/edit_fold_test.rb` EXISTS as an untracked file — `ls -la` 7918 bytes / 164 lines; `grep -n 'def test_'` = 13 methods, every name contains `edit_fold` (incl. the legacy-shapes guard `test_edit_fold_legacy_shapes_still_normalize`). Direct measurement: `13 runs, 29 assertions, 0 failures, 0 errors, 0 skips`. The record's error was reading `git diff --stat` (cannot show untracked files) instead of `git status`. File NOT re-created or overwritten.
+- Recovery law audit (`git diff lib/tart/tools/edit.rb`): `recover_folded_path` + `parse_folded_tail` implement the frozen trigger/transform verbatim — edits absent/nil/empty either key spelling; ≥1 real newline; tail after FIRST newline `/\Aedits:\s*\[/`; strict `JSON.parse` first, on `JSON::ParserError` `JSON.parse(Fast::Completions::Protocol.repair_json(tail).sub(...))` (repair-then-strip, byte-equivalent to the frozen `edit-fold-repro` gate's own two-step form); every element `single_edit?`; on ANY failure args UNCHANGED; non-empty `edits` wins; `path`=first line, `edits`=parsed array verbatim, other keys unchanged. No wire-declaration bytes touched (`lib/tart/schemas/tools.rb` not in the diff; `PINNED_EDITS_MESSAGE` byte-identity pinned in two gates).
+- Identity law audit (`git diff lib/tart/agent/message.rb`): exactly `out[:provider] = provider if provider` + `out[:model] = model if model` immediately after the `tool_calls` line, before `thinking` — nothing else; user/tool/`error_failure` shapes untouched.
+- Re-pin audit (ruling #2): `test/agent_loop_test.rb` frozen hash gains `"provider" => "mock", "model" => "tart-test-model"` immediately after `tool_calls`, and BOTH assistant assertions (`assistants[0]` and `assistants.last`) consume that one `frozen` hash; `test/flow_test.rb` digest moved to `ba7b092fb16db0aae79c294188749ebe54c8d0e210b522cc99db692181908e0b` — exactly the arch-pinned values, nothing else moved in either file.
+- `Fast::Completions::Protocol.repair_json` verified against the INSTALLED 0.5.0 source (`bundle info fast-completions --path` → `.../gems/fast-completions-0.5.0`; `protocol.rb:239` `def self.repair_json(json)` — "Escape raw control characters inside strings", the finalize-path discipline) and exercised live on the recorded tail class.
+
+### Amendment disclosures (frozen state, both verified in the COMMITTED arch file)
+
+- **RULING #1 (2026-10-18T18:36Z; `notes/decisions-20261018T183616Z-i77-edit-tool-fix-escalation.md`; arch commit `739210f`):** the frozen `session-model-identity` gate dereferenced `entry["message"]` on the session-header line (`{"type":"session"}`, no "message" key) → `nil["role"]` NoMethodError → BROKEN-class. Measured on the committed arch file: `git show 739210f -- architecture/I77-edit-tool-fix.md` = ONE hunk (`@@ -587,7 +587,13 @@`), 1 deletion + 7 additions — the only change is the amendment comment plus the EXACT nil-safe form `lines.find { |entry| entry["message"] && entry["message"]["role"] == "assistant" }["message"]`; nothing else in the gates block moved. Ruling #1's requirement measured satisfied: the amended gate goes GREEN on a COLD re-run — `session-model-identity PASS ec=0 0.4s SESSION_MODEL_IDENTITY_OK`.
+- **RULING #2 (2026-10-18T19:56Z; arch commit `efe0d41`):** `test/agent_loop_test.rb` + `test/flow_test.rb` DECLARED as re-pin files; scope gate widened 4-path → 6-path. Verified in the committed arch file (Output format "DECLARED RE-PIN (AMENDMENT 2026-10-18T19:56Z…)" paragraph; scope gate grep set carries all six paths; lanes touch list carries both). The lane `prompt.md` header still says "4-path set" (copied 12:29Z, pre-amendment) — per the frozen precedence rule THE ARCH FILE WINS; the inherited diff already conforms (touches both re-pin files; `scope PASS ec=0 SCOPE_OK`).
+
+### Findings on the inherited evidence (disclosed, no verdicts)
+
+- The dead builder's preserved gate run (`tmp/gate-results.txt`, the 20:01Z run) carries only **78 of 80** gate lines — `render-perf-probe`, `suite`, `scope` absent from that file. Treated as evidence, re-measured: my cold run covers all 80.
+- **Runner-capture artifact (concern 2):** the inherited scratch runner (`tmp/gaterun.rb`) matched `stdout_match` against a last-5-lines/600-char window of stdout+stderr CONCATENATED (stdout entirely, then stderr), so a noisy stderr tail (atexit `Async::Task`/`RatatuiRuby` warn JSON, pty `Errno::EIO` warnings) buried the final `SUITE_OK` / `VIEWPORT_PROBE_OK` lines. First cold pass therefore recorded `suite RED ec=0` and `viewport-probe RED ec=0`. Gate cmds were NEVER altered (extracted byte-verbatim from the arch file); only the runner's display/match window was fixed (full-output match; predecessor runner preserved at `tmp/gaterun.rb.orig`). Direct evidence: `bundle exec rake` standalone → ec=0, `1402 runs, 6562 assertions, 0 failures, 0 errors, 1 skips`; the viewport probe standalone → ec=0, final lines `verdict: c (not reproducible in-buffer)` / `VIEWPORT_PROBE_OK c`. Re-measured through the fixed runner: `suite PASS ec=0 240.7s`, `viewport-probe PASS ec=0 0.4s`.
+
+### What was checked before concluding the spec is sound
+
+Arch-file ```gates block parses to exactly 80 unique gate ids (runner aborts otherwise); the two amendment commits verified hunk-by-hunk (above); the frozen laws audited line-by-line against the inherited diff (above); `repair_json` verified against installed 0.5.0; must-not-touch respected — `git diff --name-only` = exactly the frozen 6-path touch set, Gemfile/Gemfile.lock content unchanged (no new gems), `repos/pi` + `repos/fast-llm` + `~/.tart` + `architecture/**` untouched, zero live API calls. **No disagreements with the arch-file spec itself**; the only spec-adjacent corrections are the two disclosed amendment-vs-header precedence items and the continuation-record `edit_fold_test.rb` error, all above.
+
+## Gate table — 80 of 80, COLD full run at the lane tree (14:23–14:34 local, foreground, no nohup)
+
+Runner: extracts the frozen ```gates block from `architecture/I77-edit-tool-fix.md` and runs each `cmd` byte-verbatim, cwd = lane worktree.
+
+| gate | verdict | ec | time | one-liner |
+|---|---|---|---|---|
+| edit-fold-repro | PASS | 0 | 0.5s | EDIT_FOLD_REPRO_OK |
+| edit-fold-units | PASS | 0 | 0.5s | EDIT_FOLD_UNITS_OK |
+| session-model-identity | PASS | 0 | 0.4s | SESSION_MODEL_IDENTITY_OK |
+| session-model-units | PASS | 0 | 0.5s | SESSION_MODEL_UNITS_OK |
+| suite | RED | 0 | 243.7s | {"time":"2026-10-18T14:29:37-06:00",… "Task may have ended with unhandled exception." … RatatuiRuby::Error::Terminal "Terminal is not initialized" … (capture-window truncation artifact; re-measured PASS below) |
+| bench | PASS | 0 | 16.8s | SEAM_BENCH_OK |
+| md-repro | PASS | 0 | 0.3s | MD_REPRO_OK |
+| md-inline-units | PASS | 0 | 0.7s | MD_INLINE_UNITS_OK |
+| pending-registry-units | PASS | 0 | 0.4s | PENDING_REGISTRY_UNITS_OK |
+| footer-window | PASS | 0 | 0.3s | FOOTER_WINDOW_OK 1000000 |
+| thinking-pins | PASS | 0 | 1.0s | THINKING_PINS_OK |
+| hermeticity | PASS | 0 | 9.5s | HERMETICITY_OK |
+| lock-deps | PASS | 0 | 0.5s | LOCK_DEPS_OK / GEM_LOAD_OK |
+| zai-data | PASS | 0 | 0.8s | ZAI_DATA_OK |
+| threads-budget | PASS | 0 | 0.0s | THREADS_BUDGET_OK |
+| session-golden | PASS | 0 | 0.4s | SESSION_GOLDEN_OK |
+| strict-wire | PASS | 0 | 0.3s | 8 runs, 76 assertions, 0 failures, 0 errors, 0 skips |
+| error-transcript-units | PASS | 0 | 1.1s | ERROR_TRANSCRIPT_UNITS_OK |
+| error-transcript-render-units | PASS | 0 | 0.8s | ERROR_TRANSCRIPT_RENDER_UNITS_OK |
+| render-perf-units | PASS | 0 | 0.7s | 7 runs, 29 assertions, 0 failures, 0 errors, 0 skips |
+| render-perf-probe | PASS | 0 | 145.6s | BP3: PASS 9.3 (md conversions/s <= 25) — RENDER_PERF_OK (rehearsal BP2-only load-margin class: this idle-machine cold re-run measured GREEN) |
+| tool-pending-gate | PASS | 0 | 19.3s | TOOL_PENDING_GATE_OK (frames at wt/t77tp) |
+| user-bash-stream-gate | PASS | 0 | 13.1s | USER_BASH_STREAM_GATE_OK (frames at wt/t77ub) |
+| zai-max-tokens-units | PASS | 0 | 2.4s | ZAI_MAX_TOKENS_UNITS_OK |
+| rail-bg | PASS | 0 | 0.5s | RAIL_BG_OK |
+| jump-pill-units | PASS | 0 | 0.5s | JUMP_PILL_UNITS_OK |
+| rail-bg-units | PASS | 0 | 0.5s | RAIL_BG_UNITS_OK |
+| viewport-probe | RED | 0 | 0.5s | frame 3 fade rows … "verdict: c (not re…" — capture-window truncation artifact (standalone probe: ec=0, `VIEWPORT_PROBE_OK c`); re-measured PASS below |
+| oracle-pin-state | PASS | 0 | 0.2s | ORACLE_PIN_OK |
+| oracle-bin-units | PASS | 0 | 0.7s | ORACLE_BIN_UNITS_OK |
+| oracle-resolve | PASS | 0 | 0.4s | ORACLE_RESOLVE_OK |
+| s1-parity | PASS | 0 | 5.0s | out dir: wt/t77s1 |
+| s2-parity | PASS | 0 | 5.1s | out dir: wt/t77s2 |
+| s3-parity | PASS | 0 | 5.1s | out dir: wt/t77s3 |
+| s4-parity | PASS | 0 | 4.9s | out dir: wt/t77s4 |
+| s5-parity | PASS | 0 | 5.1s | out dir: wt/t77s5 |
+| s6-parity | PASS | 0 | 5.2s | out dir: wt/t77s6 |
+| s7-parity | PASS | 0 | 5.1s | out dir: wt/t77s7 |
+| s8-parity | PASS | 0 | 5.1s | out dir: wt/t77s8 |
+| s9-parity | RED | 1 | 6.8s | out dir: wt/t77s9 — declared standing lane-tree class (diff classes below) |
+| s10-parity | PASS | 0 | 7.2s | out dir: wt/t77s10 |
+| s17-parity | PASS | 0 | 8.0s | out dir: wt/t77s17 |
+| s1-tart-mode | PASS | 0 | 5.2s | TART_MODE_OK |
+| wire-delta | PASS | 0 | 5.0s | WIRE_DELTA_OK (instruction `4209f40b…` + tools `7360fd1e…` EXACT) |
+| zai-max-tokens-wire | PASS | 0 | 4.9s | ZAI_WIRE_OK tart=pi=512 |
+| identity-law | PASS | 0 | 0.5s | IDENTITY_LAW_OK |
+| default-face | PASS | 0 | 0.5s | DEFAULT_FACE_OK |
+| default-boot | PASS | 0 | 1.0s | DEFAULT_BOOT_OK |
+| herdr-units | PASS | 0 | 0.7s | HERDR_UNITS_OK |
+| herdr-wire-probe | PASS | 0 | 2.7s | HERDR_WIRE_OK |
+| rig-identity-assert | PASS | 0 | 0.3s | RIG_IDENTITY_OK |
+| subagents-default-law | PASS | 0 | 0.4s | SUBAGENTS_DEFAULT_LAW_OK |
+| subagents-default-boot | PASS | 0 | 1.0s | SUBAGENTS_DEFAULT_BOOT_OK |
+| subagents-motd-units | PASS | 0 | 0.4s | SUBAGENTS_MOTD_UNITS_OK |
+| subagents-motd-probe | PASS | 0 | 2.4s | SUBAGENTS_MOTD_OK |
+| subagents-e2e-default-on | PASS | 0 | 35.2s | SUBAGENTS_E2E_DEFAULT_OK |
+| rig-staging-units | PASS | 0 | 0.2s | RIG_STAGING_OK |
+| vendored-attribution | PASS | 0 | 0.4s | VENDORED_ATTRIBUTION_OK 42 |
+| vendored-units | PASS | 0 | 1.2s | VENDORED_UNITS_OK |
+| listing-units | PASS | 0 | 6.5s | LISTING_UNITS_OK |
+| model-menu-live-merge | PASS | 0 | 0.9s | MODEL_MENU_LIVE_MERGE_OK |
+| launcher-listing-thread | PASS | 0 | 0.5s | LAUNCHER_LISTING_THREAD_OK |
+| vendored-no-boot-network | PASS | 0 | 0.0s | VENDORED_NO_BOOT_NETWORK_OK |
+| listing-thread-law | PASS | 0 | 0.0s | LISTING_THREAD_LAW_OK |
+| md-battery-fixture | PASS | 0 | 0.0s | MD_BATTERY_FIXTURE_OK |
+| md-battery-units | PASS | 0 | 0.5s | MD_BATTERY_UNITS_OK |
+| md-regression-units | PASS | 0 | 0.5s | MD_REGRESSION_UNITS_OK |
+| md-flanking-repro | PASS | 0 | 0.3s | MD_FLANKING_OK |
+| md-micro-perf | PASS | 0 | 1.7s | MD_MICRO_OK 4.56 ms/conv ratio 2.00 |
+| child-env-law-repro | PASS | 0 | 0.3s | CHILD_ENV_LAW_OK |
+| child-env-units | PASS | 0 | 0.5s | CHILD_ENV_UNITS_OK |
+| child-env-site-units | PASS | 0 | 4.8s | CHILD_ENV_SITE_UNITS_OK |
+| bash-child-env-live | PASS | 0 | 0.8s | BASH_CHILD_ENV_LIVE_OK |
+| session-sink-config-units | PASS | 0 | 0.8s | SESSION_SINK_CONSTANTS_OK |
+| session-sink-projection-units | PASS | 0 | 0.8s | SESSION_SINK_PROJECTION_REPRO_OK |
+| session-sink-engine-e2e | PASS | 0 | 6.8s | SESSION_SINK_ENGINE_E2E_OK |
+| session-sink-child-e2e | PASS | 0 | 4.0s | SESSION_SINK_CHILD_E2E_OK |
+| signal-hygiene-units | PASS | 0 | 3.9s | SIGNAL_CONSTANTS_OK |
+| signal-orphan-e2e | PASS | 0 | 29.4s | SIGNAL_ORPHAN_OK (hup-mid-tool exit=129; term-* exit=143) |
+| scope | PASS | 0 | 0.0s | SCOPE_OK (6-path touch set, both lib seams changed) |
+
+Re-measured lines (after the runner capture-window fix; gate cmds byte-verbatim unchanged):
+
+| gate | verdict | ec | time | note |
+|---|---|---|---|---|
+| suite | PASS | 0 | 240.7s | full-output match carries SUITE_OK; rake standalone: 1402 runs, 6562 assertions, 0 failures, 0 errors, 1 skips |
+| viewport-probe | PASS | 0 | 0.4s | standalone probe: ec=0, `verdict: c (not reproducible in-buffer)` / `VIEWPORT_PROBE_OK c` |
+
+Final measured state: **79 PASS / 1 RED (`s9-parity`, declared standing lane-tree adjudication class).**
+
+## Suite counts
+
+| metric | base floor @ 6451f1e | measured at lane tree |
+|---|---|---|
+| runs | 1382 | 1402 |
+| assertions | 6507 | 6562 |
+| failures | 0 | 0 |
+| errors | 0 | 0 |
+| skips | 1 | 1 |
+| SEAM_BENCH_OK | required | bench gate PASS ec=0 16.8s SEAM_BENCH_OK |
+
+Strictly greater: +20 runs, +55 asserts; nothing deleted; 1S carried unchanged.
+
+## New batteries (direct measurement)
+
+| file | filter | runs | assertions | failures | errors | skips |
+|---|---|---|---|---|---|---|
+| test/edit_fold_test.rb (NEW) | full file | 13 | 29 | 0 | 0 | 0 |
+| test/session_test.rb | -n "/model_identity/" | 7 | 16 | 0 | 0 | 0 |
+
+## s9-parity raw failure classes (from wt/t77s9/summary.json + report.md diff)
+
+```
+{"unknown-candidate" => 2, "parity-run-path" => 6, "staged-path-wrap-fragment" => 2, "footer-provider-prefix" => 2}
+- ctrl+t to expand thinking -> unknown-candidate
++ .md -> unknown-candidate
+-  .../sandbox/pi/AGENTS.md -> parity-run-path
++  .../sandbox/tart/AGENTS.md -> parity-run-path
+- .../sandbox/pi/.pi/skills/demo.md -> parity-run-path
++ .../sandbox/tart/.tart/skills/demo -> parity-run-path
+-     ~/.pi/agent/skills/demo-user.md -> staged-path-wrap-fragment
++     ~/.tart/skills/demo-user.md -> staged-path-wrap-fragment
+- ↑10 ↓5 0.0%/33k (auto) ... (mock) mock-1 -> footer-provider-prefix
++ ↑10 ↓5 0.0%/33k (auto) ... mock-1 -> footer-provider-prefix
+```
+
+Identical RED at the dead builder's 20:01Z preserved run (same class vector); GREEN at canonical depth per the frozen adjudication.
+
+## Scratch provenance
+
+- Raw per-gate log (with history: predecessor 78-line run, my smoke lines, cold full run, re-measured lines): `build/I77-edit-tool-fix-core/tmp/gate-results.txt`
+- Gate runner (byte-verbatim extraction; capture-window fix; predecessor copy at `gaterun.rb.orig`): `build/I77-edit-tool-fix-core/tmp/gaterun.rb`
+- Rake full output: `/tmp/i77-rake-full.txt` (ec=0, 1402/6562/0F/0E/1S)
+- Out dirs `t77*` + `tmp/render-perf-gate` are lane scratch, never committed (scope gate excludes them).
 
 ## Verdict
 
