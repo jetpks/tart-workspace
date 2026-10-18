@@ -2194,11 +2194,126 @@ Supporting reads: `notes/spec-digest-20261018T074028Z-session-sink.md`, `tmp/i74
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I74-session-sink-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence session-sink --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# Builder report — I74 `session-sink`, lane `core` (repo `tart`)
+
+Worktree: `build/I74-session-sink-core/wt`, branch `lane/I74-session-sink-core`, base tart `8d81291` (verified HEAD). NO commits (integrator lands the tree). Diff vs `8d81291` = EXACTLY the declared 6-path set (`git status --porcelain`: M bin/tart, M lib/tart/subagents/manager.rb, M test/subagents_test.rb; ?? lib/tart/session_sink.rb, ?? test/session_sink_test.rb, ?? test/support/mock_ingest_server.rb — plus the gates' self-owned `t74*` out-dir scratch).
+
+## Suite summary line
+
+- `bundle install --quiet && bundle exec rake` (gate `suite`, cold, gate-runner run): **`SUITE_OK` — 1368 runs, 6475 assertions, 0 failures, 0 errors, 1 skips, exit 0, 241 s** (floor was 1316/6237/1S at base; +52 runs = 50 new `test/session_sink_test.rb` pins + 2 new `test/subagents_test.rb` /child_env/ pins).
+- `bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1` → **`SEAM_BENCH_OK`** (16 s).
+
+### Suite adjudication notes (standing flake + env classes, measured)
+
+- Two earlier full-suite invocations were killed at my 600 s/900 s wrapper timeouts (SIGTERM) and one at 600 s — the standing chat-interrupt timing class (BOTH forms incl. the gate-hang form; the hang sat in the early chat region of the run). Two COLD full re-runs completed GREEN (241 s gate run; one `TESTOPTS=-v` run, same 1368/6475/0F/0E/1S) and every test file also passes individually — note-and-pass per the frozen ledger.
+- From 02:56–02:58 the LIVE parent architect loop created `~/.tart/agents/architect-{judge,narrator,spec,builder,coordinator}.md` (the owner's real user-profile tier). After that, full-suite runs at the REAL HOME show exactly ONE failure: `Tart::SubagentsTest#test_unknown_agent_names_the_three` (test/subagents_test.rb:132) — the pin's Profiles scan root is the REAL `~/.tart` by standing design, so the merged "Available agents:" listing now includes the five new user profiles. Base-identical behavior (my diff does not touch Profiles.resolve or that pin's logic — manager.rb only grows additive child_env picks). Same adjudication class as the arch file's declared env-dependent launcher/SystemPrompt pins. Evidence it is env, not code: `HOME=<staged> bundle exec ruby -Ilib -Itest test/subagents_test.rb` → **34 runs, 282 assertions, 0 failures, 0 errors, 0 skips**; the file also ran green at the real HOME before the profiles appeared.
+- (A full-suite run under a staged HOME fails a DIFFERENT standing pin — `chat_test.rb:1365` footer `~` abbreviation, which requires the cwd to sit under the real HOME — confirming the suite is real-HOME-bound by design.)
+
+## The 74-gate table (itemize-and-defend — one measured one-liner each)
+
+All gates executed verbatim from the frozen ```gates block (extracted to /tmp/i74-gates.yaml; 74 parsed).cwd repos/tart = the lane worktree. "rr" = re-run after the final test edits — all GREEN.
+
+| # | gate id | result | measured one-liner |
+|---|---------|--------|--------------------|
+| 1 | suite | PASS | ec=0, 241 s — `SUITE_OK` 1368 runs / 6475 assertions / 0F / 0E / 1S (post-02:58 env: 1 env-class failure, see above; rr) |
+| 2 | bench | PASS | ec=0, 16 s — `SEAM_BENCH_OK` |
+| 3 | md-repro | PASS | ec=0 — `MD_REPRO_OK` |
+| 4 | md-inline-units | PASS | ec=0 — `MD_INLINE_UNITS_OK` (≥3 + ≥1 filter runs) |
+| 5 | pending-registry-units | PASS | ec=0 — `PENDING_REGISTRY_UNITS_OK` (≥4) |
+| 6 | footer-window | PASS | ec=0 — `FOOTER_WINDOW_OK 1000000` (env tier 999 leg included) |
+| 7 | thinking-pins | PASS | ec=0 — `THINKING_PINS_OK` (≥11 + ≥8) |
+| 8 | hermeticity | PASS | ec=0, 9 s — `HERMETICITY_OK` (launcher ≥8, e2e ≥4) |
+| 9 | lock-deps | PASS | ec=0 — `LOCK_DEPS_OK`/`GEM_LOAD_OK`, fast-completions 0.5.0 in lock, no ruby_llm |
+| 10 | zai-data | PASS | ec=0 — `ZAI_DATA_OK` (dialect pins ≥2 + dialect_for bytes) |
+| 11 | threads-budget | PASS | ec=0 — `THREADS_BUDGET_OK`; the rebased diff base 8d81291 + `':(exclude)lib/tart/session_sink.rb'` shows no new `Thread.new` in lib |
+| 12 | session-golden | PASS | ec=0 — `SESSION_GOLDEN_OK` (7/7 digests byte-identical; the recorder untouched) |
+| 13 | strict-wire | PASS | ec=0 — 8 runs, 76 assertions, 0 failures, 0 errors |
+| 14 | error-transcript-units | PASS | ec=0 — `ERROR_TRANSCRIPT_UNITS_OK` (≥4 + ≥2) |
+| 15 | error-transcript-render-units | PASS | ec=0 — `ERROR_TRANSCRIPT_RENDER_UNITS_OK` (≥3 + ≥2) |
+| 16 | render-perf-units | PASS | ec=0 — 7 runs, 29 assertions, 0 failures, 0 errors |
+| 17 | render-perf-probe | PASS | ec=0, 146 s — `RENDER_PERF_OK` |
+| 18 | tool-pending-gate | PASS | ec=0, 20 s — `TOOL_PENDING_GATE_OK` (out t74tp) |
+| 19 | user-bash-stream-gate | PASS | ec=0, 13 s — `USER_BASH_STREAM_GATE_OK` (out t74ub) |
+| 20 | zai-max-tokens-units | PASS | ec=0, 3 s — `ZAI_MAX_TOKENS_UNITS_OK` (4+2+2) |
+| 21 | rail-bg | PASS | ec=0 — `RAIL_BG_OK` |
+| 22 | jump-pill-units | PASS | ec=0 — `JUMP_PILL_UNITS_OK` (≥6) |
+| 23 | rail-bg-units | PASS | ec=0 — `RAIL_BG_UNITS_OK` (≥4) |
+| 24 | viewport-probe | PASS | ec=0 — `VIEWPORT_PROBE_OK` |
+| 25 | oracle-pin-state | PASS | ec=0 — `ORACLE_PIN_OK` (clone @ oracle-v1.1.0 == v1.1.0, clean, cli 1.1.0) |
+| 26 | oracle-bin-units | PASS | ec=0 — `ORACLE_BIN_UNITS_OK` (≥5) |
+| 27 | oracle-resolve | PASS | ec=0 — `ORACLE_RESOLVE_OK` (pinned cli + flag/env overrides + missing-clone raise) |
+| 28 | s1-parity | PASS | ec=0, 5 s — out t74s1 |
+| 29 | s2-parity | PASS | ec=0, 5 s — out t74s2 |
+| 30 | s3-parity | PASS | ec=0, 5 s — out t74s3 |
+| 31 | s4-parity | PASS | ec=0, 5 s — out t74s4 |
+| 32 | s5-parity | PASS | ec=0, 5 s — out t74s5 |
+| 33 | s6-parity | PASS | ec=0, 5 s — out t74s6 |
+| 34 | s7-parity | PASS | ec=0, 5 s — out t74s7 |
+| 35 | s8-parity | PASS | ec=0, 5 s — out t74s8 |
+| 36 | s9-parity | RED (declared) | ec=1, 7 s — the AC-preamble-declared lane-tree wrap-geometry class: measured diff classes = `unknown-candidate:2` (wrapped-path fragment "demo."/"md"), `staged-path-wrap-fragment:2`, plus the standing known `parity-run-path`/`footer-provider-prefix`; GREEN at canonical depth (the rehearsal measured it there) |
+| 37 | s10-parity | PASS | ec=0, 7 s — out t74s10 |
+| 38 | s17-parity | PASS | ec=0, 8 s — out t74s17 |
+| 39 | s1-tart-mode | PASS | ec=0, 5 s — `TART_MODE_OK` (completed + requests==expected) |
+| 40 | wire-delta | PASS | ec=0, 5 s — `WIRE_DELTA_OK` (instruction 4209f40b…, tools 7360fd1e…, key order, store false) |
+| 41 | zai-max-tokens-wire | PASS | ec=0, 5 s — `ZAI_WIRE_OK tart=pi=512` |
+| 42 | identity-law | PASS | ec=0 — `IDENTITY_LAW_OK` |
+| 43 | default-face | PASS | ec=0 — `DEFAULT_FACE_OK` |
+| 44 | default-boot | PASS | ec=0 — `DEFAULT_BOOT_OK` (i74-boot- staging; tart preamble + TART_* namespace) |
+| 45 | herdr-units | PASS | ec=0 — `HERDR_UNITS_OK` |
+| 46 | herdr-wire-probe | PASS | ec=0, 3 s — `HERDR_WIRE_OK` (out t74hwp, ~92-byte socket path < 104 bound) |
+| 47 | rig-identity-assert | PASS | ec=0 — `RIG_IDENTITY_OK` |
+| 48 | subagents-default-law | PASS | ec=0, rr — `SUBAGENTS_DEFAULT_LAW_OK` |
+| 49 | subagents-default-boot | PASS | ec=0, rr — `SUBAGENTS_DEFAULT_BOOT_OK` (default-on digest 2c744efc…, opt-out 7360fd1e…) |
+| 50 | subagents-motd-units | PASS | ec=0, rr — `SUBAGENTS_MOTD_UNITS_OK` |
+| 51 | subagents-motd-probe | PASS | ec=0, 3 s, rr — `SUBAGENTS_MOTD_OK` (out t74mot) |
+| 52 | subagents-e2e-default-on | PASS | ec=0, 37 s, rr — `SUBAGENTS_E2E_DEFAULT_OK` (≥4) |
+| 53 | rig-staging-units | PASS | ec=0 — `RIG_STAGING_OK` |
+| 54 | vendored-attribution | PASS | ec=0 — `VENDORED_ATTRIBUTION_OK` (byte-identical to the pinned oracle data) |
+| 55 | vendored-units | PASS | ec=0 — `VENDORED_UNITS_OK` (≥6 + ≥1 + i74-vu- repro) |
+| 56 | listing-units | PASS | ec=0, 6 s — `LISTING_UNITS_OK` (≥5) |
+| 57 | model-menu-live-merge | PASS | ec=0 — `MODEL_MENU_LIVE_MERGE_OK` (≥3 + ≥2) |
+| 58 | launcher-listing-thread | PASS | ec=0 — `LAUNCHER_LISTING_THREAD_OK` (≥1) |
+| 59 | vendored-no-boot-network | PASS | ec=0 — `VENDORED_NO_BOOT_NETWORK_OK` |
+| 60 | listing-thread-law | PASS | ec=0 — `LISTING_THREAD_LAW_OK` |
+| 61 | md-battery-fixture | PASS | ec=0 — `MD_BATTERY_FIXTURE_OK` (sha 4ecd9cc2…, 48 cases) |
+| 62 | md-battery-units | PASS | ec=0 — `MD_BATTERY_UNITS_OK` (≥48) |
+| 63 | md-regression-units | PASS | ec=0 — `MD_REGRESSION_UNITS_OK` (≥79) |
+| 64 | md-flanking-repro | PASS | ec=0 — `MD_FLANKING_OK` (R1a–I65 legs) |
+| 65 | md-micro-perf | PASS | ec=0, 2 s — `MD_MICRO_OK 4.15 ms/conv ratio 2.22` (budgets 8.0 / 3.0) |
+| 66 | child-env-law-repro | PASS | ec=0, rr — `CHILD_ENV_LAW_OK` |
+| 67 | child-env-units | PASS | ec=0, rr — `CHILD_ENV_UNITS_OK` (≥8) |
+| 68 | child-env-site-units | PASS | ec=0, 5 s, rr — `CHILD_ENV_SITE_UNITS_OK` (bash ≥2, subagents ≥1, mcp ≥1) |
+| 69 | bash-child-env-live | PASS | ec=0, rr — `BASH_CHILD_ENV_LIVE_OK` |
+| 70 | session-sink-config-units | PASS | ec=0, rr — `SESSION_SINK_CONFIG_UNITS_OK`: /config_law/ 12 runs 0F, no MOTD/extensions row grep hit, `SESSION_SINK_CONSTANTS_OK` (all 7 constants + ingest_url frozen) |
+| 71 | session-sink-projection-units | PASS | ec=0, rr — `SESSION_SINK_PROJECTION_UNITS_OK`: /projection/ 17 runs 0F + `SESSION_SINK_PROJECTION_REPRO_OK` (the full frozen repro: shapes, maps, skip rules, ids) |
+| 72 | session-sink-engine-e2e | PASS | ec=0, 7 s, rr — `SESSION_SINK_ENGINE_E2E_OK`: /engine/ 12 runs 0F + /boot/ 5 runs 0F |
+| 73 | session-sink-child-e2e | PASS | ec=0, 4 s, rr — `SESSION_SINK_CHILD_E2E_OK`: /child_capture/ 4 runs 0F (five env picks + real `bin/tart -p` child round-trip) |
+| 74 | scope | RED (structural) | ec=1 — the must-differ leg `git diff 8d81291 -- lib/tart/session_sink.rb` is EMPTY because the file is UNTRACKED in the no-commit lane tree (git add forbidden); the other two legs measured clean: `git diff --quiet 8d81291 -- <frozen paths>` exit 0, and the 6-path bite filter `grep -vE …` output EMPTY; turns GREEN when the integrator tracks the file |
+
+Tally: 72 PASS / 2 RED, both REDs non-code and pre-declared (36 = the AC-preamble geometry class; 74 = structural untracked-file blindness in a never-commit lane tree).
+
+## New pins delivered (filter counts, all 0F)
+
+- `test/session_sink_test.rb` — 50 runs total: `/config_law/` 12 (≥8), `/projection/` 17 (≥10), `/engine/` 12 (≥8), `/boot/` 5 (≥5), `/child_capture/` 4 (≥4).
+- `test/subagents_test.rb` — +2 `/child_env/` pins (`test_child_env_session_sink_picks_the_five_identity_namespaced_keys`, `test_child_env_session_sink_picks_omitted_when_the_parent_has_none`); file total 34 runs.
+- `test/support/mock_ingest_server.rb` — the MockLLMServer pattern: TCPServer/accept-thread, minimal HTTP parse, `{headers:, body:, records:}` posts, per-connection fail script + delay, `#url/#posts/#post_count/#connections/#max_concurrent/#wait_posts/#stop`.
+
+## Deviations (itemized)
+
+1. **The sink's require site is `lib/tart/subagents/manager.rb`** (comment-cited in the file): the frozen session-sink gates run `ruby -Ilib -e 'require "tart"'` and expect `Tart::SessionSink` defined, but `lib/tart.rb` and `lib/tart/agent/loop.rb` (herdr's require site) are outside the frozen 6-path touch set. The manager is the ONLY require-"tart"-reachable touch-set path (lib/tart.rb → print.rb → subagents.rb → manager.rb — verified), and the sink is semantically coupled to the manager's child-capture law. bin/tart also requires the file directly.
+2. **`test/subagents_test.rb` sanctioned-env list grew the five PI_SESSION_SINK_* spellings** — the standing `assert_empty(env.keys - sanctioned)` closure pin (I49/I69 form) would otherwise fail on the declared unconditional `AGENT_NAME` pick. The I73 poison/PATH/identity legs themselves are untouched and hold.
+3. **`prompt = nil` pre-declaration above both register sites** in bin/tart: Ruby 4.0 does NOT capture a local assigned later in the method (a lambda created before the assignment raises NameError at call time — measured). The lazy `-> { prompt }` system-prompt seam needs the local pre-declared.
+4. **`Engine#stop` lifecycle**: Ruby 4.0 removed `Thread#daemon`/`daemonize` (measured NoMethodError), so the ONE flusher thread is stopped explicitly — after the terminal POST, via the test seam in teardown, and production exits are safe (print exits via `exit code`; verified Ruby kills cond-waiting threads at main-thread exit).
+5. **Boot-test record-order reality**: with the instant mock LLM, the whole driven turn coalesces inside the 250 ms debounce, so the four content records ride the TERMINAL body (observed `message_end user → message_end assistant(toolCall) → tool_execution_end → message_end assistant(final)`, matching the loop's emission order — assistant step fires before the tool batch). The /boot/ pins assert the union across posts in order rather than a fixed post split.
+6. **Mock ingest DNS hygiene**: no test points a spawned child at a resolvable name — pin hosts use `http://127.0.0.1:1` (dead loopback); `deck.test` appears only in pure string-transform asserts (ingest_url).
+
+## STATUS: COMPLETE_WITH_CONCERNS
+- Concern 1: `scope` gate RED at the lane tree for a structural reason (untracked new file invisible to `git diff 8d81291 -- lib/tart/session_sink.rb`; no git writes allowed) — every other scope leg measured clean; GREEN after the integrator tracks the file.
+- Concern 2: `s9-parity` RED at the lane tree per the standing declared wrap-geometry class (owner backlog; adjudicates spec-side at canonical depth).
+- Concern 3: post-02:58 environment (live parent loop's `~/.tart/agents/architect-*.md` user profiles) deterministically fails the standing `test_unknown_agent_names_the_three` pin in real-HOME full-suite runs — base-identical behavior, env-class adjudication, staged-HOME file run green (34/0F).
+- Concern 4: the frozen session-sink gates' `require "tart"` leg forced the manager.rb require site (deviation 1) — if the architect prefers lib/tart.rb to carry the require instead, that requires widening the touch set (a spec contradiction to resolve at landing).
 
 ## Verdict
 
