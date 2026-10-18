@@ -2269,10 +2269,42 @@ before concluding the spec is sound) — silent compliance is a defect.
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I78-subagent-runner-health-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section subagent-runner-health prompt --append --lane <lane> --from build/I78-subagent-runner-health-<lane>/prompt.md`. -->
+### core
+
+# Builder lane prompt — iteration `subagent-runner-health` (I78), lane `core`, repo `tart`
+
+You are the builder for iteration `subagent-runner-health` (I78), lane `core`, repo `tart`. You are the ONLY lane. Your worktree is `build/I78-subagent-runner-health-core/wt` (base `2365176`, branch `lane/I78-subagent-runner-health-core`) — do all work THERE; the space's main checkout is read-only for you. **ZERO live API calls of any kind** — no provider keys, no driver scripts, no spend (every pin is hermetic: staged homes, staged catalogs, reaped-real-pids for ESRCH).
+
+## THE CONTRACT — read it first, in full
+
+The authoritative, FROZEN contract is `architecture/I78-subagent-runner-health.md` in the space repo: its **Grounds**, **Specification**, and **Acceptance Criteria** sections (the four Laws, Output format, Operating constraints, Lane plan, the 83-gate frozen ```gates block with its rehearsal declarations). READ THE WHOLE FILE before doing anything. Where this header and the arch file differ, THE ARCH FILE WINS.
+
+Supporting read: `notes/spec-digest-20261018T182752Z-edit-tool-fix.md` (the I77 handoff — the carry/adjudication classes, the declared-RED pattern, judge-runs-gates-at-the-lane-tree, never gates under nohup, short out dirs) and the spec scratch `tmp/i78-spec/` (grounds/spec/AC + the carried-gates rebases). The dead-run specimen `~/.tart/subagents/01a14e3c-…/` is READ-ONLY evidence — do NOT resume, clean, or edit it (the owner's PARKED ruling); the two new script gates embed their own fabricated specimens, so you do not need the real dir to reproduce.
+
+## WHAT YOU ARE LANDING (four frozen laws, one lane)
+
+1. **LAW 1 — the fleet sweep** (`lib/tart/subagents/manager.rb`): `status(id: nil)` reconciles the runs root BEFORE listing — scan `@home` children for a readable `status.json` (parse failures/non-run dirs skipped, never fatal), adopt NON-TERMINAL unknown dirs via the existing `disk_find` (terminal foreign history NOT adopted — the fleet must not flood), reconcile each. NO new thread anywhere (the threads-budget gate diff base is `2365176`).
+2. **LAW 2 — the reaper** (same file, a private reap-seam, pi `stale-run-reconciler.js` ported — read the Grounds citations first): for a NON-OWNED non-terminal record: (a) result-derive leg — an existing `result.json` is AUTHORITATIVE: derive terminal state from it (`success`→`completed`; `!success && timedOut`→`stopped`; else `failed`), write ONLY the atomic status flip; (b) dead-pid repair — ESRCH on BOTH pid and pgid (the existing `exited?` law; EPERM = live, NEVER converged): write `result.json` FIRST (`{"output": <stdout or "">, "success": false, "timedOut": false, "error": <message>}`), then the atomic `status.json` flip to `"failed"` (the port's terminal vocabulary — NO new state). The message is BYTE-PINNED: `Async runner process <pid> exited or disappeared before writing a result. Marked run failed by stale-run reconciliation.` plus, when `runner.stderr.log` is non-empty, pi's stderr-tail diagnostics verbatim (`\n\nRunner stderr tail:\n<tail>`; tail = last 30 lines of the ≤64KB end-read, ≤4000 chars else last 4000 + `\n[stderr tail truncated]`). Nil/legacy status fields (`startedAt: null`, missing keys) never raise.
+3. **LAW 3 — ownership flags** (same file): every record carries an owned flag (true exactly when THIS process spawned it). `outstanding?`/`drain` count only owned runs; `notify_completion` + the wake fire only for owned runs; the deadline supervisor and `shutdown`'s stop ladder arm only owned runs. All three read paths (fleet sweep, targeted id read, the watcher's exit sweep) route NON-OWNED convergence through the reap seam — never `settle_run`, never a notification into the adopter's session. OWNED runs keep every frozen observable byte-for-byte (`settle_run` untouched).
+4. **LAW 4 — loud dispatch validation** (`lib/tart/subagents.rb` `resolve_model` + the `Manager#spawn_run` call site): arm the dormant `catalog:` kwarg — `spawn_run` passes `Models.load(root: @root)` (fresh per spawn, hermetic by construction). `catalog: nil` stays parse-only (byte-identical for every existing caller). EMPTY registry (`model_entries` empty — no models.json, or a load failure) → NO validation (pi's never-validate-without-a-registry law; a corrupt models.json must not turn dispatch into a raise). An explicit spec (call `model:` OR profile `model:`) is valid iff it resolves via `Config#resolve("provider/id")` (the I71 exact-match law — NO new fuzzy machinery) OR equals the fallback (parent) pair provider+id (level ignored). Invalid → `ArgumentError`, BYTE-PINNED: `Unknown subagent model '<spec>' in the active Pi model registry.` (the raw requested string verbatim), raised BEFORE any side effect (no run dir, no status.json, no `Process.spawn` — order: resolve → validate → mkdir). The inherited arm is never validated.
+
+Frozen discipline you must not drift from: the control/ protocol dirs, the steer/stop receipts, the fleet-line format, the notification shapes, `TERMINAL_STATES`, and the result/status schemas stay EXACTLY as shipped — the reaper writes existing schemas only, result-before-flip (temp+rename), so a poller watching status.json sees `running` → `failed`. Wire-delta and session-golden hold EXACT (this lane touches no wire or session path). No rig scenario-content edits.
+
+## Deliverable (frozen Output format)
+
+Code + tests; no README/docs changes (the tool description string gains no rows). The new pin battery lives in `test/subagents_health_test.rb` (≥ 8 runs — the `subagents-health-units` gate floor): at minimum, pins for (1) the dead-run specimen convergence through the fleet read (fabricated dir, reaped-real-pid ESRCH, the pinned message, result-before-flip, the fleet line, NO notification, no outstanding?); (2) the result-derive leg (running status + existing result.json → derived flip, result untouched); (3) the live-pid untouched leg (byte-identical files, listed running, no drain wedge); (4) ownership: owned vs adopted across outstanding?/drain/notify/shutdown; (5) the kill -9 crash leg (an owned child hard-killed settles terminal through the watcher sweep); (6) the validation law at `resolve_model` level (all exemption arms + the pinned message) AND at spawn level (raise + zero run dirs); (7) the legacy/null-field tolerance; (8) `test/subagents_test.rb` stays green — any edit there is behavior-preserving re-pinning only (the DECLARED re-pin file). The mock-server harness in `test/subagents_test.rb` (`new_manager`, `@server.script`, `wait_terminal`) is your test seam — reuse its discipline.
+
+## Operating constraints (lane)
+
+- Touch set (frozen, the scope gate bites exactly): `lib/tart/subagents/manager.rb`, `lib/tart/subagents.rb`, `test/subagents_health_test.rb`, `test/subagents_test.rb` — BOTH lib seams must change.
+- No live API spend. No new gems. No new threads. No rig edits.
+- PHASE 0: every disagreement with this spec is raised with reasons in your report (or an explicit statement of what was checked before concluding the spec is sound) — silent compliance is a defect.
+- The four declared-RED gates (`stale-run-reaper`, `unknown-model-reject`, `subagents-health-units`, `scope` — scope REDs on the empty must-differ legs pre-work) turn GREEN only with your lane work; everything else is a regression anchor that must not move.
+- Scratch under `build/I78-subagent-runner-health-core/scratch/`; never commit the `t78*` gate out dirs.
+
+## Builder Report
+
+Write your report to `build/I78-subagent-runner-health-core/report.md`: what landed (file by file), the measured gate table (cold, foreground, at YOUR tree), PHASE 0 findings, and the honest residual list. The architect transcribes it VERBATIM into the arch file.
 
 ## Builder Report
 
