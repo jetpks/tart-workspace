@@ -2797,7 +2797,18 @@ project:
   - name: markdown-parity-revisit
     ordinal: 72
     file: architecture/I72-markdown-parity-revisit.md
-    freeze_sha:
+    freeze_sha: 65ff89771cea08e4538c612386b657788d05ca70
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/render/markdown.rb
+      - test/markdown_test.rb
+      - test/fixtures/markdown_battery.json
+      - test/chat_test.rb
+      - test/render/transcript_test.rb
+    rehearsal:
+      gates_digest: 8774427a72d7dfab70f24206b62008f67c0af33acac6da3cb983cf3f9abe8474
+      at: '2026-10-17T21:03:28-06:00'
   integration_branch: project/pi-port
