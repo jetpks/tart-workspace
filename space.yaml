@@ -81,7 +81,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: child-env-scrub
+  current_iteration: session-sink
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -2847,4 +2847,10 @@ project:
     rehearsal:
       gates_digest: 92510e396f8f7c1749f14337c405a74042691d97ee7dd12d779738f2ddc96ddd
       at: '2026-10-17T23:19:00-06:00'
+  - name: session-sink
+    ordinal: 74
+    file: architecture/I74-session-sink.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
