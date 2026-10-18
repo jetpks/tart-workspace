@@ -2968,12 +2968,13 @@ project:
       - test/subagents_health_test.rb
       - test/subagents_test.rb
       base_sha: 236517674bca1fd0680e71905c0a964b670222ed
-      worktree: build/I78-subagent-runner-health-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: openrouter/z-ai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 470a6e5f4dddf239b6723762b5a3752eee05d1f1
     rehearsal:
       gates_digest: a8102a5f955b9a2c593c8933456508c878b8368fa55bf546e9c2b8025e379c14
       at: '2026-10-18T16:01:54-06:00'
