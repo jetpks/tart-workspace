@@ -577,19 +577,28 @@ before concluding the spec is sound) — silent compliance is a defect.
 
 > **Rehearsal declarations (frozen):**
 > - `stale-run-reaper`, `unknown-model-reject`,
->   `subagents-health-units` are **declared-RED at rehearsal** — the
->   lane deliverable does not exist pre-dispatch; each was verified
->   to fail at the base tree for exactly its declared reason (clean
->   RED: at `2365176` the fleet read scans nothing → "fleet did not
->   list the stale run"; `resolve_model` ignores `catalog:` → "did
->   not raise"; the test file is absent → runs=0). GREEN arrives only
->   with the lane work; BROKEN would be a gate defect, not a finding.
-> - The carried 80 at the base tip: expect **79 GREEN + ONE standing
->   adjudication RED** — `render-perf-probe` BP2-only (the I75-frozen
->   LOAD-MARGIN class: BP2-only → note-and-pass, idle-machine cold
->   re-run operative; RED at the I75 and I77 rehearsals too). Any
->   OTHER failing line is NOT the class. The rehearsal preamble
->   records the MEASURED vector.
+>   `subagents-health-units`, and `scope` are **declared-RED at
+>   rehearsal** — the lane deliverable does not exist pre-dispatch;
+>   each was verified in the spec session's sims to fail at the base
+>   tree for exactly its declared reason (clean RED: at `2365176` the
+>   fleet read scans nothing → "fleet did not list the stale run";
+>   `resolve_model` ignores `catalog:` → "did not raise"; the test
+>   file is absent → runs=0; and `scope` REDs on the EMPTY
+>   must-differ legs with ZERO leaks — the tree bites nothing outside
+>   the frozen 4-path set, the gate fails only because the two lib
+>   seams are untouched pre-dispatch, the standing I77 class).
+>   GREEN arrives only with the lane work; BROKEN would be a gate
+>   defect, not a finding.
+> - The carried 80, MEASURED at the base tip `2365176` by THIS
+>   spec's first rehearsal (transcript
+>   `build/rehearse/I78-subagent-runner-health-20261018T153828.078475.md`):
+>   **79 GREEN + scope (declared-RED above)** — including
+>   `render-perf-probe` GREEN this run (BP2 passed at the idle
+>   machine; the I75-frozen LOAD-MARGIN adjudication stands either
+>   way: BP2-only → note-and-pass, idle-machine cold re-run
+>   operative). The 79 GREEN are the no-regression proof at freeze
+>   time; the standing adjudication classes above are adjudicated at
+>   the lane tree, never silently patched.
 > - The `t78*` out dirs the gates create are rehearsal/judge scratch:
 >   never committed; the integrator's out-of-bounds guard may trip on
 >   them (the I73–I77 judge-scratch precedent — clean and re-verify,
