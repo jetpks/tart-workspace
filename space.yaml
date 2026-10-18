@@ -2957,10 +2957,17 @@ project:
   - name: subagent-runner-health
     ordinal: 78
     file: architecture/I78-subagent-runner-health.md
-    freeze_sha: 88400dc67edb88f8b738d659df47a7bc877758d4
+    freeze_sha: c1b227105a8139000189206d078f8af895b9a6d7
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/subagents/manager.rb
+      - lib/tart/subagents.rb
+      - test/subagents_health_test.rb
+      - test/subagents_test.rb
     rehearsal:
       gates_digest: a8102a5f955b9a2c593c8933456508c878b8368fa55bf546e9c2b8025e379c14
-      at: '2026-10-18T15:49:46-06:00'
+      at: '2026-10-18T16:01:54-06:00'
   integration_branch: project/pi-port
