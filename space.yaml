@@ -81,7 +81,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: markdown-parity-revisit
+  current_iteration: child-env-scrub
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -2819,4 +2819,10 @@ project:
     rehearsal:
       gates_digest: 8774427a72d7dfab70f24206b62008f67c0af33acac6da3cb983cf3f9abe8474
       at: '2026-10-17T21:03:28-06:00'
+  - name: child-env-scrub
+    ordinal: 73
+    file: architecture/I73-child-env-scrub.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
