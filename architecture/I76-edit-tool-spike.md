@@ -602,11 +602,176 @@ E0 static forensics (zero spend); E1 live reproduction beam as shipped (≤6 cal
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I76-edit-tool-spike-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence edit-tool-spike --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### edit-probe
+
+STATUS: COMPLETE_WITH_CONCERNS (spend-ledger gate RED: E2 leg 4 lines vs cap 3 and total 19 vs cap 18 — two zero-token creation-phase HTTP 400s from harness-fidelity fixes, disclosed in SPEND; E1 non-reproduction: beam never emitted an edit call in the capped legs; exact-context replay is system-less because tart's instructions are unrecorded in the session jsonl)
+
+## PHASE 0 — spec disagreements and checks
+
+Checked against real files before executing (the two plan-premise corrections in Grounds were VERIFIED at the tree, not re-litigated):
+
+1. **Grounds' `repair_json` fold claim is right in kind but wrong in detail** — the spec says a raw-newline emission would be repaired "into EXACTLY the recorded folded shape" (`architecture/I76-edit-tool-spike.md`, Grounds, "The gem receive path", hypothesis 2). The offline simulation (`scratch/repair_fold_sim.rb`, output `scratch/repair-fold-sim-out.txt`) shows this holds ONLY when the payload's QUOTES are already escaped: raw newlines + RAW quotes inside the `path` string make the parser state machine hit the payload's quotes early and the finalize returns `{}` (empty args), NOT the fold. The exact recorded shape (hash-verified in the sim, equality `true`) is produced from the mixed emission: escaped quotes (`\"`) + RAW newlines. Disagreement: hypothesis 2's mechanism is narrower than Grounds states — recorded here as a correction ENTRY 2 should carry. No spec text was edited (frozen).
+2. **E-budget accounting for failure turns** — the frozen caps count "calls"; the legs showed that creation-phase HTTP 400s (harness bugs, zero tokens billed) and multi-turn oracle sessions (pi: read → edit → answer = 3 calls, not 1) consume call budget the spec's per-leg planning ("exact-context ×2 rounds, simplified ×2 shapes") did not model. E2 ended 1 line over its cap (4 vs 3), total 19 vs 18. Disclosed in the ledger and SPEND; not smoothed, not re-litigated. The E2 overrun calls spent 0 tokens and produced no experimental observation (both were 400s at request creation).
+3. **E1's per-attempt cost model** — the spec's E1 plan treats an "attempt" as one call; loop-shaped reproduction costs per ROUND (the model bashes/greps first). E1's cap (6) was consumed by: 1 exact-replay round-1 call, 1 single-round call, and a 4-round loop run — the edit tool was never emitted, so E1's outcome is documented non-reproduction (below), which the spec declares a legal finding.
+4. The `temperature: 0` probe knob (spec: "may probe") was NOT run — E1's cap was exhausted by the reproduction attempts first; recorded not-run, zero spend.
+5. What was verified before concluding the rest of the spec sound: the six calls' byte-identity and hash (`scratch/e0-forensics-out.txt` — canonical-JSON sha256 `16b4bc25c33c8795…` ×6, lines 43–53 of the session); the six bare rejections (lines 44–54); the per-round thinking divergence incl. "The system seems to merge?" (line 55); the no-model-field key-set audit (57 lines; message key sets carry no `model` key); the beam registration transcript (`scratch/beam-registration.txt` — `supportsStrictMode: true` from the first minute); `~/.tart/models.json` beam entry byte-matches it (frozen gate GREEN); the as-shipped strict resolution (`repos/tart/lib/tart/models.rb:242` `dialect_for` — non-zai compat → `DEFAULT_DIALECT` :259, strict false; `repos/fast-llm/.../protocol.rb:83` `apply_tools` + `constrained_sampling.rb:54-60` silent-loose); zero `temperature` references under `repos/tart/lib/` and `protocol.rb:43` ships the key only when explicitly set; the installed 0.5.0 gem source is byte-identical to `repos/fast-llm` at the cited seams (`diff -q` on protocol.rb / args_streamer.rb / dialects.rb → identical).
+
+## EVIDENCE — E0 static forensics (zero spend)
+
+Source: `~/.tart/sessions/--Users-eric-architect-spaces-20261009-pi-port--/2026-10-18T06-58-52-352Z_01a14dce-5d40-73e1-8291-40db22b525dd.jsonl` (copied read-only to `scratch/failing-session.jsonl`; 57 lines, all parse).
+
+**Six edit calls — byte-identical** (`scratch/e0-forensics.py` → `scratch/e0-forensics-out.txt`):
+
+| call | session line | timestamp (Z) | canonical-JSON sha256 prefix |
+|---|---|---|---|
+| 1 | 43 | 07:06:05.816 | `16b4bc25c33c8795` |
+| 2 | 45 | 07:06:07.194 | `16b4bc25c33c8795` |
+| 3 | 47 | 07:06:08.768 | `16b4bc25c33c8795` |
+| 4 | 49 | 07:06:09.884 | `16b4bc25c33c8795` |
+| 5 | 51 | 07:06:11.352 | `16b4bc25c33c8795` |
+| 6 | 53 | 07:06:12.867 | `16b4bc25c33c8795` |
+
+Full hash of the canonical form: `16b4bc25c33c8795a474e3277eb56db06d31a6cfbfb46d1e94c45c36a0613cd3`; distinct canonical args across the six: **1**.
+
+Arguments verbatim (session-transcript escape form; the `\n` inside `path` are the fold):
+```
+{"path": "architect.yaml\nedits: [\n{\"oldText\": \"  narrator:\n    model: openrouter/z-ai/glm-5.3-flash\n    thinking: low\",\n \"newText\": \"  narrator:\n    model: openrouter/mistralai/devstral-2512\n    thinking: low\"}]", "edits": []}
+```
+
+**Six rejections, byte-identical** (tool-result lines 44, 46, 48, 50, 52, 54):
+```
+{"error":"Edit tool input is invalid. edits must contain at least one replacement."}
+```
+The message is a PINNED pi-parity string: `repos/tart/lib/tart/schemas/tools.rb:29` (`PINNED_EDITS_MESSAGE`, "byte-exact, pi's own", citing pi `edit.ts:138` — confirmed in `repos/pi/packages/coding-agent/src/core/tools/edit.ts:138`).
+
+**Per-round thinking differs every round while the emission stays byte-identical** (thinking quotes, session lines 45/47/51/53/55):
+- :45 — "I mistakenly passed empty edits second? Actually I sent one edit but edit tool complains edits must... Wait I used edit with edits array one object and second empty object. Remove second."
+- :47 — "The tool schema requires `edits` array of objects with oldText/newText. I'm sending edits as property but then extra edits? Wait call above has `edits: [...]` then `edits: []` duplicated? I wrote:\n{\n path,\n edits: [{...}],\n edits: []  <- invalid duplicate\n}\nNeed remove duplicate."
+- :51 — "Oh I think the JSON parser sees `edits` twice; second overrides. I must not include second."
+- :53 — "Why is edits empty? It seems maybe I accidentally typed `\"edits\": []` after. Wait the command JSON displayed has both."
+- :55 — "I keep appending `edits\": []`. **The system seems to merge?** Odd. Actually maybe the edit tool requires `edits` as an array of objects; I am providing one object but the property names maybe mismatched: oldText/newText. They are correct. But error says edits must contain at least one replacement—maybe because my JSON has `edits` followed by another `edits` empty, and tool uses last."
+
+**No-model-field key-set audit** (all 57 lines): line keys ⊆ `{id, parentId, timestamp, type, message, cwd, version}`; message keys ⊆ `{role, content, tool_calls, thinking, thinking_signature, finish_reason, input_tokens, output_tokens, cache_read_tokens, cache_write_tokens, thinking_tokens, tool_call_id}` — **no `model` key anywhere** (the substring "model" appears only inside content/thinking prose).
+
+**Beam registration transcript** (`scratch/beam-registration.txt`, from the 06:56Z session): registered 06:58:11Z, 41 s before the failing session booted, THROUGH the edit tool, entry as-shipped: `compat: {supportsDeveloperRole: false, thinkingFormat: "openrouter", supportsStrictMode: true, supportsReasoningEffort: true}`, `thinkingLevelMap` off..max, id `reflection/beam-1.0-501b-a23b:nitro`. Current `~/.tart/models.json` beam entry byte-matches (frozen gate `models-json-beam-invariant` GREEN below). The plan's "compat lacks supportsStrictMode" premise: WRONG (confirmed at the tree).
+
+**As-shipped strict resolution — strict OFF** (code-cited):
+- `repos/tart/lib/tart/models.rb:242` `dialect_for(compat)`: `return DEFAULT_DIALECT unless compat&.thinking_format == "zai"` — beam's compat is `"openrouter"` → `DEFAULT_DIALECT` (:259: `Dialect.new(supports_finish_reason: false)` — no `supports_strict_mode` → false). A non-zai compat declaring supportsStrictMode is tolerated-and-DROPPED (the file's own comment, the frozen boundary).
+- `repos/fast-llm/gems/completions/lib/fast/completions/protocol.rb:83` `apply_tools`: `strict = ConstrainedSampling.resolve_json_schema_strict_sampling(tool, dialect.supports_strict_mode)`; strict-incapable + `"prefer"` → resolver returns nil (silent loose fallback, `constrained_sampling.rb:54-60`) → parameters ship VERBATIM, no `"strict"` key.
+- `repos/fast-llm/.../dialects.rb:32`: `supports_strict_mode: [false, nil]` — free boolean in the closed vocabulary → the E3 driver-level force is legal without a gem edit.
+- `protocol.rb:43`: `params[:temperature] = temperature unless temperature.nil?` — the failing requests carried NO temperature key (zero `temperature` hits under `repos/tart/lib/`).
+
+## EXPERIMENTS
+
+Driver: `scratch/driver.rb` (gem-stack legs) and `scratch/raw_wire.rb` (E2 raw-wire leg), run `cd repos/tart && bundle exec ruby <scratch>/<driver>.rb …` (read-only use of the checkout; all writes to scratch). Stage dirs: `scratch/stage-<leg>-<n>/` hold the pre-edit `architect.yaml` copy; ALL tool execution is confined to the stage dir.
+
+**E1 — live reproduction, beam AS SHIPPED (loose) — 6 calls (cap 6). OUTCOME: NOT REPRODUCED.**
+
+| attempt | shape | rounds | what the model emitted | raw artifact |
+|---|---|---|---|---|
+| E1-1a | exact replay | 1 | bash `grep -n -A2 "narrator:" architect.yaml` (no edit call; driver crashed post-stream at a usage field name — parsed args lost, raw bytes preserved) | `raw-args-E1-1a.txt` |
+| E1-2a | exact replay | 1 | bash `grep -n 'narrator:' -A2 architect.yaml` (no edit call) | `raw-args-E1-2a.txt` |
+| E1-3 r1 | exact replay (loop-shaped, sandboxed bash) | 1 | bash python3-heredoc doing the edit by string replace (sandbox did not yet exist; executed on the STAGED copy only — verified no repo write, no commit) | `raw-args-E1-3-r1.txt` |
+| E1-3 r2 | round 2 | 1 | bash `git diff/add/commit` (blocked by gitignore error at creation; no commit — verified `git log` + `git diff --cached` clean) | `raw-args-E1-3-r2.txt` |
+| E1-3 r3 | round 3 | 1 | bash `cat .gitignore; git ls-files …` (read-only) | `raw-args-E1-3-r3.txt` |
+| E1-3 r4 | round 4 | 1 | bash `cd <space root> && pwd && git status && git diff` (read-only) | `raw-args-E1-3-r4.txt` |
+
+Result file `leg-E1-3-result.json`; the bash sandbox (added after r2's git-add attempt: single read-only command allowlist, no operators) is in `driver.rb`. In 6 capped calls beam NEVER emitted an edit-tool call — it prefers bash for this task when system-less. Note: the exact-context replay is SYSTEM-LESS (tart's instructions are not recorded in the session jsonl — the no-model forensics gap extends to instructions); the failing session's agent had full instructions. E1 is therefore a weaker replay than the real failing context; recorded as a residual.
+
+**E2 — raw-wire control (the discriminator) — 4 wire-reaching calls (cap 3; the 2 over-cap calls are zero-token creation-phase 400s, disclosed). Capture mechanism: raw `Net::HTTP` POST with the gem-built request body (`Protocol.build_request`, messages substituted with codec-parity wire hashes — `reasoning_details` on replayed assistant turns; a Message-shim through build_request drops them and openrouter 400s, measured), response SSE chunks dumped VERBATIM pre-parse.**
+
+| attempt | shape | http | outcome | raw artifact |
+|---|---|---|---|---|
+| E2-1a | simple | 200 | finish=tool_calls; extraction-bug ate the result file — re-extracted OFFLINE from the preserved dump | `raw-args-E2-1a-r1.txt` |
+| E2-2a | exact | 400 | `The assistant turn at messages[1] is missing its reasoning… Send it back in 'reasoning_content', or set allow_missing_thinking=true` (providers Together/CoreWeave/Nebius) | `raw-args-E2-2a-r1.txt` |
+| E2-2 r0 | exact | 400 | same 400 — the wire-hash shim had dropped `reasoning_details` (harness fix, disclosed) | `raw-args-E2-2-r1.txt` (overwritten by the successful run; 400 body noted in ledger) |
+| E2-2 r1 | exact | 200 | **edit call emitted; RAW BYTES CAPTURED PRE-PARSE** | `raw-args-E2-2-r1.txt` |
+
+RAW streamed argument bytes (both successful legs, byte-identical, 218 bytes; `scratch/e2-extraction.txt`):
+```
+{"path": "architect.yaml", "edits": [{"oldText": "  narrator:\n    model: openrouter/z-ai/glm-5.3-flash\n    thinking: low", "newText": "  narrator:\n    model: openrouter/mistralai/devstral-2512\n    thinking: low"}]}
+```
+- strict `JSON.parse` of the raw bytes: **succeeds** → well-formed.
+- gem finalize view (`Protocol.parse_streaming_json`): **identical** to the strict parse — the receive path altered NOTHING.
+- edit executed on the staged copy: `Successfully replaced 1 block(s) in architect.yaml.`
+
+**OUTCOME: the malformed shape did NOT reproduce at the raw wire in either shape; on every observed emission, raw bytes == finalize view.** The three Grounds hypotheses are decided only partially (see ATTRIBUTION).
+
+**E3 — strict-forced-on (driver-level `Dialect.new(supports_finish_reason: false, supports_strict_mode: true)`) — 3 calls (cap 3).**
+
+| attempt | shape | rounds | emission | openrouter verdict |
+|---|---|---|---|---|
+| E3-1 | simple | 1 | edit call, WELL-FORMED, succeeded | strict key ACCEPTED (no HTTP error) |
+| E3-2 | exact | 2 | r1 bash grep (sandboxed), r2 edit call WELL-FORMED, succeeded | strict key ACCEPTED |
+
+Raw: `raw-args-E3-1-r1.txt`, `raw-args-E3-2-r1.txt`, `raw-args-E3-2-r2.txt`; results `leg-E3-1-result.json`, `leg-E3-2-result.json`; request dump `request-E3-0.json` (build-only, shows the strict rewrite: `function.strict: true`, root `additionalProperties: false`, parameters otherwise verbatim). Forced grammar did NOT change the emission shape — it was already well-formed in both shapes.
+
+**E4 — glm-5.3 control, SAME loose path — 3 calls (cap 3).**
+
+| attempt | shape | rounds | emission |
+|---|---|---|---|
+| E4-1 | simple | 1 | edit call WELL-FORMED, succeeded |
+| E4-2 | exact | 2 | r1 bash grep (sandboxed), r2 edit call WELL-FORMED, succeeded |
+
+Raw: `raw-args-E4-1-r1.txt`, `raw-args-E4-2-r1.txt`, `raw-args-E4-2-r2.txt`; results `leg-E4-1-result.json`, `leg-E4-2-result.json`. glm through the identical stack: well-formed → the recorded malformation is not path-inherent.
+
+**E5 — pi oracle, beam registered for pi via STAGED config — 3 calls (cap 3, exactly).**
+
+Mechanism (discovered read-only from `repos/pi/packages/coding-agent/docs/configuration.md:9` + `docs/models.md`): pi's agent dir is `PI_CODING_AGENT_DIR`-overridable; staged `scratch/pi-agent-dir/models.json` declares provider `openrouter-staged` (baseUrl openrouter, `api: openai-completions`, `apiKey: "${OPENROUTER_API_KEY}"` env-interpolated — the key itself never written to any artifact, injected at runtime from `~/.tart/models.json` read-only). Harness: `repos/pi` clone at tag v1.1.0 (dist config.js says 1.1.0; `git describe` v1.1.0, clean), `node packages/coding-agent/dist/cli.js --model openrouter-staged/reflection/beam-1.0-501b-a23b:nitro --thinking low --tools edit,read,grep,find,ls --print "<task>"` in the staged dir.
+
+| turn | emission |
+|---|---|
+| 1 | `read` args `{"path": "architect.yaml"}` (well-formed) |
+| 2 | `edit` args `{"path": "architect.yaml", "edits": [{"oldText": "  narrator:\n    model: openrouter/z-ai/glm-5.3-flash\n    thinking: low", "newText": "  narrator:\n    model: openrouter/mistralai/devstral-2512\n    thinking: low"}]}` — **WELL-FORMED** |
+| 3 | final answer ("Changed narrator model…") |
+
+Artifact: `scratch/pi-session-E5-1.jsonl` (pi's own session recording). pi's recorder DOES record the model per message (message keys include `model`) — the exact gap tart's recorder has. No folded shape under pi's own harness.
+
+**Offline zero-spend simulations (no API):**
+- `scratch/repair_fold_sim.rb` → `scratch/repair-fold-sim-out.txt`: hypothesis A (fold verbatim, fully escaped) → parses directly; hypothesis B (raw quotes + raw newlines) → finalize `{}`; hypothesis B' (escaped quotes + RAW newlines) → `repair_json` folds it into **EXACTLY the recorded shape** (equality vs the recorded args: `true`); hypothesis C (well-formed) → passes through unchanged.
+
+## ATTRIBUTION
+
+**Primary layer: `model-emission`.**
+
+- **`tart-argument-handling` — ELIMINATED as the producer.** The fold is present in the arguments hash exactly as the gem's finalize parse delivered it (`protocol.rb:222-235` is the sole authority — `args_streamer.rb` L9), BEFORE any tart code runs. tart's seam (`lib/tart/tools/edit.rb:91` `normalize_arguments`, :76-103) only reads/re-writes `edits` and legacy top-level `oldText/newText`; it never touches `path` and cannot CREATE the fold. Its failure is a missed RECOVERY (the rejection), not the emission.
+- **`gem-wire-or-parse` — ELIMINATED as the producer under the "well-formed emission folded by the receive path" hypothesis (Grounds hypothesis 3).** E2's mandatory raw-bytes capture (2 successful beam legs, both shapes) shows raw streamed bytes ≡ finalize view, byte-for-byte (`scratch/e2-extraction.txt`): on this stack the receive path does not fold or alter well-formed emissions. The gem IS a possible co-author under Grounds hypothesis 2 — but only in its narrowed form (PHASE 0 item 1): from escaped-quotes + RAW-newline bytes, `repair_json` (`protocol.rb:239`) silently normalizes into EXACTLY the recorded shape (sim equality `true`). That path still begins with a MODEL-side malformation (raw control chars inside a JSON string); the gem's repair only converts a would-be hard parse failure into parseable nonsense. The gem is at most a silent normalizer — not the origin.
+- **`model-emission` — NAMED.** The recorded emission is a model-side artifact under both surviving raw-emission hypotheses: A (the model emitted the fold verbatim, fully escaped) and B' (the model escaped the payload's quotes but left raw newlines; the gem's repair then folded it). Every live control through the same stack emitted well-formed args: E2 raw-wire (beam, 2 shapes), E3 strict-forced (beam), E4 (glm, same loose path), E5 (pi's own harness, same model). Quoted discriminators: `scratch/e2-extraction.txt` ("strict JSON.parse of raw: succeeds"; "gem finalize view: identical"), `scratch/repair-fold-sim-out.txt` ("B' finalize equals recorded: true"), `scratch/leg-E4-1-result.json` / `scratch/pi-session-E5-1.jsonl` (well-formed edit args from the same task).
+
+**Conflict statement (legs do conflict on reproducibility, stated not smoothed):** the failing session produced the fold six times under beam in tart's agent; NO leg reproduced any malformed emission — E1 (exact-context, system-less) never even emitted an edit call; E2–E5 all well-formed. Attribution of this conflict: the replay is not context-exact — tart's instructions and the failing agent's full system context are not recorded in the session jsonl (the no-model/no-instructions forensics gap), and the E1 loop used a bash sandbox the real session did not have. The E2 capture therefore did not observe a malformed emission, so the A-vs-B' sub-question (did the gem's repair participate in the recorded shape?) is UNRESOLVED — both are model-side primary, and the resolution is named as a residual for ENTRY 2 (close it with the gem-side raw-args echo below).
+
+## RECOMMENDATION
+
+1. **Fix shape (two parts, attribution-shaped):** (a) TOLERANCE — teach tart's `Tart::Tools::Edit.normalize_arguments` to recover the folded-into-`path` shape. One-line mechanism: when `edits` is empty AND `path` contains a newline AND the tail after the first newline parses as a JSON array of `{oldText, newText}` objects, replace `path` with its first line and `edits` with that array (the shape is syntactically unambiguous per Grounds). (b) OBSERVABILITY — in the gem's finalize path (`protocol.rb` `finalize_blocks`), when `repair_json` participated (re-parse succeeded ≠ raw parse), surface the raw scratch bytes (`ArgsStreamer#scratch` already holds them) on the tool call so the next occurrence is attributable without a spike. Strict/grammar changes: NOT indicated (E3: strict-on accepted, no shape change).
+2. **Landing repo(s) + ENTRY 2 routing:** the cure lands in **`repos/tart`** (`lib/tart/tools/edit.rb`, recovery in `normalize_arguments`); the observability part lands in **`repos/fast-llm`** (`gems/completions/lib/fast/completions/protocol.rb` — a receive-path log/annotation, no wire change). ENTRY 2 routing consequence: the gem is NOT implicated as the malformation's producer (attribution above) ⇒ **tart entry first**; the gem observability rides as a separate small follow-up entry (it is a forensics cure, not the failure's cure). If ENTRY 2 adopts the pi-parity bar strictly, note the recovery is a deliberate behavioral DIVERGENCE from pi (item 3) and must be declared.
+3. **Should `prepareEditArguments` RECOVER the folded shape — YES.** Argument: (i) the shape is syntactically unambiguous (Grounds; `edits == []` ∧ `path` contains a newline ∧ tail parses as an edits array — a false positive requires exactly the failure shape); (ii) the recorded cost of NOT recovering is six wasted rounds plus a bash+python fallback that bypassed the edit tool's validation/diff/details path entirely; (iii) pi — the ORACLE — does NOT recover it: `repos/pi/packages/coding-agent/src/core/tools/edit.ts:103-141` `prepareEditArguments` handles only edits-as-JSON-string, single-edit-object, and legacy top-level oldText/newText, and `:138` `validateEditInput` throws the same bare pinned message — i.e. under pi the same emission would burn the same six rounds; recovering in tart is a declared divergence from pi (or, preferably, an upstream pi change first — pi's `prepareArguments` hook is the natural upstream seat). Keep the rejection message byte-identical (`tart/lib/tart/schemas/tools.rb:29` pins it to pi's `edit.ts:138` — do NOT reword the error; add the recovery instead).
+4. **Named residuals ENTRY 2 must handle:** (a) the session-records-no-model forensics gap — pi records `model` per message (`scratch/pi-session-E5-1.jsonl`), tart's recorder does not; carry pi's key shape in the recorder cure (session-golden byte-parity is law); (b) the A-vs-B' unresolved sub-question — add the gem-side raw-args echo (item 1b) so any recurrence self-attributes; (c) the bare-rejection message is pi-pinned — recovery, not rewording; (d) the exact-context replay is system-less (instructions unrecorded) — a full-context reproduction was not achievable from the jsonl alone; (e) the E2 spend-cap overrun accounting (2 zero-token 400s) — the caps need a creation-failure carve-out or a bigger discriminator budget; (f) the E1 bash-sandbox divergence (the failing session's model could and did edit via bash; the replay's sandbox denied writes).
+
+## SPEND
+
+Ledger: `scratch/spend-ledger.jsonl` (one JSON line per wire-reaching call; corrected E5 rows documented in-band).
+
+| leg | calls | cap | over-cap | tokens in | tokens out | notes |
+|---|---|---|---|---|---|---|
+| E1 | 6 | 6 | 0 | 818 | 797 | 2 driver crashes post-stream (1a, 2a) — streams completed, raw preserved; harness cost, real calls |
+| E2 | 4 | 3 | **+1** | 0 | 0 | 2 creation-phase 400s (zero tokens, zero observation, harness-fidelity fixes) + 2 successful captures (usage not exposed by the raw path) |
+| E3 | 3 | 3 | 0 | 330 | 399 | |
+| E4 | 3 | 3 | 0 | 50,682 | 552 | E4-2 r1 carries the full 41-message history un-cached |
+| E5 | 3 | 3 | 0 | 2,321 | 243 | pi turns 1–3 (per pi's session usage; cost $0.00 recorded by pi) |
+| **total** | **19** | **18** | **+1** | **54,151** | **1,991** | |
+
+**Gate results (frozen block, measured this session):**
+
+| gate | result |
+|---|---|
+| report-present | GREEN (REPORT_OK) — after this file was written |
+| report-structure | GREEN (STRUCTURE_OK) |
+| attribution-named | GREEN (ATTRIB_OK) |
+| spend-ledger | **RED** — `AssertionError: total cap exceeded: 19` (the ledger also breaks the E2 leg cap: 4 vs 3; both driven by the same 2 zero-token creation-phase 400s; disclosed, not smoothed) |
+| leg-artifacts | GREEN (ARTIFACTS_OK; 40+ files incl. `raw-args-*` non-empty) |
+| tart-pristine | GREEN (CLEAN_OK; tracked clean, only standing `t75*` untracked) |
+| gem-pi-untouched | GREEN (ENV_OK; `repos/fast-llm` and `repos/pi` `status --porcelain` empty) |
+| models-json-beam-invariant | GREEN (MODELS_OK; beam entry unchanged vs registration) |
 
 ## Verdict
 
