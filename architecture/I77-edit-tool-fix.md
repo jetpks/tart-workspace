@@ -325,6 +325,21 @@ case.
        model-inert (`seed.model.nil?`);
     5. the `error_failure` assistant gains no keys;
     6. user and tool messages gain no keys.
+  - `test/agent_loop_test.rb` + `test/flow_test.rb` — **DECLARED
+    RE-PIN (AMENDMENT 2026-10-18T19:56Z, escalation-seat ruling,
+    second I77 escalation: the frozen spec's AC4 and 4-path scope
+    were mutually unsatisfiable — the identity law makes two
+    model-bearing suite pins fail, and both sat outside the touch
+    set)**: `agent_loop_test.rb`
+    test_recorded_message_shape_matches_the_frozen_bytes — the frozen
+    hash gains `"provider" => "mock", "model" => "tart-test-model"`
+    immediately after `tool_calls` in BOTH assistant assertions;
+    `flow_test.rb` test_mid_tool_failure_keeps_every_observable_byte —
+    the VOLATILE-normalized session digest moves to the measured
+    `ba7b092fb16db0aae79c294188749ebe54c8d0e210b522cc99db692181908e0b`.
+    NOTHING else in either file moves. Test-local suppression of the
+    identity emission is FORBIDDEN (it would pin a shape the law
+    forbids).
   The builder's report: `build/I77-edit-tool-fix-core/report.md` —
   raw tables only (gate one-liners, suite counts, no verdicts), plus
   `## PHASE 0` as its first section after the STATUS line.
@@ -351,8 +366,11 @@ case.
 - **Boundaries.**
   - **May touch (the whole frozen touch set):**
     `lib/tart/tools/edit.rb`, `lib/tart/agent/message.rb`,
-    `test/edit_fold_test.rb` (new), `test/session_test.rb`. NOTHING
-    else — the scope gate freezes exactly this 4-path set.
+    `test/edit_fold_test.rb` (new), `test/session_test.rb`, plus
+    the two DECLARED re-pin files `test/agent_loop_test.rb` +
+    `test/flow_test.rb` (AMENDMENT 2026-10-18T19:56Z, escalation-seat
+    ruling — see Output format for the exact two-pin move). NOTHING
+    else — the scope gate freezes exactly this 6-path set.
   - **Must not touch:** `repos/fast-llm` + `repos/pi` (read-only);
     `~/.tart/**` (read-only — the failing session jsonl is evidence);
     `~/.pi/**`; `architecture/**`; any rig scenario file or rig code
@@ -384,6 +402,8 @@ case.
     - lib/tart/agent/message.rb
     - test/edit_fold_test.rb
     - test/session_test.rb
+    - test/agent_loop_test.rb
+    - test/flow_test.rb
 ```
 
 - **Effort:** high — the load-bearing skills are exact-byte discipline
@@ -455,8 +475,9 @@ greater than the base floor (1382 runs / 6507 asserts / 0F / 0E / 1S at
 holds (wire-delta `4209f40b…`+`7360fd1e…` EXACT, session-golden 7/7
 EXACT, zai tart=pi=512, the pty battery, the oracle family, the
 markdown battery, the child-env law, the session-sink family, the
-signal-hygiene family); the scope gate bites exactly the frozen 4-path
-touch set with BOTH lib seams changed. The standing adjudication
+signal-hygiene family); the scope gate bites exactly the frozen 6-path
+touch set (the four original paths plus the two DECLARED re-pin
+files, AMENDMENT 2026-10-18T19:56Z) with BOTH lib seams changed. The standing adjudication
 classes (declared, NOT re-litigated — the I72/I73/I74/I75 verdicts):
 `s9-parity` + `herdr-wire-probe` at LANE-TREE depth (the wrap-geometry
 / socket-path classes — judge-own at-base triangle decides, GREEN at
@@ -2035,10 +2056,10 @@ before concluding the spec is sound) — silent compliance is a defect.
   cmd: |-
     git diff --quiet 6451f1e -- Gemfile Gemfile.lock tart.gemspec bench gems bin/tart lib ':(exclude)lib/tart/tools/edit.rb' ':(exclude)lib/tart/agent/message.rb' &&
     ! (git diff --name-only 6451f1e; git status --porcelain | grep "^??" | cut -c4-) |
-    grep -vE "^(lib/tart/tools/edit\.rb|lib/tart/agent/message\.rb|test/edit_fold_test\.rb|test/session_test\.rb|t7[57][0-9a-z]*/?|tmp/render-perf-gate/?)$" |
+    grep -vE "^(lib/tart/tools/edit\.rb|lib/tart/agent/message\.rb|test/edit_fold_test\.rb|test/session_test\.rb|test/agent_loop_test\.rb|test/flow_test\.rb|t7[57][0-9a-z]*/?|tmp/render-perf-gate/?)$" |
     grep -q . && [ -n "$(git diff 6451f1e -- lib/tart/tools/edit.rb)" ] &&
     [ -n "$(git diff 6451f1e -- lib/tart/agent/message.rb)" ] ||
-    { echo "FAIL: scope — the tree bites outside the frozen 4-path touch set (lib/tart/tools/edit.rb the fold recovery, lib/tart/agent/message.rb the assistant projection, test/edit_fold_test.rb the fold pins, test/session_test.rb the model-identity pins), or one of the two lib seams is untouched"; exit 1; }
+    { echo "FAIL: scope — the tree bites outside the frozen 6-path touch set (lib/tart/tools/edit.rb the fold recovery, lib/tart/agent/message.rb the assistant projection, test/edit_fold_test.rb the fold pins, test/session_test.rb the model-identity pins, test/agent_loop_test.rb + test/flow_test.rb the two DECLARED re-pin files — AMENDMENT 2026-10-18T19:56Z), or one of the two lib seams is untouched"; exit 1; }
     echo SCOPE_OK
   expect:
     exit_code: 0
