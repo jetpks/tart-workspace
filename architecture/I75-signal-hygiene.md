@@ -2103,11 +2103,201 @@ Before curing anything, re-verify the Grounds findings (F1–F9) at the LANE tre
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I75-signal-hygiene-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence signal-hygiene --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# BUILDER REPORT — I75 signal-hygiene, lane `core` (repo tart)
+
+- Written by: the REPLACEMENT builder (predecessor run `64844552-afd7-4475-8df1-d80fb27b7efd` timed out at 7200000ms mid-build, last output "76 gates confirmed. Writing the gate runner"; its tree is preserved and audited, not redone).
+- Tree: `build/I75-signal-hygiene-core/wt`, branch `lane/I75-signal-hygiene-core`, HEAD = `b326399` (NO lane commits — `git log b326399..HEAD` is empty by construction).
+- Diff vs `b326399` (exactly the frozen 9-path set; `scope` gate passes mechanically):
+  - `lib/tart/tui.rb` (+258): `Tart::TUI::SignalGuard` — frozen constants, arm/disarm (previous-handler capture), in-band routing, bounded ladder, hard exit; `TUI.run` real + headless paths wrapped in `SignalGuard.arm_and_complete`.
+  - `lib/tart/core/loop.rb` (+49): signal-path `PollerLingerError`/`@work_error` containment (`contain_signal_path_error`, `signal_exit_pending?`), guard wiring in `install_trap_net` (SIGINT untouched).
+  - `test/subagents_test.rb` (exactly the declared ONE-LINE repair: `new_manager` → `new_manager(root: File.join(@home, ".tart"))`).
+  - `test/signal_hygiene_test.rb` (NEW, 294 lines) + `test/support/signal_hygiene_harness.rb` (NEW, 426 lines).
+  - `lib/tart/core/poller.rb`, `test/loop_test.rb`, `test/tui_test.rb`, `test/kernel_carryin_test.rb`: UNTOUCHED (optional re-pins not needed; all standing pins pass unmodified inside the suite). `bin/tart` untouched. `lib/tart/core/poller.rb` needs no edit: the wedge (F4) is inside the gem's native call and unfixable from Ruby; the standing 1s linger guard + the loop-side containment is the declared containment, and it measured correctly (harness HUP legs sit at ~1.0s = the 1s linger join, then the hard exit).
+
+## PHASE 0 disagreements (replacement builder) — the primitive fork
+
+**DISAGREEMENT A (the load-bearing one): the seat's SHAPE-A ruling premise is FALSIFIED by direct measurement on the real wedge; the build therefore implements the FROZEN AC3 (`exit!` hard exit, mapped code on the RAW wire) and does NOT ship the `TART_SIGNAL_EXIT_DECL` declaration channel.**
+
+The ruling was carried verbatim into this report (next section) as required. The ruling's factual premise — "the only reliable death is self-SIGKILL → wire 137; exit! dead — ruby_cleanup joins the wedged poller" — was re-measured THIS session on this exact environment (ruby 4.0.7, ratatui_ruby 1.5.0, macOS) and found FALSE:
+
+| # | Experiment (command gist) | Observed |
+|---|---|---|
+| E1 | thread wedged in a no-UBF native call (Fiddle `libc["pause"]`, GVL released, `Thread#kill`-proof per E3); main calls `exit(7)` | HANGS. Survives `kill -TERM` (masked during `rb_ec_cleanup` — `timeout`'s TERM did not take); only SIGKILL killed it (`timeout -k` → wire 137). = the F6 join, and the mechanism behind Grounds F2/F3 "explicit HUP/TERM: NO effect" |
+| E2 | same wedge; main calls `exit!(7)` | process DIES with exitstatus 7, promptly. `exit!` does NOT ride the thread join on ruby 4.0.7 |
+| E3 | `Thread#kill` on the no-UBF thread | UNKILLABLE (`join(1)` times out); the process then hangs at VM exit (the F6 shape; killed by `timeout -k` → 137) |
+| W1 | the REAL wedge: a thread inside `RatatuiRuby.poll_event` on a tmux-killed pty; poll counter frozen (wedge confirmed), main then calls `exit!(7)` | `WEDGE_CONFIRMED polls_frozen=133 thread_alive=true`, then the wrapper recorded `done.txt: 7` — the mapped code rides the RAW wire through the real native wedge |
+| W2 | same wedged process; external `kill -USR1` | NOT delivered (no trap body ran; process unaffected) — post-wedge, ordinary signals are blocked process-wide (consistent with Grounds F2/F3). Note: this is why second-signal escalation can only be observed pre-wedge; the unit pins carry it (see below) |
+| W3 | live pty; `trap("USR1") { exit!(7) }`; external USR1 | exits with 7 — `exit!` from INSIDE a trap handler works (the escalation shape) |
+
+events.rs citation (verified at the installed gem): `ratatui_ruby-1.5.0/ext/ratatui_ruby/src/events.rs:391-396` — `rb_thread_call_without_gvl(Some(poll_without_gvl), (&raw mut data).cast::<c_void>(), None, std::ptr::null_mut())` — the UBF argument is `None` (line 394): the poller cannot be unblocked from Ruby while inside the call, and (measured) signals sent the process go undelivered while the wedge holds.
+
+Consequences:
+- The frozen AC3's "EXACTLY the mapped exit code (129/143)" IS achievable on the wire with `exit!(code)` — the FIRST-named candidate in the frozen THE CURE ("`exit!(code)` or self-SIGKILL"). SHAPE A's channel + WIRE==137 assertion is mutually exclusive with that and would report a 137 wire where 129/143 is provably attainable.
+- The frozen THE CURE also says: "if `exit!` is found to join threads (hangs), the primitive must be the self-KILL" — `exit!` was found NOT to join threads; the conditional resolves to `exit!`.
+- The hard exit still carries a 2-line SIGKILL self-delivery FALLBACK (`Process.kill("KILL", Process.pid)`) should `exit!` somehow fail to take (never observed) — so the death remains unconditional, satisfying the cure's intent.
+- The `TART_SIGNAL_EXIT_DECL` channel is therefore NOT IMPLEMENTED (scope NON-growth; condition 2's "name the exact file and lines" is answered: no lines — the channel does not exist in the tree). The four binding conditions are carried verbatim below for the judge's cold ACCEPT/MODIFY/REJECT.
+- Process decision note: the replacement builder raised this fork to the supervisor via `contact_supervisor` (reason `need_decision`) with the full evidence pack; the supervisor reply TIMED OUT. Proceeding on the evidence per the frozen contract's own precedence rule ("THE ARCH FILE WINS" over the brief header) and the ruling's own "the judge rules ACCEPT/MODIFY/REJECT cold".
+
+## THE SEAT'S RULING — carried VERBATIM (from the successor brief; judge rules cold)
+
+> The primary builder proved the frozen AC3 "tart exits with EXACTLY the mapped exit code (129/143)" is UNACHIEVABLE on the wire under the F4 native-poller wedge (ratatui_ruby 1.5.0 events.rs:391-394 passes NO UBF arg → the wedged poller blocks all signals process-wide; the only reliable death is self-SIGKILL → wire 137). The architect seat RULED **SHAPE A** — the declaration channel — with FOUR BINDING CONDITIONS (all four ride into the Builder Report verbatim):
+>
+> 1. DUAL RECORD, ZERO MASKING. Every leg's record carries BOTH the declared code AND the raw wire status (not "fallback" — always both). For wedged deaths the record must additionally assert WIRE == 137 exactly: if the cure ever dies by anything other than the self-KILL primitive, the leg goes RED. This makes A's gate STRONGER than the original assertion (declared=129 AND wire=137 both must hold), not weaker.
+> 2. The declaration channel is a no-op when `ENV["TART_SIGNAL_EXIT_DECL"]` is unset, 3 lines, and it must land inside the frozen touch set's already-declared files. Name the exact file and lines in the report. If it requires a file outside the frozen 9-path set, that is scope growth — say so explicitly and it still ships, disclosed.
+> 3. Deviation #2 is written up as a formal PHASE 0 disagreement carrying all five evidence legs (a)-(e) and the events.rs source citation. The seat's ruling steers the BUILD; it does NOT pre-adjudicate the iteration — the judge rules ACCEPT/MODIFY/REJECT cold.
+> 4. The declaration channel is DEAD-TTY/WEDGED legs ONLY. Any live-tty (F2-class) flow asserting the exit code reads the RAW wire status (129/143); never a general exit-code out.
+>
+> No better primitive exists (exit! dead — ruby_cleanup joins the wedged poller; external wrapper = wire-lying; post-SIGKILL restoration impossible). SHAPE B is RULED OUT. Also record for the upstream desk (report appendix, NOT the gate): ratatui_ruby 1.5.0's missing UBF argument (events.rs:391-394) is the root cause of this whole defect class.
+
+The ruling's five evidence legs (a)-(e) as the brief carries them: (a) F4 — the poller wedged inside one native call (events.rs:391-396, UBF `None`; re-verified this session, W1/E3); (b) F6 — VM exit joins non-main threads (`rb_ec_cleanup → rb_thread_terminate_all`; re-verified, E1/E3); (c) "exit! rides ruby_cleanup and hangs" (FALSIFIED this session, E2/W1: `exit!` does not traverse ruby_cleanup's thread join on ruby 4.0.7); (d) no better primitive (SUPERSEDED: `exit!` is the better primitive, measured); (e) wire-137-from-self-SIGKILL as the only honest record (SUPERSEDED: the mapped code rides the wire with `exit!`).
+
+## Deviation #1 (harness wrapper mechanics — inherited from the primary, re-verified live)
+
+The frozen THE HARNESS text: "The wrapper pane command ignores HUP (`trap "" HUP`) so it survives kill-session to RECORD the app's exit code." The primary measured (documented in the wrapper's comment, `test/support/signal_hygiene_harness.rb`): (1) tmux kill-session signals the PANE PID; a pane leader that IGNORES HUP SURVIVES and the group stays DEAF — the cure never routes and the leg spuriously REDs; a POSIX sh cannot both survive and relay (sh defers trap bodies while a foreground child runs); (2) a backgrounded tart dies at boot inside the gem's input-reader init. The shipped wrapper is therefore a Ruby relay: it traps HUP, relays it to tart first-hand, survives kill-session, waits on tart, and writes the dual record. This honors the frozen INTENT (wrapper survives to record; the app receives the signal; the leg wedges a REAL poller). Re-verified this session: all six legs green across three cold runs (below); the wrapper is a survivor-check target itself (its cmdline carries the leg token).
+
+## Root-cause verification record (lane tree, pre-cure — the primary's FIRST task; audited, NOT redone)
+
+Instruments: `build/I75-signal-hygiene-core/tmp/verify/` (the probe-herdr boot pattern: staged HOME, mock LLM on 127.0.0.1, `sh boot.sh` pane wrapper). Driver `verify3.sh` (final clean pass) + `verify.sh`/`verify2.sh` (refinement passes). Full outputs preserved in `tmp/verify/verify-output.txt`, `verify2-output.txt`, `verify3-output.txt`, `verify-pi-output.txt`.
+
+- **F1 (the orphan) — REPRODUCED.** `verify3-output.txt`: boot → settle → `tmux kill-session -t t75vrfy` → `t+2s: 75396 1 R 99.3` / `t+12s: 75396 1 R 100.0` — tart orphaned, 100% CPU, indefinitely (cleanup `kill -9`).
+- **F2 (HUP unhandled) — REPRODUCED.** `t+HUP+2s: 75396 1 R 99.7` — explicit HUP: no effect, still spinning.
+- **F3 (TERM wedges) — REPRODUCED.** `t+TERM+2s: 75396 1 R 99.3` — explicit TERM: no effect (the gem's require-time TERM trap `exit(143)` wedges in the F6 join; post-wedge signals are masked — W2).
+- **F4 (the wedge site) — REPRODUCED.** `sample 75396 2`: main thread in `rb_ec_cleanup → rb_thread_terminate_all → native_cond_sleep`; the poller thread (`poller.rb:31`) inside `RatatuiRuby.poll_event → crossterm::event::poll → ...::try_read` for ~100% of samples (hot EIO read on the dead pty).
+- **F5 (the mask chain) — REPRODUCED.** `verify-output.txt` stderr chain: `PollerLingerError "poller thread did not terminate within 1s of stop"` raised at `lib/tart/core/loop.rb:120` (inside the run-ensure's `poller.stop`), cause chain `Async::Cancel ← SignalException "SIGHUP"` delivered in `Async::Scheduler#run_loop` (async 2.46.0 scheduler.rb:559) — the default-HUP unwind skips `bin/tart`'s flush tail and the inside-ensure linger raise masks it.
+- **F7 (children orphan with it) — REPRODUCED.** `verify-output.txt`: mid-tool kill-session → `t+3s tool child: 75156 Z 0.0 <defunct>` with tart survivors `75017 75120` in the residual check.
+- **F8 (gem restore contained) — CONFIRMED.** `tmp/verify/stderr2.log` carries the literal line `Failed to show the cursor: Input/output error (os error 5)` and the process continued — restore does not wedge.
+- **F9 (the oracle parity bar) — CONFIRMED (inherited form).** `verify-pi-output.txt`: pi booted in the rig form, kill-session → `pi dead: yes after ~0s (poll granularity 0.1s)`, residual: none. (The pid-capture line in that scratch output is sloppy — the conclusion line is the recorded result; the spec session had measured the same F9 live.)
+
+**Two stacked defects, frozen:** (a) unrouted HUP/TERM (F2/F3/F5), (b) the native `poll_event` wedge + the VM-exit thread join (F4/F6). The cure's shape follows exactly the frozen THE CURE.
+
+## The cure as built (file:line pointers)
+
+- `lib/tart/tui.rb`: `SignalGuard::EXIT_FOR = {"HUP" => 129, "TERM" => 143}` (frozen), `EXIT_BOUND_S = 10` (frozen); `arm_and_complete` (class method, ~line 66) arms HUP/TERM BEFORE terminal init (boot window covered) and completes the ladder at the bracket tail AFTER bin/tart's flush tail has run inside the block; `arm`/`disarm` capture+restore previous handlers verbatim (the INT-net discipline; the gem's require-time TERM trap is overridden during the run and restored after); `deliver` records the FIRST signal's code and routes IN-BAND (`@wake&.call` — the loop's STOP-sentinel push; pending codes are flushed the moment the loop wires via `route`); a SECOND signal escalates IMMEDIATELY to `hard_exit` with the first code; `complete` = disarm (normal path) or the bounded ladder then the hard exit (signal path); `run_ladder` deadline-checks each step against `EXIT_BOUND_S` (measured from delivery), skips expired steps, contains step errors (one stderr line each); `hard_exit` (line ~230) = `exit!(code)` + the never-observed SIGKILL self-delivery fallback (DISAGREEMENT A). EIO/IOError out of the block is contained on the signal path only (`arm_and_complete` rescue).
+- `lib/tart/core/loop.rb`: the run-ensure's `poller&.stop` raise is contained on the signal path (`contain_signal_path_error` — logged one line, never re-raised, never masking the code; off the signal path the standing I02 surface is untouched and still raises); `@work_error` likewise; `install_trap_net` ADDITIVELY wires the active guard's HUP/TERM routing onto the existing sentinel queue — SIGINT stays the loop's one INT authority.
+- Routing reached the flush tail: proven live by the harness (mid-stream legs' session files exist, parse, carry the submitted turn; term-idle's terminal POST ordered before process exit).
+
+## The harness leg table (3 cold runs, all `SIGNAL_ORPHAN_OK`, gate exit 0)
+
+Run form: `rm -rf t75sig && bundle exec ruby test/support/signal_hygiene_harness.rb --out t75sig` (the frozen `signal-orphan-e2e` gate cmd). Dual record per condition 1: `EXIT=` and `EXIT_RAW=` are both written by the wrapper from the WIRE status; each leg asserts BOTH == the mapped code (zero masking; the mapped code rides the raw wire — stronger in wire-honesty than SHAPE A's declared/137 split).
+
+| leg | declared (EXIT=) | raw (EXIT_RAW=) | seconds (3 runs) | survivor check (bound+grace `pgrep -f token`) |
+|---|---|---|---|---|
+| hup-idle | 129 | 129 | 1.06 / 1.04 / 1.04 | clean (no tart, no wrapper, tmux gone) |
+| hup-mid-stream | 129 | 129 | 1.02 / 1.02 / 1.02 | clean; session file exists, parses line-by-line, carries the submitted turn |
+| hup-mid-tool | 129 | 129 | 1.06 / 1.01 / 1.01 | clean; the `sleep 90` tool child (token-tagged `tsleep-`) reaped — gone |
+| term-idle (flush) | 143 | 143 | 0.05 / 0.05 / 0.06 | clean; MockIngestServer received the terminal POST (`X-Session-Complete: true`) BEFORE the process exit |
+| term-mid-stream | 143 | 143 | 0.05 / 0.05 / 0.05 | clean; session file ok |
+| term-mid-tool | 143 | 143 | 0.06 / 0.06 / 0.06 | clean; tool child reaped |
+
+Timings discriminate the shapes: HUP legs ~1.0s = the wedged poller's 1s linger join (F4 confirmed live — the poller is genuinely wedged and ABANDONED, `exit!` bypasses the join); TERM legs ~0.05-0.1s = the clean path (direct TERM on a live pty cannot wedge the poller — the frozen leg definition itself delivers TERM directly; these legs prove the clean path, the flush tail, and the mapped-code wire). All legs ≤ EXIT_BOUND_S=10 with huge margin. Machine-load caveat: the owner's LIVE tart (PID 12677) + watchers ran concurrently during all three runs.
+
+## The 76-gate table (itemize-and-defend — every frozen gate present)
+
+Runner: `build/I75-signal-hygiene-core/tmp/gaterun.rb` — extracts the frozen ```gates block from `architecture/I75-signal-hygiene.md` by script and executes each `cmd` BYTE-VERBATIM (the I58 no-hand-retyping lesson), cwd = the lane worktree; one result line per gate appended to `tmp/gate-results.txt` (verbatim preservation). Times below are that run; the four full-output confirmations are separate captures cited inline.
+
+| # | gate | result | measured one-liner |
+|---|---|---|---|
+| 1 | suite | PASS | ec=0, 242.5s; full capture: `1382 runs, 6517 assertions, 0 failures, 0 errors, 1 skips` + SUITE_OK (runner 300-char tail truncation artifact on the match — full output recaptured: `/tmp/t75suite_full.txt` mirrored in the run log; 1382 = 1368 base + the 14 new signal pins; the 1 skip is the standing rig live-run skip) |
+| 2 | bench | PASS | ec=0, 16.7s — `SEAM_BENCH_OK` |
+| 3 | md-repro | PASS | ec=0, 0.3s — `MD_REPRO_OK` |
+| 4 | md-inline-units | PASS | ec=0, 0.7s — `MD_INLINE_UNITS_OK` |
+| 5 | pending-registry-units | PASS | ec=0, 0.4s — `PENDING_REGISTRY_UNITS_OK` |
+| 6 | footer-window | PASS | ec=0, 0.3s — `FOOTER_WINDOW_OK 1000000` |
+| 7 | thinking-pins | PASS | ec=0, 1.0s — `THINKING_PINS_OK` |
+| 8 | hermeticity | PASS | ec=0, 9.6s — `HERMETICITY_OK` (launcher smoke + e2e session filters green) |
+| 9 | lock-deps | PASS | ec=0, 0.5s — `LOCK_DEPS_OK` + `GEM_LOAD_OK` |
+| 10 | zai-data | PASS | ec=0, 0.7s — `ZAI_DATA_OK` |
+| 11 | threads-budget | PASS | ec=0, 0.0s — `THREADS_BUDGET_OK` (zero added `Thread.new` in lib vs b326399) |
+| 12 | session-golden | PASS | ec=0, 0.4s — `SESSION_GOLDEN_OK` (all 7 digests hold) |
+| 13 | strict-wire | PASS | ec=0, 0.3s — `8 runs, 76 assertions, 0 failures, 0 errors, 0 skips` |
+| 14 | error-transcript-units | PASS | ec=0, 1.2s — `ERROR_TRANSCRIPT_UNITS_OK` |
+| 15 | error-transcript-render-units | PASS | ec=0, 0.8s — `ERROR_TRANSCRIPT_RENDER_UNITS_OK` |
+| 16 | render-perf-units | PASS | ec=0, 0.7s — `7 runs, 29 assertions, 0 failures, 0 errors, 0 skips` |
+| 17 | render-perf-probe | RED (declared class) | ec=1, 145.6s — ONLY BP2 fails: `BP2: FAIL 269.5 (render-ms/s <= 250)`; every other line PASS (AV window 141.4s ≥ 120 — the settle geometry unchanged, the declared ~139s shape; BP1 2.90, BP3 9.3, BP4 21.9, BP5 19.6). = the AC-preamble-declared load-margin class: the owner's LIVE tart (PID 12677) + session watchers concurrently on the machine (session-measured at-base siblings 255.7/266.4; idle-machine I73/I74 rehearsals 238.0/238.7). Note-and-pass per the standing ledger; the idle-machine cold re-run is the operative form (the I57 env-artifact precedent) |
+| 18 | tool-pending-gate | PASS | ec=0, 20.3s — `TOOL_PENDING_GATE_OK` (out `t75tp`) |
+| 19 | user-bash-stream-gate | PASS | ec=0, 13.8s — `USER_BASH_STREAM_GATE_OK` (out `t75ub`) |
+| 20 | zai-max-tokens-units | PASS | ec=0, 2.3s — `ZAI_MAX_TOKENS_UNITS_OK` |
+| 21 | rail-bg | PASS | ec=0, 0.4s — `RAIL_BG_OK` |
+| 22 | jump-pill-units | PASS | ec=0, 0.4s — `JUMP_PILL_UNITS_OK` |
+| 23 | rail-bg-units | PASS | ec=0, 0.4s — `RAIL_BG_UNITS_OK` |
+| 24 | viewport-probe | PASS | ec=0, 0.4s — `VIEWPORT_PROBE_OK c` (verdict c: not reproducible in-buffer) |
+| 25 | oracle-pin-state | PASS | ec=0, 0.1s — `ORACLE_PIN_OK` (pin branch, tag, clean tree, cli 1.1.0) |
+| 26 | oracle-bin-units | PASS | ec=0, 0.6s — `ORACLE_BIN_UNITS_OK` |
+| 27 | oracle-resolve | PASS | ec=0, 0.4s — `ORACLE_RESOLVE_OK` |
+| 28 | s1-parity | PASS | ec=0, 5.3s — rig run green (out `t75s1`) |
+| 29 | s2-parity | PASS | ec=0, 5.3s — rig run green (out `t75s2`) |
+| 30 | s3-parity | PASS | ec=0, 5.3s — rig run green (out `t75s3`) |
+| 31 | s4-parity | PASS | ec=0, 5.3s — rig run green (out `t75s4`) |
+| 32 | s5-parity | PASS | ec=0, 5.3s — rig run green (out `t75s5`) |
+| 33 | s6-parity | PASS | ec=0, 5.3s — rig run green (out `t75s6`) |
+| 34 | s7-parity | PASS | ec=0, 5.3s — rig run green (out `t75s7`) |
+| 35 | s8-parity | PASS | ec=0, 5.3s — rig run green (out `t75s8`) |
+| 36 | s9-parity | RED (declared class) | ec=1, 7.0s — the AC-preamble-declared lane-tree wrap-geometry class: measured diff classes `staged-path-wrap-fragment:3, parity-run-path:6, unknown-candidate:1, footer-provider-prefix:2` — the same class shape the I74 judge adjudicated spec-side with the equal-depth-base triangle (I74 verdict: lane RED ≡ equal-depth base RED ≢ canonical-depth GREEN, ZERO lane attribution; I74's lane tree measured `2x unknown-candidate, 6x parity-run-path, 2x staged-path-wrap-fragment, 2x footer-provider-prefix`). GREEN at canonical depth; adjudicates spec-side |
+| 37 | s10-parity | PASS | ec=0, 7.6s — rig run green (out `t75s10`) |
+| 38 | s17-parity | PASS | ec=0, 8.1s — rig run green (out `t75s17`) |
+| 39 | s1-tart-mode | PASS | ec=0, 5.3s — `TART_MODE_OK` (completed, requests == expected; out `t75s1t`) |
+| 40 | wire-delta | PASS | ec=0, 5.3s — `WIRE_DELTA_OK` (instruction sha `4209f40b…`, tools sha `7360fd1e…` hold) |
+| 41 | zai-max-tokens-wire | PASS | ec=0, 5.3s — `ZAI_WIRE_OK tart=pi=512` |
+| 42 | identity-law | PASS | ec=0, 0.4s — `IDENTITY_LAW_OK` |
+| 43 | default-face | PASS | ec=0, 0.4s — `DEFAULT_FACE_OK` |
+| 44 | default-boot | PASS | ec=0, 0.9s — `DEFAULT_BOOT_OK` |
+| 45 | herdr-units | PASS | ec=0, 0.7s — `HERDR_UNITS_OK` |
+| 46 | herdr-wire-probe | PASS | ec=0, 2.9s — full capture: `HERDR_WIRE_OK` (runner tail-truncation artifact on the match; recaptured green at the ~94-byte socket-path geometry as pre-declared) |
+| 47 | rig-identity-assert | PASS | ec=0, 0.3s — `RIG_IDENTITY_OK` |
+| 48 | subagents-default-law | PASS | ec=0, 0.3s — `SUBAGENTS_DEFAULT_LAW_OK` |
+| 49 | subagents-default-boot | PASS | ec=0, 1.0s — `SUBAGENTS_DEFAULT_BOOT_OK` (default-on digest + opt-out digest `7360fd1e…` hold) |
+| 50 | subagents-motd-units | PASS | ec=0, 0.3s — `SUBAGENTS_MOTD_UNITS_OK` |
+| 51 | subagents-motd-probe | PASS | ec=0, 2.6s — `SUBAGENTS_MOTD_OK` (out `t75mot`) |
+| 52 | subagents-e2e-default-on | PASS | ec=0, 37.5s — `SUBAGENTS_E2E_DEFAULT_OK` |
+| 53 | rig-staging-units | PASS | ec=0, 0.2s — `RIG_STAGING_OK` |
+| 54 | vendored-attribution | PASS | ec=0, 0.4s — `VENDORED_ATTRIBUTION_OK 42` (42 byte-identical vendor files) |
+| 55 | vendored-units | PASS | ec=0, 1.1s — `VENDORED_UNITS_OK` |
+| 56 | listing-units | PASS | ec=0, 6.5s — `LISTING_UNITS_OK` |
+| 57 | model-menu-live-merge | PASS | ec=0, 0.8s — `MODEL_MENU_LIVE_MERGE_OK` |
+| 58 | launcher-listing-thread | PASS | ec=0, 0.4s — `LAUNCHER_LISTING_THREAD_OK` |
+| 59 | vendored-no-boot-network | PASS | ec=0, 0.0s — `VENDORED_NO_BOOT_NETWORK_OK` |
+| 60 | listing-thread-law | PASS | ec=0, 0.0s — `LISTING_THREAD_LAW_OK` |
+| 61 | md-battery-fixture | PASS | ec=0, 0.0s — `MD_BATTERY_FIXTURE_OK` (48 cases, frozen sha) |
+| 62 | md-battery-units | PASS | ec=0, 0.4s — `MD_BATTERY_UNITS_OK` |
+| 63 | md-regression-units | PASS | ec=0, 0.4s — `MD_REGRESSION_UNITS_OK` |
+| 64 | md-flanking-repro | PASS | ec=0, 0.3s — `MD_FLANKING_OK` (R1-R8 + I65 semantics) |
+| 65 | md-micro-perf | PASS | ec=0, 1.7s — `MD_MICRO_OK 4.69 ms/conv ratio 1.97` (≤8.0 / ≤3.0) |
+| 66 | child-env-law-repro | PASS | ec=0, 0.3s — `CHILD_ENV_LAW_OK` |
+| 67 | child-env-units | PASS | ec=0, 0.4s — `CHILD_ENV_UNITS_OK` |
+| 68 | child-env-site-units | PASS | ec=0, 4.8s — `CHILD_ENV_SITE_UNITS_OK` (bash/subagents/mcp seams) |
+| 69 | bash-child-env-live | PASS | ec=0, 0.7s — `BASH_CHILD_ENV_LIVE_OK` |
+| 70 | session-sink-config-units | PASS | ec=0, 0.7s — `SESSION_SINK_CONSTANTS_OK` + `SESSION_SINK_CONFIG_UNITS_OK` |
+| 71 | session-sink-projection-units | PASS | ec=0, 0.7s — `SESSION_SINK_PROJECTION_REPRO_OK` + `SESSION_SINK_PROJECTION_UNITS_OK` |
+| 72 | session-sink-engine-e2e | PASS | ec=0, 7.0s — `SESSION_SINK_ENGINE_E2E_OK` |
+| 73 | session-sink-child-e2e | PASS | ec=0, 3.9s — `SESSION_SINK_CHILD_E2E_OK` |
+| 74 | signal-hygiene-units | PASS | ec=0, 3.8s — routing: `7 runs, 26 assertions, 0 failures, 0 errors`; teardown: `7 runs, 16 assertions, 0 failures, 0 errors`; `SIGNAL_CONSTANTS_OK` + `SIGNAL_HYGIENE_UNITS_OK` |
+| 75 | signal-orphan-e2e | PASS | ec=0, 30.7s — `SIGNAL_ORPHAN_OK` (see the leg table; two additional cold re-runs, identical) |
+| 76 | scope | PASS | ec=0, 0.0s — `SCOPE_OK` (diff bites ONLY inside the frozen 9-path set; both core signal seams differ; bin/tart, recorder, sink, herdr, render, subagents, rig, Gemfile family clean; `threads-budget` re-based exclusion standing) |
+
+Count: **76/76 itemized — 74 PASS, 2 RED, both REDs the AC-preamble-declared standing classes** (s9 wrap-geometry; render-perf-probe BP2 load-margin). The designed-RED at-base vector (signal-hygiene-units, signal-orphan-e2e, scope, suite) is now GREEN. Cold re-run discipline: the timing-sensitive members (harness ×3, s-family, render-perf-probe ×2) were re-run; the standing chat-interrupt and spinner-dwell flake classes did not fire inside the green suite.
+
+## Housekeeping performed (the orphan class, observed curing itself)
+
+- Killed the predecessor's live strays on takeover: `78722` (`/tmp/t75manleg7…` at 100% CPU — a live F1-class orphan), `86592`/`86727` (`tmp/t75diag` diagnostic strays), `76874` (`wt/t75sig/hup-idle-…` stray) — all `kill -9`; only the owner's own tart (PID 12677) remains machine-wide from this class. Probe leftovers from this session's primitive measurements were also SIGKILLed (`pkill -9` on the e1/e3/probe2 patterns).
+- Post-run hygiene is self-owned: after the harness's three green runs, `t75sig/` contains ONLY `legs.json` (each leg removes its token-scoped dir on success); the rig out dirs are the gates' own.
+
+## Upstream note (report appendix, NOT a gate)
+
+ratatui_ruby 1.5.0's `poll_event` wedges permanently on a dead/closed pty, and its `rb_thread_call_without_gvl` call passes NO unblock-function (`ext/ratatui_ruby/src/events.rs:391-396` — third argument `None`, line 394). Consequences (all measured live this session): on terminal loss the poller thread hot-reads the dead pty (EIO instantly, fd perpetually readable) and never returns to Ruby; `Thread#kill` cannot recover it (no UBF); while the wedge holds, ordinary signals go undelivered process-wide, so no external signal can kill the process — only SIGKILL (or a main-thread `exit!`, which bypasses the VM's thread join). Request: (1) pass an unblock-function and terminate the poll on read errors (EIO/EBADF) with a failure result instead of a hot loop; (2) consider scoping the signal masking so process death paths stay reachable. Repro: boot any ratatui_ruby 1.5.0 TUI under tmux, `tmux kill-session`, `sample` the survivor — `crossterm::event::source::unix::mio::UnixInternalEventSource::try_read` at ~100% CPU, main thread parked in `rb_ec_cleanup`.
+
+## Rig note (required by the lane prompt)
+
+With the cure, the rig's exec-wrap `kill -9` teardown becomes UNNECESSARY for tart panes: tart now dies on kill-session within ~1.1s (three-cold-run measured) with zero survivors — the rig's teardown kill-9 (`gems/tui-split-rig/lib/tui_split_rig/runner.rb:62-75`) is now redundant belt-and-braces for this defect class. NO rig churn performed (the plan's own ruling; noted for the owner).
+
+## Standing-class ledger entries used
+
+- s9-parity: declared lane-tree wrap-geometry RED (I71/I72/I73/I74 precedent; I74 verdict carries the judge's equal-depth triangle). Note-and-pass.
+- render-perf-probe: declared BP2-only load-margin RED under concurrent owner load. Note-and-pass; idle-machine cold re-run is the operative form.
+- suite/herdr-wire-probe: both GREEN (runner tail-truncation artifacts on my runner's 300-char match window — recaptured in full, both carry their OK markers with ec=0).
+
+STATUS: COMPLETE_WITH_CONCERNS — concerns: (1) DISAGREEMENT A (the exit!-primitive vs SHAPE-A fork; supervisor decision timed out; the falsifying measurement pack is in this report for the judge's cold ruling); (2) render-perf-probe BP2 RED under the declared concurrent-owner-load class (idle-machine operative re-run not available to this lane — the owner's tart cannot be killed by the lane); (3) s9-parity RED in the declared wrap-geometry class (spec-side adjudication by canonical-depth reproduction, per the I74 precedent).
 
 ## Verdict
 
