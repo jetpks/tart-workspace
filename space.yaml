@@ -2906,13 +2906,20 @@ project:
     ordinal: 76
     file: architecture/I76-edit-tool-spike.md
     freeze_sha: 5c31f594581c0457bebb4a20063321a9281acc4d
-    verdict: pending
+    verdict: continue
     lanes:
     - name: edit-probe
       repo: tart
       touch_set:
       - build/I76-edit-tool-spike-edit-probe/scratch/**
       - build/I76-edit-tool-spike-edit-probe/report.md
+      base_sha: 6451f1e074ff097238a69b29911f921ddc71d86f
+      worktree: build/I76-edit-tool-spike-edit-probe/wt
+      integration_branch:
+      harness: pi
+      model: openrouter/z-ai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: '08e0dd00d068c60bdab6198ee97b7d867e7bd7f978afd9a494c80f839712ca87'
       at: '2026-10-18T11:35:28-06:00'
