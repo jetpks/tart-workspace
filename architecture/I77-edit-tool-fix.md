@@ -216,35 +216,181 @@ case.
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section edit-tool-fix specification --from <file>`. -->
+- **Objective.** Cure the edit-tool failure class the I76 spike
+  attributed and recommended on (`model-emission`, tart tolerance
+  first): the highest-traffic tool must never again wedge a live
+  session into a bash+python fallback on the folded-into-`path`
+  emission class, and any future session must carry its running model
+  identity so the 06:58Z forensics gap (six malformed calls, model
+  provable only circumstantially) cannot recur. TWO frozen changes, one
+  lane, repo `repos/tart` @ `6451f1e`:
+  1. **THE RECOVERY** — `Tart::Tools::Edit.normalize_arguments`
+     (the `prepareEditArguments` port, `lib/tart/tools/edit.rb`) learns
+     the folded-into-`path` shape.
+  2. **THE IDENTITY** — `Tart::Agent::Message#assistant_to_h`
+     (`lib/tart/agent/message.rb`) persists the `provider` + `model`
+     the Message already carries.
+  Everything else is the full gate floor holding EXACT (BRIEF §8; the
+  plan's constraint list). This is a tart-ONLY iteration per the
+  coordinator's routing decision — `repos/fast-llm` is read-only, the
+  gem observability follow-up is a named residual, NOT this lane.
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+- **The recovery law (frozen).** In
+  `Tart::Tools::Edit.normalize_arguments`, BEFORE the existing
+  JSON-string/single-edit/legacy branches operate, detect the folded
+  shape and recover it. The frozen trigger (ALL must hold):
+  - `edits` is absent, nil, or an empty Array (either key spelling —
+    the executor symbolizes top-level keys before the call,
+    `safe_execute.rb` :45-50, but the port's dual-form discipline
+    holds), AND
+  - `path` is a String containing at least one real newline, AND
+  - the tail — everything after the FIRST newline — matches
+    `/\Aedits:\s*\[/` (lowercase, exactly this prefix), AND
+  - the tail from that first `[` parses as a JSON Array whose EVERY
+    element satisfies the existing `single_edit?` predicate
+    (a Hash with String `oldText` and String `newText`, either key
+    spelling), under the frozen two-step parse: STRICT `JSON.parse`
+    first; on `JSON::ParserError`,
+    `JSON.parse(Fast::Completions::Protocol.repair_json(tail))`
+    (the gem's public repair — escape raw control characters inside
+    strings, the same discipline the wire path itself applies at
+    finalize; the recorded tail is NOT strict JSON — Grounds).
+  On success the arguments become: `path` = the first line (the
+  substring before the first newline), `edits` = the parsed Array
+  VERBATIM (string keys, exactly like the existing JSON-string
+  branch's `args[:edits] = parsed`), every other key unchanged. On
+  ANY trigger failure the arguments are returned UNCHANGED — no
+  partial recovery, no new error path, no message rewording: the
+  byte-identical pinned rejection
+  (`Tart::Schemas::Tools::PINNED_EDITS_MESSAGE`, byte-frozen to pi's
+  `edit.ts:138`) then applies exactly as today. The wire declarations
+  (`PARAMETERS_SCHEMA`, `constrained_sampling`, DESCRIPTION) do not
+  move by one byte.
+  A NON-empty `edits` beside a folded-looking `path` WINS — no
+  recovery when the model sent real edits.
+
+- **The identity law (frozen).** `assistant_to_h`
+  (`lib/tart/agent/message.rb`) emits, IMMEDIATELY AFTER the
+  `tool_calls` line and before `thinking`, present-only:
+  `out[:provider] = provider if provider` and
+  `out[:model] = model if model`. Nothing else changes: user/tool
+  messages gain no keys; the failure assistant
+  (`error_failure` — no model stamped) gains no keys; the nil/0 usage
+  conventions, key order, and every existing byte shape are untouched.
+  Pi-consistency: pi records `provider` + `model` on every assistant
+  message (E5 live proof, Grounds) — this is the parity-legal field,
+  not a sidecar. Replay safety is by construction
+  (`from_seed_hash` reads declared fields only; the wire re-stamp is
+  the live model — Grounds): wire-delta EXACT holds. Session-golden
+  EXACT holds because the fixture seeds carry no model (nil-gated
+  emission, additive-only) — NO digest re-pin, NO declared constant
+  move. The session sink needs NO change (it already projects the
+  pair from the live Message).
+
+- **Output format.** The deliverable is code + pins: the two law
+  changes above, plus
+  - `test/edit_fold_test.rb` (NEW) — the recovery battery, every test
+    name containing `edit_fold` (or the legacy-shapes guard below),
+    ≥ 10 runs, frozen pin list:
+    1. the recorded six-call payload (verbatim, canonical-JSON sha
+       `16b4bc25c33c8795…` asserted) recovers to
+       `{path: "architect.yaml", edits: [<the one edit>]}`;
+    2. the recovered call EXECUTES against a staged fixture file and
+       returns `Successfully replaced 1 block(s) in architect.yaml.`
+       (the six-round failure cured in ONE call);
+    3. an unparseable tail (`edits: [oops`-class) leaves the arguments
+       unchanged AND the unchanged call then rejects with the
+       byte-identical pinned message;
+    4. a no-newline empty-edits call stays unchanged (pinned
+       rejection byte-identical);
+    5. a non-empty `edits` beside a folded-looking path stays
+       untouched (the real edits win);
+    6. an ABSENT `edits` key with a folded path recovers;
+    7. a multi-edit tail recovers ALL edits;
+    8. both root-key spellings (string/symbol) recover;
+    9. `Tart::Schemas::Tools.validate("edit", {path: …, edits: []})`
+       returns exactly `{error: PINNED_EDITS_MESSAGE}` (byte-identity);
+    10. the three legacy `prepareEditArguments` classes still
+        normalize (JSON-string edits, single edit object, legacy
+        top-level oldText/newText — regression guard).
+  - `test/session_test.rb` — the identity battery, every new test
+    name containing `model_identity`, ≥ 6 runs, frozen pin list:
+    1. a model-bearing assistant `to_h` carries `:provider` + `:model`
+       at the frozen key position;
+    2. a model-less assistant keeps the exact frozen key set (the
+       nil-gated byte shape);
+    3. the pair survives the recorder round trip (recorded line
+       carries `"provider"`/`"model"`, parse-back equal);
+    4. `from_seed_hash` on a model-bearing recorded body is
+       model-inert (`seed.model.nil?`);
+    5. the `error_failure` assistant gains no keys;
+    6. user and tool messages gain no keys.
+  The builder's report: `build/I77-edit-tool-fix-core/report.md` —
+  raw tables only (gate one-liners, suite counts, no verdicts), plus
+  `## PHASE 0` as its first section after the STATUS line.
+
+- **Tool guidance.** Verify against the tree, never from memory:
+  - The frozen ```gates block is the tripwire set — run it verbatim
+    (`architect gate`-style, from the arch file, never hand-retyped).
+  - The recovery seam: `cd repos/tart && bundle exec ruby -Ilib -e
+    'require "tart"; …'` — exercise `normalize_arguments` with the
+    recorded payload (the session line is readable read-only at the
+    Grounds path; the payload is also embedded verbatim in the
+    `edit-fold-repro` gate).
+  - The identity seam: `Tart::Agent::Message` / `Recorder` /
+    `from_seed_hash` as pinned in the gates.
+  - Floor: `bundle exec rake` (base 1382/6507/0F/0E/1S at `6451f1e` —
+    the lane must be strictly greater, nothing deleted);
+    `bundle exec ruby bench/seam_bench.rb` (SEAM_BENCH_OK); the
+    session-golden + wire-delta constants hold EXACT (carried gates).
+  - The gem API the recovery depends on:
+    `Fast::Completions::Protocol.repair_json` — verify it against the
+    INSTALLED 0.5.0 source (`bundle info fast-completions --path`)
+    before relying on it (verified callable this session).
+
+- **Boundaries.**
+  - **May touch (the whole frozen touch set):**
+    `lib/tart/tools/edit.rb`, `lib/tart/agent/message.rb`,
+    `test/edit_fold_test.rb` (new), `test/session_test.rb`. NOTHING
+    else — the scope gate freezes exactly this 4-path set.
+  - **Must not touch:** `repos/fast-llm` + `repos/pi` (read-only);
+    `~/.tart/**` (read-only — the failing session jsonl is evidence);
+    `~/.pi/**`; `architecture/**`; any rig scenario file or rig code
+    (`gems/**`); `bin/tart`; `lib/tart/agent/chat.rb` +
+    `lib/tart/agent/loop.rb` + `lib/tart/agent/session.rb` (the
+    stamps, the recording seam, and the entry factories are already
+    correct — the identity cure is the projection line alone);
+    `lib/tart/session_sink.rb` (already projects the pair);
+    `lib/tart/schemas/tools.rb` (the pinned message is byte-frozen);
+    the edit tool's wire declarations (schema/description/
+    constrained_sampling bytes); no new gems, no Gemfile changes; no
+    rig scenario-content edits; no live API calls of any kind (zero
+    spend — no provider keys, no driver scripts).
+  - **Out of scope:** the gem raw-args echo (a separate gem follow-up
+    entry); ENTRY 3+ of the plan (subagent runner health, status box,
+    encoding); the devstral-docs parked trial; any session-file field
+    beyond `provider`/`model` (`responseModel`, `model_change`
+    entries — named residuals).
+
+- **Lane plan.** ONE lane, `core`, repo `tart`, base `project/pi-port`
+  @ `6451f1e`. Touch set (the frozen source of truth
+  `architect provision` materializes):
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision edit-tool-fix`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/tools/edit.rb
+    - lib/tart/agent/message.rb
+    - test/edit_fold_test.rb
+    - test/session_test.rb
 ```
+
+- **Effort:** high — the load-bearing skills are exact-byte discipline
+  (a recorded-bytes projection law with a byte-frozen rejection
+  message beside a declared pi divergence) and reading the recovery
+  seam against the executor/validation order cold; set at dispatch
+  with `--effort high`.
 
 ## Acceptance Criteria
 
