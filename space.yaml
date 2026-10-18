@@ -2937,12 +2937,20 @@ project:
       - test/edit_fold_test.rb
       - test/session_test.rb
       base_sha: 6451f1e074ff097238a69b29911f921ddc71d86f
-      worktree: build/I77-edit-tool-fix-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: openrouter/z-ai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 896392f03914ee2ab7f67a04a22386b465960e2b
+      bounds_override_reason: 'AMENDMENT 2026-10-18T19:56Z (arch commit efe0d41, part
+        of the frozen state per the seat ruling) widened the frozen touch set 4-path
+        to 6-path: test/agent_loop_test.rb + test/flow_test.rb are DECLARED re-pin
+        files. The space.yaml lane touch_set was recorded at freeze (pre-amendment)
+        and is stale against the amended contract — metadata staleness, not a lane
+        violation; judge hunk-verified the amendment and the lane diff is exactly
+        the amended 6-path set.'
     rehearsal:
       gates_digest: 3f374adfd0e3dd0b6987fb59171fc9fabe5c977f215c43a50f86efc9bc2dabf9
       at: '2026-10-18T12:16:24-06:00'
