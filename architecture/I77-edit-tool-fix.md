@@ -481,8 +481,18 @@ before concluding the spec is sound) — silent compliance is a defect.
 >   abort with the intended messages; the scope gate REDs on the
 >   empty must-differ legs with zero leaks). GREEN arrives only with
 >   the lane work; BROKEN would be a gate defect, not a finding.
-> - The carried 76 GREEN at rehearsal (measured at the base tip) are
->   the no-regression proof at freeze time; the standing adjudication
+> - The carried 76, measured at the base tip by THIS spec's
+>   rehearsal (transcript
+>   `build/rehearse/I77-edit-tool-fix-20261018T120510.717713.md`):
+>   **75 GREEN + ONE RED** — `render-perf-probe`, whose ONLY failing
+>   line is BP2 (`render-ms/s 265.1` vs `<= 250`; every other line
+>   PASS, settle geometry unchanged, `AV window: PASS 137.4s`) —
+>   exactly the I75-frozen LOAD-MARGIN adjudication class (BP2-only →
+>   note-and-pass, the idle-machine cold re-run operative; it measured
+>   RED at the I75 rehearsal too — BP2 269.6 — and I75 froze on that
+>   stamp; the machine carries the owner's live tart + watchers).
+>   NOT a gate defect, NOT a regression. The 75 GREEN are the
+>   no-regression proof at freeze time; the standing adjudication
 >   classes above are adjudicated at the lane tree, never silently
 >   patched.
 > - The `t77*` out dirs the gates create are rehearsal/judge scratch:
