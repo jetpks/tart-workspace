@@ -467,13 +467,20 @@ the rig, and the packaging files are hard-frozen (zero diff); the `t81*`
 rehearsal/judge scratch and the standing `t75*`–`t80*` families are
 tolerated untracked, never committed. Gates: `scope`.
 
-**Rehearsal declaration (the measured vector goes here after the run).**
-Expected at the base tree: the four NEW gates RED for exactly their declared
-reasons (`agent-loading-units` leg 2, `nested-grant-units` leg 2,
-`forensics-units`, `agent-loading-e2e` — each the empty-filter runs=0 shape,
-verified by name-grep this session) plus `scope` RED on the empty
-must-differ legs at base (the standing I77–I80 class — zero leak lines);
-all 87 carried members GREEN cold.
+**Rehearsal declaration — MEASURED (fresh stamp, never --skip-rehearse).**
+**GREEN 87 / RED 5 / BROKEN 0 / EMPTY 0** at base tip `7b70e8a`
+(`build/rehearse/I81-agent-loading-forensics-20261019T003021.194263.md`):
+the five RED are each verified for EXACTLY its declared reason —
+`agent-loading-units` leg 2 ("FAIL warn-and-drop pins runs=0 … filter
+empty, declared-new"), `nested-grant-units` leg 2 ("FAIL nested-grant
+pins runs=0 …"), `forensics-units` ("FAIL forensics pins runs=0 …"),
+`agent-loading-e2e` ("FAIL nested e2e runs=0 …") — all four the
+empty-filter runs=0 shape — plus `scope` RED on the EMPTY must-differ
+legs at base (the standing I77–I80 class; the leak-check legs exit 0
+clean, both hard-freeze packaging/render legs quiet, judge-verified
+leg-by-leg this session). All 87 carried GREEN cold this run — incl.
+`render-perf-probe`, `s9-parity` + `herdr-wire-probe` at canonical depth,
+suite, wire-delta, session-golden EXACT.
 
 ```gates
 - id: stale-run-reaper
