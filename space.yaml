@@ -3070,12 +3070,13 @@ project:
       - test/subagents_e2e_test.rb
       - test/subagent_box_test.rb
       base_sha: 7b70e8a0f8e93454e0eae0954590465148826a8e
-      worktree: build/I81-agent-loading-forensics-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: openrouter/z-ai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 25ad0815684d18271fcec0ec7377e479a12254ad
     rehearsal:
       gates_digest: eebc499bae763fa60fe0870547525893a8b280a283c785339027b33e8ea4e9c5
       at: '2026-10-19T00:44:54-06:00'
