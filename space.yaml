@@ -2997,12 +2997,23 @@ project:
       - gems/tui-split-rig/bin/subagent-status-probe
       - gems/tui-split-rig/fixtures/subagent-box/
       base_sha: 12a7ece321cb78f293089d889e25478456bba173
-      worktree: build/I79-subagent-status-box-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: openrouter/z-ai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 07f87fc930bbbe1052c0386ea4b0f19eb48d9df5
+      bounds_override_reason: 'touch-set declaration defect, not a lane violation:
+        the frozen lanes block (and space.yaml''s mirror) declares the NEW fixture
+        dir as ''gems/tui-split-rig/fixtures/subagent-box/'' (trailing-slash dir form),
+        but the in-bounds matcher (Space::Core::Paths.touch_match? = File.fnmatch
+        FNM_PATHNAME) treats trailing-slash dirs as literal paths, never recursive
+        globs, so the 32 fixture files the guard''s -uall status expansion lists individually
+        can never match any glob; judge-verified: ALL 39 changed paths lie exactly
+        inside the frozen 9-path set, the frozen scope gate''s leak-check whitelist
+        (dir form) is clean, zero strays. Carry-in for future freezes: declare new
+        directories as ''dir/**'' so the matcher can reach them'
     rehearsal:
       gates_digest: 9513b9a918b494a7ab32f1021151ccd5f9c2eba274e2448763c677d9641923fe
       at: '2026-10-18T17:35:57-06:00'
