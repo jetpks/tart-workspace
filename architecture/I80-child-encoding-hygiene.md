@@ -2370,11 +2370,250 @@ The e2e leg lives in `test/subagents_e2e_test.rb` (the DECLARED re-pin file): ON
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I80-child-encoding-hygiene-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence child-encoding-hygiene --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+STATUS: COMPLETE_WITH_CONCERNS (1: seat-ruled DECLARED re-pin of test/subagents_test.rb + the ruled scope-gate 5-path→6-path amendment — both disclosed below, the arch-file transcription is the architect's; 2: s9-parity FAIL at lane-tree depth — the declared adjudication class, judge-own at-base triangle decides; 3: two declared suite flake classes encountered during cold re-runs — render_perf_test.rb:265 spinner-dwell and a chat_test interrupt hang — both clean on cold re-run; 4: the boot law retags FROZEN argv elements (ruby 4.0) by array-slot replacement rather than literal in-place force_encoding — byte-identical, disclosed)
+
+## PHASE 0
+
+**What was checked before concluding the spec is sound (items verified against the tree at 34ba69af):**
+
+- Line cites: `child_env` at manager.rb:421 ✓, `spawn_argv_and_env` :386 ✓, `first_error_line` :1168 ✓; `read_output` is at manager.rb:1161, the spec cites :1159 (2-line cite drift, same method — not a disagreement).
+- Law-1 mechanics vs the frozen `lib/tart/child_env.rb`: the scrub touches only `BUNDLER_ORIG_*`/RUBYOPT/RUBYLIB — locale keys pass through untouched, so the floor + pass-through ride on top without widening the scrub. ✓
+- Law-2 placement: `lib/tart.rb` is OUTSIDE the touch set, so the require lives in `bin/tart` itself (as the spec says). Verified the `footer-window` gate's `eval` of bin/tart still resolves the new `require_relative` (filename-relative, same mechanism as the existing requires) — gate GREEN. ✓
+- The 88-gate block was extracted MECHANICALLY from the arch file (`awk` between the ```gates fences → `scratch/gates-frozen-extract.yaml`, sha256 prefix `903a7f95bf4369d9`, 88 ids, YAML-parses to 88 hashes); nothing hand-retyped. ✓
+- Scope-gate leak whitelist vs the touch set, the `t80*` out-dir classes, and the must-differ `[ -f ]` legs — consistent with a never-commit lane tree. ✓
+
+**The one real contradiction found mid-build — ESCALATED, SEAT-RULED (not silent compliance):**
+
+The full suite (run before any re-pin, log `scratch/rake-run3.log`) failed with exactly one failure:
+
+```
+  1) Failure:
+Tart::SubagentsTest#test_spawn_argv_and_env_the_pin_target [test/subagents_test.rb:306]:
+spawn env closure violated: ["LC_CTYPE"].
+Expected ["LC_CTYPE"] to be empty.
+1453 runs, 6815 assertions, 1 failures, 0 errors, 1 skips
+```
+
+Cause: `test/subagents_test.rb:271-306` (the I48 CLOSED-env pin, a file NOT in the frozen 5-path touch set) asserts at :306 `assert_empty(env.keys - sanctioned, ...)` with `sanctioned` (lines 292-296) containing NO LANG/LC_* keys — while frozen Law 1/AC2/pin-2 MANDATES the floor set `LC_CTYPE=en_US.UTF-8` when the source has no locale key. The I80 gates never catch it (`child-env-site-units` runs `-n "/child_env/"`, which does not match this test name; the rehearsal ran at base). No implementation can make both `scope` and `suite` GREEN under the frozen forms.
+
+Ruling obtained via contact_supervisor (need_decision): **Option A APPROVED** — the I77 ruling-#2 DECLARED re-pin pattern, both halves:
+
+1. `test/subagents_test.rb`: `sanctioned` extended with EXACTLY `LANG LC_ALL LC_CTYPE` + a comment citing the ruling. Nothing else in the file changed; the pin keeps full discrimination. (Applied — see diff.)
+2. Scope gate: whitelist 5-path → 6-path, adding `test/subagents_test\.rb` + an amendment-note comment inside the gate cmd; NOTHING else in the gates block moves. (The arch file is architect-owned and I do not touch it — the amendment is applied to my scratch working copy `scratch/gates-amended.yaml` (sha256 prefix `806e97227a34a41c`); a mechanical diff of the two YAMLs confirms EXACTLY one differing gate: `["scope"]`. The architect transcribes the same two-string edit at verdict.)
+
+**Leak-check before/after (raw):**
+
+- BEFORE the re-pin (tracked diff + untracked): `bin/tart`, `lib/tart/subagents/manager.rb`, `lib/tart/utf8_boot.rb`, `test/child_encoding_test.rb`, `test/subagents_e2e_test.rb` — zero leaks vs the frozen 5-path whitelist; suite 1F (the trace above).
+- AFTER the re-pin: the same five PLUS `test/subagents_test.rb` — 1 leak line vs the frozen 5-path whitelist; zero leaks vs the ruled 6-path whitelist (`scope` gate GREEN, measured below).
+
+**Final treestate (raw):** `git status --porcelain` → ` M bin/tart`, ` M lib/tart/subagents/manager.rb`, ` M test/subagents_e2e_test.rb`, ` M test/subagents_test.rb`, `?? lib/tart/utf8_boot.rb`, `?? test/child_encoding_test.rb`, plus the untracked `t80*` gate out-dirs (the standing judge-scratch class). `git diff 34ba69af -- lib/tart/child_env.rb` → 0 lines (HARD-FROZEN verified). No commits made.
+
+## SUITE (raw, every run disclosed — the I79 lesson)
+
+| run | when | result |
+|-----|------|--------|
+| rake #1 | pre-re-pin | 1453 runs / 1 FAILURE (the closure pin above) — rake exit 1 |
+| rake #2 | pre-re-pin (log capture) | 1453 runs / 6815 assertions / 1 failure / 0 errors / 1 skip — rake exit 1 (same closure pin) |
+| `suite` gate (in the cold 88-battery, post-both-edits) | post-ruling | PASS ec=0 263.8s → SUITE_OK |
+| rake #3 | post-ruling cold | 1453 runs / 6845 assertions / 1 failure / 0 errors / 1 skips — exit 1: `RenderPerfTest#test_render_perf_spinner_tick_fires_at_the_spinner_interval [render_perf_test.rb:265]` "fires no faster than the dwell (got 0.0722s) >= 0.075" — the DECLARED spinner-dwell class; file-alone cold re-run: 7 runs, 29 assertions, 0 failures |
+| rake #4 | post-ruling cold | HUNG in `ChatTest#test_kernel_interrupt_during_streaming_cancels_and_leaves_render_coherent` (chat_test.rb:1620 wait_until) — the DECLARED chat-interrupt class; killed at the tool timeout, no stray processes left |
+| rake #5 | post-ruling cold | **1453 runs, 6835 assertions, 0 failures, 0 errors, 1 skips — rake exit 0** |
+
+Floor: base 1443 runs → 1453 (strictly greater; +9 `child_encoding_test.rb` +1 encoding e2e leg), 0F/0E on the final cold run. Bench: `bench` gate PASS ec=0 16.9s → `SEAM_BENCH_OK`.
+
+## GATES — the FULL frozen 88-gate block, run COLD at the lane tree, every gate measured
+
+Runner: `scratch/run-gates.rb` (sequential, foreground, pgroup kill-timeout 900s/suite 2400s, never nohup; per-gate output in `scratch/gate-outs/<id>.log`, results in `scratch/gate-results.json`). Gate cmds byte-verbatim from the frozen extract; the ONLY difference from the frozen file is the seat-ruled `scope` amendment (see PHASE 0). The 4 declared-RED gates are marked ★ and arrived GREEN.
+
+```
+ 0|stale-run-reaper            |PASS|ec=0|1.0s|STALE_RUN_REAPER_OK
+ 1|unknown-model-reject        |PASS|ec=0|0.6s|UNKNOWN_MODEL_REJECT_OK
+ 2|subagents-health-units      |PASS|ec=0|7.3s|SUBAGENTS_HEALTH_UNITS_OK
+ 3|edit-fold-repro             |PASS|ec=0|0.6s|EDIT_FOLD_REPRO_OK
+ 4|edit-fold-units             |PASS|ec=0|0.6s|EDIT_FOLD_UNITS_OK
+ 5|session-model-identity      |PASS|ec=0|0.6s|SESSION_MODEL_IDENTITY_OK
+ 6|session-model-units         |PASS|ec=0|0.6s|SESSION_MODEL_UNITS_OK
+ 7|suite                       |PASS|ec=0|263.8s|SUITE_OK
+ 8|bench                       |PASS|ec=0|16.9s|SEAM_BENCH_OK
+ 9|md-repro                    |PASS|ec=0|0.4s|MD_REPRO_OK
+10|md-inline-units             |PASS|ec=0|0.8s|MD_INLINE_UNITS_OK
+11|pending-registry-units      |PASS|ec=0|0.6s|PENDING_REGISTRY_UNITS_OK
+12|footer-window               |PASS|ec=0|0.4s|FOOTER_WINDOW_OK 1000000
+13|thinking-pins               |PASS|ec=0|1.0s|THINKING_PINS_OK
+14|hermeticity                 |PASS|ec=0|9.7s|HERMETICITY_OK
+15|lock-deps                   |PASS|ec=0|0.6s|LOCK_DEPS_OK / GEM_LOAD_OK
+16|zai-data                    |PASS|ec=0|0.8s|ZAI_DATA_OK
+17|threads-budget              |PASS|ec=0|0.2s|THREADS_BUDGET_OK
+18|session-golden              |PASS|ec=0|0.6s|SESSION_GOLDEN_OK
+19|strict-wire                 |PASS|ec=0|0.4s|8 runs, 76 assertions, 0 failures, 0 errors, 0 skips
+20|error-transcript-units      |PASS|ec=0|1.2s|ERROR_TRANSCRIPT_UNITS_OK
+21|error-transcript-render-units|PASS|ec=0|0.8s|ERROR_TRANSCRIPT_RENDER_UNITS_OK
+22|render-perf-units           |PASS|ec=0|0.8s|7 runs, 29 assertions, 0 failures, 0 errors, 0 skips
+23|render-perf-probe           |PASS|ec=0|146.3s|RENDER_PERF_OK
+24|tool-pending-gate           |PASS|ec=0|20.7s|TOOL_PENDING_GATE_OK
+25|user-bash-stream-gate       |PASS|ec=0|14.2s|USER_BASH_STREAM_GATE_OK
+26|zai-max-tokens-units        |PASS|ec=0|2.3s|ZAI_MAX_TOKENS_UNITS_OK
+27|rail-bg                     |PASS|ec=0|0.6s|RAIL_BG_OK
+28|jump-pill-units             |PASS|ec=0|0.6s|JUMP_PILL_UNITS_OK
+29|rail-bg-units               |PASS|ec=0|0.6s|RAIL_BG_UNITS_OK
+30|viewport-probe              |PASS|ec=0|0.6s|VIEWPORT_PROBE_OK c
+31|oracle-pin-state            |PASS|ec=0|0.2s|ORACLE_PIN_OK
+32|oracle-bin-units            |PASS|ec=0|0.6s|ORACLE_BIN_UNITS_OK
+33|oracle-resolve              |PASS|ec=0|0.4s|ORACLE_RESOLVE_OK
+34|s1-parity                   |PASS|ec=0|5.4s|out dir t80s1, exit 0
+35|s2-parity                   |PASS|ec=0|5.4s|out dir t80s2, exit 0
+36|s3-parity                   |PASS|ec=0|5.4s|out dir t80s3, exit 0
+37|s4-parity                   |PASS|ec=0|5.2s|out dir t80s4, exit 0
+38|s5-parity                   |PASS|ec=0|5.4s|out dir t80s5, exit 0
+39|s6-parity                   |PASS|ec=0|5.4s|out dir t80s6, exit 0
+40|s7-parity                   |PASS|ec=0|5.4s|out dir t80s7, exit 0
+41|s8-parity                   |PASS|ec=0|5.4s|out dir t80s8, exit 0
+42|s9-parity                   |FAIL|ec=1|7.0s|out dir t80s9, exit 1 — DECLARED adjudication class (evidence below)
+43|s10-parity                  |PASS|ec=0|7.8s|out dir t80s10, exit 0
+44|s17-parity                  |PASS|ec=0|8.1s|out dir t80s17, exit 0
+45|s1-tart-mode                |PASS|ec=0|5.4s|out dir t80s1t / TART_MODE_OK
+46|wire-delta                  |PASS|ec=0|5.4s|WIRE_DELTA_OK
+47|zai-max-tokens-wire         |PASS|ec=0|5.4s|ZAI_WIRE_OK tart=pi=512
+48|identity-law                |PASS|ec=0|0.6s|IDENTITY_LAW_OK
+49|default-face                |PASS|ec=0|0.6s|DEFAULT_FACE_OK
+50|default-boot                |PASS|ec=0|1.0s|DEFAULT_BOOT_OK
+51|herdr-units                 |PASS|ec=0|0.8s|HERDR_UNITS_OK
+52|herdr-wire-probe             |PASS|ec=0|3.3s|HERDR_WIRE_OK
+53|rig-identity-assert         |PASS|ec=0|0.4s|RIG_IDENTITY_OK
+54|subagents-default-law       |PASS|ec=0|0.4s|SUBAGENTS_DEFAULT_LAW_OK
+55|subagents-default-boot      |PASS|ec=0|1.0s|SUBAGENTS_DEFAULT_BOOT_OK
+56|subagents-motd-units        |PASS|ec=0|0.4s|SUBAGENTS_MOTD_UNITS_OK
+57|subagents-motd-probe        |PASS|ec=0|2.9s|SUBAGENTS_MOTD_OK
+58|subagents-e2e-default-on    |PASS|ec=0|37.1s|SUBAGENTS_E2E_DEFAULT_OK
+59|rig-staging-units           |PASS|ec=0|0.4s|RIG_STAGING_OK
+60|vendored-attribution        |PASS|ec=0|0.6s|VENDORED_ATTRIBUTION_OK 42
+61|vendored-units               |PASS|ec=0|1.3s|VENDORED_UNITS_OK
+62|listing-units                |PASS|ec=0|6.6s|LISTING_UNITS_OK
+63|model-menu-live-merge       |PASS|ec=0|0.8s|MODEL_MENU_LIVE_MERGE_OK
+64|launcher-listing-thread     |PASS|ec=0|0.6s|LAUNCHER_LISTING_THREAD_OK
+65|vendored-no-boot-network    |PASS|ec=0|0.2s|VENDORED_NO_BOOT_NETWORK_OK
+66|listing-thread-law          |PASS|ec=0|0.2s|LISTING_THREAD_LAW_OK
+67|md-battery-fixture          |PASS|ec=0|0.2s|MD_BATTERY_FIXTURE_OK
+68|md-battery-units            |PASS|ec=0|0.6s|MD_BATTERY_UNITS_OK
+69|md-regression-units         |PASS|ec=0|0.6s|MD_REGRESSION_UNITS_OK
+70|md-flanking-repro           |PASS|ec=0|0.4s|MD_FLANKING_OK
+71|md-micro-perf               |PASS|ec=0|1.7s|MD_MICRO_OK 4.21 ms/conv ratio 2.10
+72|child-env-law-repro         |PASS|ec=0|0.4s|CHILD_ENV_LAW_OK
+73|child-env-units             |PASS|ec=0|0.6s|CHILD_ENV_UNITS_OK
+74|child-env-site-units        |PASS|ec=0|5.0s|CHILD_ENV_SITE_UNITS_OK
+75|bash-child-env-live         |PASS|ec=0|0.8s|BASH_CHILD_ENV_LIVE_OK
+76|session-sink-config-units   |PASS|ec=0|0.8s|SESSION_SINK_CONSTANTS_OK / SESSION_SINK_CONFIG_UNITS_OK
+77|session-sink-projection-units|PASS|ec=0|0.8s|SESSION_SINK_PROJECTION_REPRO_OK / SESSION_SINK_PROJECTION_UNITS_OK
+78|session-sink-engine-e2e     |PASS|ec=0|7.0s|SESSION_SINK_ENGINE_E2E_OK
+79|session-sink-child-e2e      |PASS|ec=0|4.2s|SESSION_SINK_CHILD_E2E_OK
+80|signal-hygiene-units        |PASS|ec=0|4.0s|SIGNAL_CONSTANTS_OK / SIGNAL_HYGIENE_UNITS_OK
+81|signal-orphan-e2e           |PASS|ec=0|30.8s|term-mid-tool: exit=143 raw=143 in=0.1s / SIGNAL_ORPHAN_OK
+82|subagent-box-units          |PASS|ec=0|33.5s|SUBAGENT_BOX_UNITS_OK
+83|subagent-status-probe       |PASS|ec=0|62.7s|state 11-single-stopped: OK / SUBAGENT_STATUS_OK
+84|child-encoding-units        |PASS|ec=0|3.7s|CHILD_ENCODING_UNITS_OK  ★ declared-RED → GREEN
+85|child-encoding-e2e          |PASS|ec=0|5.6s|CHILD_ENCODING_E2E_OK  ★ declared-RED → GREEN
+86|runner-encoding-direct      |PASS|ec=0|0.8s|RUNNER_ENCODING_DIRECT_OK  ★ declared-RED → GREEN
+87|scope                       |PASS|ec=0|0.2s|SCOPE_OK  ★ declared-RED → GREEN (under the ruled 6-path whitelist)
+```
+
+**Tally: 87 PASS / 1 FAIL / 0 BROKEN / 0 EMPTY — the 4 declared-RED gates all GREEN.**
+
+## s9-parity (the declared adjudication class — raw evidence, NOT patched)
+
+Two runs (in-battery + a manual cold re-run) both exit 1 with the IDENTICAL diff-class set in `t80s9/summary.json`:
+
+```json
+{"unknown-candidate":2,"parity-run-path":6,"staged-path-wrap-fragment":4,"footer-provider-prefix":2}
+```
+
+Every sampled diff row is path geometry at the LANE-TREE depth (`.../build/I80-child-encoding-hygiene-core/wt/t80s9/run-1/sandbox/pi/...` vs `.../sandbox/tart/...`) — no content bytes. Both apps completed (pi: 1/1 requests, tart: 1/1 requests, no boot/reply timeouts). This is the declared AC5 class ("s9-parity + herdr-wire-probe at LANE-TREE depth, judge-own at-base triangle decides"); `herdr-wire-probe` is GREEN in the same battery. Note-and-pass, never silently patched.
+
+## New-pin forms (raw)
+
+- `bundle exec ruby -Ilib -Itest test/child_encoding_test.rb` → 9 runs, 37 assertions, 0 failures, 0 errors, 0 skips (also `-n "/encoding/"`: identical 9 runs — every test name matches the filter).
+- `bundle exec ruby -Ilib -Itest test/subagents_e2e_test.rb -n "/encoding_e2e/"` → 1 run, 15 assertions, 0 failures, 0 errors, 0 skips.
+- `bundle exec ruby -Ilib -Itest test/subagents_test.rb -n "/spawn_argv_and_env_the_pin_target|child_env/"` (post re-pin) → 4 runs, 54 assertions, 0 failures, 0 errors, 0 skips.
+
+## DEVIATIONS (itemized)
+
+1. **Seat-ruled re-pin** — `test/subagents_test.rb` `sanctioned` + `LANG LC_ALL LC_CTYPE` (+ comment); scope gate 5-path→6-path in the scratch working copy. Both per the ruling; the arch-file transcription is the architect's (advisory-input class). The floor's pins were NOT weakened — the child-encoding pins all still pass against the same behavior.
+2. **Boot law frozen-argv handling** — ruby 4.0 freezes ARGV elements; literal in-place `force_encoding` raises FrozenError (measured: the e2e parent exited 1 on "-p" before the fix). Cure: frozen elements are retagged by array-slot replacement (`argv[i] = element.dup.force_encoding(UTF_8)`) — still byte-identical, still in the argv; unfrozen elements retag in place. Pinned in `test_encoding_boot_sets_utf8_external_and_retags_valid_utf8_argv` (frozen `"plain-ascii".b.freeze` element).
+3. **`lib/tart/utf8_boot.rb` is required by the test file directly** (the module otherwise only loads via bin/tart's authorized require, since `lib/tart.rb` is outside the touch set).
+4. **e2e parent-stderr pin** — measured clean, pinned as `assert_empty stderr` (byte-zero, stronger than the spec's "ZERO lines" reading). Confirmed GREEN.
+5. The e2e `result.json output` and parent-stdout pins are byte-EXACT (`assert_equal ENC_CHILD_ANSWER, rj["output"]`, `assert_equal ENC_FINAL, stdout.chomp`) — GREEN as specified.
+
+acceptance-report
+```acceptance-report
+{
+  "criteriaSatisfied": [
+    {
+      "id": "criterion-1",
+      "status": "satisfied",
+      "evidence": "Three frozen laws landed in the 5-path touch set (+ the seat-ruled re-pin): Law 1 locale picks + UTF8_LOCALE floor in manager.rb child_env; Law 2 lib/tart/utf8_boot.rb + one require+call in bin/tart run(argv); Law 3 binread+force_encoding(UTF_8)+scrub readers in read_output/first_error_line. Pins: test/child_encoding_test.rb 9 runs 0F under /encoding/; e2e leg test_encoding_e2e_non_ascii_round_trip 1 run 0F; child-encoding-units/child-encoding-e2e/runner-encoding-direct/scope all turned GREEN (87 PASS / 1 declared-class FAIL s9-parity of 88). Suite 1453 runs / 6835 asserts / 0F / 0E / 1S, rake exit 0, cold; SEAM_BENCH_OK; child_env.rb diff empty (HARD-FROZEN); no commits."
+    }
+  ],
+  "changedFiles": [
+    "lib/tart/utf8_boot.rb",
+    "lib/tart/subagents/manager.rb",
+    "bin/tart",
+    "test/child_encoding_test.rb",
+    "test/subagents_e2e_test.rb",
+    "test/subagents_test.rb"
+  ],
+  "testsAddedOrUpdated": [
+    "test/child_encoding_test.rb",
+    "test/subagents_e2e_test.rb",
+    "test/subagents_test.rb"
+  ],
+  "commandsRun": [
+    {
+      "command": "bundle install --quiet && bundle exec rake",
+      "result": "passed",
+      "summary": "final cold run: 1453 runs, 6835 assertions, 0 failures, 0 errors, 1 skips, exit 0 (all 6 suite runs disclosed in the report, incl. two declared-class flakes)"
+    },
+    {
+      "command": "bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1",
+      "result": "passed",
+      "summary": "SEAM_BENCH_OK (bench gate PASS ec=0 16.9s)"
+    },
+    {
+      "command": "ruby scratch/run-gates.rb 0 87  (88-gate frozen block, cold, lane tree)",
+      "result": "passed",
+      "summary": "87 PASS / 1 FAIL (s9-parity, declared adjudication class) / 0 BROKEN / 0 EMPTY; the 4 declared-RED gates GREEN"
+    },
+    {
+      "command": "bundle exec ruby -Ilib -Itest test/child_encoding_test.rb -n \"/encoding/\"",
+      "result": "passed",
+      "summary": "9 runs, 37 assertions, 0 failures, 0 errors, 0 skips"
+    },
+    {
+      "command": "bundle exec ruby -Ilib -Itest test/subagents_e2e_test.rb -n \"/encoding_e2e/\"",
+      "result": "passed",
+      "summary": "1 run, 15 assertions, 0 failures, 0 errors, 0 skips"
+    }
+  ],
+  "validationOutput": [
+    "1453 runs, 6835 assertions, 0 failures, 0 errors, 1 skips (rake, cold, exit 0)",
+    "SEAM_BENCH_OK",
+    "GATE TALLY: 87 PASS / 1 FAIL / 0 BROKEN / 0 EMPTY; s9-parity diff classes {unknown-candidate:2, parity-run-path:6, staged-path-wrap-fragment:4, footer-provider-prefix:2} — lane-tree path geometry only",
+    "git diff 34ba69af -- lib/tart/child_env.rb → 0 lines (HARD-FROZEN verified)"
+  ],
+  "residualRisks": [
+    "The frozen arch gates block still carries the 5-path scope whitelist — the architect must transcribe the ruled 6-path amendment (adding test/subagents_test.rb + the note comment) at verdict; under the frozen 5-path form scope would be RED on exactly the disclosed leak line",
+    "s9-parity FAIL at lane-tree depth is the declared adjudication class (judge-own at-base triangle decides) — recorded, not patched",
+    "Two declared suite flake classes surfaced during cold re-runs (render_perf_test.rb:265 spinner-dwell; a chat_test interrupt hang killed at tool timeout) — both clean on the final cold run; the single-GREEN order-flake advisory stands"
+  ],
+  "noStagedFiles": true,
+  "diffSummary": "4 tracked files modified (manager.rb +45/-2: locale picks+floor, hygienic readers; bin/tart +7: require+one enforce! call; subagents_e2e_test.rb +60: the encoding e2e leg; subagents_test.rb +8/-1: the seat-ruled sanctioned-list re-pin) plus 2 new files (lib/tart/utf8_boot.rb, test/child_encoding_test.rb). t80* out-dirs untracked, never committed.",
+  "reviewFindings": [
+    "blocker (RESOLVED by seat ruling): test/subagents_test.rb:306 frozen 20-key closed-env pin vs Law-1 floor — escalated, Option A approved, re-pin applied byte-minimally with full PHASE 0 disclosure",
+    "no other blockers"
+  ],
+  "manualNotes": "Zero live API calls at any point. The 88-gate battery ran from the scratch working copy gates-amended.yaml = frozen extract + ONLY the ruled scope amendment (mechanical diff confirms exactly one differing gate); frozen extract preserved at gates-frozen-extract.yaml (sha256 prefix 903a7f95bf4369d9). Gate runner + per-gate logs + results JSON in build/I80-child-encoding-hygiene-core/scratch/. Coordinator to record the decisions note (notes/decisions-<ts>-i80-scope-repin-escalation.md) per the ruling."
+}
+```
 
 ## Verdict
 
