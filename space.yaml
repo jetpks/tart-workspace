@@ -81,7 +81,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: subagent-status-box
+  current_iteration: child-encoding-hygiene
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -3017,4 +3017,10 @@ project:
     rehearsal:
       gates_digest: 9513b9a918b494a7ab32f1021151ccd5f9c2eba274e2448763c677d9641923fe
       at: '2026-10-18T17:35:57-06:00'
+  - name: child-encoding-hygiene
+    ordinal: 80
+    file: architecture/I80-child-encoding-hygiene.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
