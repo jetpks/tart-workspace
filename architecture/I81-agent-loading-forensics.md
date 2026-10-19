@@ -2361,11 +2361,321 @@ Code + tests, exactly the 10-path touch set. Minimum pin floors (all filters ver
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I81-agent-loading-forensics-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence agent-loading-forensics --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# Builder Report — I81 `agent-loading-forensics`, lane `core`, repo `tart`
+
+Replacement builder session (the 64c3820e run was killed by an infrastructure-class
+parent cascade at ~2026-10-19T08:24Z mid-gate-battery, with no report). Worktree
+`build/I81-agent-loading-forensics-core/wt` @ base `7b70e8a`, branch
+`lane/I81-agent-loading-forensics-core`. NO git writes performed (verified:
+`git log 7b70e8a..` empty — nothing committed; all work uncommitted in the tree).
+
+## PHASE 0 — spec disagreements and the inherited-diff audit
+
+### PHASE 0.1 — spec soundness (what was checked before judging)
+
+Read in full: the arch file `architecture/I81-agent-loading-forensics.md` (all
+2383 lines — Grounds, Specification, AC, the frozen 92-gate block, Builder Prompt),
+the lane prompt, and `notes/spec-digest-20261019T035116Z-child-encoding-hygiene.md`
+(the I80 handoff). Cross-checked the five declared re-pins against the actual base
+bytes (`git show 7b70e8a:test/...`) and the pi cites against the installed
+pi-subagents module seam line numbers named in the Grounds. The three Laws, the
+five declared re-pins, and the 10-path touch set are internally consistent; the
+four new gates' filters were verified EMPTY at base by the spec author and the
+base run counts (profiles 15 / subagents 34 / e2e 11) match the measured base
+floor. **No spec disagreement found — the spec is sound as frozen.** Two
+cosmetic notes, neither a defect:
+
+- The prompt header says the boot surface is "one `bin/tart` line"; the landed
+  seam is a 10-line block (why-comment + the `discover` loop). The arch file's
+  Law 1 text (the operative contract) specifies the idiom and placement, not a
+  line count — conformant.
+- The prompt header's deliverable bullet says "/forensic/ ≥ 2 (…; a LEGACY
+  doubled-path dir + task:null status adopt without raising)" as one item; the
+  landed pins split that into two `/forensic/`-named tests (2 runs, exactly the
+  floor). The arch Output format says only "≥ 2" — conformant.
+
+### PHASE 0.2 — the inherited-diff audit (law by law, reuse-vs-rewrite per hunk)
+
+The inherited tree carried exactly the 10 frozen touch paths modified
+(529 insertions / 40 deletions) and NOTHING else (`git status --porcelain`: 10
+`M` entries only; scope gate confirms mechanically). Scratch carried a partial
+gate run: `gate-results.json` = gates 1–18 (stale-run-reaper … threads-budget),
+**18/18 PASS including `suite` (272s → the full rake floor held on the inherited
+tree) and `bench` (SEAM_BENCH_OK)**; `suite-run2.log` = the dead run's suite
+re-run, cut mid-flight; `i81-gates.yaml` = the extracted frozen block (verified
+**byte-identical** to the arch file's ```gates block by extraction+diff this
+session); `run_gates.rb` = a faithful foreground runner (verified against the
+frozen block). Verdict: **REUSE ~100% — every hunk audited spec-correct; zero
+rewrites needed; zero additions needed.** Per-hunk decisions:
+
+| File / hunk | Audit finding | Decision |
+|---|---|---|
+| `lib/tart/schemas/subagents.rb` — `TOOLS_UNIVERSE` + `subagent` | Exact widening, one name; `rm_rf` stays unknown; comment cites the surviving `tools_test.rb:114` pin | REUSE |
+| `schemas/subagents.rb` — `rule(:tools)` shape-only | Non-array/non-string still fails with `TOOLS_SHAPE_MESSAGE` (today's bytes); name-validation loop deleted | REUSE |
+| `schemas/subagents.rb` — `unknown_tools_dropped_message` | Message bytes EXACT per Law 1 (`unknown tool(s) <names> — dropped (valid tools: <universe sorted, comma+space>)`); the retired `unknown_tool_message` removed | REUSE |
+| `lib/tart/subagents/profiles.rb` — `discover` third return slot | `build_profile` → `[spec, error, dropped]`; the diagnostic is `Skills::Diagnostic.new(type: "warning", path:)` with the exact message; ONE per affected file, only when non-empty; malformed-file path unchanged | REUSE |
+| `profiles.rb` — `build_profile`/`spec_hash`/`tools_list` | All error returns now 3-tuples (`[nil, msg, []]`); `tools_list` partitions kept/dropped in declaration order; nil line still `Tools::ALL`; explicit-all-unknown → `[]` (OQ-3) | REUSE |
+| `bin/tart` — boot diagnostics rows | Inside the gate-on subagents branch, after `Subagents.register`/endpoint; fresh read-only `Subagents::Profiles.discover(cwd: workdir)`; renders `surface.command_line("#{d.path}: #{d.message}")` per row (the :556-559 skills/prompts idiom); per-spawn resolution untouched; NO MOTD change | REUSE |
+| `lib/tart/subagents.rb` — depth shared-types home | `DEFAULT_MAX_SUBAGENT_DEPTH = 2`; `resolve_subagent_depth`/`resolve_subagent_max_depth` via `Identity.env_key` (`<IDENTITY>_SUBAGENTS_DEPTH`/`_MAX_DEPTH`), non-negative-integer normalize with absent/invalid → 0 / → 2; `subagent_depth_blocked?` = `depth >= max` (pi types.js:188-195); `nested_subagent_blocked_message` carries pi's bytes verbatim (subagent-executor.js:6983-6993) | REUSE |
+| `lib/tart/subagents/manager.rb` — constructor depth read | `@subagent_depth`/`@subagent_max_depth` read ONCE at construction from `@env`/`@identity` | REUSE |
+| `manager.rb` — `spawn_run` FIRST check | Raises before the merged-table disk resolution (pinned: no run dir on the blocked path); rides the existing raise→`{error:}` path | REUSE |
+| `manager.rb` — `run[:task]` record field | `task: task.to_s` added beside `task_chars: task.to_s.length` (the fork preamble lives on `task_text` — excluded from `task`, Law 3) | REUSE |
+| `manager.rb` — `spawn_argv_and_env` session-root | `--session-root` value = `run[:dir]` (the one-line argv-side cure; `agent/session.rb` untouched — hard-frozen verified) | REUSE |
+| `manager.rb` — `child_env` depth picks | `SUBAGENTS_DEPTH = own+1`, `SUBAGENTS_MAX_DEPTH = own max`, written ALWAYS (outside the nil-omission rule); the closed list grows exactly those two keys | REUSE |
+| `manager.rb` — `write_status` task field | `"task" => record[:task]` (was `nil`); key order/additive box fields/nil-tolerance unchanged | REUSE |
+| `lib/tart/tools/registry.rb` — `SELECTABLE_SUBAGENT` | Named constant beside `TOOL_CLASSES` (pinnable); validation accepts it; `build` `filter_map`s it out (never constructed); hooks merge supplies the instance LAST (I47 order untouched); unregistered selection drops silently | REUSE |
+| `test/subagents_profiles_test.rb` — the :129-134 re-pin + 3 new `/dropped/` pins | The retired reject-message assert replaced by drop+diagnostic+universe-listing (with `subagent` in the sorted list); shape-failure pin kept; declaration-order pin (the live 07:40Z coordinator shape: `bg_wait, web_search` dropped, `subagent` KEPT as known); all-unknown → zero tools + 1 diagnostic; zero-dropped → zero diagnostics | REUSE |
+| `test/subagents_test.rb` — :257 / :290 / :292-320 re-pins | task verbatim; `--session-root` = `run[:dir]`; sanctioned list + `PI_SUBAGENTS_DEPTH PI_SUBAGENTS_MAX_DEPTH` with the I80 LANG/LC_ALL/LC_CTYPE entries and comment discipline extended | REUSE |
+| `test/subagents_test.rb` — 3 new `/nested|depth_cap/` + 2 new `/forensic/` pins | Registry no-raise/no-build + merge-LAST + `rm_rf` sibling; depth picks (default 1/2, mid-tree 2/3 passthrough, invalid → 1/2 fallbacks); depth-capped raise with pi bytes EXACT + no-run-dir; forensic single-`sessions` (3-segment relative path, `sessionRoot` = container, task byte-verbatim, taskChars = char count); legacy doubled-dir + task:null adoption without raise (glob matches both layouts, adoption never rewrites) | REUSE |
+| `test/subagents_e2e_test.rb` — 2 declared task re-pins (leg A, encoding leg) + the nested leg | Both re-pins byte-conservative (refute → assert_equal, comments cite the declaration); the nested leg = leg-A machinery (staged HOME + agents dir + MockLLMServer + real `bin/tart -p`), custom coordinator `tools: read, bash, bg_wait, subagent`, FIVE scripted turns, 30 assertions: child wire = `read, bash, contact_supervisor, subagent` (bg_wait absent, subagent LAST), grandchild wire = the builtin worker's order + `subagent` LAST, chain outputs ride both tool results, 2 run dirs under the staged home, Law-3 live on both (3-segment transcript, sessionRoot, task verbatim) | REUSE |
+| `test/subagent_box_test.rb` — :301 re-pin | `assert_equal "additive facts", status["task"]` on the real-spawn pin; the write_status FIXTURE's `"task" => nil` untouched (legacy-dir fabrication, correct post-change); box render assertions untouched | REUSE |
+
+Audit negatives (checked, clean): no other caller of `build_profile`/`tools_list`
+exists (grep: only `discover` destructures the 3-tuple); `module_function`
+insertion in `subagents.rb` sits before the already-module-function
+`resolve_model` family — no visibility change; `allowNestedSubagents` stays
+tolerated via the contract's `validate_keys = false` (schemas/subagents.rb:19-21);
+e2e grandchild wire order matches `BUILTIN_AGENTS["worker"][:tools]`
+(`read grep find ls bash edit write`) exactly; no `Thread.new` sites added; no
+new gems (Gemfile/Gemfile.lock byte-untouched — scope gate).
+
+## What landed (all reuse; nothing new to write)
+
+The three laws stand on the inherited implementation, now fully verified:
+
+- **Law 1** — warn-and-drop agent loading; universe + `subagent`; shape-only
+  contract rule; the exact diagnostic; the interactive boot rows.
+- **Law 2** — `subagent` grantable via `SELECTABLE_SUBAGENT` (never built; merge
+  LAST; silent drop when unregistered); the pi depth law (default 2, env
+  override, child = own+1 / inherits max, blocked at `depth >= max` with pi's
+  bytes verbatim through the `{error:}` path).
+- **Law 3** — `--session-root <run-dir>` (single-`sessions` transcripts;
+  `agent/session.rb` byte-untouched); `status.task` = the raw spawn task
+  verbatim; `taskChars` = the raw char count; `sessionRoot` = the accurate
+  container; legacy doubled/task-null adoption preserved; the I79 box renders
+  no task row (`lib/tart/render/**` byte-untouched).
+
+## Verification (all measured this session at the lane tree, COLD)
+
+### Suite floor
+
+- `bundle install --quiet && bundle exec rake` → **1462 runs / 6928 assertions /
+  0 failures / 0 errors / 1 skips, exit 0** (base floor at `7b70e8a`: 1453 runs /
+  6846 asserts — the +9 runs = +3 profiles `/dropped/` pins, +5 subagents
+  nested/depth/forensic pins, +1 e2e nested leg; the assert delta is the
+  declared dynamic class). Suite gate inside the battery: 272.2s PASS.
+- Multi-run (the I79 flake precedent): **4 additional full-suite runs completed
+  GREEN** with the identical 1462/6928/0F/0E/1S summary (one at 4m27s; one
+  attempt exceeded its 15-min window twice and was killed with NO failures
+  printed and no orphan processes left — adjudicated to the standing suite
+  env/interrupt class below, never patched).
+- Touched-file order-sensitivity multi-run: `test/subagents_profiles_test.rb`
+  (2 seeds) 18/103 green; `test/subagents_test.rb` (2 seeds) 39/317 green;
+  `test/subagent_box_test.rb` (2 seeds) 30/128 green;
+  `test/subagents_e2e_test.rb` (seeds 424242 + 987654) 12/246 green BOTH runs —
+  the nested leg passed at an early AND a late order position, with its
+  `[i48-e2e] nested leg: exit 0, three generations …` line in both.
+- `bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1` → `SEAM_BENCH_OK`
+  (bench gate, 16.7s).
+
+### Pin floors (declared-RED at base → GREEN now)
+
+| Filter | File | Measured | Floor |
+|---|---|---|---|
+| `/dropped/` | subagents_profiles_test.rb | 3 runs, 13 asserts, green | ≥ 2 |
+| full file | subagents_profiles_test.rb | 18 runs green | ≥ 15 |
+| `/nested\|depth_cap/` | subagents_test.rb | 3 runs, 20 asserts, green | ≥ 3 |
+| full file | subagents_test.rb | 39 runs green | ≥ 34 |
+| `/forensic/` | subagents_test.rb | 2 runs, 13 asserts, green | ≥ 2 |
+| `/nested/` | subagents_e2e_test.rb | 1 run, 30 asserts, green | ≥ 1 |
+
+### Depth-blocked bytes (measured, unit-pinned)
+
+`Nested subagent call blocked (depth=2, max=2). You are running at the maximum
+subagent nesting depth. Complete your current task directly without delegating
+to further subagents.` — asserted EXACT (`test_depth_cap_blocks_spawn_with_pi_bytes_verbatim`).
+
+### The 92-gate battery (full, COLD, foreground — never nohup)
+
+Runner: `scratch/run_gates.rb` over `scratch/i81-gates.yaml` (byte-identical to
+the frozen block — verified by extraction+diff). Results file:
+`scratch/gate-results.json`; the dead run's partial (18 gates) preserved as
+`scratch/gate-results-deadrun-partial.json`.
+
+**90 GREEN / 2 RED (both the declared s9/herdr lane-tree-depth class, adjudicated
+below — never patched) / 0 BROKEN.**
+
+| # | Gate | Verdict | Measured |
+|---|---|---|---|
+| 1 | `stale-run-reaper` | GREEN | 0.9s |
+| 2 | `unknown-model-reject` | GREEN | 0.4s |
+| 3 | `subagents-health-units` | GREEN | 5.3s |
+| 4 | `edit-fold-repro` | GREEN | 0.4s |
+| 5 | `edit-fold-units` | GREEN | 0.5s |
+| 6 | `session-model-identity` | GREEN | 0.4s |
+| 7 | `session-model-units` | GREEN | 0.5s |
+| 8 | `suite` | GREEN | 272.2s |
+| 9 | `bench` | GREEN | 16.7s |
+| 10 | `md-repro` | GREEN | 0.3s |
+| 11 | `md-inline-units` | GREEN | 0.7s |
+| 12 | `pending-registry-units` | GREEN | 0.4s |
+| 13 | `footer-window` | GREEN | 0.3s |
+| 14 | `thinking-pins` | GREEN | 1.0s |
+| 15 | `hermeticity` | GREEN | 9.5s |
+| 16 | `lock-deps` | GREEN | 0.5s |
+| 17 | `zai-data` | GREEN | 0.8s |
+| 18 | `threads-budget` | GREEN | 0.0s |
+| 19 | `session-golden` | GREEN | 0.5s |
+| 20 | `strict-wire` | GREEN | 0.3s |
+| 21 | `error-transcript-units` | GREEN | 1.1s |
+| 22 | `error-transcript-render-units` | GREEN | 0.8s |
+| 23 | `render-perf-units` | GREEN | 0.7s |
+| 24 | `render-perf-probe` | GREEN | 146.1s |
+| 25 | `tool-pending-gate` | GREEN | 20.1s |
+| 26 | `user-bash-stream-gate` | GREEN | 13.7s |
+| 27 | `zai-max-tokens-units` | GREEN | 2.2s |
+| 28 | `rail-bg` | GREEN | 0.4s |
+| 29 | `jump-pill-units` | GREEN | 0.4s |
+| 30 | `rail-bg-units` | GREEN | 0.4s |
+| 31 | `viewport-probe` | GREEN | 0.4s |
+| 32 | `oracle-pin-state` | GREEN | 0.1s |
+| 33 | `oracle-bin-units` | GREEN | 0.6s |
+| 34 | `oracle-resolve` | GREEN | 0.4s |
+| 35 | `s1-parity` | GREEN | 5.2s |
+| 36 | `s2-parity` | GREEN | 5.2s |
+| 37 | `s3-parity` | GREEN | 5.2s |
+| 38 | `s4-parity` | GREEN | 5.2s |
+| 39 | `s5-parity` | GREEN | 5.2s |
+| 40 | `s6-parity` | GREEN | 5.2s |
+| 41 | `s7-parity` | GREEN | 5.2s |
+| 42 | `s8-parity` | GREEN | 5.2s |
+| 43 | `s9-parity` | RED — adjudicated (see §5) | 6.9s |
+| 44 | `s10-parity` | GREEN | 7.4s |
+| 45 | `s17-parity` | GREEN | 8.0s |
+| 46 | `s1-tart-mode` | GREEN | 5.2s |
+| 47 | `wire-delta` | GREEN | 5.2s |
+| 48 | `zai-max-tokens-wire` | GREEN | 5.2s |
+| 49 | `identity-law` | GREEN | 0.4s |
+| 50 | `default-face` | GREEN | 0.4s |
+| 51 | `default-boot` | GREEN | 0.9s |
+| 52 | `herdr-units` | GREEN | 0.7s |
+| 53 | `herdr-wire-probe` | RED — adjudicated (see §5) | 7.9s |
+| 54 | `rig-identity-assert` | GREEN | 0.3s |
+| 55 | `subagents-default-law` | GREEN | 0.3s |
+| 56 | `subagents-default-boot` | GREEN | 0.9s |
+| 57 | `subagents-motd-units` | GREEN | 0.3s |
+| 58 | `subagents-motd-probe` | GREEN | 2.5s |
+| 59 | `subagents-e2e-default-on` | GREEN | 36.6s |
+| 60 | `rig-staging-units` | GREEN | 0.2s |
+| 61 | `vendored-attribution` | GREEN | 0.4s |
+| 62 | `vendored-units` | GREEN | 1.1s |
+| 63 | `listing-units` | GREEN | 6.5s |
+| 64 | `model-menu-live-merge` | GREEN | 0.8s |
+| 65 | `launcher-listing-thread` | GREEN | 0.5s |
+| 66 | `vendored-no-boot-network` | GREEN | 0.0s |
+| 67 | `listing-thread-law` | GREEN | 0.0s |
+| 68 | `md-battery-fixture` | GREEN | 0.0s |
+| 69 | `md-battery-units` | GREEN | 0.4s |
+| 70 | `md-regression-units` | GREEN | 0.4s |
+| 71 | `md-flanking-repro` | GREEN | 0.3s |
+| 72 | `md-micro-perf` | GREEN | 1.7s |
+| 73 | `child-env-law-repro` | GREEN | 0.3s |
+| 74 | `child-env-units` | GREEN | 0.4s |
+| 75 | `child-env-site-units` | GREEN | 4.8s |
+| 76 | `bash-child-env-live` | GREEN | 0.7s |
+| 77 | `session-sink-config-units` | GREEN | 0.7s |
+| 78 | `session-sink-projection-units` | GREEN | 0.7s |
+| 79 | `session-sink-engine-e2e` | GREEN | 7.0s |
+| 80 | `session-sink-child-e2e` | GREEN | 3.9s |
+| 81 | `signal-hygiene-units` | GREEN | 3.8s |
+| 82 | `signal-orphan-e2e` | GREEN | 30.5s |
+| 83 | `subagent-box-units` | GREEN | 33.2s |
+| 84 | `subagent-status-probe` | GREEN | 62.3s |
+| 85 | `child-encoding-units` | GREEN | 3.9s |
+| 86 | `child-encoding-e2e` | GREEN | 5.3s |
+| 87 | `runner-encoding-direct` | GREEN | 0.8s |
+| 88 | `scope` | GREEN | 0.1s |
+| 89 | `agent-loading-units` | GREEN | 1.4s |
+| 90 | `nested-grant-units` | GREEN | 58.8s |
+| 91 | `forensics-units` | GREEN | 1.5s |
+| 92 | `agent-loading-e2e` | GREEN | 10.0s |
+
+### Gate adjudications (the two RED, and the two standing classes observed)
+
+- **`s9-parity` RED (6.9s)** — the declared **s9/herdr lane-tree depth** class
+  (arch AC: "never silently patched"). Mechanism verified this session: the rig
+  runs at the lane tree, whose staged-sandbox paths are LONGER than canonical
+  (`build/I81-agent-loading-forensics-core/wt/t81s9/...` vs `repos/tart/...`);
+  the staged-path lines wrap at terminal width (`…/sandbox/tart/AGENTS.` +
+  `md`, `…/.tart/s` + `kills/demo.md`) and surface as `2x unknown-candidate`
+  diff rows (`t81s9/report.md` measured: exit 1, per-class counts 2x
+  unknown-candidate / 6x parity-run-path / 4x staged-path-wrap-fragment / 2x
+  footer-provider-prefix). Both apps completed (pi + tart, requests 1/1 each) —
+  a pure geometry failure, not a behavior regression. GREEN at canonical depth
+  in the freeze-time rehearsal (arch AC: "s9-parity + herdr-wire-probe at
+  canonical depth").
+- **`herdr-wire-probe` RED (7.9s)** — same class, mechanism verified
+  numerically: the probe's fake-herder socket path is
+  `<lane-wt>/t81hwp/herdr.sock` = **105 chars** (measured), over the macOS
+  `sockaddr_un.sun_path` 104-byte limit; at the canonical tree it is ~72 chars
+  and binds. The listener never binds → `received.log` absent → "no reports
+  received" (`t81hwp/` holds only the staged home/sandbox, zero reports). The
+  booted tart itself behaved (its session transcript landed under the staged
+  home). Never patched; the gate-geometry re-freeze stays owner backlog (the
+  I80 digest's declared residual).
+- **Suite env/interrupt class (observed, not a gate failure)** — 2 of 6 full
+  `rake` attempts this session exceeded their observation window (15 min vs the
+  4m27s–7min typical) with zero failures printed and no orphan processes; the
+  completed runs show the known Async pool-drain / contained-signal warnings
+  (also present in the dead run's `suite-run2.log` and in GREEN runs). This is
+  the arch-declared "suite's env/interrupt classes" — disclosed, not patched.
+  Four completed runs all carried the identical green summary.
+
+### E2E wire facts (captured on the mock endpoint, the nested leg)
+
+- Child (custom coordinator, `tools: read, bash, bg_wait, subagent`) wire:
+  `["read", "bash", "contact_supervisor", "subagent"]` — the unknown `bg_wait`
+  ABSENT (Law 1 drop), `subagent` declared LAST (the registered-tools merge
+  order), `contact_supervisor` the bridge-union tail (I49 D5).
+- Grandchild (the builtin worker) wire: `["read", "grep", "find", "ls", "bash",
+  "edit", "write", "contact_supervisor", "subagent"]` — `subagent` LAST.
+- Chain: grandchild answer → child tool result (call c2); child answer →
+  parent tool result (call c1), verbatim.
+- Artifacts: exactly 2 run dirs under the staged home; grandchild result
+  `N_GRANDCHILD_ANSWER`, child result `N_CHILD_ANSWER`, both `completed`.
+- Law-3 live on both generations: transcript = exactly 3 relative segments
+  (`sessions/<cwd-slug>/<file>.jsonl`), `status.sessionRoot` = the transcript's
+  container, `status.task` = the raw spawn task.
+
+## Deviations
+
+- NONE against the frozen spec. No extra files touched (scope gate GREEN —
+  all ten must-differ seams differ, zero diff outside the 10-path set, the
+  hard-frozen seams byte-untouched). No new gems, no new threads, no rig
+  scenario edits, no live API spend (the battery is fully hermetic).
+- Two carried gates RED at the lane tree for the DECLARED geometry class
+  (adjudicated above, mechanism measured, not patched) — the standing
+  adjudication path the AC prescribes.
+- One `rake` slow-attempt observation belongs to the standing suite
+  env/interrupt class (disclosed above).
+
+## Inherited-work disposition
+
+- Reused 529/529 inserted lines and 40/40 deleted lines of the dead run's diff
+  (audit table above); rewrote nothing; added nothing. The dead run's 18-gate
+  partial evidence is preserved (`scratch/gate-results-deadrun-partial.json`,
+  `scratch/suite-run2-deadrun.log`); this session's full battery overwrote
+  `scratch/gate-results.json` as the live record.
+
+STATUS: COMPLETE_WITH_CONCERNS — concerns: (1) `s9-parity` and `herdr-wire-probe`
+RED at the lane tree on the declared lane-tree-depth geometry class (socket-path
+105>104 bytes; staged-path line-wrap), mechanism measured, green at canonical
+depth in the freeze rehearsal, left unpatched per AC; (2) 2 of 6 full-suite
+attempts exceeded a 15-min observation window with no failure output (standing
+suite env/interrupt class); 4 completed runs + the battery's suite gate all
+green at 1462/6928/0F/0E/1S.
 
 ## Verdict
 
