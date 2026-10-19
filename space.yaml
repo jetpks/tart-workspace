@@ -3053,7 +3053,23 @@ project:
   - name: agent-loading-forensics
     ordinal: 81
     file: architecture/I81-agent-loading-forensics.md
-    freeze_sha:
+    freeze_sha: 8ebd516c72d2484dd7994368006e21643f293850
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/schemas/subagents.rb
+      - lib/tart/subagents/profiles.rb
+      - lib/tart/subagents/manager.rb
+      - lib/tart/subagents.rb
+      - lib/tart/tools/registry.rb
+      - bin/tart
+      - test/subagents_profiles_test.rb
+      - test/subagents_test.rb
+      - test/subagents_e2e_test.rb
+      - test/subagent_box_test.rb
+    rehearsal:
+      gates_digest: eebc499bae763fa60fe0870547525893a8b280a283c785339027b33e8ea4e9c5
+      at: '2026-10-19T00:44:54-06:00'
   integration_branch: project/pi-port
