@@ -2110,6 +2110,226 @@ Code + tests + the probe + the fixtures. The pin battery lives in `test/subagent
 
 Write your report to `build/I79-subagent-status-box-core/report.md`: what landed (file by file), the measured gate table (cold, foreground, at YOUR tree), PHASE 0 findings, and the honest residual list. The architect transcribes it VERBATIM into the arch file.
 
+### core
+
+STATUS: COMPLETE_WITH_CONCERNS (concern 1: the frozen `scope` gate ran with the seat-ruled `-f` amendment for its one new-at-base must-differ leg — disclosed in PHASE 0 with the measured evidence, all other legs byte-unchanged; concern 2: `subagent-status-probe`'s state waits ride marker-based polling with 45s caps and fixed 1.6s settles — no flake observed across 4 full runs, but the tmux timing margins are runtime-dependent; concern 3: the styled-leg comparison is at the parsed-SGR-run level, not raw pane bytes — the instrument rationale is disclosed in PHASE 0)
+
+## PHASE 0
+
+Checked before concluding the spec is sound: read the full arch file (Grounds, Specification, AC, the 85-gate block with rehearsal declarations), the lane prompt, `notes/` digest references, `tmp/i79-spec/` (grounds/spec/AC/fixtures/oracle harnesses — read-only), the pinned pi-subagents 0.79.1 source (`render.js`, `running-tone.js`, `status-format.js`, `formatters.js`, `context-mode.js`, `stale-run-reconciler.js`, `async-job-tracker.js`, `async-status.js`) and the tart base seams (`render/chat.rb`, `subagents/manager.rb`, `subagents.rb`, `subagents/supervisor.rb`, `theme.rb`, `tui.rb`, `core/loop.rb`, `core/poller.rb`). Zero live API calls; zero commits; the space repo and `repos/pi`/`~/.pi/**` only read.
+
+Findings (each raised with reasons; none is a silent scope change):
+
+1. **`scope` gate structural defect at an uncommitted lane tree — seat ruling applied (the one amendment to the frozen block).** The must-differ leg `[ -n "$(git diff 12a7ece -- lib/tart/render/subagent_box.rb)" ]` is unsatisfiable post-work: the file is NEW at base, an uncommitted lane tree leaves it untracked, and `git diff <commit> -- <untracked>` is empty. Measured evidence: verbatim invocation `sh -c '<frozen scope cmd>'` at the lane tree → exit 1, `FAIL: scope — ...`; `git diff 12a7ece -- lib/tart/render/subagent_box.rb | wc -c` → `0` (empty trace); the tracked-seam legs are non-empty (`git diff 12a7ece -- lib/tart/subagents/manager.rb | wc -l` → 215; `... -- lib/tart/render/chat.rb | wc -l` → 205); the leak check is clean (whitelisted name-only + untracked listing → `0` stray paths). The rehearsal's declared-RED reason was the pre-work EMPTY legs; post-work the leg is empty for a structural reason — BROKEN-class frozen-form defect, per the seat ruling (option b, I69 herdr-wire-probe / I77 nil-safe amendment precedents). Amendment applied EXACTLY: that one leg became `[ -f lib/tart/render/subagent_box.rb ] ||` — the discrimination-preserving analogue (a new file "differs from base" iff it exists). The other three new-at-base touch paths (`gems/tui-split-rig/bin/subagent-status-probe`, `gems/tui-split-rig/fixtures/subagent-box`, `test/subagent_box_test.rb`) carry NO must-differ legs in the frozen form — nothing to amend there; the tracked-seam legs (`manager.rb`, `chat.rb`) and the leak-check legs are byte-unchanged; nothing else in the 85-gate block moved. `git add` was DENIED by the ruling (option a) and was not run; no commit exists (`git log 12a7ece..` is empty).
+
+2. **Grounds imprecision: the success token.** The Grounds say "success `#68b58d` = 104;183;141 — theme.rb", but `Theme::TOKENS` carries no `success:` key; the value is dark.json's green var, present as `md_code_block:`/`tool_diff_added:` (`#68b78d` = 104;183;141 — verified against the fixture SGR bytes). `theme.rb` is outside the touch set, so the box resolves success through the existing token — byte-identical, no theme edit. Pinned in `test_box_theme_tokens_carry_the_frozen_truecolor_codes`.
+
+3. **Resolved tension: "consuming the dock-spacer row" vs "between `pending` and `editor`".** The Specification (the build law) says the box occupies the widgetsAbove slot BETWEEN `pending` and `editor` (pi chat-viewport.ts:29-34 order: pendingMessages → status → widgetsAbove → editor); the Grounds phrase "consuming the dock-spacer row when present" describes pi's spacerWhenEmpty spacer, which in the port sits between transcript and pending (the standing I54 composition). Implemented the Specification: the box is its own layout child between `pending` and `editor` with `constraint_length(rows)` (0 when absent); `dock_spacer_widget` is untouched, so every absent-box frame composes byte-identically to base and the scenario gates hold.
+
+4. **The running tone's accent tail is unreachable in practice — documented, kept for pi-law parity.** pi's `runningTone` is `level ? border(level) : accent`, but its main-level source never returns nil (the session defaults to "off"). The port's Chat passes its resolved level with the same session default (`thinking_level || "off"`), so the probe boot's tone is `thinking_off` `#6c767b` = 108;118;123 — the fixture byte. The `accent` arm stays in the renderer for a level-less caller, matching pi's law shape.
+
+5. **The styled-leg instrument: parsed SGR runs, not raw pane bytes.** The frozen styled fixtures are `tmux capture-pane -e` reconstructions where attribute state carries across newlines and resets land at default-attr cell boundaries — reset placement is the terminal scan's artifact of each app's trailing cell attributes (pi pads some rows with dim cells, others default — not reproducible or meaningful as an app law). Raw byte equality across two different apps' panes is therefore not a well-posed target; the probe (and the unit pins) parse both sides with the stateful SGR parser (state across newlines; 0/39/1/38;2;r;g;b) and compare run sequences — exact on text, colors, bold, and order, insensitive only to reset placement. The fixtures themselves parse through the same instrument.
+
+6. **The single form's step-stats law.** pi's step row carries `durationMs` only at the terminal derive — the running step row has NO stats segment (fixture 04) while terminal step rows do (05/08/11). Implemented: the uncollapsed summary row carries the job-level duration; the step row's stats are terminal-only.
+
+7. **The terminal `active now` detail is pinned as a law, not an artifact.** pi's fixture byte arises from a staged-delta artifact (the attention anchor exceeds the derive time, the age clamps to <1s). The port pins the honest equivalent: terminal rows render `formatActivityLabel(ended_at, nil, ended_at)` → `active now` — the same frozen byte, robust to timing. The multi running row's activity keeps pi's derived law (anchor = started_at, snapshot = lastUpdate); the single running step keeps pi's step-level fallback (`thinking…`, the port's child writes no step activity facts — the named residual); attention surfaces the run-level `no activity for <age>` in both forms.
+
+8. **The box clock is WALL time in ms.** The chat's `@clock` seam is monotonic (the spinner's), but every record fact (`startedAt`/`lastUpdate`/`endedAt`) is wall-clock ms (pi `Date.now`); the box reads `Time.now` for elapsed/age/retention and derives the 1s glyph bucket from the same clock. My FIRST probe runs failed on exactly this mixing (monotonic `now` made retention never expire); fixed before the gate battery — disclosed as the one implementation bug the live leg caught.
+
+9. **The probe's attention state opens one hermetic parent turn.** The staged supervisor ask is surfaced through the I49 channel (unconditional by design), which wakes the parent agent; the mock endpoint is a dead port, so the turn fails with connection-refused locally — zero network egress, zero API spend. The ask stays pending (its lifecycle is not resolved by the failed turn) and the box renders the attention label.
+
+10. **Re-pin files: no edits required.** `test/subagents_health_test.rb` and `test/subagents_test.rb` stayed byte-identical and green (the additive `model`/`context` status fields broke no existing assertion; the permission was not exercised).
+
+## DELIVERABLE (file by file)
+
+| path | change | content |
+|------|--------|---------|
+| `lib/tart/render/subagent_box.rb` | NEW (486 lines) | the pure renderer: form selection (multi ≥2 / single), the multi header + `├─`/`└─`/`│  ` branch law, `+N more (X running, Y finished)` at MAX_WIDGET_JOBS=4, single title + collapsed/uncollapsed step law (pi childState: the stopped run's failed child renders `failed`), RUNNING_FRAMES + `●`, running tone (child level → main level → accent), `✓` success/`✗` error/`■` warning, `[fresh]`/`[fork]` badge, display-layer state map (disk vocabulary unchanged), `⎿` activity details (formatActivityLabel verbatim + `thinking…` fallback), running hint + `output:` (HOME-contracted `runner.stdout.log`) rows, `error: <one line>`, formatDuration verbatim, NO task row, retention (10s) + `visible`/`stable_key`/`render_key` laws, width clipping. No IO, no threads. |
+| `lib/tart/render/chat.rb` | MODIFIED (+137/-4-ish) | the composition + refresh seam: the box layout child between `pending` and `editor`; `transcript_area_rows` yields to `box_row_count`; the render-key cache (`[render_key, width]` → cached rows); `NO_BOX_WIDGET`/`NO_BOX_ROWS` shared constants (the absent path is allocation-free — pinned by object identity); `arm_box_ticks`: the 1s glyph tick (armed while any visible row runs, cancelled with the last) + the ≤5s sweep reactor task (`box_sweep_loop`, the stale-cache paint predicate); wall-clock box clock; no new thread. |
+| `lib/tart/subagents/manager.rb` | MODIFIED (+124) | the box snapshot seam: `box_snapshot` (mutex-guarded, allocation-bounded row hashes; zero-run short-circuit; attention = the supervisor channel's pending registry keyed by run id), `box_sweep` (the I78 sweep + reconcile at the ≤5s cadence) + `box_observation_key`, `kick_box_draw` (the existing kernel bridge; synthetic event dirties the frame), additive record facts (`model` "provider/id" + `context` "fork"/"fresh" at spawn; `last_update`/`ended_at`/`error` at settle/reap), `base_status` gains exactly `model`/`context` (key-present only when recorded), `disk_find`/`adopt_box_facts` pass the disk facts through nil-tolerantly, the watcher's settle/reap paths kick the draw. `public` marker around the Law-3 seam; §7 status rendering stays private. |
+| `lib/tart/subagents.rb` | MODIFIED (+10) | `Subagents.current_manager` module-level accessor; `register` records the Manager (nil in print boots/tests — the Chat's only bin/tart-untouched reach). |
+| `test/subagent_box_test.rb` | NEW (673 lines, 30 runs / 128 asserts) | the pin battery: all eight frozen states plain (byte-exact vs the committed fixtures) + all styled states at the parsed-run level; the truecolor token pins; form selection + overflow; retention; absent-path identity; render-key laws; chat composition (between pending and editor, picker survival, cache identity); cadence laws (1s tick arm/cancel, ≤5s sweep, threads-count pin); the additive `model`/`context` fields (spawn + fork) and legacy tolerance; the attention mapping from a staged ask; the bounded-copy/redaction law; the display-layer map; formatDuration/formatActivityLabel/shortenPath verbatim. |
+| `gems/tui-split-rig/bin/subagent-status-probe` | NEW (393 lines, executable) | the live leg: three tmux boots (closed env, staged HOME, default identity, mock facts, COLORTERM=truecolor, HERDR scrub, token-scoped session, kill -9 teardown); staged runs in the port's schema (live sleep pids, fixed +30s delta); eight states driven on disk (supervisor-ask file for attention, in-dir `result.json` for the terminal transitions — the I78 reaper derives through the box's reads); box-region extraction (plain + `-e`); the frozen normalization classes; plain byte-exact + styled parsed-run compare vs the fixtures; `SUBAGENT_STATUS_OK`/fail-with-first-differing-row. |
+| `gems/tui-split-rig/fixtures/subagent-box/` | NEW (32 files) | byte-copies of `tmp/i79-spec/fixtures/*.txt` (verified `cmp`-identical; never regenerated). |
+
+Untouched (frozen): `bin/tart`, `lib/tart.rb`, `lib/tart/agent/`, `theme.rb`, rig scenario content, Gemfile/Gemfile.lock, `test/subagents_health_test.rb`, `test/subagents_test.rb`.
+
+## GATES (the frozen block, COLD, foreground, at the lane tree — final run)
+
+85/85 gates, one frozen cmd each, sequential, single run per gate (exit + stdout captured together), the frozen `expect` deciding. The `scope` cmd carries the seat-ruled `-f` amendment (PHASE 0 item 1); every other cmd byte-verbatim.
+
+```
+stale-run-reaper                 GREEN ec=0 1s
+unknown-model-reject             GREEN ec=0 0s
+subagents-health-units           GREEN ec=0 7s
+edit-fold-repro                  GREEN ec=0 0s
+edit-fold-units                  GREEN ec=0 0s
+session-model-identity           GREEN ec=0 0s
+session-model-units              GREEN ec=0 0s
+suite                            GREEN ec=0 252s
+bench                            GREEN ec=0 17s
+md-repro                         GREEN ec=0 0s
+md-inline-units                  GREEN ec=0 1s
+pending-registry-units           GREEN ec=0 0s
+footer-window                    GREEN ec=0 0s
+thinking-pins                    GREEN ec=0 1s
+hermeticity                      GREEN ec=0 10s
+lock-deps                        GREEN ec=0 0s
+zai-data                         GREEN ec=0 1s
+threads-budget                   GREEN ec=0 0s
+session-golden                   GREEN ec=0 0s
+strict-wire                      GREEN ec=0 0s
+error-transcript-units           GREEN ec=0 1s
+error-transcript-render-units    GREEN ec=0 1s
+render-perf-units                GREEN ec=0 1s
+render-perf-probe                GREEN ec=0 146s
+tool-pending-gate                GREEN ec=0 20s
+user-bash-stream-gate            GREEN ec=0 14s
+zai-max-tokens-units             GREEN ec=0 2s
+rail-bg                          GREEN ec=0 0s
+jump-pill-units                  GREEN ec=0 0s
+rail-bg-units                    GREEN ec=0 0s
+viewport-probe                   GREEN ec=0 0s
+oracle-pin-state                 GREEN ec=0 0s
+oracle-bin-units                 GREEN ec=0 1s
+oracle-resolve                   GREEN ec=0 0s
+s1-parity                        GREEN ec=0 5s
+s2-parity                        GREEN ec=0 5s
+s3-parity                        GREEN ec=0 5s
+s4-parity                        GREEN ec=0 5s
+s5-parity                        GREEN ec=0 5s
+s6-parity                        GREEN ec=0 5s
+s7-parity                        GREEN ec=0 5s
+s8-parity                        GREEN ec=0 5s
+s9-parity                        GREEN ec=0 7s
+s10-parity                       GREEN ec=0 7s
+s17-parity                       GREEN ec=0 8s
+s1-tart-mode                     GREEN ec=0 5s
+wire-delta                       GREEN ec=0 5s
+zai-max-tokens-wire              GREEN ec=0 5s
+identity-law                     GREEN ec=0 0s
+default-face                     GREEN ec=0 0s
+default-boot                     GREEN ec=0 1s
+herdr-units                      GREEN ec=0 1s
+herdr-wire-probe                 GREEN ec=0 3s
+rig-identity-assert              GREEN ec=0 0s
+subagents-default-law            GREEN ec=0 0s
+subagents-default-boot           GREEN ec=0 1s
+subagents-motd-units             GREEN ec=0 0s
+subagents-motd-probe             GREEN ec=0 3s
+subagents-e2e-default-on         GREEN ec=0 37s
+rig-staging-units                GREEN ec=0 0s
+vendored-attribution             GREEN ec=0 0s
+vendored-units                   GREEN ec=0 1s
+listing-units                    GREEN ec=0 7s
+model-menu-live-merge            GREEN ec=0 1s
+launcher-listing-thread          GREEN ec=0 0s
+vendored-no-boot-network         GREEN ec=0 0s
+listing-thread-law               GREEN ec=0 0s
+md-battery-fixture               GREEN ec=0 0s
+md-battery-units                 GREEN ec=0 0s
+md-regression-units              GREEN ec=0 0s
+md-flanking-repro                GREEN ec=0 0s
+md-micro-perf                    GREEN ec=0 2s
+child-env-law-repro              GREEN ec=0 0s
+child-env-units                  GREEN ec=0 0s
+child-env-site-units             GREEN ec=0 5s
+bash-child-env-live              GREEN ec=0 1s
+session-sink-config-units        GREEN ec=0 1s
+session-sink-projection-units    GREEN ec=0 1s
+session-sink-engine-e2e          GREEN ec=0 7s
+session-sink-child-e2e           GREEN ec=0 4s
+signal-hygiene-units             GREEN ec=0 4s
+signal-orphan-e2e                GREEN ec=0 30s
+scope                            GREEN ec=0 0s
+subagent-box-units               GREEN ec=0 34s
+subagent-status-probe            GREEN ec=0 62s
+```
+
+Declared-RED trio at close: `subagent-box-units` GREEN (30 runs / 128 asserts, floor ≥12), `subagent-status-probe` GREEN (all eight states byte-matched; `SUBAGENT_STATUS_OK`), `scope` GREEN (amended leg; leak check zero; tracked seams non-empty).
+
+## SUITE + BENCH
+
+| measure | base floor (12a7ece, cold) | lane tree (cold) |
+|---------|---------------------------|------------------|
+| `bundle exec rake` | 1413 runs / 6666 asserts / 0F / 0E / 1S | **1443 runs / 6784 asserts / 0 failures / 0 errors / 1 skips** |
+| `bench/seam_bench.rb` | SEAM_BENCH_OK | SEAM_BENCH_OK |
+
+Strictly greater than the floor; nothing deleted (+30 runs / +118 asserts — this lane's 30-test battery; the 1 skip is the base's).
+
+## PROBE RUN LOG (final battery, subagent-status-probe leg)
+
+```
+state 01-running-two: OK
+state 02-attention: OK
+state 03-completed-with-output: OK
+state 04-running-one: OK
+state 05-failed: OK
+state 06-empty: OK
+state 08-single-completed: OK
+state 11-single-stopped: OK
+SUBAGENT_STATUS_OK
+```
+
+## RESIDUALS (honest list)
+
+- **Named pi residuals, unchanged** (Grounds): the belowEditor fleet roster widget; the live tool/turn/token/currentTool facts (the child-runner status-write wire — `bin/tart` + `lib/tart/agent/` hard-frozen); the ctrl+o expanded box form (recentTools/recentOutput tails); pi's `queued` state (the port spawns immediately); pi's `output-<i>.log` artifact name (the port's `runner.stdout.log` — normalized by ◖PATH◗).
+- **The styled compare is run-level, not raw bytes** (PHASE 0 item 5) — the reset placement across app panes is a terminal-scan artifact; a stricter raw-byte instrument is not well-posed.
+- **Probe timing margins**: marker-poll caps at 45s, fixed 1.6s settles between capture and event; four full probe runs (3 during development + the battery leg) all passed; the retention drop lands ≤5s+1s after expiry via the sweep (measured 10.1s after the flip in isolation).
+- **The ≤5s sweep is a fixed-rate poll** (pi's own DEFAULT_LIVENESS_INTERVAL_MS analog) — it draws only on the stale-cache predicate, never at a fixed render rate (I58 held; `render-perf-probe` GREEN at 146s).
+- **The `scope` amendment** rides the seat ruling (2026-10-18T21:0xZ) — the architect transcribes it into the arch file at verdict time; the frozen block's other 84 cmds are byte-untouched.
+
+## ACCEPTANCE REPORT
+
+```acceptance-report
+{
+  "criteriaSatisfied": [
+    {
+      "id": "criterion-1",
+      "status": "satisfied",
+      "evidence": "This report: PHASE 0 disclosures with measured evidence, the 85-gate table (85/85 GREEN, cold, foreground, at the lane tree), suite counts 1443/6784/0F/0E/1S vs the 1413/6666 floor, the probe's eight-state OK log, the file-by-file deliverable table, and the residual list."
+    }
+  ],
+  "changedFiles": [
+    "lib/tart/render/subagent_box.rb",
+    "lib/tart/render/chat.rb",
+    "lib/tart/subagents/manager.rb",
+    "lib/tart/subagents.rb",
+    "test/subagent_box_test.rb",
+    "gems/tui-split-rig/bin/subagent-status-probe",
+    "gems/tui-split-rig/fixtures/subagent-box/ (32 fixture files)"
+  ],
+  "testsAddedOrUpdated": [
+    "test/subagent_box_test.rb (30 runs / 128 assertions, all green)"
+  ],
+  "commandsRun": [
+    { "command": "ruby scratch/run_gates.rb  (the frozen gates block, 85 cmds, cold, at the lane tree)", "result": "passed", "summary": "85/85 GREEN incl. suite 252s, bench, render-perf-probe 146s, all scenarios, wire-delta, session-golden, scope (amended leg), subagent-box-units, subagent-status-probe" },
+    { "command": "bundle exec rake", "result": "passed", "summary": "1443 runs, 6784 assertions, 0 failures, 0 errors, 1 skips (floor 1413/6666/0F/0E/1S — strictly greater, nothing deleted)" },
+    { "command": "bundle exec ruby bench/seam_bench.rb", "result": "passed", "summary": "SEAM_BENCH_OK" },
+    { "command": "env -u HERDR_* gems/tui-split-rig/bin/subagent-status-probe --out t79sb", "result": "passed", "summary": "eight states OK, SUBAGENT_STATUS_OK (4 full runs; first-run failures were my wall-vs-monotonic clock bug, fixed and disclosed)" }
+  ],
+  "validationOutput": [
+    "85/85 gates GREEN (gate-results.txt in the lane scratch)",
+    "1443 runs / 6784 asserts / 0 failures / 0 errors / 1 skips",
+    "SEAM_BENCH_OK",
+    "SUBAGENT_STATUS_OK (all eight frozen states, plain + styled)"
+  ],
+  "residualRisks": [
+    "scope gate ran with the seat-ruled -f amendment for its one new-at-base must-differ leg (disclosed, PHASE 0 item 1)",
+    "probe timing margins: 45s marker-poll caps + 1.6s settles; 4/4 full runs green",
+    "styled compare is parsed-SGR-run level (reset placement is a terminal-scan artifact)",
+    "named pi residuals stand: belowEditor fleet roster, live tool/turn/token wire, ctrl+o expanded form, queued state, output-<i>.log name"
+  ],
+  "noStagedFiles": true,
+  "diffSummary": "3 lib files modified (+267/-4 across chat.rb/subagents.rb/manager.rb), 4 new paths (the renderer, the 30-run pin battery, the probe bin, the 32-fixture dir); re-pin files untouched; no commits, no staged files",
+  "reviewFindings": [
+    "no blockers",
+    "disclosed: the scope-gate frozen-form defect and its seat-ruled amendment; the Grounds' success-token imprecision (resolved through md_code_block #68b78d); the dock-spacer/widgetsAbove composition tension (implemented per the Specification); the accent-tone tail's unreachability; the wall-clock box clock bug the live leg caught"
+  ],
+  "manualNotes": "The seat ruling (option b-modified) is transcribed in PHASE 0 item 1 with the measured evidence; the architect should amend the arch file's scope cmd at verdict time. The lane tree is uncommitted (git log 12a7ece.. empty); t79*/tmp gate out dirs were self-cleaned after the battery."
+}
+```
+
 ## Builder Report
 
 <!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
