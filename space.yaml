@@ -3032,12 +3032,21 @@ project:
       - test/child_encoding_test.rb
       - test/subagents_e2e_test.rb
       base_sha: 34ba69afc68e77bdf8e9761eec885ea9a96b388c
-      worktree: build/I80-child-encoding-hygiene-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: openrouter/z-ai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 605975fdf3ce77930862518dc7c3721bf37fef80
+      bounds_override_reason: 'SEAT RULING 2026-10-18 (notes/decisions-20261019T041005Z-i80-scope-repin-escalation.md,
+        the I77 ruling-#2 DECLARED re-pin pattern): test/subagents_test.rb is the
+        seat-declared 6th path — Law 1''s frozen UTF-8 floor contradicts the carried
+        I48 closed-env pin at subagents_test.rb:306; the sanctioned list gained exactly
+        LANG LC_ALL LC_CTYPE and the arch-file scope gate was amended 5-path to 6-path
+        by the judge at verdict, battery-verified cold GREEN. The touch-set declaration
+        itself is the defect being overridden; the t80* judge scratch was cleaned
+        pre-integrate per the I73-I79 precedent.'
     rehearsal:
       gates_digest: 903a7f95bf4369d923149d0f5d86bf9e61645ec3eb2f5b9f4abe66d94bfd924e
       at: '2026-10-18T21:37:22-06:00'
