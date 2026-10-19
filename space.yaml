@@ -81,7 +81,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: child-encoding-hygiene
+  current_iteration: agent-loading-forensics
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -3050,4 +3050,10 @@ project:
     rehearsal:
       gates_digest: 903a7f95bf4369d923149d0f5d86bf9e61645ec3eb2f5b9f4abe66d94bfd924e
       at: '2026-10-18T21:37:22-06:00'
+  - name: agent-loading-forensics
+    ordinal: 81
+    file: architecture/I81-agent-loading-forensics.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
