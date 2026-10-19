@@ -3020,7 +3020,18 @@ project:
   - name: child-encoding-hygiene
     ordinal: 80
     file: architecture/I80-child-encoding-hygiene.md
-    freeze_sha:
+    freeze_sha: d3f267e20efa6ad0a63d79fc18e0172e93507494
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/utf8_boot.rb
+      - lib/tart/subagents/manager.rb
+      - bin/tart
+      - test/child_encoding_test.rb
+      - test/subagents_e2e_test.rb
+    rehearsal:
+      gates_digest: 903a7f95bf4369d923149d0f5d86bf9e61645ec3eb2f5b9f4abe66d94bfd924e
+      at: '2026-10-18T21:37:22-06:00'
   integration_branch: project/pi-port
