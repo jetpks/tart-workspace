@@ -560,13 +560,23 @@ before concluding the spec is sound) — silent compliance is a defect.
 >   the standing I77/I78/I79 class). GREEN arrives only with the lane
 >   work; BROKEN would be a gate defect, not a finding.
 > - The carried 84, MEASURED at the base tip `34ba69af` by THIS spec's
->   rehearsal: **GREEN vector recorded in the freeze stamp** —
->   including the standing adjudication classes (`render-perf-probe`
->   BP2 load margin either way, `s9-parity`/`herdr-wire-probe` at
->   canonical depth this run). The carried GREENs are the
->   no-regression proof at freeze time; the standing adjudication
->   classes above are adjudicated at the lane tree, never silently
->   patched.
+>   first rehearsal (transcript
+>   `build/rehearse/I80-child-encoding-hygiene-20261018T213722.142803.md`):
+>   **ALL 84 GREEN + the 4 declared-RED — GREEN 84 / RED 4 / BROKEN 0 /
+>   EMPTY 0**, every RED verified at the base tree for exactly its
+>   declared reason (`child-encoding-units` runs=0 file-absent;
+>   `child-encoding-e2e` runs=0 filter-empty; `runner-encoding-direct`
+>   "2 JSON.generate encoding warning(s) on the runner stderr" — the
+>   probe-A measurement, reproduced by the gate itself; `scope` RED on
+>   the EMPTY must-differ legs with ZERO leak lines — the leak check
+>   and the hard-freeze leg both exit 0 at base, the standing
+>   I77/I78/I79 class) — including `render-perf-probe` GREEN this
+>   idle-machine run (the I75-frozen LOAD-MARGIN adjudication stands
+>   either way: BP2-only → note-and-pass, idle-machine cold re-run
+>   operative), `s9-parity` and `herdr-wire-probe` GREEN at canonical
+>   depth. The 84 GREEN are the no-regression proof at freeze time; the
+>   standing adjudication classes above are adjudicated at the lane
+>   tree, never silently patched.
 > - The `t80*` out dirs the gates create are rehearsal/judge scratch:
 >   never committed; the integrator's out-of-bounds guard may trip on
 >   them (the I73–I79 judge-scratch precedent — clean and re-verify, no
