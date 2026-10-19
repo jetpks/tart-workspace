@@ -170,35 +170,205 @@ law) — unchanged.
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section agent-loading-forensics specification --from <file>`. -->
+# Specification — I81 `agent-loading-forensics` (ONE lane, repo tart)
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+## Objective
+
+Close the plan's ENTRY 6 (the successor plan's LAST entry): make tart host the
+full loop — custom agents that name tools tart doesn't know LOAD with a warning
+(pi's behavior), the `subagent` tool becomes grantable so a custom agent can
+spawn children (the coordinator role becomes hostable), and a post-mortem can
+answer "what was this run asked to do" from disk alone. Three laws, all frozen
+below; the standing battery (92 gates) is the floor. Cites:
+`notes/plan-20261018T1745Z-live-run-successor.md` ENTRY 6; BRIEF §8 (the
+exact-parity bar); the Grounds section above (mechanisms, pi cites, live
+specimens, the carried-pin audit).
+
+## Law 1 — the agent-loading law (warn-and-drop)
+
+A custom agent profile whose `tools` frontmatter names tools outside the known
+universe LOADS: the spec's `tools` = the known entries in DECLARATION order, and
+discovery emits exactly ONE warning diagnostic for the file. Only a structurally
+invalid `tools` value (not a comma-string, not an array of strings) still
+warn+skips the file — today's behavior, byte-unchanged
+(`schemas/subagents.rb` shape rule; pi `agents.js:739-741` throws on shape only).
+
+- **The universe grows `subagent`**: `ProfileFields::TOOLS_UNIVERSE` =
+  `%w[read edit write bash find grep ls contact_supervisor subagent]`. The
+  known-set is the ONE closed list this law widens; nothing else becomes
+  grantable through the contract (`rm_rf` etc. stay unknown — the
+  `tools_test.rb:114` pin survives untouched).
+- **The drop happens at profile build** (`profiles.rb`): the contract's tools
+  rule validates SHAPE only; `build_profile`/`tools_list` filters unknown
+  names out of the spec and returns them for the diagnostic. An
+  omitted/nil `tools` line still means the builtin seven (`tools_list`'s nil
+  arm, unchanged); an explicit list that drops to EMPTY means ZERO tools plus
+  the warning (OQ-3 ruling).
+- **The diagnostic** (port-own vocabulary — pi has no warn analog; continuity
+  with the retired reject message): ONE per affected file,
+  `Skills::Diagnostic.new(type: "warning", path: <file>)` with message
+  EXACTLY `unknown tool(s) <names> — dropped (valid tools: <universe sorted,
+  comma+space>)` where `<names>` is the dropped entries in declaration order,
+  comma+space joined. A file with zero dropped names emits nothing.
+- **The surface** (OQ-2 ruling): the interactive boot renders one
+  `surface.command_line("#{d.path}: #{d.message}")` row per profile diagnostic,
+  the `bin/tart:556-559` skills/prompts idiom, inside the gate-on subagents
+  branch (a fresh `Profiles.discover` call — resolution stays per-spawn and
+  uncached; the boot call is a read-only extra scan). Malformed-file warnings
+  become visible through the same row — declared. NO MOTD change (the I70 tier
+  law); no print-boot surface.
+- The unknown-agent error, the model ladder, the bridge union, the
+  frontmatter-name/thinking/context rules: byte-unchanged.
+
+## Law 2 — the nested-grant law (`subagent` grantable, depth-bounded)
+
+A custom agent declaring `subagent` in `tools` can spawn children, to pi's
+depth bar.
+
+- **Contract**: covered by Law 1's universe widening (the name is known).
+- **Registry** (`tools/registry.rb`): `Tools::Registry.build`'s selected-list
+  validation ACCEPTS the name `subagent` (a named constant beside
+  `TOOL_CLASSES` — e.g. the selectable vocabulary — so the acceptance is
+  pinnable); the registry NEVER builds it (no `TOOL_CLASSES` entry, no
+  constructor); the hooks registered-tools merge (unchanged, `registry.rb:80-86`)
+  supplies the instance and keeps it LAST on the wire (the I47 merge order). A
+  selected `subagent` that no registered tool supplies (a gate-off child —
+  near-unreachable: a `subagents: false` settings row disables the parent's own
+  tool first) drops from the loadout silently — pi's loadout parity
+  (`agent-session.ts:1575-1582`); declared, pinned as a no-raise unit.
+- **The child argv**: unchanged shape — `--tools` carries the spec's tools
+  (now possibly including `subagent`) + the bridge-unioned
+  `contact_supervisor` tail (I49 D5, byte-pinned for builtins; a custom
+  agent's list keeps ITS declaration order with the union tail).
+- **The depth law** (pi-subagents 0.79.1 verbatim semantics,
+  `shared/types.js:134-201`): the shared constants + normalize/check helpers
+  land in `lib/tart/subagents.rb` (the module shared-types home — the pi
+  `types.js` analog): `DEFAULT_MAX_SUBAGENT_DEPTH = 2`; a session's own depth
+  = `<IDENTITY>_SUBAGENTS_DEPTH` env (non-negative integer; absent/invalid →
+  0 at the top level); a session's max = `<IDENTITY>_SUBAGENTS_MAX_DEPTH` env
+  (non-negative integer; absent/invalid → the default 2). The Manager reads
+  both at construction from its `env:` (the existing `@env`/`@identity`
+  pair). `spawn_run` checks FIRST (before any disk resolution): own
+  `depth >= max` → raise `ArgumentError` with pi's spawn-side bytes EXACTLY
+  (`subagent-executor.js:6983-6993`):
+  `Nested subagent call blocked (depth=<d>, max=<m>). You are running at the
+  maximum subagent nesting depth. Complete your current task directly without
+  delegating to further subagents.`
+  — riding the existing raise→`{error:}` tool-result path (the unknown-agent
+  precedent). Every spawn writes the child env picks
+  `<IDENTITY>_SUBAGENTS_DEPTH = <own depth + 1>` and
+  `<IDENTITY>_SUBAGENTS_MAX_DEPTH = <own max>` (always, both keys — the closed
+  pick list grows EXACTLY these two; nil-key omission rules untouched).
+- **`allowNestedSubagents`** frontmatter: stays tolerated-and-ignored (OQ-1
+  ruling; declared residual — pi `child-tool-plan.js:200-204` also authorizes
+  via it, no known playbook relies on it alone).
+
+## Law 3 — the forensics law (transcript path + the task on disk)
+
+- **Transcript path, single `sessions`**: the child argv's `--session-root`
+  value becomes the run dir itself (`run[:dir]`, `manager.rb:398`), so the
+  Recorder's composition (`agent/session.rb:78-80`, UNTOUCHED — hard-frozen)
+  lands the transcript at `<run-dir>/sessions/<cwd-slug>/<ts>_<id>.jsonl`.
+  `status.sessionRoot` keeps its value `File.join(dir, "sessions")` — now the
+  ACCURATE container of the transcript. The `--session-root` help text and
+  the Recorder/session seams: byte-unchanged. Historical doubled dirs: the
+  manager's transcript glob (`manager.rb:1225`, unchanged shape) matches both
+  layouts — legacy adoption tolerance is PINNED.
+- **The task on disk**: `status.task` carries the spawn's task argument
+  VERBATIM (the RAW string — the fork preamble is harness boilerplate and is
+  excluded; `taskChars` stays the raw task's CHARACTER count, unchanged).
+  The write is the existing atomic `write_status` flip — the field stops
+  being null, nothing else in the payload moves (key order, the additive
+  box fields, the legacy nil-tolerance all unchanged). Readers that never
+  rendered a task (the I79 box, `render/subagent_box.rb:27-28`) stay
+  byte-unchanged; legacy `task: null` dirs stay tolerated (the I78 health
+  fixtures prove it cold).
+
+## Output format
+
+- The lane's pins land in the four declared test files (no new files — all
+  touch paths exist at base). Minimum frozen counts: profiles `/dropped/`
+  ≥ 2; subagents `/nested|depth_cap/` ≥ 3; subagents `/forensic/` ≥ 2; e2e
+  `/nested/` ≥ 1; the full-file floors 15/34 (profiles/subagents) hold GREEN.
+- Report tables: per-gate RED/GREEN with the rehearsal vector, the suite
+  run/assert counts at the lane tree, the e2e leg's captured wire facts
+  (child wire declares `subagent`; grandchild run dir + result), the
+  depth-blocked error bytes, the forensic path/task assertions.
+- Verification scratch: `t81*` out dirs (never committed); lane report at
+  `build/I81-agent-loading-forensics-core/report.md`.
+
+## Tool guidance (exact, measured this session)
+
+- Base floor (repos/tart @ `7b70e8a`, cold, this session):
+  `bundle install --quiet && bundle exec rake` → 1453 runs / 6846 asserts /
+  0F / 0E / 1S, exit 0; `bundle exec ruby bench/seam_bench.rb` →
+  `SEAM_BENCH_OK`. Floors pin RUN counts (the assert counter is the
+  I78-verdict dynamic class).
+- Rehearsal: `architect rehearse agent-loading-forensics` (fresh stamp before
+  freeze — never `--skip-rehearse`).
+- Rig execs: `env -u HERDR_ENV -u HERDR_TAB_ID -u HERDR_SOCKET_PATH -u
+  HERDR_BIN_PATH -u HERDR_WORKSPACE_ID -u HERDR_PANE_ID` (the standing
+  prefix); judge runs gates at the LANE tree; never gates under nohup.
+- Parity oracles: pi-subagents 0.79.1 at
+  `~/.pi/agent/npm/node_modules/pi-subagents/src/` (the subagents seams);
+  `repos/pi` @ v1.1.0 (the rig oracle); the live specimens
+  `~/.tart/subagents/01a14df7-f99a-7244-a23e-e172ebd97383/` (doubled path +
+  task null) and the 07:40Z devstral transcript (the rejections) — READ-ONLY.
+
+## Boundaries
+
+- **May touch (the frozen 10-path set — all exist at base, no new files)**:
+  `lib/tart/schemas/subagents.rb`, `lib/tart/subagents/profiles.rb`,
+  `lib/tart/subagents/manager.rb`, `lib/tart/subagents.rb`,
+  `lib/tart/tools/registry.rb`, `bin/tart`,
+  `test/subagents_profiles_test.rb`, `test/subagents_test.rb`,
+  `test/subagents_e2e_test.rb`, `test/subagent_box_test.rb`.
+- **Must not touch (hard-frozen)**: `lib/tart/agent/session.rb` (the
+  `<root>/sessions/<slug>` layout law — the doubled-path cure is
+  manager-argv-side ONLY); `lib/tart/child_env.rb` (the I73 scrub law);
+  `lib/tart/render/**` (the I70 MOTD tier law + the I79 box law); the rig
+  (`gems/**` — no scenario-content edits, the plan constraint); `Gemfile`,
+  `Gemfile.lock`, `tart.gemspec`, `bench/**`; every other file under `lib/`
+  and `test/`. No new gems. No wire or session-golden movement (the child
+  wire changes ONLY where a declared-`subagent` agent spawns — the parity
+  scenarios never do).
+- **Out of scope**: per-agent `maxSubagentDepth` frontmatter (pi
+  `launch-contract.js:69`; tolerated-ignored like `allowNestedSubagents`);
+  any intercom/workflow-template change; the parked devstral-docs trial
+  (owner ruling); richer `first_error_line` classification (the I80 digest's
+  backlog note — owner backlog, not this lane).
+
+## Lane plan
+
+ONE lane — three laws over the profile/manager/registry seams, both-ways pins,
+the standing 92-gate battery.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision agent-loading-forensics`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/schemas/subagents.rb
+    - lib/tart/subagents/profiles.rb
+    - lib/tart/subagents/manager.rb
+    - lib/tart/subagents.rb
+    - lib/tart/tools/registry.rb
+    - bin/tart
+    - test/subagents_profiles_test.rb
+    - test/subagents_test.rb
+    - test/subagents_e2e_test.rb
+    - test/subagent_box_test.rb
+  effort: medium
 ```
+
+## Effort call
+
+`medium` — a bounded, fully-specified mechanism (all three laws frozen with
+pi-cited reference behavior; every contradicting carried pin enumerated as a
+declared re-pin BEFORE freeze; no perf exposure, no parity-scenario exposure),
+but it owes the new unit batteries (≥ 7 new pinned tests across three filters),
+a real-subprocess NESTED e2e leg (three process generations against the mock
+endpoint), the boot-surface seam in `bin/tart`, and the full 92-gate standing
+battery.
 
 ## Acceptance Criteria
 
