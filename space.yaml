@@ -3021,7 +3021,7 @@ project:
     ordinal: 80
     file: architecture/I80-child-encoding-hygiene.md
     freeze_sha: d3f267e20efa6ad0a63d79fc18e0172e93507494
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
@@ -3031,6 +3031,13 @@ project:
       - bin/tart
       - test/child_encoding_test.rb
       - test/subagents_e2e_test.rb
+      base_sha: 34ba69afc68e77bdf8e9761eec885ea9a96b388c
+      worktree: build/I80-child-encoding-hygiene-core/wt
+      integration_branch:
+      harness: pi
+      model: openrouter/z-ai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: 903a7f95bf4369d923149d0f5d86bf9e61645ec3eb2f5b9f4abe66d94bfd924e
       at: '2026-10-18T21:37:22-06:00'
