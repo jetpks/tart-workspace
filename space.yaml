@@ -2982,7 +2982,7 @@ project:
     ordinal: 79
     file: architecture/I79-subagent-status-box.md
     freeze_sha: 3f8cc9ba6a071c3fc00b798123b7c478e9fa7e8e
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
@@ -2996,6 +2996,13 @@ project:
       - test/subagents_test.rb
       - gems/tui-split-rig/bin/subagent-status-probe
       - gems/tui-split-rig/fixtures/subagent-box/
+      base_sha: 12a7ece321cb78f293089d889e25478456bba173
+      worktree: build/I79-subagent-status-box-core/wt
+      integration_branch:
+      harness: pi
+      model: openrouter/z-ai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: 9513b9a918b494a7ab32f1021151ccd5f9c2eba274e2448763c677d9641923fe
       at: '2026-10-18T17:35:57-06:00'
