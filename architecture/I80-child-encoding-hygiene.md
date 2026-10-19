@@ -2328,10 +2328,45 @@ before concluding the spec is sound) — silent compliance is a defect.
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I80-child-encoding-hygiene-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section child-encoding-hygiene prompt --append --lane <lane> --from build/I80-child-encoding-hygiene-<lane>/prompt.md`. -->
+### core
+
+# Builder lane prompt — iteration `child-encoding-hygiene` (I80), lane `core`, repo `tart`
+
+You are the builder for iteration `child-encoding-hygiene` (I80), lane `core`, repo `tart`. You are the ONLY lane. Your worktree is `build/I80-child-encoding-hygiene-core/wt` (base `34ba69af`, branch `lane/I80-child-encoding-hygiene-core`) — do all work THERE; the space's main checkout is read-only for you. **ZERO live API calls of any kind** — no provider keys, no driver scripts, no spend (every pin and leg is hermetic: staged homes, the MockLLMServer, closed subprocess envs).
+
+## THE CONTRACT — read it first, in full
+
+The authoritative, FROZEN contract is `architecture/I80-child-encoding-hygiene.md` in the space repo: its **Grounds**, **Specification**, and **Acceptance Criteria** sections (the three Laws, Output format, Tool guidance, Boundaries, Lane plan, the 88-gate frozen ```gates block with its rehearsal declarations). READ THE WHOLE FILE before doing anything. Where this header and the arch file differ, THE ARCH FILE WINS.
+
+Supporting read: `notes/spec-digest-20261018T234835Z-subagent-status-box.md` (the I79 handoff — the carry/adjudication classes, the declared-RED pattern, judge-runs-gates-at-the-lane-tree, never gates under nohup, short out dirs, the new-directory `dir/**` touch-path rule) and this spec's scratch `tmp/i80-spec/` (grounds/spec/AC sources, the carried-gates rebases, and the two base-RED probe scripts `probe-runner.rb` / `probe-manager.rb` — READ-ONLY reference for the defect shapes; never copy them into the repo).
+
+## THE DEFECT (one root class, three symptoms — all reproduced hermetically at base this session)
+
+A locale-less child process (`Encoding.default_external = US-ASCII`; the subagent child env pick list drops `LANG`/`LC_*`, and a locale-less parent chain never had them) mangles every non-ASCII byte crossing the child boundary: (a) the task text rides ARGV tagged ASCII-8BIT → `JSON.generate: UTF-8 string passed as BINARY` warnings on every wire round (52 copies in the dead devstral spec run); (b) the locale-blind text-mode `read_output` RAISES on the child's byte-exact non-ASCII stdout and its rescue swallows it to `""` → the run settles `failed` with the json warning recorded as its `error` — the exact devstral failure class (`01a14df7`, `01a14e3c`); (c) `String#strip`/`String#sub` raise `invalid byte sequence in US-ASCII` inside the child (the architect-CLI crash class). The scrub itself strips NOTHING locale-related — the audit answer; your cure rides ON TOP of the untouched scrub.
+
+## WHAT YOU ARE LANDING (three frozen laws, one lane)
+
+1. **LAW 1 — the child locale law** (`lib/tart/subagents/manager.rb`, the private `child_env` pick builder behind the PUBLIC `spawn_argv_and_env`): after the existing picks, (a) pass-through picks — `LANG` and every source key matching `/\ALC_/`, present-non-empty, verbatim values (pi parity: pi-subagents passes the full parent env, async-execution.js:503); (b) the UTF-8 floor — effective charset key `env["LC_ALL"] || env["LC_CTYPE"] || env["LANG"]`; if nil or not matching `/UTF-?8\z/i`, set `env["LC_ALL"] = "en_US.UTF-8"` when `LC_ALL` is present (it masks `LC_CTYPE`), else `env["LC_CTYPE"] = "en_US.UTF-8"` (frozen constant `UTF8_LOCALE = "en_US.UTF-8"`). The pick list grows ONLY these keys — the CLOSED-env design (I73 OQ-7) stays; `lib/tart/child_env.rb` is HARD-FROZEN byte-untouched (the plan's constraint, mechanically enforced by the scope gate).
+2. **LAW 2 — the boot UTF-8 law** (`lib/tart/utf8_boot.rb`, NEW + one require-and-call in `bin/tart`'s `run(argv)` before parse): `Tart::UTF8Boot.enforce!(argv:)` — unless `Encoding.default_external` is already UTF-8, set it to `Encoding::UTF_8` (`Encoding.default_internal` stays nil, never touched); ARGV retag: each element whose encoding is not UTF-8 AND whose bytes are valid UTF-8 gets `force_encoding(Encoding::UTF_8)` in place; invalid-UTF-8 bytes are left byte-identical, never mangled. It sets Encoding values, NOT env vars. It cures the DIRECT runner path (a locale-less `bin/tart -p "Diátaxis…"` — measured at base: 2 warnings on stderr while stdout round-trips) and is a no-op belt under Law 1.
+3. **LAW 3 — byte-hygienic artifact readers** (`lib/tart/subagents/manager.rb`): `read_output` (:1159) reads via `File.binread` → `force_encoding(Encoding::UTF_8).scrub` → the existing trailing-newline `.sub(/\n\z/, "")`, `rescue StandardError → ""` belt stays; `first_error_line` (:1168) gets the same discipline (binread + force + scrub, first non-empty `.strip`, `rescue → nil` belt stays). The port's own established idiom (`output_accumulator.rb:41`, `read.rb:85`) — byte-identical for valid UTF-8, never-raise for arbitrary child bytes. NOTHING else in the settle/reap/ownership chain moves (I78's laws byte-unchanged; `truncate_utf8_head` is already byte-safe and untouched).
+
+Frozen discipline you must not drift from: wire-delta + session-golden hold EXACT (encoding tags move, bytes do not — JSON.generate output is byte-identical for a valid UTF-8 string whether tagged UTF-8 or BINARY); the task-never-recorded law (`taskChars` only) stays; no rig scenario-content edits; no new gems; no new `Thread.new` sites.
+
+## Deliverable (frozen Output format)
+
+Code + tests, exactly the 5-path touch set. The pin battery lives in `test/child_encoding_test.rb` (NEW, ≥ 7 runs under the `/encoding/` filter — the `child-encoding-units` gate floor), driving the PUBLIC surfaces (`spawn_argv_and_env` with a staged Manager — the `subagents_test` idiom; `Tart::UTF8Boot.enforce!` with save/restore of `Encoding.default_external` in ensure): at minimum, pins for (1) locale pass-through from a POISONED bundler env (child env carries `LANG` verbatim AND zero bundler keys — the constraint honored); (2) the floor when no locale key is present (`LC_CTYPE=en_US.UTF-8`, nothing invented for `LANG`); (3) a non-UTF-8 `LANG=C` → `LC_CTYPE` floor with `LANG` untouched; (4) a UTF-8 `LANG` → nothing added or changed; (5) a present non-UTF-8 `LC_ALL` → `LC_ALL` overridden; (6) the argv task text byte-exact (a Diátaxis-grade payload, bytes compared); (7) the boot law both ways (US-ASCII external → UTF-8 + BINARY-valid-UTF-8 argv retagged; invalid-UTF-8 argv left byte-identical; UTF-8 external a no-op).
+
+The e2e leg lives in `test/subagents_e2e_test.rb` (the DECLARED re-pin file): ONE new leg `test_encoding_e2e_non_ascii_round_trip` under the `/encoding_e2e/` filter — leg A's exact machinery (staged HOME, the closed locale-less `tart_env` — ALREADY the defect environment, no new staging, MockLLMServer, the foreground subagent call) with a Diátaxis-grade non-ASCII task AND child answer, asserting: parent exit 0; the child wire request carries the task byte-exact; `runner.stderr.log` ZERO `passed as BINARY` lines; the PARENT's own stderr ZERO (the boot law's leg); `status.json` `completed` with `taskChars` == the task's CHARACTER count; `result.json` `success: true` and `output` == the child answer BYTE-EXACT; the parent's final stdout byte-exact. Any edit to existing legs is behavior-preserving re-pinning only.
+
+## Operating constraints (lane)
+
+- Touch set (frozen, the scope gate bites exactly): `lib/tart/utf8_boot.rb` (NEW), `lib/tart/subagents/manager.rb`, `bin/tart`, `test/child_encoding_test.rb` (NEW), `test/subagents_e2e_test.rb` — the three tracked must-differ seams (`manager.rb`, `bin/tart`, `subagents_e2e_test.rb`) must all change; `lib/tart/child_env.rb` is HARD-FROZEN.
+- No live API spend. No new gems. No new threads. No rig scenario edits.
+- PHASE 0: every disagreement with this spec is raised with reasons in your report (or an explicit statement of what was checked before concluding the spec is sound) — silent compliance is a defect.
+- The four declared-RED gates (`child-encoding-units`, `child-encoding-e2e`, `runner-encoding-direct`, `scope` — scope REDs on the empty must-differ legs pre-work) turn GREEN only with your lane work; everything else is a regression anchor that must not move. The standing adjudication classes (s9/herdr lane-tree depth, render-perf BP2 load margin, the suite's env/interrupt classes) are declared in the AC — never silently patched.
+- Scratch under `build/I80-child-encoding-hygiene-core/scratch/`; never commit the `t80*` gate out dirs.
+- Verification (exact, measured at base): `bundle install --quiet && bundle exec rake` → 1443 runs / 6793 asserts / 0F / 0E / 1S, exit 0 (post-lane ≥ 1443 runs, 0F/0E); `bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1` → `SEAM_BENCH_OK`. The unit/e2e forms are in the arch file's Tool guidance.
+- Report at `build/I80-child-encoding-hygiene-core/report.md`: the suite summary line, the FULL 88-gate table (every gate, one measured one-liner each — itemize-and-defend), deviations itemized, a final `STATUS:` line.
 
 ## Builder Report
 
