@@ -2307,9 +2307,13 @@ before concluding the spec is sound) — silent compliance is a defect.
   ac: AC5
   cwd: repos/tart
   cmd: |-
+    # I80 SEAT RULING 2026-10-18 (the I77 ruling-#2 DECLARED re-pin
+    # pattern): test/subagents_test.rb joins the whitelist as a DECLARED
+    # re-pin file (Law 1 floor keys into the I48 closed-env pin); the
+    # 5-path -> 6-path widening is the ONLY change to this gate.
     git diff --quiet 34ba69af -- Gemfile Gemfile.lock tart.gemspec bench gems lib ':(exclude)lib/tart/utf8_boot.rb' ':(exclude)lib/tart/subagents/manager.rb' &&
     ! (git diff --name-only 34ba69af; git status --porcelain | grep "^??" | cut -c4-) |
-    grep -vE "^(lib/tart/utf8_boot\.rb|lib/tart/subagents/manager\.rb|bin/tart|test/child_encoding_test\.rb|test/subagents_e2e_test\.rb|t7[5-9][0-9a-z]*/?|t80[0-9a-z]*/?|tmp/render-perf-gate/?|tmp/subagent-status-probe-?)$" |
+    grep -vE "^(lib/tart/utf8_boot\.rb|lib/tart/subagents/manager\.rb|bin/tart|test/child_encoding_test\.rb|test/subagents_e2e_test\.rb|test/subagents_test\.rb|t7[5-9][0-9a-z]*/?|t80[0-9a-z]*/?|tmp/render-perf-gate/?|tmp/subagent-status-probe-?)$" |
     grep -q . &&
     [ -n "$(git diff 34ba69af -- lib/tart/subagents/manager.rb)" ] &&
     [ -n "$(git diff 34ba69af -- bin/tart)" ] &&
@@ -2617,15 +2621,38 @@ acceptance-report
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section child-encoding-hygiene verdict --from <file>`. -->
+### core
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify child-encoding-hygiene`)?
+**Judge session 2026-10-19 (cold, lane tree `build/I80-child-encoding-hygiene-core/wt` @ base `34ba69af`, HEAD = base, zero lane commits — verified).**
+
+**Mechanical post-flight.** `architect verify` → frozen sections PASS / no builder commits PASS / report exists PASS / in-bounds FAIL (the FAIL is exactly the seat-ruled DECLARED re-pin `test/subagents_test.rb`, adjudicated below). `git diff ed4991b HEAD` on this file: post-freeze movement is the Builder Prompt append + this Builder Report/Verdict only. `git -C <worktree> log 34ba69af..` → EMPTY. `git diff 34ba69af -- lib/tart/child_env.rb` → **0 lines (HARD-FROZEN, judge-verified)**.
+
+**The seat-ruled amendment, transcribed by the judge (the I77/I79 judge-amendment precedent).** The frozen ```gates block's `scope` gate is amended 5-path → 6-path (whitelisting `test/subagents_test.rb` as a DECLARED re-pin file, + the seat-ruling comment inside the cmd — exactly the builder's ruled scratch artifact `scratch/gates-amended.yaml`, verified byte-identical to the CURRENT arch-file extract). The builder's two ruled edits verified byte-minimal: (1) `test/subagents_test.rb` `sanctioned` grows exactly `LANG LC_ALL LC_CTYPE` + a comment citing the ruling — the closure pin KEEPS its discrimination (`assert_empty(env.keys - sanctioned)` still rejects every other unsanctioned key); (2) the leak check keeps zero tolerance outside the 6-path set. Mechanical diff of frozen vs amended extract: exactly one differing gate (`scope`), nothing else in the 88 moved.
+
+**Judge gate runs (cold, foreground, never nohup, full interleaved capture).**
+- OFFICIAL `architect gate child-encoding-hygiene core` (freeze-sha extract): **85 PASS / 3 FAIL** — `scope` RED on exactly the ruled re-pin leak (expected under the frozen 5-path form; the amendment above cures it), `s9-parity` the declared lane-tree class, and `suite` TIMED OUT at the runner's 900s cap hanging in `ChatTest#test_kernel_interrupt_during_streaming_cancels_and_leaves_render_coherent` (chat_test.rb:1620) — the DECLARED chat-interrupt timing class, the same class the builder hit (rake #4); clean on cold re-run below.
+- CURRENT-ARCH-FILE battery (my extract of the amended 88, sequential runner, suite budget 2400s): **87 PASS / 1 FAIL / 0 BROKEN / 0 EMPTY** — the 4 declared-RED gates ALL GREEN (`child-encoding-units`, `child-encoding-e2e`, `runner-encoding-direct`, `scope` under the 6-path whitelist with zero strays); the single FAIL is `s9-parity`, the declared class.
+- Suite, judge-cold: **1453 runs, 6846 assertions, 0 failures, 0 errors, 1 skips, rake exit 0, SUITE_OK** (assert counter is the standing I78 dynamic class; run-count floor holds: 1453 > 1443). `bench` → SEAM_BENCH_OK.
+- `s9-parity` at-base triangle, judge-own at canonical depth (main checkout `repos/tart` @ `34ba69af`): **GREEN, exit 0**. Lane-tree FAIL diff classes read by the judge: `{unknown-candidate:2, parity-run-path:6, staged-path-wrap-fragment:4, footer-provider-prefix:2}` — every sampled row is path geometry at the `…/wt/t80s9/run-1/sandbox/pi|tart/…` depth or the mock-endpoint `(mock)` footer prefix; zero content bytes; identical class set across the builder's two runs and mine. Note-and-pass, never patched. `herdr-wire-probe` GREEN at the same lane-tree battery.
+
+- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the BRIEF §section in tension beside file:line.
+  1. **ACCEPT — the frozen-gate contradiction (the seat-ruled Option A).** Law 1's UTF-8 floor (frozen AC2) sets `LC_CTYPE` when no locale key is present, but the carried I48 closed-env pin `test/subagents_test.rb:306` (`assert_empty(env.keys - sanctioned)`, `sanctioned` a 20-key list with no locale keys) made `suite` RED under any faithful Law 1, while `scope` (frozen 5-path) RED on the re-pin — no implementation could pass both (BRIEF §5.1 itemized-deviation discipline vs the OQ-7 closed-env design, tension at `test/subagents_test.rb:306`). The seat ruling is the I77 ruling-#2 DECLARED re-pin pattern and the ONLY resolution that keeps the security law intact: the sanctioned set widens by exactly the three keys the frozen floor can introduce, the scrub pin keeps rejecting every other key, and the scope gate declares the file. Both edits verified byte-minimal and battery-verified cold GREEN. The arch-file transcription was made by the judge at verdict, byte-identical to the ruled scratch artifact.
+  2. **ACCEPT — `s9-parity` lane-tree-depth FAIL (declared, not re-litigated, I72–I80).** Judge-own at-base triangle: GREEN at canonical depth; lane-tree diff classes are path geometry only.
+  3. **ACCEPT — the two suite flake classes** (`render_perf_test.rb:265` spinner-dwell; the `chat_test.rb:1620` interrupt hang — which the judge's own official 900s run reproduced, then clean in the 2400s-budget cold run). The standing declared classes; both clean cold; the single-GREEN order-flake advisory stands (owner backlog).
+  4. **ACCEPT — the boot law retags FROZEN argv elements (ruby 4.0) by array-slot replacement.** Literal in-place `force_encoding` raises FrozenError on ARGV (builder measured the e2e parent exiting 1 on `-p` before the fix); slot replacement is byte-identical, still in place in the argv, invalid-UTF-8 elements untouched, pinned by a frozen-element test. The spec's "in place" intent — tags move, bytes never — is honored; disclosed, minimal.
+  5. **PHASE 0 soundness check accepted** — the builder's itemized verification (cite drift `read_output` :1159→:1161, the footer-window eval compatibility, the mechanical gate extraction) is honest and correct; silent compliance was NOT a defect here.
+
+- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify child-encoding-hygiene`): PASS, with ONE judge disclosure: the `scope` gate inside the frozen ```gates block carries the seat-ruled 5→6-path amendment (above) — the I77/I79 judge-amendment precedent, the ruling record at `notes/decisions-20261019T041005Z-i80-scope-repin-escalation.md`.
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | `child-encoding-e2e` GREEN cold (judge + builder): parent exit 0, child wire task BYTE-EXACT, `result.json` output BYTE-EXACT `success: true`, `status.json` completed with `taskChars` == character count, parent stdout byte-exact — the full non-ASCII round-trip over the real machinery in the locale-less `tart_env` | §1 / §5.1 | **PASS** |
+| AC2 | `child-encoding-units` GREEN cold: 9 runs / 0F under `/encoding/`; implementation read faithful — pass-through picks present-non-empty verbatim, floor precedence `LC_ALL > LC_CTYPE > LANG` exactly as frozen, `UTF8_LOCALE` constant, closed-env design intact, scrub still strips every bundler key from the same source (the poisoned-env pin) | §5.1 | **PASS** |
+| AC3 | `runner-encoding-direct` GREEN cold (direct path: exit 0, stdout byte-exact, wire carries the prompt, ZERO `passed as BINARY` on the runner stderr — measured 2 at base) + `child-encoding-e2e` (managed path: child `runner.stderr.log` ZERO, parent stderr ZERO, pinned `assert_empty`) | §5.1 | **PASS** |
+| AC4 | Judge-cold suite 1453 runs / 6846 asserts / 0F / 0E / 1S (> the 1443 floor), SEAM_BENCH_OK; every carried gate GREEN in the judge battery — wire-delta EXACT, session-golden EXACT, zai tart=pi=512, the pty/oracle/markdown/child-env/sink/signal/box families, the I77/I78 anchors; an encoding-only change moved no settled wire/session/screen byte | §2 / §5.1 | **PASS** |
+| AC5 | `scope` GREEN under the seat-ruled 6-path whitelist (zero strays outside it, judge-run); the three tracked must-differ seams changed; both new paths present (`[ -f ]` legs); `child_env.rb` byte-untouched (judge-verified 0-line diff); threads-budget GREEN; the standing classes adjudicated as declared (`s9` lane-tree note-and-pass with the at-base triangle GREEN canonical; the suite interrupt/env classes; the render-perf BP2 margin — probe GREEN cold this run) | §5.1 | **PASS** |
+| AC6 | Four disagreements raised WITH reasons and measurements; the one real contradiction ESCALATED and seat-ruled, never silently patched; an explicit soundness-check statement for the rest; deviations itemized (5, each verified) | §6 | **PASS** |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+- **Iteration** — **CONTINUE** — the diff vs the frozen Specification is faithful: all three laws landed exactly as frozen (the pick list + floor, the boot law, the hygienic readers), the four declared-RED discriminators all turned GREEN cold, the full floor holds (87/88 judge-cold with the single FAIL the declared s9 class), the hard freeze is byte-intact, and the one mid-build contradiction was resolved by the seat's DECLARED re-pin ruling, transcribed and battery-verified by the judge. **Integrate lane `core`.**
+
+- **Residuals / owner backlog (carried, not lane work):** the json 3.0.2 warn-vs-raise pin (when the pin moves to 3.1.0 these warnings become crashes — this law is the difference between green and dead); `first_error_line` error-classification + the `task: null`/`sessions/sessions/` forensics nits (ENTRY 6); the suite single-GREEN order-flake advisory. **Seat advisory carried (third consecutive iteration needing a seat scope amendment):** future spec sessions must audit carried closed-env pins and new-file legs against the frozen touch set BEFORE freeze — base-only rehearsals cannot catch post-lane contradictions. For the record: `space.yaml` records `effort: high` where the frozen lanes block says `medium` — the CLI does not parse effort from the lanes block; the arch file is authority.
