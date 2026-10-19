@@ -218,35 +218,245 @@ only that the pick list omits the locale keys pi passes implicitly.
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section child-encoding-hygiene specification --from <file>`. -->
+### Objective
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+Close plan ENTRY 5 (`notes/plan-20261018T1745Z-live-run-successor.md`):
+**UTF-8 must survive every child boundary.** Three defects, one root
+class — a locale-less child process (`Encoding.default_external =
+US-ASCII`) mangles every non-ASCII byte that crosses the spawn/status/
+result boundary: the non-ASCII task text that broke the first devstral
+dispatch (BINARY-tagged ARGV → `JSON.generate` warnings on every wire
+round), the `JSON.generate: UTF-8 string passed as BINARY` warnings in
+the runner stderr (52 copies in the dead spec run), and the swallowed-
+then-failed settle (a locale-blind `read_output` turns a byte-exact
+child answer into `output: ""` + `state: "failed"` + a json warning
+recorded as the run `error`). One iteration, three laws riding ON TOP
+of the untouched I73 scrub (the plan's constraint: the security law
+holds, the allowlist does not widen — the CLOSED-env design stays, the
+pick list grows exactly the locale keys pi passes implicitly).
+
+### Law 1 — the child locale law (AC2, `lib/tart/subagents/manager.rb`)
+
+`child_env` (the private pick-list builder behind the PUBLIC
+`spawn_argv_and_env`) gains, after the existing picks, the locale arm:
+
+1. **Pass-through picks (pi parity).** `LANG` and every source key
+   matching `/\ALC_/` are picked from the scrubbed source when present
+   and non-empty (verbatim values, the sink-picks' present-non-empty
+   idiom) — pi-subagents passes the full parent env
+   (async-execution.js:503); these keys are the port's share of that.
+2. **The UTF-8 floor.** After the picks, the effective charset key is
+   `env["LC_ALL"] || env["LC_CTYPE"] || env["LANG"]` (MRI/setlocale
+   precedence, measured). If it is nil OR its value does not match
+   `/UTF-?8\z/i`, set `env["LC_ALL"] = "en_US.UTF-8"` when `LC_ALL` is
+   present (it would mask `LC_CTYPE`), else set
+   `env["LC_CTYPE"] = "en_US.UTF-8"` (masks a non-UTF-8 `LANG`, leaves
+   `LANG` untouched). Frozen constant `UTF8_LOCALE = "en_US.UTF-8"`
+   (the owner's measured machine locale).
+
+The floor is the declared BRIEF §5.1 mechanism deviation (itemized in
+the report): pi never needed it (node is UTF-8-native); observable-
+identical for ASCII payloads, the cure for everything else. The pick
+list grows ONLY these keys — nothing else joins the closed env (the
+plan's constraint honored mechanically: `lib/tart/child_env.rb` is
+hard-frozen by the scope gate, byte-untouched).
+
+### Law 2 — the boot UTF-8 law (AC3, `lib/tart/utf8_boot.rb` NEW + one call in `bin/tart`)
+
+A new module `Tart::UTF8Boot` (`lib/tart/utf8_boot.rb`), required and
+called ONCE at the top of `bin/tart`'s `run(argv)` (before parse):
+
+- Unless `Encoding.default_external` is already UTF-8, set it to
+  `Encoding::UTF_8`. (`Encoding.default_internal` stays nil — never
+  set, never changed.)
+- **ARGV retag**: for each argv element whose encoding is not UTF-8
+  AND whose bytes are valid UTF-8, `force_encoding(Encoding::UTF_8)`
+  in place; elements with invalid-UTF-8 bytes are left byte-identical
+  and untouched (never mangled — a binary argv stays binary).
+
+This cures the DIRECT runner path (a locale-less `bin/tart -p
+"Diátaxis…"` — probe A's shape: BINARY-tagged prompt → warnings on
+every wire round) and belt-covers the manager child (Law 1 makes the
+child's interpreter boot UTF-8 natively, so the boot law is a no-op
+there). It does NOT write env vars (the child-env law does that);
+it fixes THIS process's Encoding defaults the moment it starts, before
+any parse or IO.
+
+### Law 3 — byte-hygienic artifact readers (AC1's parent leg, `lib/tart/subagents/manager.rb`)
+
+- `read_output` (:1159): read via `File.binread`, then
+  `force_encoding(Encoding::UTF_8).scrub`, then the existing
+  trailing-newline `.sub(/\n\z/, "")`; the `rescue StandardError → ""`
+  belt stays (a missing/unreadable file is still ""). The port's own
+  established idiom (`output_accumulator.rb:41`, `read.rb:85`) —
+  byte-identical for valid UTF-8 (probe B's answer bytes round-trip
+  exactly), never-raise for arbitrary child bytes.
+- `first_error_line` (:1168): same discipline — binread +
+  `force_encoding(UTF_8).scrub`, iterate lines, first non-empty
+  `.strip`; `rescue → nil` belt stays.
+
+With these, the settle chain (`settle_run` :592: `success` from
+`output.empty?`, `result.json` write, `status.json` flip,
+`notify_completion`'s `output.strip`) is locale-independent in the
+PARENT: a locale-less parent (probe B's shape) settles a non-ASCII
+child answer to `completed` with byte-exact `result.json` output
+instead of `failed`/`""`/a warning-as-error. No other settle/reap/
+ownership logic moves (I78's laws byte-unchanged; `truncate_utf8_head`
+is already byte-safe and untouched).
+
+### Tests (the builder's pins, filter-frozen by the gates)
+
+- **NEW `test/child_encoding_test.rb`**, ≥ 7 tests under the
+  `/encoding/` name filter, driving the PUBLIC surfaces:
+  - `spawn_argv_and_env` (a staged Manager, the `subagents_test`
+    idiom): locale pass-through (a poisoned bundler env + `LANG` → the
+    child env carries `LANG` verbatim AND zero bundler keys — the
+    scrub still strips them, the constraint honored); the floor
+    (source with no locale keys → `LC_CTYPE=en_US.UTF-8`, nothing
+    invented for `LANG`); a non-UTF-8 `LANG=C` → `LC_CTYPE` floor with
+    `LANG` untouched; a UTF-8 `LANG` → nothing added or changed; a
+    present non-UTF-8 `LC_ALL` → `LC_ALL` overridden; the argv task
+    text byte-exact (`argv` carries the Diátaxis-grade task, bytes
+    compared).
+  - `Tart::UTF8Boot.enforce!`: default_external US-ASCII → UTF-8;
+    ARGV BINARY-tagged valid-UTF-8 elements retagged; an
+    invalid-UTF-8 byte string left byte-identical and untouched; a
+    UTF-8-tagged argv a no-op (identity). Test discipline: save/restore
+    `Encoding.default_external` in ensure (the law mutates process
+    globals by design).
+- **`test/subagents_e2e_test.rb`** — DECLARED re-pin file, ONE new leg
+  `test_encoding_e2e_non_ascii_round_trip` under the `/encoding_e2e/`
+  filter: leg A's exact machinery (staged HOME, closed locale-less
+  `tart_env` — already the defect environment, MockLLMServer, the
+  foreground subagent call) with a Diátaxis-grade non-ASCII task AND
+  non-ASCII child answer. Asserts: parent exit 0; the child wire
+  request carries the task byte-exact; `runner.stderr.log` contains
+  ZERO `passed as BINARY` lines; the PARENT's own stderr contains ZERO
+  (the boot law's leg); `status.json` state `completed`, `taskChars`
+  == the task's CHARACTER count; `result.json` `success: true` and
+  `output` == the child answer BYTE-EXACT; the parent's final stdout
+  non-ASCII and byte-exact. Any edit to existing legs is
+  behavior-preserving re-pinning only (permission, not obligation).
+
+### Frozen expectations (do not redesign)
+
+- Encoding-only change: **wire/session/screen bytes unaffected** —
+  tags move, bytes do not (JSON.generate output is byte-identical for
+  a valid UTF-8 string whether tagged UTF-8 or BINARY; the tools'
+  scrub idiom already proved this). wire-delta
+  (instruction `4209f40b…`, tools `7360fd1e…`), session-golden (7/7),
+  zai tart=pi=512, the pty battery, the box/probe family, and every
+  I69–I79 landed-behavior gate carry as standing guards (the 84-gate
+  carried block).
+- No tool-semantics changes: timeouts, process groups, the reaper, the
+  ownership flags, the supervisor channel, the closed-env OQ-7 design,
+  the task-never-recorded law (`taskChars` only), the
+  five-`<IDENTITY>_*` session-key law — all byte-preserved.
+- `lib/tart/child_env.rb` HARD-FROZEN (the scrub law byte-untouched —
+  the plan's constraint, mechanically enforced by the scope gate).
+- No rig scenario-content edits (`gems/tui-split-rig/scenarios/**`,
+  `registry.yml`, `fixtures/` byte-frozen); no new gems; no
+  Gemfile/lock/gemspec changes; no new `Thread.new` sites
+  (threads-budget law, base rebased to `34ba69af`).
+- No new directories in the touch set (all five paths land in existing
+  directories — the I79 `dir/**` carry-in does not bite, noted for the
+  record).
+
+### Named exclusions (Constraints, itemized)
+
+- The gem side (`repos/fast-llm`, fast-completions 0.5.0 / json 3.0.2):
+  READ-ONLY; the warn-vs-raise upgrade concern is the owner's (named
+  residual).
+- pi and pi-subagents 0.79.1 clones: READ-ONLY oracles.
+- `problems.md`/`ARCHITECT.md` annotations are LANDING work
+  (architect-owned), not lane work.
+- ENTRY 6's forensics nits (`task: null`, the doubled
+  `sessions/sessions/` path) — not this lane.
+- The first_error_line error-classification redesign — not this lane.
+
+### Output format
+
+- NO lane commits (the I65 D1 standing ruling — the integrator lands
+  the tree). The deliverable is the provisioned worktree's diff vs
+  `34ba69af`, exactly: `lib/tart/utf8_boot.rb` (NEW),
+  `lib/tart/subagents/manager.rb` (MUST differ — the locale law + the
+  readers), `bin/tart` (MUST differ — the require + the one boot
+  call), `test/child_encoding_test.rb` (NEW),
+  `test/subagents_e2e_test.rb` (MUST differ — the encoding e2e leg).
+- Scratch report at `build/I80-child-encoding-hygiene-core/report.md`:
+  the suite summary line, the FULL 88-gate table (every gate, one
+  measured one-liner each — itemize-and-defend), deviations itemized,
+  a final `STATUS:` line.
+
+### Tool guidance
+
+- Verification (exact, measured at base `34ba69af` this session):
+  `cd repos/tart && bundle install --quiet && bundle exec rake` →
+  `1443 runs, 6793 assertions, 0 failures, 0 errors, 1 skips`, exit 0
+  (post-lane: ≥ 1443 runs, 0F/0E); `bundle exec ruby bench/seam_bench.rb
+  2>&1 | tail -1` → `SEAM_BENCH_OK`.
+- The unit forms: `bundle exec ruby -Ilib -Itest
+  test/child_encoding_test.rb -n "/encoding/"` → ≥ 7 runs, 0F; the
+  e2e leg `bundle exec ruby -Ilib -Itest test/subagents_e2e_test.rb -n
+  "/encoding_e2e/"` → ≥ 1 run, 0F (real subprocess boots — budget
+  minutes, not seconds; the leg-A watchdog discipline).
+- The two RED probes this spec measured at base
+  (`tmp/i80-spec/probe-runner.rb`, `tmp/i80-spec/probe-manager.rb`,
+  space scratch — READ-ONLY reference for the defect shapes; never
+  copy them into the repo): the direct path warns twice on stderr
+  while round-tripping stdout; the manager path settles `failed` with
+  `output: ""` and the warning recorded as `error`. Your lane work
+  turns both green — the gates `runner-encoding-direct` and
+  `child-encoding-e2e` are exactly these shapes.
+- The rig battery at YOUR tree (the lane worktree): the s-gate forms
+  verbatim from the Acceptance Criteria (HERDR_* scrub prefix, the
+  frozen SHORT out dirs, NO `--pi-bin` flag anywhere).
+- Standing flake classes (`chat_test.rb` interrupt-timing BOTH forms,
+  `render_perf_test.rb:265` spinner-dwell, the box order-flake fixed
+  at I79 but the single-GREEN advisory stands): re-run COLD before
+  adjudicating; note-and-pass per the standing ledger.
+
+### Boundaries
+
+- May touch: exactly the declared 5-path set (scope gate):
+  `lib/tart/utf8_boot.rb` (NEW), `lib/tart/subagents/manager.rb`,
+  `bin/tart`, `test/child_encoding_test.rb` (NEW),
+  `test/subagents_e2e_test.rb`.
+- Must not touch: everything else — including `lib/tart/child_env.rb`
+  (HARD-FROZEN, the scrub law byte-untouched, the plan's constraint),
+  all of `lib/tart/render/`, `lib/tart/agent/`, `lib/tart/tools/`,
+  the rig (`gems/tui-split-rig/**`), Gemfile/lock/gemspec, `bench/`,
+  `vendor/`, and anything under `repos/pi`,
+  `repos/fast-llm`, or `~/.pi/`.
+- Frozen stack: **BRIEF §2** (ratatui_ruby 1.5.0 behind `TUI`;
+  fast-completions 0.5.0); house style per AGENTS: commented citations
+  at the touched seams, tests through public interfaces, no refactors
+  beyond the task.
+
+### Lane plan
+
+One lane — three small laws on the child boundary, both-ways pins, the
+standing battery.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision child-encoding-hygiene`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/utf8_boot.rb
+    - lib/tart/subagents/manager.rb
+    - bin/tart
+    - test/child_encoding_test.rb
+    - test/subagents_e2e_test.rb
+  effort: medium
 ```
+
+### Effort call
+
+`medium` — a bounded, fully-specified mechanism (all three laws frozen
+with measured reference behavior; both base-RED shapes reproduced
+hermetically this session; no perf exposure, no wire exposure), but it
+owes the ≥ 7-run unit battery, a real-subprocess e2e leg, the boot-law
+discipline in `bin/tart`, and the full 88-gate standing battery.
 
 ## Acceptance Criteria
 
