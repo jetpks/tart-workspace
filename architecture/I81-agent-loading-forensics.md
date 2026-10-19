@@ -476,7 +476,6 @@ must-differ legs at base (the standing I77–I80 class — zero leak lines);
 all 87 carried members GREEN cold.
 
 ```gates
-```
 - id: stale-run-reaper
   ac: AC1
   cwd: repos/tart
