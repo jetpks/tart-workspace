@@ -3054,7 +3054,7 @@ project:
     ordinal: 81
     file: architecture/I81-agent-loading-forensics.md
     freeze_sha: 8ebd516c72d2484dd7994368006e21643f293850
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
