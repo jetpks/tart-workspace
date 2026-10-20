@@ -3151,12 +3151,13 @@ project:
       - test/support/parallel_runner.rb
       - test/parallel_runner_test.rb
       base_sha: f07c25f8f951dc7c87c7bfa0cf4630b12e611aad
-      worktree: build/I84-parallel-test-runner-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: openrouter/z-ai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: eb7c4a4367ae62aaeb8e8fad9408d0ce5456b30d
     rehearsal:
       gates_digest: 94b4b1753c453dd36acaabb6d011384dcb67ee7f404d0ca735c80bf668f3ac61
       at: '2026-10-20T01:59:14-06:00'
