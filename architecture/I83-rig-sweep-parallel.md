@@ -134,35 +134,171 @@
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section rig-sweep-parallel specification --from <file>`. -->
+### Objective
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+Cut a full parity-rig sweep (the 19-scenario s-battery, both apps, `--runs 1`)
+from ~111 s serial to tens of seconds by fanning scenarios across concurrent
+`tui-split-rig run` processes — riding the I27 token-scoped tmux design that
+was BUILT for exactly this (Grounds: the 8-way probe at base — identical
+per-scenario exit table, 19.05 s wall, zero leftover sessions). Every
+render-parity change wants a full sweep; nobody runs 19 × ~5.5 s by hand.
+This is ENTRY 2 of the test-rig-speed plan
+(`notes/plan-20261020T034216Z-test-rig-speed.md`), after ENTRY 1 (I82) landed.
+
+### The deliverable — `bin/tui-split-rig-sweep` (NEW, additive)
+
+A NEW sibling of the frozen CLI: **`gems/tui-split-rig/bin/tui-split-rig-sweep`**,
+Ruby, **stdlib only, runs without Bundler** (the rig family's own header law),
+never editing the frozen verbs. Frozen surface:
+
+```
+tui-split-rig-sweep [--jobs N] [--out ROOT] [--only NAMES] [--probes]
+                    [--runs N] [--app both|pi|tart] [--tart-dir PATH]
+                    [--pi-bin PATH] [--list]
+```
+
+Laws, each frozen as a property:
+
+1. **Set selection.** Default sweep set = every `scenarios/s*.yml` sorted by
+   filename (19 today, `s1_tart` included — it matches the glob and is a
+   battery member). `--probes` ADDS the `probe_*.yml` files (opt-in; the
+   probes' own headers mark them not-parity-gates). `--only name,name,…`
+   restricts to exact yml basenames (no extension); an unknown name is REFUSED
+   loudly (exit 2, naming it) — never silently skipped. `--list` prints the
+   plan (one line per scenario: name, resolved yml path, assigned out dir)
+   plus the jobs count and RUNS NOTHING (exit 0) — the testability seam.
+2. **Fan-out.** Each scenario is ONE subprocess
+   `gems/tui-split-rig/bin/tui-split-rig run <scenario.yml> --out <dir>` with
+   `--runs/--app/--tart-dir/--pi-bin` forwarded verbatim when provided (the
+   rig's own defaults otherwise). At most `--jobs N` children in flight
+   (default **8** — sized for the 16-core host, measured 19.05 s at 8-way
+   with half the cores still free for the dev's own work); the rest queue.
+3. **Out-dir assignment (the geometry law).** Per scenario:
+   `<ROOT>/sw-<nn>` (`nn` = the scenario's 1-based zero-padded ordinal in
+   the sorted set), ROOT defaulting to the tart repo root; the wrapper
+   `rm -rf`s each per-scenario dir before spawning (idempotent re-sweeps).
+   Under the DEFAULT root the assigned path is **≤ 20 chars from the tart
+   repo root** (`sw-01` = 5 — the measured green window for the
+   wrap-geometry scenarios s9/s16; red starts at 22 chars, Grounds). A
+   user-passed `--out ROOT` may leave the window — `--list` prints the
+   assigned dirs so the risk is visible; the units pin the default's window.
+   Paths resolve from the script's own `__dir__` (the rig family's rule) —
+   invocation works from any cwd.
+4. **Aggregation (the serial-semantics law).** The sweep's exit code =
+   **max over per-scenario exit codes**: 0 only if every scenario exited 0;
+   any 2 ⇒ 2; else any 1 ⇒ 1. Every scenario's code SURFACES in the printed
+   table (name, ec, wall ms, out dir) — none is swallowed. At today's base
+   the full battery aggregates to **2** (s13's standing leak-era shape,
+   Grounds) — that is the honest signal, not a defect of the wrapper.
+5. **Report.** `<ROOT>/sweep-report.json`: `{set: [names], jobs: N,
+   scenarios: [{name, path, out_dir, exit_code, wall_ms}],
+   aggregate_exit_code, wall_ms}` + a human one-line-per-scenario table and
+   a final `sweep: <aggregate> (N scenarios, <wall>s, jobs <J>)` summary line.
+6. **Env hygiene.** Child processes get `HERDR_ENV HERDR_TAB_ID
+   HERDR_SOCKET_PATH HERDR_BIN_PATH HERDR_WORKSPACE_ID HERDR_PANE_ID`
+   scrubbed (the standing gate discipline — a sweep launched from a
+   herdr-attached shell behaves exactly like the loop gates).
+7. **Interruption.** SIGINT/SIGTERM ⇒ KILL all in-flight children, exit 2
+   (bounded teardown, no orphan rig processes; the Builder Report carries
+   the evidence).
+8. **Exit vocabulary.** The sweep's own failures (bad flags, unknown
+   `--only` name, unspawnable child) exit **2** — matching the rig family's
+   0/1/2 semantics.
+
+### The pins — `gems/tui-split-rig/test/sweep_test.rb` (NEW)
+
+Minitest via the main `test_helper` (`Tart::Test`, house style: terse,
+public-interface assertions, Open3 against the real binary — the
+`cli_test.rb`/`live_run_test.rb` patterns).
+
+- **Hermetic legs (always run — no app boots, suite-safe):** `--list` default
+  set = the 19 sorted s-names; `--probes` adds the 3 probes; `--only` subset
+  selects exactly; unknown `--only` name exits 2 naming it; unknown flag
+  exits 2; `--jobs` default 8 (printed by `--list`); per-scenario out dirs
+  are unique, pairwise-disjoint, and each ≤ 20 chars from the repo root
+  under the default root (the geometry law).
+- **Live legs (skip unless `TUI_SPLIT_RIG_LIVE=1`, the `live_run_test.rb`
+  discipline — the units gate sets it):** aggregation over real small sets —
+  {s1_text_turn} ⇒ 0; {s1_text_turn, s1_tart} ⇒ 1 (the tart-face code
+  surfaces); {s1_text_turn, <a missing yml path>} ⇒ 2; and the
+  `sweep-report.json` shape (every scenario's exit_code present, aggregate =
+  max). No full-battery leg lives here — the parity gate owns that.
+
+### Lane plan
+
+ONE lane (repo tart), the fan-out wrapper + its pins:
+
+- **Lane `core`** — repo `repos/tart`, branch lineage `project/pi-port`,
+  base `467b82e`. Objective: build `bin/tui-split-rig-sweep` + `test/
+  sweep_test.rb` exactly per the frozen laws above; verify with the frozen
+  gates. Touch set (exactly two NEW files):
+  - `gems/tui-split-rig/bin/tui-split-rig-sweep`
+  - `gems/tui-split-rig/test/sweep_test.rb`
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision rig-sweep-parallel`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - gems/tui-split-rig/bin/tui-split-rig-sweep
+    - gems/tui-split-rig/test/sweep_test.rb
 ```
+
+### Boundaries
+
+- **May touch:** exactly the two lane paths above (both NEW files).
+- **Must-not-touch (HARD-FROZEN, zero diff):** `gems/tui-split-rig/bin/
+  tui-split-rig` (the frozen run/diff verbs, byte-unchanged) and every other
+  rig bin/probe script; `gems/tui-split-rig/lib/**` — **the escape hatch:**
+  internals change ONLY if the lane's own concurrency gates expose a REAL
+  defect (base probe says none exists); then the edit is itemized,
+  root-caused with evidence, and MINIMAL in the Builder Report — and it will
+  RED the frozen `scope` gate (the standing disclosed-adjudication class);
+  `gems/tui-split-rig/scenarios/*.yml` (no content changes); `gems/
+  tui-split-rig/registry.yml` (additions-only IF a concurrency-evidenced
+  divergence class surfaces — none expected, concurrency does not move
+  rendering bytes; evidence in the Builder Report); `gems/tui-split-rig/
+  fixtures/**`; `lib/tart/**`; `test/**` (the MAIN tree — the rig's own
+  `gems/tui-split-rig/test/` is the sanctioned pin home); `bench/`; `bin/`;
+  `Gemfile`, `Gemfile.lock`, `tart.gemspec`, `Rakefile`.
+- **Out of scope (owner standing, this plan's own exclusions):** pi/tart
+  concurrency WITHIN one scenario; `bundle exec` boot-cost work; any
+  test-count reduction; fixing s13's stale leak-era `expected_requests: 2`
+  premise (owner backlog — I54's unamended open item, root-caused in the
+  Grounds), the s11/s18 standing shapes (I47/I60 owner backlog); ENTRY 3
+  (parallel test runner) — NOT started here.
+- **Scratch:** out dirs (`t83*`, `sw-*`, `xw-*` styles) are untracked
+  scratch, never committed; the integrator's out-of-bounds guard may trip on
+  judge/rehearsal leftovers — clean, never override silently.
+
+### Tool guidance (exact verification, the commands the lane runs)
+
+- The wrapper's own rehearsal: `gems/tui-split-rig/bin/tui-split-rig-sweep
+  --list` (plan shape) then a live sweep at default jobs from `repos/tart`:
+  `gems/tui-split-rig/bin/tui-split-rig-sweep` (aggregate 2 expected at base
+  — s13; the TABLE is the artifact).
+- The frozen gates (below) — the parity gate (serial-vs-concurrent tables +
+  wall), the crosstalk gate, the units gate, plus the 93-gate carried
+  battery.
+- The oracle family context: `TuiSplitRig.resolve_pi_bin` (I67) resolves the
+  pinned clone; the sweep forwards `--pi-bin` verbatim, never re-resolving.
+
+### Output format (Builder Report)
+
+- The full per-scenario sweep table (both legs: `--jobs 1` and default) with
+  walls, the aggregate codes, and the sweep-report.json paths.
+- The crosstalk gate's three-leg output + the post-run `tmux ls` evidence.
+- Red-before/after for every declared-RED gate (the base rehearsal record
+  travels with the dispatch).
+- Itemize-and-defend: every file in the diff (expected: exactly the two new
+  paths); any lib/registry escape-hatch use itemized with root-cause
+  evidence.
+
+### Effort
+
+Lane `core`: **MEDIUM** — a ~150-line stdlib orchestrator + a test file +
+gate verification; the design is fully frozen above, the concurrency
+mechanism is proven at base (the Grounds probe), and the expected outcome
+touches no existing seam.
 
 ## Acceptance Criteria
 
