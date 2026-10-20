@@ -3142,7 +3142,7 @@ project:
     ordinal: 84
     file: architecture/I84-parallel-test-runner.md
     freeze_sha: dc28f80583fcbf6a5fb255f152807ca6f46e0689
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
