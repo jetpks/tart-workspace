@@ -2359,11 +2359,204 @@ for stdin dispatch. Record + commit:
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I82-suite-sleep-surgery-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence suite-sleep-surgery --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# Builder Report — I82 `suite-sleep-surgery` (core lane, repo tart)
+
+Worktree: `build/I82-suite-sleep-surgery-core/wt` @ base `dff5447`, branch `lane/I82-suite-sleep-surgery-core`.
+Touch set landed: `lib/tart/models/listing.rb`, `test/chat_test.rb`, `test/agent_loop_test.rb`,
+`test/subagents_test.rb`, `test/models_listing_test.rb` — exactly the frozen 5 paths, no others.
+
+```
+$ git diff --stat dff5447
+ lib/tart/models/listing.rb  | 12 ++++++--
+ test/agent_loop_test.rb     | 48 +++++++++++++++++------------
+ test/chat_test.rb           | 74 +++++++++++++++++++++++++++++++++------------
+ test/models_listing_test.rb | 18 +++++++++++
+ test/subagents_test.rb      | 20 +++++++-----
+ 5 files changed, 123 insertions(+), 49 deletions(-)
+$ git diff dff5447 | grep -E "^\+.*Thread\.new" ; echo "exit=$?"   # exit 1 — NO new threads
+```
+
+## PHASE 0 — disagreements with the spec (itemized, with reasons)
+
+1. **The inventory's "settle sleeps" at `agent_loop_test.rb:931` and `subagents_test.rb:970` are NOT fixed windows** — measured at base before any edit: `:931` is the `sleep 0.02` poll quantum INSIDE `join_run`'s deadline-bounded until-loop (15 s deadline + `flunk`), and `:970` is `wait_terminal`'s `sleep 0.1` quantum inside its own deadline + `flunk` loop (a parameterized timeout used at 15 s and 40 s by callers). Both are ALREADY the "file's existing bounded-poll helper in the same shape" that Law 2 blesses; converting them to `Tart::Test#wait_until` would LOWER their deadlines (15 s/parameterized → 5 s) and move two helpers shared by dozens of tests. Left byte-untouched as already-lawful; every OTHER listed site converted.
+2. **`agent_loop_test.rb:2013` (`SleepTool#execute`'s `sleep 0.5`) is a real tool duration that IS the asserted property** — the fibers-overlap pin separates overlap (<0.9 s) from the sequential base (≈1.0 s) only because each scripted tool sleeps 0.5 s; shrinking it would destroy the discriminator. `test_cancel_during_tool_batch_aborts_fast` likewise pins `span < 0.2` against the 0.5 s batch. Kept (Law 2: "real durations … never faked, never shrunk"; Law 3: deadline/escalation properties keep true durations).
+3. **Law 3's interrupt-family shrink (40→12 chars) narrows one secondary leg's discrimination margin** — `test_interrupt_mid_stream_aborts_request_no_error_terminal` asserts `wall < 2.0` with the message "(the full stream runs ≈ 4 s)"; at 12 chars the full stream is ≈1.2 s, so the wall leg alone no longer separates abort from natural completion. The PRIMARY discriminators (interrupted? true, agent_end carries `interrupted: true`, no `:error` key, no error `message_end`) are untouched and still carry the pin; the wall bound's literal property is unchanged. Frozen target honored; flagged as a residual (see Residuals).
+4. **The escape-cancel user-bash conversions needed a deeper observable than the obvious one** — `chat.user_bash_streaming?` flips at SUBMIT time (the `IdleKernel` double's `#async` RECORDS blocks; the queued exec block only runs when the test's reactor drains it), so a poll on it exits before the exec block ever starts and the escape lands pre-run (observed: 2 failures on the first conversion attempt). Re-rooted on TRUE in-flight observables (see table rows 1 and 5). Property unchanged; documented as an observable correction.
+5. **What was checked before concluding the rest of the spec is sound**: the frozen touch set paths all exist at base (tracked); `test/test_helper.rb`, `test/support/mock_llm_server.rb`, `test/subagents_e2e_test.rb`, `lib/tart/tools/bash.rb` read and left byte-untouched; `wait_until` (5 s / 5 ms) confirmed sufficient for every enumerated conversion (no conversion observed >0.35 s to first success under steal); `spec_pause` 0.1 s/char confirmed as the stream-duration law (20 chars ⇒ 2 s, 12 chars ⇒ 1.2 s); root cause A reproduced in this worktree BEFORE the fix (probe transcript below); no carried gate contradicts the conversions (test NAMES byte-identical — verified by sorted-name diff: only `+test_non_200_failure_path_returns_promptly`).
+
+## 1. The itemized conversion table (every converted test, old sleep → new poll/shrink)
+
+Observable classes used: `@server.request_count` (non-draining mock-server peek, `mock_llm_server.rb:120-123`),
+`row_texts(chat.display_lines)` / `chat.user_bash_streaming?` (live render readback),
+`stamped_events(stamped, :tool_execution_start)`, `agent.running?`, `manager.runs.first[:state]`,
+process existence (`ps -p` / `ps -o stat=`), landed chunk rows.
+
+### test/chat_test.rb (10 statement-level sleeps converted; 0 remain)
+
+| # | test | old (base) | new | observable | property-unchanged defense |
+|---|------|-----------|-----|------------|---------------------------|
+| 1 | `test_escape_cancels_the_running_user_bash` (:3666) | `sleep 0.3` | `wait_until { bash_child_in_flight?("sleep 5") }` (new private helper: `ps -eo ppid=,command=` scan for a direct child of `Process.pid`) | the spawned child process of the running command | asserts the SAME "escape cancelled the running user bash" property; the poll fires only once `run_user` is inside its output-drain wait (PHASE 0 #4), so the escape lands inside the tool's cooperative waits exactly as the base 0.3 s window arranged |
+| 2 | `test_running_user_bash_renders_the_streaming_block_midflight` (:3859) | `sleep 0.2` | `wait_until { row_texts(chat.display_lines).any? { row == " alpha" } }` | landed first-chunk row | same mid-flight asserts (alpha renders, beta absent, loader rows, no transcript block); the second chunk follows 0.5 s later (scripted in-command `sleep 0.5`), so the poll ends strictly between the chunks — the beta-absence margin GROWS (base 0.3 s → ≥0.5 s) |
+| 3 | `test_user_bash_chunks_join_through_the_string_buffer` (:3912) | `sleep 0.45` | `wait_until { … row == " line2" }` | landed joined row ("par"+"tial\r\nline2") | same asserts; the tail lands 0.3 s after line2, poll ends at line2 → margin 0.3 s (base: 0.15 s) |
+| 4 | `test_user_bash_cr_only_chunks_vanish` (:3934) | `sleep 0.15` | `wait_until { … row == " xy" }` | landed CR-joined row | same asserts; " end" lands 0.4 s later — margin 0.4 s (base 0.25 s) |
+| 5 | `test_escape_cancel_clears_the_live_rows_and_keeps_partial_output` (:3987) | `sleep 0.3` | `wait_until { … row == " kept" }` | landed chunk row inside `run_user`'s streaming wait | same asserts (live rows cleared, partial "kept" output kept, cancelled status row); the escape now provably lands inside run_user (PHASE 0 #4) |
+| 6 | `test_bash_loader_glyph_advances_across_draws_without_busy` (:4020) | `sleep 0.2` | `wait_until { chat.user_bash_streaming? }` | the asserted in-flight marker itself | same asserts (glyph ⠋ at the run-start anchor with the fake clock — the anchor is recorded at stream start and the test advances `t` explicitly) |
+| 7 | `test_bash_loader_anchor_resets_at_run_start_independent_of_the_border_anchor` (:4060 + :4070, two runs) | `sleep 0.2` ×2 | `wait_until { chat.user_bash_streaming? }` ×2 | in-flight marker | same asserts (anchor reset ⠋ at both run starts; fake clock untouched) |
+| 8 | `test_bang_bang_running_block_rides_dim_midflight` (:4087) | `sleep 0.2` | `wait_until { chat.user_bash_streaming? }` | in-flight marker | same asserts (dim border + dim loader mid-flight) |
+| 9 | `test_ctrl_o_toggles_the_running_preview_without_a_hint` (:4109) | `sleep 0.2` | `wait_until { … row == " 25" }` | landed tail row (seq printed instantly; run holds ~2 s) | same asserts (tail renders, collapsed preview, no hint, toggle both ways) |
+| 10 | `test_escape_interrupts_a_streaming_run_through_the_kernel_path` (:5765) | (no sleep — the standing 900 s-hang wedge class) | **Law 4 anti-wedge belt**: the scenario thread's body wrapped in `begin … ensure kernel.stop! end` | — | zero asserted-property bytes changed; every exit path now stops the kernel, so a missed `wait_until` window FAILS the test in ≤5 s instead of wedging `kernel.run` forever. PROVEN at this session's first cold full-suite run: the class fired as a loud 5 s red (see suite runs) — previously this same load-shape hung the suite 900 s (I75–I81 verdict record) |
+
+Chat stream contents: `"x" * 40` at :1610 and :5777 are the BASE values, byte-untouched — chat is not in Law 3's frozen shrink list (agent_loop line ranges only). Real bash command durations (`!sleep 5`, `!sleep 2`, in-command `sleep 0.5`) keep their TRUE durations.
+
+### test/agent_loop_test.rb (9 fixed windows converted; shrinks applied; 2 sites defended-no-op)
+
+| # | test | old (base) | new | observable | property-unchanged defense |
+|---|------|-----------|-----|------------|---------------------------|
+| 11 | `test_kernel_interrupt_cancels_in_flight_turn` (:681) | `sleep 0.3` + `"x"*40` (4 s) | `wait_until { @server.request_count >= 1 }` + `"x"*12` (1.2 s) | captured request = mid-stream marker | same asserts (kernel.interrupted?, agent_end interrupted:true, agent.interrupted?, no orphan poller); the trap net arms before `kernel.run`'s block can fire the request, so the INT always lands after arming — the poll cannot fire early |
+| 12 | `test_interrupt_mid_stream_aborts_request_no_error_terminal` (:761) | `sleep 0.3` + `"x"*40` | `wait_until { @server.request_count >= 1 }` + `"x"*12` | captured request | same asserts incl. `wall < 2.0` (literal bound unchanged; message text corrected "≈ 4 s"→"≈ 1.2 s" — accuracy-only); PHASE 0 #3 residual |
+| 13 | `test_run_after_an_interrupt_makes_a_fresh_request` (:800) | `sleep 0.3` + `"x"*40` | `wait_until { @server.request_count >= 1 }` + `"x"*12` | captured request | same asserts (fresh request, `captured_requests.size == 2`, interrupted?, no error) |
+| 14 | `test_cancel_during_tool_batch_aborts_fast` (:840) | `sleep 0.1` | `wait_until { stamped_events(stamped, :tool_execution_start).any? }` | the first tool-execution-start event | same asserts (`span < 0.2`, interrupted flag on agent_end); cancel lands at the first tool's start — strictly inside the 0.5 s batch, the abort-fast property is if anything more sharply exercised |
+| 15 | `test_error_transcript_cancel_ladder_synthesizes_nothing` (:1617) | `sleep 0.3` + `"x"*40` | `wait_until { @server.request_count >= 1 }` + `"x"*12` | captured request | same asserts (no failure message on the cancelled shape, no assistant message_end events) |
+| 16 | `test_steer_inbox_file_is_consumed_at_the_turn_boundary` (:1806) | `sleep 0.4` + `"x"*80` (8 s) | `wait_until { @server.request_count >= 1 }` + `"x"*12` (1.2 s) | captured request | same asserts (steer rides the NEXT request as a user message, consumption log correlates by requestId, file unlinked); the write lands ~0.05 s after capture with 1.2 s of stream remaining — ≥3× margin (Law 3) |
+| 17 | `test_stop_file_interrupts_the_run_at_the_boundary` (:1834) | `sleep 0.4` + `"x"*80` | `wait_until { @server.request_count >= 1 }` + `"x"*12` | captured request | same asserts (interrupted?, agent_end interrupted:true, stop file unlinked) |
+| 18 | `test_poison_inbox_file_is_skipped` (:1856) | `sleep 0.4` + `"x"*80` | `wait_until { @server.request_count >= 1 }` + `"x"*12` | captured request | same asserts (poison file unlinked, neighbor steer still delivers) |
+| 19 | `test_wake_noops_while_a_run_is_in_flight` (:1913) | `sleep 0.3` + `"x"*40` | `wait_until { agent.running? }` + `"x"*12` | the asserted marker itself (`agent.running?`) | same asserts (wake returns false mid-run); the wake lands ~0 ms after running? with 1.2 s of stream remaining |
+
+Defended NO-OPs (byte-untouched): `:935` (`join_run`'s poll quantum — PHASE 0 #1), `:2021` (`SleepTool` 0.5 s — PHASE 0 #2).
+
+### test/subagents_test.rb (4 fixed windows converted; steer-pair shrink applied; 1 site defended-no-op)
+
+| # | test | old (base) | new | observable | property-unchanged defense |
+|---|------|-----------|-----|------------|---------------------------|
+| 20 | `test_forensic_legacy_doubled_path_and_task_null_adopt_without_raising` (:479) | `sleep 0.5` (after `Process.spawn("sleep","0.05"); Process.detach(pid)`) | `wait_until { !system("ps -p #{pid} >/dev/null 2>&1") }` | the spawned sleeper's exit+reap (process gone) | same asserts (legacy dir adopts to failed, task:null survives, transcript glob matches); the poll fires strictly after exit+reap — the SAME precondition the fixed 0.5 s approximated, bounded instead of guessed |
+| 21 | `test_steer_receipts_and_the_correlated_consumption_log` (:684) | `sleep 0.5` + `"x"*120` (12 s) | `wait_until { @server.request_count >= 1 }` + `"x"*20` (2 s) | the real child's first captured request (boot-time tolerant — the de-flake point) | same asserts (unconsumed file waits in the inbox, file-name/body shape, :delivered receipt on THAT request id, correlated consumption log, steer reaches the wire as a user message); steer ack (30 s) rides the turn boundary ~2 s in — ≥3× margin |
+| 22 | `test_steer_receipt_vocabulary` (:721) | `"x"*120` (12 s, no sleep) | `"x"*20` (2 s) | — | same asserts (queued/missed/failed receipt vocabulary); the 40 s wait_terminal bound untouched |
+| 23 | `test_stop_flow_escalates_and_leaves_no_zombie` (:753) | `sleep 0.4` | `wait_until { manager.runs.first[:state] == :running }` | the asserted marker itself (run state) | same asserts; `"s"*200` stream kept — the escalation ladder IS the property (Law 3) |
+| 24 | `test_stop_flow_escalates_and_leaves_no_zombie` (:766) | `sleep 0.5` | `wait_until { `ps -o stat= -p #{pid}`.strip.empty? }` | zombie absence (the asserted condition itself) | same asserts (no zombie — Process.detach owns the reap); the fixed 0.5 s became a bounded poll on the identical observable |
+
+Defended NO-OP (byte-untouched): `:974` (`wait_terminal`'s poll quantum — PHASE 0 #1). Deadline test `"d"*200` ×2 kept (the deadline IS the property).
+
+### test/models_listing_test.rb (Law 4: the new pin — count grows by exactly +1)
+
+| # | test | old | new | defense |
+|---|------|-----|-----|---------|
+| 25 | `test_non_200_failure_path_returns_promptly` (NEW, after `test_non_200_returns_nil_and_stays_a_single_attempt`) | — (absent at base; gate filter runs=0) | non-200 fetch with `timeout: 1` must return nil with `elapsed < 2.5` | the frozen Law-1 property pinned: RED at base (~6.0 s stall), GREEN post-lane (measured 0.002 s). Filter `/failure_path_returns_promptly/` → `1 runs, 2 assertions, 0 failures` |
+
+Test counts (base → lane): chat 272→272, agent_loop 70→70, subagents 39→39, models_listing 10→11. Sorted `def test_*` name diffs: identity for the three converted files; models_listing adds exactly the one pin. NO test deleted, NO test renamed.
+
+## 2. The listing teardown diff (Law 1) + wire-invisibility defense
+
+```diff
+--- lib/tart/models/listing.rb
+             begin
+-              body = response.status == 200 ? response.read : nil
+-              body ? parse_ids(body) : nil
++              # ALWAYS release the response body before closing the client:
++              # an UNREAD non-200 body leaves the connection a busy pool
++              # resource, and `client.close` below blocks in the pool's
++              # unbounded wait_until_free (async-pool controller.rb:145)
++              # until the outer with_timeout fires — the measured ~6 s
++              # teardown stall (timeout + JOIN_MARGIN). Reading the body
++              # drains it and frees the connection, so the close returns
++              # immediately on every status; only a 200 body is parsed.
++              body = response.read
++              body && response.status == 200 ? parse_ids(body) : nil
+             ensure
+               client.close
+             end
+```
+
+**Wire-invisibility defense:** the request bytes are formed ONLY by `client.get("/models", headers: {"Authorization" => "Bearer #{api_key}", "Accept" => "application/json"})` — byte-untouched by the diff (it is context, not changed text). One attempt, no retries (the `client.get` call and the client construction are unchanged); every failure class still degrades to nil via the untouched worker `rescue`; `TIMEOUT`/`JOIN_MARGIN` untouched; the callback + synchronous forms untouched; NO new `Thread.new` (`threads-budget` gate: THREADS_BUDGET_OK; the models family keeps exactly ONE `Thread.new` site — the pre-existing worker in `fetch`). The carried request-log pins pass EXACT:
+
+```
+Tart::ModelsListingTest#test_fetch_speaks_the_get_models_path_with_the_bearer_header … 0 failures
+LISTING battery (lane tree): 11 runs, 19 assertions, 0 failures, 0 errors, 0 skips — Finished in 0.038s (base class time 6.07 s)
+```
+
+Root cause A reproduced at base in this worktree BEFORE the fix, cured after (same probe):
+
+```
+PRE-FIX  (base code): 500-fetch #1: nil 2.001s   # timeout:1 ⇒ timeout+JOIN_MARGIN=2.0; suite default timeout 5 ⇒ the 6.0 s class
+                      + console warn "Waiting for Async::HTTP::Protocol::HTTP pool to drain" and
+                        Async::TimeoutError backtrace through listing.rb:86 → async-http client.rb:90 → async-pool controller.rb:145
+POST-FIX (lane code): 500-fetch #1: nil 0.001s   500-fetch #2: nil 0.0s   dead: nil 0.0s   (no drain warn)
+```
+
+The dead-endpoint (ECONNREFUSED) path needed no new code, per the spec: pre-fix 0.002 s, post-fix 0.0 s.
+
+## 3. Red-before/after suite wall numbers (`time rake`, cold, both trees measured THIS session)
+
+BASE tree (`repos/tart` @ `dff5447`, fresh cold runs this session):
+
+```
+run A: 1462 runs, 6923 assertions, 0 failures, 0 errors, 1 skips — real 4m23.848s (263.8 s)
+run B (/usr/bin/time -p): real 270.52s — 1462 runs, 6928 assertions, 0 failures, 0 errors, 1 skips
+```
+
+Both > the frozen 240 s bound (the arch's own session measurement: 271 s) — the base `suite` gate RED on the wall leg confirmed fresh.
+
+LANE tree (cold runs, post-lane):
+
+```
+run 1: 223.5 s — 1463 runs, 6922 assertions, 0 failures, 1 errors, 1 skips  ← the DECLARED chat-interrupt
+        flake class fired as a LOUD 5 s RED (not a hang): RuntimeError "work condition never satisfied"
+        at test/chat_test.rb:5791 inside the scenario thread; the ensure belt stopped the kernel and the
+        error surfaced through scenario.join. This same load-shape hung the suite 900 s at I75–I81.
+run 2: green — 1463 runs, 6930 assertions, 0 failures, 0 errors, 1 skips
+run 3: 215.7 s — 1463 runs, 6924 assertions, 0 failures, 0 errors, 1 skips (exit 0)
+run 4: 216.5 s — 1463 runs, 6930 assertions, 0 failures, 0 errors, 1 skips (exit 0)
+gate run (the REWRITTEN timed suite-gate command, verbatim):
+        1463 runs, 6920 assertions, 0 failures, 0 errors, 1 skips
+        SUITE_WALL 217s (frozen bound: 240s)
+        SUITE_OK
+```
+
+runs 1463 > base floor 1462 (growth = exactly the declared new pin); 0F/0E on every green run; wall 216–223 s ≤ 240 s.
+Per-class test-time (same-file cold runs, base transcript `tmp/i82-spec/class-times.txt` vs lane `--verbose`):
+
+```
+ModelsListingTest  6.07 s →  0.03 s (−6.04)   10 → 11 runs
+AgentLoopTest     35.15 s →  9.15 s (−26.00)   70 runs
+ChatTest          15.40 s → 14.66 s (−0.74)   272 runs  (real bash durations frozen — the conversions here are de-flake, not speed)
+SubagentsTest     56.36 s → 33.90 s (−22.46)   39 runs
+                                            Σ ≈ −55.2 s  (wall: 270.5 → 216–217)
+```
+
+## 4. Contention-run evidence (8-way CPU steal, gate harness verbatim, 4 rounds this session)
+
+```
+round 1: CONTEND test/chat_test.rb       exit=0 wall=0.4s | agent_loop 3 runs wall=4.4s | subagents 2 runs wall=5.8s → CONTENTION_OK
+round 2: 0.4s / 4.4s / 5.8s → CONTENTION_OK
+round 3: 0.4s / 4.4s / 5.6s → CONTENTION_OK
+(first session round, pre-full-suite: 0.4s / 4.4s / 5.8s → CONTENTION_OK)
+```
+
+Filter/run counts frozen at base: escape filter 1 run, agent_loop boundary filter 3 runs, `steer_receipt` filter 2 runs — all green under steal, every leg inside its watchdog bound (90/150/150 s), zero hangs. Base-rehearsal legs were 0.4/26.4/27.0 s under the same steal — the converted battery is 4.7× faster under contention.
+
+## 5. Gate-relevant verification (verbatim)
+
+```
+LISTING_TEARDOWN_OK   (listing battery green + pin filter "1 runs, 2 assertions, 0 failures")
+SCOPE_OK              (the scope gate command, run verbatim in the lane worktree)
+SUITE_OK  SUITE_WALL 217s
+SEAM_BENCH_OK         (bundle exec ruby bench/seam_bench.rb 2>&1 | tail -1)
+THREADS_BUDGET_OK     (no added Thread.new in lib outside listing.rb/session_sink.rb)
+CONTENTION_OK         ×4 rounds
+```
+
+`bundle install --quiet` clean; no gem changes; `Gemfile`/`Gemfile.lock`/`tart.gemspec`/`bench/`/`bin/`/`gems/` zero-diff; `test/test_helper.rb`, `test/support/**`, `test/subagents_e2e_test.rb`, every other test file zero-diff.
+
+## Deviations / residuals (itemized)
+
+1. **PHASE 0 #1/#2**: two inventory-listed sites (`:931`, `:970`) are already bounded-poll quanta and one (`:2013` SleepTool) is a property-bearing real duration — left byte-untouched with reasons. This is a READING correction of the inventory, not a skipped conversion: every genuine fixed window in the three files is converted (chat 10/10, agent_loop 9/9 windows, subagents 4/4 windows).
+2. **PHASE 0 #3**: the wall<2.0 leg of `test_interrupt_mid_stream_aborts_request_no_error_terminal` loses its solo discriminative power at 12 chars (full stream ≈1.2 s). Literal property unchanged; the interrupt-flag assertions carry the pin. If the owner wants the wall leg to stay discriminative, the sanctioned lever is the frozen "~12 chars" latitude (e.g. 20+ chars), which would cost ~+0.8 s/test — NOT taken without an owner call.
+3. **The escape-interrupt flake class**: 1 red in 4 cold lane full-suite runs (loud 5 s red, never a hang — the belt is doing its job). Declared note-and-pass class (I75–I81 record + this iteration's rehearsal declaration); the three subsequent runs and the gate run were green. Base carries the same class (it hung 900 s under battery at the first I82 rehearsal).
+4. **Chat wall contribution is small (−0.74 s class time)**: the 10 chat sleeps sat parallel to REAL bash durations (`sleep 2`/`sleep 5` child round-trips) that Law 2 forbids shrinking; the chat conversions' value is the de-flake/anti-wedge containment, exactly as the plan framed the escape proof point.
+5. **The escape-cancel observable re-rooting (PHASE 0 #4)**: two of the ten chat conversions poll a different observable than a first-pass attempt would (`ps` child scan / landed-chunk row instead of `user_bash_streaming?`) because the naive observable flips at submit time. Property invariance holds; verified 3× green each.
+
+STATUS: COMPLETE_WITH_CONCERNS
 
 ## Verdict
 
