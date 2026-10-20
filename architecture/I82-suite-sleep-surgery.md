@@ -154,35 +154,152 @@ tied to the excluded seams.
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section suite-sleep-surgery specification --from <file>`. -->
+# Specification — I82 `suite-sleep-surgery` (ONE lane, repo tart)
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+## Objective
+
+Cut the suite's serial wall time by the measured ~50 s (271 s → ~220 s cold,
+frozen floor ≤ 240 s) and de-flake the timing-window tests, BEFORE any
+parallelism — by converting fixed sleeps to polls over observables, shrinking
+over-long scripted streams to margin-sized durations, and bounding the
+models-listing teardown stall. Cites: `notes/plan-20261020T034216Z-test-rig-speed.md`
+ENTRY 1; BRIEF §8 (the byte-pin bar); the Grounds section above (all numbers
+measured this session at `dff5447`).
+
+## Law 1 — the teardown-bounded listing close (`lib/tart/models/listing.rb` ONLY)
+
+The ONE lib change of this iteration. A non-200 listing fetch must never leave
+the connection pool busy at close: the failure path releases the response body
+(read-or-close, whichever the async-http seam supports) before `client.close`,
+or otherwise bounds the close, so `wait_until_free` returns immediately. The
+frozen PROPERTY (implementation-free): a `fetch(base_url:, api_key:, timeout: 1)`
+against a non-200 endpoint returns nil with elapsed **≤ 2.5 s** (measured base:
+~6.0 s; pinned by the new test below), and:
+
+- **Wire-visible NOTHING**: the request bytes stay byte-identical — GET
+  `<base>/models`, `Authorization: Bearer <key>`, `Accept: application/json`
+  (the `request_logs` pins in `test/models_listing_test.rb` hold EXACT); one
+  attempt, no retries; every failure class ⇒ nil, nothing raised.
+- `TIMEOUT`/`JOIN_MARGIN` semantics, the callback + synchronous delivery forms,
+  the one-worker-thread discipline (the threads-budget gate's exclusion set is
+  untouched — NO new `Thread.new` anywhere), and the boot-inertness law:
+  byte-unchanged.
+- The dead-endpoint (ECONNREFUSED) path is already fast — it needs no new code,
+  only the new pin family's coverage.
+
+## Law 2 — the sleep→poll conversion law (`test/` only)
+
+Every fixed Ruby-level `sleep N` inside the converted tests becomes a bounded
+poll on an OBSERVABLE end condition — `wait_until` (5 s deadline / 5 ms poll,
+`test/test_helper.rb:11-19`, UNTOUCHED) or the file's existing bounded-poll
+helper in the same shape — wherever an observable exists: rendered transcript
+row (`chat.transcript_lines`), `drawn`/`scrollback`, mock-server request depth
+(`captured_requests` / `request_count`), run state (`manager.runs.first[:state]`,
+`agent.running?`), inbox-file existence, zombie absence. Frozen rules:
+
+- **Property invariance**: each converted test asserts the SAME property it
+  asserted before — inputs/outputs on public interfaces unchanged; conversions
+  are sleep→poll and duration-shrink ONLY. No test deleted, no test renamed;
+  the count grows only by the declared new pins (Law 4).
+- The conversion inventory (the lane's mandatory minimum): the 10 chat_test
+  timing-window sleeps (the escape-interrupt test converts FIRST — the plan's
+  de-flake proof point), the agent_loop observation sleeps (the 0.3–0.4 s
+  mid-stream windows at :681, :761, :800, :840, :1617, :1806, :1834, :1856,
+  :1913 and the settle sleeps at :931, :2013), the subagents fixed windows
+  (:479, :684, :753, :766, :970). Real child round-trips keep their true
+  duration — the boot of a `bin/tart -p` child, a bash command's own runtime,
+  an escalation ladder's grace: never faked, never shrunk.
+- `test/test_helper.rb` is HARD-FROZEN: `wait_until` and `ScriptedSession` are
+  byte-untouched (5 s deadline suffices for every enumerated conversion).
+- `test/support/mock_llm_server.rb` is HARD-FROZEN: `spec_pause` stays 0.1 s,
+  `chunk_every` stays advisory (bin/pty-tester and the rig share this file) —
+  all duration-shrinking is content-length shrinkage, Law 3.
+
+## Law 3 — the duration-shrink law (scripted slow_streams)
+
+A scripted `slow_stream` shrinks to the minimum duration that still outlasts
+the behavior under test by ≥3× margin (the e2e file's own sizing rule,
+`test/subagents_e2e_test.rb:33-37`). The mid-stream PROPERTY must hold; the
+duration is not the property. Frozen targets (content lengths at the 0.1 s/char
+pause law):
+
+- The boundary trio (`test_poison_inbox_file_is_skipped`,
+  `test_steer_inbox_file_is_consumed_at_the_turn_boundary`,
+  `test_stop_file_interrupts_the_run_at_the_boundary`): `"x" * 80` (8 s) →
+  ~12 chars (~1.2 s); the mid-stream file write converts to a poll on the
+  request-captured observable so the write lands while the turn streams
+  regardless of load.
+- The steer-receipt pair (`test_steer_receipt_vocabulary`,
+  `test_steer_receipts_and_the_correlated_consumption_log`): `"x" * 120`
+  (12 s) → ~20 chars (~2 s); the `sleep 0.5` mid-stream windows become polls
+  on the child's captured request (boot-time tolerant — the de-flake point for
+  real-child tests).
+- The interrupt family + `test_wake_noops_while_a_run_is_in_flight`:
+  `"x" * 40` (4 s) → ~12 chars, margins preserved (the interrupt action must
+  still land mid-stream).
+- The stop-flow escalation test and the deadline tests keep their true
+  durations (the escalation ladder and the deadline ARE the property); their
+  scripted streams only shrink where gratuitous AND the outlast-margin holds.
+
+## Law 4 — the anti-wedge belt + the new pins
+
+- **Anti-wedge**: every converted chat kernel-scenario test guarantees
+  `kernel.stop!` on EVERY exit path of its scenario thread (an `ensure` belt),
+  so a missed timing window raises inside `wait_until`'s bounded deadline and
+  FAILS the test instead of wedging the suite (the standing chat-interrupt
+  900 s-hang class becomes a loud red). This is failure-containment only —
+  the asserted properties are untouched.
+- **The new pin** (sanctioned by the plan; the count grows by ≥ 1):
+  `test/models_listing_test.rb` gains
+  `test_non_200_failure_path_returns_promptly` — a non-200 fetch with
+  `timeout: 1` returns nil with elapsed < 2.5 s (RED at base by ~3.5 s,
+  deterministic — the gate pins the filter by name).
+- The Builder Report carries the itemized-and-defend table: one row per
+  converted test (old sleep → new poll/shrink, the observable, the property
+  unchanged), plus red-before/after `time rake` wall numbers (base measured
+  271 s this session — the lane re-measures at its tree).
+
+## Lane plan
+
+ONE lane — the teardown-bounded close over the one lib file, the conversions
+over the four test files, the standing 95-gate battery.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision suite-sleep-surgery`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - lib/tart/models/listing.rb
+    - test/chat_test.rb
+    - test/agent_loop_test.rb
+    - test/subagents_test.rb
+    - test/models_listing_test.rb
+  effort: medium
 ```
+
+## Effort call
+
+`medium` — a bounded, fully-specified mechanism (every law frozen with
+measured baselines and file:line cites; no new files; no perf exposure, no
+parity-scenario exposure), but it owes ~30 sleep→poll conversions across three
+test files each defended in the report, the duration shrinks with margin
+arithmetic, the anti-wedge ensure belts, the new prompt-return pin, and the
+full 95-gate standing battery including the wall gate (a full-suite timed run)
+and the contention harness.
+
+## Output format
+
+- The lane lands exactly the frozen 5-path touch set (all paths exist at
+  base — tracked files, no new-file legs).
+- The Builder Report: (1) the itemized conversion table (old sleep → new
+  poll/shrink + the observable + property-unchanged defense, per test);
+  (2) red-before/after suite wall numbers (`time rake`, base 271 s measured
+  2026-10-19 this session vs the lane tree, both cold); (3) the listing
+  teardown diff with the wire-invisibility defense (request-log pins
+  byte-identical); (4) the contention-run evidence (the converted battery
+  green under steal).
+- House style: terse tests, public-interface assertions only; every test edit
+  itemized and defended; the `t82*` out-dir scratch is tolerated untracked,
+  never committed.
 
 ## Acceptance Criteria
 
