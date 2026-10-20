@@ -340,8 +340,19 @@ coverage bijection).
   sweep gates (I83 verdict residual); (c) the s9/herdr lane-tree-depth
   geometry classes; (d) the render-perf BP2 load-margin class; (e) the
   suite order/env flake classes (I75–I83 record).
-- The rehearsal vector is recorded in the Builder Prompt section after the
-  stamped rehearsal (the stamp keys on the gates block only).
+- MEASURED REHEARSAL (the stamp, `2026-10-20T01:59:14-06:00`, gates digest
+  `94b4b1753c453dd36acaabb6d011384dcb67ee7f404d0ca735c80bf668f3ac61`):
+  **GREEN 96 / RED 4 / BROKEN 0 / EMPTY 0** at base `f07c25f` — every RED
+  verified for EXACTLY its declared reason (parallel-units: the pins file
+  absent; parallel-parity + parallel-repeat: rake refuses `test:par`;
+  scope: the two new files absent, all frozen-tree legs green at base).
+  All 96 carried gates GREEN cold, incl. `suite` (1474 runs / 7030
+  assertions / 0F / 0E / 5 skips / SUITE_WALL 213s ≤ 240s) and the three
+  sweep gates — no declared flake class fired. Every new gate's logic was
+  synthetically validated (happy + negative paths) before the rehearsal,
+  and `scope` was run standalone at base against the REAL untracked
+  inventory (139 entries, 0 leftover). The gates block below is
+  byte-identical to the stamped block.
 
 ## AC1 — the parallel runner exists, additive, full-set, merged, attributed
 
