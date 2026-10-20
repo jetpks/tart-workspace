@@ -3095,12 +3095,13 @@ project:
       - test/subagents_test.rb
       - test/models_listing_test.rb
       base_sha: dff5447c4cc670ce08ef9feacd83a903b3e6ade0
-      worktree: build/I82-suite-sleep-surgery-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: openrouter/z-ai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 1e0d00ee72275f95070dda4acae822ebd0472aaf
     rehearsal:
       gates_digest: f5f6871599b518f0382d92dd4d6a6ec2e27e9c155c9522b8a555c8ba4e31d0e3
       at: '2026-10-19T22:26:06-06:00'
