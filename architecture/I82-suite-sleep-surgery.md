@@ -2560,15 +2560,102 @@ STATUS: COMPLETE_WITH_CONCERNS
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section suite-sleep-surgery verdict --from <file>`. -->
+### PHASE 0 disagreement rulings
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify suite-sleep-surgery`)?
+1. **`:931` / `:970` "settle sleeps" are poll quanta, not fixed windows — ACCEPT.**
+   Law 2 itself blesses "the file's existing bounded-poll helper in the same shape":
+   both sites are `sleep 0.02`/`sleep 0.1` quanta INSIDE deadline+`flank`-bounded
+   until-loops (15 s / parameterized 15–40 s). Converting them to `Tart::Test#wait_until`
+   would LOWER their deadlines to 5 s and churn two helpers shared by dozens of
+   tests — a weakening of the very law. Measured reading correction of the
+   architect's inventory; every genuine fixed window is converted (10/10 chat,
+   9/9 agent_loop, 4/4 subagents — verified row-by-row against the actual diff).
+
+2. **`:2013` SleepTool `sleep 0.5` is the property — ACCEPT.** Law 2: "real child
+   round-trips keep their true duration … never faked, never shrunk"; the
+   fibers-overlap discriminator (<0.9 vs ≈1.0 s) and the abort-fast pin (<0.2 s
+   against the 0.5 s batch) exist ONLY because the scripted tools sleep 0.5 s.
+   Shrinking destroys the pin. Correctly defended no-op.
+
+3. **40→12 chars narrows the wall<2.0 leg's solo discrimination — MODIFY.** The
+   frozen target said "~12 chars" (tilde latitude); the builder honored the frozen
+   number, kept the literal property, did NOT unilaterally spend the latitude, and
+   flagged the margin loss. Conversion stands; the residual is real and rides to
+   the owner: if the wall leg must stay discriminative alone, the sanctioned lever
+   is 20+ chars (~+0.8 s/test) — an owner call, not a lane call.
+
+4. **Escape-cancel observable re-rooting — ACCEPT.** The obvious observable
+   (`chat.user_bash_streaming?`) flips at SUBMIT time (IdleKernel double records
+   blocks; the queued exec block has not started) — it is not a valid end
+   condition for the asserted mid-run property, and the first attempt measurably
+   failed 2 tests. Re-rooting on the spawned child process / landed-chunk row is
+   a STRONGER satisfaction of Law 2's "observable end condition." Property
+   invariance holds; the failure→correction is the system working.
+
+5. **Pre-flight soundness sweep — ACCEPT** (a check record, not a disagreement;
+   the sorted-name diff and frozen-file reads match my own verification).
+
+### Mechanical post-flight (all cold, this session)
+
+- `architect verify suite-sleep-surgery` — 4/4 PASS (frozen untouched, no builder
+  commits, report exists, in-bounds).
+- `git diff 59bd639..HEAD -- architecture/I82-suite-sleep-surgery.md` — empty
+  (frozen region byte-untouched; evidence transcribed only into Builder Report,
+  commit c821af95).
+- `git -C build/I82-suite-sleep-surgery-core/wt log dff5447..` — empty (lane
+  commits nothing; work is working-tree only).
+- `architect gate suite-sleep-surgery core` — **94/94 PASS, 0 FAIL**:
+  `SUITE_OK SUITE_WALL 219s` (frozen bound 240 s; builder's four cold runs
+  216–223 s vs base 263.8–270.5 s), `LISTING_TEARDOWN_OK` (pin filter 1 run /
+  2 asserts; battery 11 runs green), `SCOPE_OK`, `SEAM_BENCH_OK`,
+  `CONTENTION_OK` (0.4 s / 4.4 s / 5.8 s under 8-way steal — vs 0.4 / 26.4 /
+  27.0 s at base rehearsal, 4.7× faster). Declared flake classes did not fire
+  in the cold gate run.
+
+### Diff vs Specification intent (read in full, not from prose)
+
+The 5-file diff (123+/49−) is exactly the frozen touch set and matches the
+report's itemized table 1:1. The listing.rb diff is precisely Law 1's
+read-or-close release (request bytes formed by the untouched `client.get`;
+200-vs-non-200 parse gate preserved; failure-class ⇒ nil semantics preserved;
+no new `Thread.new` — grep exit 1). Anti-wedge `begin/ensure kernel.stop!`
+belt verified in the escape test. `test/test_helper.rb`, `test/support/**`,
+`test/subagents_e2e_test.rb`, `lib/tart/**` minus listing.rb, `gems/`,
+`bench/`, `bin/`, gemfiles — all zero-diff (verified directly, not from the
+scope gate alone). Test-name diff across all four files: only
+`+test_non_200_failure_path_returns_promptly` — zero deleted, zero renamed;
+counts 272/70/39 held + 10→11 listing.
+
+### Acceptance Criteria
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 teardown-bounded listing close | `listing-teardown-units` PASS cold (11 runs battery + pin 1 run/2 asserts); wire bytes untouched in diff; 0 new threads | §8 byte-pin bar | PASS |
+| AC2 wall drop | `suite` PASS cold: SUITE_OK, WALL 219s ≤ 240s; 1463 runs > floor 1462 (growth = exactly the declared pin); SEAM_BENCH_OK; red-before/after numbers in report | §8 | PASS |
+| AC3 de-flake proof | `contention-proof` PASS cold, all legs green in-watchdog under 8-way steal; belt present and PROVEN loud-red in builder run 1 (was the 900 s hang class) | §8 | PASS |
+| AC4 conversions lawful | 0 deleted / 0 renamed (name diff = +1 pin only); every conversion itemized+defended and matches the diff; real durations kept; hard-frozen files byte-untouched; 91/91 carried gates green | §8 | PASS |
+| AC5 scope | `scope` PASS cold; diff bites exactly the 5 frozen paths; all HARD-FROZEN regions zero-diff | §8 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+### Iteration
+
+**CONTINUE** — 94/94 frozen gates green cold, 5/5 ACs PASS, and the diff is a
+faithful, fully-defended execution of all four laws; the disagreements were
+correct discipline (reading corrections + owner-call deferral), not drift.
+
+### Residuals carried forward (owner-facing)
+
+1. **Interrupt wall<2.0 leg margin (PHASE 0 #3):** at 12 chars the full stream is
+   ≈1.2 s so `wall < 2.0` no longer separates abort from natural completion by
+   itself; the interrupted-flag assertions carry the pin. Owner lever if wanted:
+   20+ chars (~+0.8 s/test) — NOT taken without an owner call.
+2. **Escape-interrupt flake class:** 1 loud 5 s red in 4 cold lane full-suite
+   runs (never a hang — the belt converts the standing 900 s-hang class to a
+   bounded fail). Standing I75–I81 note-and-pass class; the cold gate run here
+   was green. Zero lane attribution.
+3. **Chat wall contribution is small (−0.74 s class time):** the 10 chat sleeps
+   sat parallel to REAL bash round-trips Law 2 forbids shrinking; chat's value
+   in this iteration is the de-flake/anti-wedge containment, as the plan framed
+   the escape proof point.
+4. **The plan's 90–120 s ambition stays owner backlog** tied to the excluded
+   seams (e2e bundle-exec boots ~40 s, print-drain settle, BashTool kill-grace,
+   SessionSink real debounce) — re-grounded and declared in the frozen Grounds.
