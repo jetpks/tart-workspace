@@ -262,7 +262,7 @@ pause law):
 ## Lane plan
 
 ONE lane — the teardown-bounded close over the one lib file, the conversions
-over the four test files, the standing 95-gate battery.
+over the four test files, the standing 94-gate battery.
 
 ```lanes
 - name: core
@@ -283,8 +283,9 @@ measured baselines and file:line cites; no new files; no perf exposure, no
 parity-scenario exposure), but it owes ~30 sleep→poll conversions across three
 test files each defended in the report, the duration shrinks with margin
 arithmetic, the anti-wedge ensure belts, the new prompt-return pin, and the
-full 95-gate standing battery including the wall gate (a full-suite timed run)
-and the contention harness.
+full 94-gate standing battery including the REWRITTEN timed suite gate (ONE
+full-suite run per battery carrying the 240 s wall bound) and the contention
+harness.
 
 ## Output format
 
