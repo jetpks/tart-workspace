@@ -81,7 +81,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: suite-sleep-surgery
+  current_iteration: rig-sweep-parallel
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -3105,4 +3105,10 @@ project:
     rehearsal:
       gates_digest: f5f6871599b518f0382d92dd4d6a6ec2e27e9c155c9522b8a555c8ba4e31d0e3
       at: '2026-10-19T22:26:06-06:00'
+  - name: rig-sweep-parallel
+    ordinal: 83
+    file: architecture/I83-rig-sweep-parallel.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
