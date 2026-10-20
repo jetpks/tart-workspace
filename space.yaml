@@ -81,7 +81,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: agent-loading-forensics
+  current_iteration: suite-sleep-surgery
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -3080,4 +3080,10 @@ project:
     rehearsal:
       gates_digest: eebc499bae763fa60fe0870547525893a8b280a283c785339027b33e8ea4e9c5
       at: '2026-10-19T00:44:54-06:00'
+  - name: suite-sleep-surgery
+    ordinal: 82
+    file: architecture/I82-suite-sleep-surgery.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
