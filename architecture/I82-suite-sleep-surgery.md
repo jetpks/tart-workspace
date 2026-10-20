@@ -305,20 +305,25 @@ harness.
 ## Acceptance Criteria
 
 Property-level, each independently judgeable. The frozen ```gates block
-below is the machine-checkable form: **95 gates — 3 new (this iteration's
-discriminators) + 1 rewritten (`scope`, rewritten per-iteration) + 91 carried
-from the I81 block with the standing rebases** (the I81 digest's carry
-instruction): the `t82*` out-dir era prefix (the standing `t75*`–`t81*`
-families in the MAIN checkout are judge/rehearsal scratch, never committed),
-the diff bases `7b70e8a`→`dff5447`, and the scope gate REWRITTEN to this
-iteration's frozen 5-path touch set. Carried gates keep their origin `ac:`
-labels verbatim (their adjudication history travels with them — the AC6-labeled
-members are historical anchors from the iterations that owned them); every
-carried member is a regression anchor for landed behavior (I69–I81 products
-are baseline). Carry audit ran clean BEFORE rehearsal
-(`tmp/i82-spec/`: the extracted I81 block vs this one — 91 carried
-byte-identical after the declared rebases, 1 declared drop (`scope`,
-rewritten per-iteration), 3 new, zero duplicate ids, all 95 well-formed YAML).
+below is the machine-checkable form: **94 gates — 2 new (this iteration's
+discriminators: `listing-teardown-units`, `contention-proof`) + 2 rewritten
+(`scope`, rewritten per-iteration, AND the ONE declared carried rewrite
+`suite` — the timed form: the identical command plus the 240 s wall clock;
+reason: a separate wall gate would run the full suite TWICE per battery,
+doubling the exposure to the standing chat-interrupt 900s-hang class the
+I75–I81 verdicts record; `SUITE_OK` preserved, the wall bound added) + 90
+carried verbatim from the I81 block with the standing rebases** (the I81
+digest's carry instruction): the `t82*` out-dir era prefix (the standing
+`t75*`–`t81*` families in the MAIN checkout are judge/rehearsal scratch,
+never committed) and the diff bases `7b70e8a`→`dff5447`. Carried gates keep
+their origin `ac:` labels verbatim (their adjudication history travels with
+them — the AC6-labeled members are historical anchors from the iterations
+that owned them); every carried member is a regression anchor for landed
+behavior (I69–I81 products are baseline). Carry audit ran clean BEFORE
+rehearsal (`tmp/i82-spec/`: the extracted I81 block vs this one — 90 carried
+byte-identical after the declared rebases, 1 declared carried-rewrite
+(`suite`), 1 declared drop (`scope`, rewritten per-iteration), 2 new, zero
+duplicate ids, all 94 well-formed YAML).
 
 **The carried-pin audit (the I80/I81 lesson — closed-env/closed-list pins and
 must-differ legs checked against the frozen touch set BEFORE freeze):** this
@@ -331,6 +336,15 @@ not move; `threads-budget` excludes `lib/tart/models/listing.rb` already and
 Law 1 adds no `Thread.new`). The suite floor moves UP by exactly the declared
 new pins. All five touch paths EXIST at base — every must-differ leg is a
 tracked-file diff, no `[ -f ]` legs.
+
+**The standing suite flake classes (declared, the I75–I81 verdict record):**
+(a) `test/render/render_perf_test.rb:265` spinner-dwell (`fires no faster
+than the dwell` — observed RED in this session's first rehearsal, clean on
+cold re-run); (b) the chat-interrupt 900 s-hang under battery load (the
+first rehearsal's standalone wall gate hit the runner's 900 s cap on it —
+the fold into `suite` removes the second full-suite exposure; clean on cold
+re-run). Both are note-and-pass classes on a cold re-run, zero lane
+attribution — identical to the I75–I81 adjudications.
 
 **AC1 (the teardown-bounded listing close).** A non-200 listing fetch with
 `timeout: 1` returns nil within 2.5 s (measured base: ~6.0 s in the pool-drain
@@ -351,8 +365,10 @@ declared new pins)**, `SEAM_BENCH_OK`, and **total `rake` wall ≤ 240 s**
 the plan's ~90–120 s cut / ≤~180 s example is re-grounded and declared: the
 remainder is fenced off by the owner's own standing exclusions, Grounds §
 "numeric re-grounding"). The Builder Report carries red-before/after wall
-numbers. Gates: `suite-wall` (declared-RED at base: 271 s > 240 s,
-deterministic) + the carried `suite`, `bench`.
+numbers. Gates: `suite` (the REWRITTEN timed form — green AND ≤ 240 s;
+declared-RED at base on the wall leg: measured 271 s > 240 s, deterministic;
+the two standing suite flake classes above ride as declared note-and-pass)
++ the carried `bench`.
 
 **AC3 (the de-flake proof).** The converted timing-window battery — the
 escape-interrupt test (the plan's named proof point, converted first), the
@@ -360,9 +376,10 @@ three agent_loop boundary tests, the steer-receipt pair — runs GREEN under
 deliberate 8-way CPU steal, every leg inside its watchdog bound; a hang is
 killed and FAILS (the anti-wedge law: a missed window fails loud, never
 wedges). Filter/run counts frozen and verified at base: 1 / 3 / 2 runs.
-Gates: `contention-proof` (declared-GREEN at base, measured this session —
-its value is the post-lane proof; the wedge class is load-shape-dependent,
-Grounds §"wedge class").
+Gates: `contention-proof` (declared-GREEN at base — ALL THREE legs measured
+green under 8-way steal in this session's first rehearsal: 0.4 s / 26.4 s /
+27.0 s; its value is the post-lane proof; the wedge class is
+load-shape-dependent, Grounds §"wedge class").
 
 **AC4 (the conversions are lawful).** Zero tests deleted, zero renamed; every
 converted test asserts the same property (the itemized-and-defend table in the
@@ -603,7 +620,29 @@ its declared reason.
 - id: suite
   ac: AC6
   cwd: repos/tart
-  cmd: bundle install --quiet && bundle exec rake && echo SUITE_OK
+  cmd: |-
+    # REWRITTEN at I82 (declared: the ONE carried rewrite beside `scope`) —
+    # the timed form of the identical command. Reason: the wall floor is
+    # this iteration's headline discriminator, and running the suite TWICE
+    # per battery (a bare `suite` + a separate wall gate) doubles the
+    # exposure to the standing chat-interrupt 900s-hang + spinner-dwell
+    # flake classes the I75-I81 verdicts record. One full-suite run per
+    # battery, with the clock: the suite must be green AND complete within
+    # the frozen 240 s wall bound (measured base at dff5447: 271 s cold —
+    # RED at base on the wall leg, deterministically; expected lane tree
+    # ~220 s).
+    bundle install --quiet
+    log=$(mktemp t82wall.XXXXXX)
+    t0=$(date +%s)
+    bundle exec rake > "$log" 2>&1
+    ec=$?
+    wall=$(( $(date +%s) - t0 ))
+    tail -3 "$log"
+    echo "SUITE_WALL ${wall}s (frozen bound: 240s)"
+    rm -f "$log"
+    [ "$ec" -eq 0 ] || { echo "FAIL: suite — the suite itself is not green (exit $ec)"; exit 1; }
+    [ "$wall" -le 240 ] || { echo "FAIL: suite — wall ${wall}s exceeds the frozen 240s bound"; exit 1; }
+    echo SUITE_OK
   expect:
     exit_code: 0
     stdout_match: SUITE_OK
@@ -2183,31 +2222,6 @@ its declared reason.
   expect:
     exit_code: 0
     stdout_match: AGENT_LOADING_E2E_OK
-- id: suite-wall
-  ac: AC2
-  cwd: repos/tart
-  cmd: |-
-    # The serial-wall floor (this iteration's headline discriminator):
-    # the full suite, cold, in the standard one-process rake run, exits 0
-    # AND completes within the frozen 240 s wall bound. Measured base at
-    # dff5447: 271 s cold (this session, instrumented single-process run)
-    # — RED at base by ~31 s, deterministically; the expected lane tree
-    # is ~220 s (the measured savings inventory in the AC preamble).
-    bundle install --quiet
-    log=$(mktemp t82wall.XXXXXX)
-    t0=$(date +%s)
-    bundle exec rake > "$log" 2>&1
-    ec=$?
-    wall=$(( $(date +%s) - t0 ))
-    tail -3 "$log"
-    echo "SUITE_WALL ${wall}s (frozen bound: 240s)"
-    rm -f "$log"
-    [ "$ec" -eq 0 ] || { echo "FAIL: suite-wall — the suite itself is not green (exit $ec)"; exit 1; }
-    [ "$wall" -le 240 ] || { echo "FAIL: suite-wall — wall ${wall}s exceeds the frozen 240s bound"; exit 1; }
-    echo SUITE_WALL_OK
-  expect:
-    exit_code: 0
-    stdout_match: SUITE_WALL_OK
 - id: listing-teardown-units
   ac: AC1
   cwd: repos/tart
@@ -2243,8 +2257,8 @@ its declared reason.
     # watchdog bound. A hang is killed and FAILS the gate: the anti-wedge
     # law is that a missed timing window fails loud, never wedges the
     # suite. Filter/run counts verified at base this session: 1 / 3 / 2
-    # runs, all green un-contended; the escape leg verified green under
-    # 8-way steal (0.6 s).
+    # runs, all green un-contended; ALL THREE legs measured green under
+    # 8-way steal in the first rehearsal (0.4 s / 26.4 s / 27.0 s).
     bundle install --quiet
     cat > t82contention.rb <<'HARNESS'
     kids = []
@@ -2275,7 +2289,7 @@ its declared reason.
                   Process.clock_gettime(Process::CLOCK_MONOTONIC) - t0)
       exit 1 unless status.exitstatus.to_i.zero?
     end
-    puts CONTENTION_OK
+    puts "CONTENTION_OK"
     HARNESS
     bundle exec ruby t82contention.rb
     ec=$?
