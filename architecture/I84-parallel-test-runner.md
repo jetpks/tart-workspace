@@ -9,11 +9,135 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section parallel-test-runner grounds --from <file>`. -->
+# I84 grounds — parallel-test-runner (TEST-RIG-SPEED PLAN ENTRY 3)
+
+Plan: `notes/plan-20261020T034216Z-test-rig-speed.md` ENTRY 3 (repo tart, 1 lane).
+Base tip for this iteration: `f07c25f` (the I83 integration merge; the working
+tree is tracked-clean, the standing `t75*`–`t83*` untracked scratch is never
+committed). This entry is LAST in the plan BY DESIGN: only trustworthy on the
+de-flaked suite (ENTRY 1, I82) and must not degrade the loop's gate discipline.
+
+## The measured base (this session, cold, canonical checkout `f07c25f`)
+
+- Serial `bundle exec rake test`: **1474 runs / 7034 assertions / 0F / 0E /
+  5 skips, 213.6 s wall** (fresh this session; the carried `suite` gate's
+  ≤ 240 s bound holds with ~26 s margin). 5 skips = 1 standing base skip +
+  the 4 `TUI_SPLIT_RIG_LIVE`-gated live legs (I83).
+- CPU profile (the plan's basis, unchanged): ~1m24 user + 28 s sys for 214 s
+  wall — **two-thirds of the wall is waiting**; the host is 16 cores
+  (12P+4E); process-level parallelism overlaps the waits.
+- The canonical file set TODAY (the plan's "47 files / ~21K lines" is stale):
+  **66 `*_test.rb` files** — 58 under `test/` + 8 under
+  `gems/tui-split-rig/test/` (the Rakefile's own FileList glob sweeps BOTH
+  trees) — enumerating **1474 `Klass#method` tests** in a 0.4 s load-only
+  pass (scratch `tmp/i84-spec/fanout.rb`, transcript in this session).
+
+## The 8-way probe (this session, tip, scratch — the design's existence proof)
+
+Chunked subprocess fan-out: one load-only enumeration pass, deterministic
+round-robin sharding over the sorted `Klass#method` list, 8 workers each
+`bundle exec ruby -Itest -Ilib` with a `--name /<escaped Klass#method
+alternation>/` filter + explicit `--seed`:
+
+- run 1: `runs=1474 assertions=7032 0F 1E 5S, wall 51.7 s` — the ONE error is
+  EXACTLY the declared standing chat-interrupt flake class
+  (`test_escape_interrupts_a_streaming_through_the_kernel_path` — "work
+  condition never satisfied", the I82 anti-wedge belt firing as a LOUD 5 s
+  red, never a hang; I82: 1 red in 4 cold full-suite runs, note-and-pass on
+  cold re-run);
+- run 2: `runs=1474 assertions=7040 0F/0E 5S, wall 50.8 s`.
+- Verdict parity vs the same-session serial run: **runs and skips
+  byte-identical (1474 / 5S); assertions 7032–7040 vs serial 7034 — inside
+  the standing dynamic-assert-counter class** (I78: floors pin run counts,
+  the assert counter is dynamic; measured spread ±10 covers all three).
+- Per-worker runs == its shard size EXACTLY (185/185/184×6 both runs) — the
+  full-form `Klass#method` filter discriminates same-named methods across
+  classes (minitest matches `pos === m || pos === "#{self}##{m}"`).
+
+## The verified minitest mechanics (5.27.0 installed, `~> 5.20` pin stays)
+
+- `ruby -Itest -Ilib file_test.rb -- --name /regex/ --seed N` reaches
+  minitest's own optparse (autorun parses ARGV at at_exit) — verified live;
+  a worker exits nonzero on any failure and on an empty-filter run
+  ("Nothing ran for filter" ⇒ nonzero) — the shard law guarantees non-empty.
+- `Minitest::Test.runnable_methods` (5.27) calls `srand Minitest.seed` —
+  seed must be set before enumeration (`--seed` on the CLI; the enumeration
+  pass sets `Minitest.seed` explicitly).
+- **`Kernel#exit!` SKIPS the stdio flush** — measured: the enumeration dump
+  lost ~100 of 1474 lines to an unflushed buffer until an explicit
+  `$stdout.flush` preceded `exit!`. Load-bearing for the runner (and the
+  same discipline class as the I83 gate-shell no-`set -e` lesson).
+
+## The interference surface (audited at base this session, read-only)
+
+The plan's audit targets, verdict per surface (the builder re-proves each in
+its own worktree — expected ZERO forced fixes at base):
+
+- **tmux session names**: ZERO tmux use inside any `test/**/*_test.rb` (only
+  the gates and the support harnesses drive tmux; the I75 signal harness
+  token is per-process rand — `test/support/signal_hygiene_harness.rb`
+  `@token = format("%s-%04x%04x", name, rand, rand)`, session
+  `t75sig-<token>` — not per-checkout). Verdict: parallel-safe.
+- **ports / sockets**: mock servers bind EPHEMERAL ports
+  (`test/support/mock_llm_server.rb:57 @port = @server.addr[1]`); no
+  fixed-port or fixed-socket-path site in the suite. Verdict: parallel-safe.
+- **fixed paths under /tmp or ~**: the suite's scratch is `Dir.mktmpdir`
+  staged (print/session/bash_tool/herdr/memory/golden_parity/subagents…);
+  `Dir.home` appears as READ-only input (chat footer cwd tests, skills
+  default lookup); no suite write to the real home found at base. Verdict:
+  parallel-safe (builder re-audits for writes).
+- **signals / traps**: `kernel_carryin`/`agent_loop` trap and kill OWN pid
+  only; `signal_hygiene_test` traps TERM/HUP in-process and restores the
+  prior handlers; process isolation covers every site. Verdict:
+  parallel-safe (worker traps cannot reach a sibling's children).
+- **ENV mutation**: in-test ENV writes (agent_loop/bash_tool/memory/settings/
+  mcp…) are process-local and ensure-restored. Verdict: parallel-safe.
+- **herdr socket/env coupling**: a worker inherits the parent's HERDR_* env,
+  but test processes NEVER register herdr (only `bin/tart` does,
+  `lib/tart/herdr.rb`); the e2e children spawn CLOSED
+  (`subagents_e2e_test.rb` `tart_env` + `unsetenv_others: true` — no live
+  keys, no HERDR_* reach a spawned tart). Verdict: parallel-safe.
+- **staged homes**: e2e legs mktmpdir per leg. Verdict: parallel-safe.
+- **cross-worker load on the residual no-observable waits** (the I82 Builder
+  Report residuals: BashTool's ~6.1 s kill-grace, real bash round-trips,
+  SessionSink's real debounce): true durations, deadline-bounded or
+  property-bearing — the ONE observed load-sensitive member is the declared
+  chat-interrupt flake class above (fired once under 8-way in this session's
+  probe run 1; green on run 2 and serial).
+
+## Standing carry-ins (the I82/I83/I83-verdict record)
+
+- The carried gate floor: the I83 post-verdict ```gates block — 97 gates,
+  extracted from `architecture/I83-rig-sweep-parallel.md` (the ARCH FILE is
+  the extraction source; the I83 verdict commit `3fbdcd0` appended the
+  Builder Report, the gates block itself is unchanged post-freeze). This
+  iteration carries 96 verbatim with the standing rebases (era prefix
+  `t84*`, diff bases `f07c25f`) and rewrites `scope` to its own touch set.
+- The s5 `Took`-line flake class (I83 verdict residual, judge-found): under
+  ≥13-way load s5's unsanctioned bash-duration line can cross the rounding
+  boundary — sweep-gate s5 ec=1 whose only unknown-candidate is the `Took`
+  line is note-and-pass on cold re-run until the registry sanction lands
+  (owner backlog). Not this lane's to fix.
+- The s9/herdr lane-tree-depth geometry classes (I72–I83): note-and-pass,
+  judge-own canonical-depth control GREEN — unchanged.
+- Suite flake classes (chat-interrupt loud-red, render_perf spinner-dwell):
+  declared note-and-pass on cold re-run; the parallel gates inherit the SAME
+  adjudication for the SAME class (declared in the AC preamble).
+- provision on tart needs `--base <pin>` while origin/main holds squashed PR
+  merges; re-verify `git -C repos/tart merge-base --is-ancestor f07c25f
+  origin/main` fails, immediately before dispatch.
+- `tmp/` scratch is untracked; the lane Builder Prompt lives at
+  `tmp/i84-spec/prompt-core.md` (the coordinator copies it to
+  `build/I84-parallel-test-runner-core/prompt.md` at dispatch).
+
+## Deliberately excluded (owner rulings, do not build)
+
+Flipping the loop's gate command from `rake test` to the parallel runner
+(owner decision AFTER this proves out); any test-file deletion or test-count
+reduction; any `lib/tart/` production change (a production-code global that
+blocks parallelism is a STOP-and-escalate, not a lane's call); any rig
+change; new gems or a new framework (minitest `~> 5.20` stays; 6.x is
+blocked by ratatui_ruby tooling per the Gemfile comment).
 
 ## Specification
 
