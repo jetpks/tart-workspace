@@ -3117,12 +3117,24 @@ project:
       - gems/tui-split-rig/bin/tui-split-rig-sweep
       - gems/tui-split-rig/test/sweep_test.rb
       base_sha: 467b82e729562241ef51297def49219646df4b3a
-      worktree: build/I83-rig-sweep-parallel-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: openrouter/z-ai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 57f1f981b7bbffe73e12b8523a0adc39c936a6e4
+      bounds_override_reason: 'I83 escape hatch ADJUDICATED ACCEPT at verdict 3fbdcd01:
+        the frozen Boundaries clause sanctions a minimal lib edit for a REAL evidenced
+        concurrency defect — the runner.rb +16/-3 require_content boot-settle fix
+        (judge reproduced the pre-fix defect 2/2 at the lane tree: solo s1 ec=2, tart
+        completed=false requests=0 boot_settle=794ms; fix minimal + byte-neutral,
+        frozen battery table reproduced at canonical depth with it in). Not a touch-set-declaration
+        defect; a disclosed, adjudicated use of the freeze''s own escape-hatch clause.
+        NOTE: the first merge attempt aborted on builder rehearsal scratch swept into
+        the auto-created lane commit — judge reset the lane branch to base (worktree
+        clean of scratch), this run re-creates the commit from the 3 deliverables
+        only.'
     rehearsal:
       gates_digest: 44b9b567b9e6d24287541f638fdbeb418770de53701e5fbde14f7f5f992d91dc
       at: '2026-10-20T00:16:35-06:00'
