@@ -2569,11 +2569,275 @@ for stdin dispatch. Record + commit:
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I83-rig-sweep-parallel-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence rig-sweep-parallel --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# Builder Report — I83 rig-sweep-parallel, lane core (repo tart)
+
+Builder: architect-builder lane `core`. Worktree `build/I83-rig-sweep-parallel-core/wt`,
+base `467b82e`, branch `lane/I83-rig-sweep-parallel-core`. ZERO live-API calls — every
+leg ran the rig's mock-server scenarios. No git write commands; no commits
+(`git log 467b82e..HEAD` is empty).
+
+## PHASE 0 — disagreements / interpretation rulings (itemized, none blocking)
+
+1. **The live leg "{s1_text_turn, <a missing yml path>} ⇒ 2" has no stated mechanism.**
+   The frozen surface has no positional/path flag and Law 1 refuses unknown `--only`
+   NAMES — so a missing yml can only enter a sweep as an `--only` entry ENDING IN
+   ".yml" (a PATH reference, not a name). Resolution implemented: extensionless
+   `--only` entries = exact battery names (unknown → refuse exit 2, hermetic pin);
+   ".yml" entries = direct scenario paths whose existence is deliberately NOT
+   pre-checked — the child's own `Scenario.load` refusal ("no such scenario file")
+   surfaces through the fan-out as ec 2 → aggregate 2. Evidence: the units-gate
+   comment calls {s1,missing} one of the "real small sweeps" (a refusal would not
+   sweep), and the refusal class is already pinned hermetically. Superset-safe: the
+   exit is 2 under BOTH readings.
+2. **`--only` universe**: implemented the literal Law 1 reading — `--only` RESTRICTS
+   the currently selected set (probes reachable via `--probes`, or by explicit .yml
+   path). `--only probe_x` without `--probes` is refused as unknown.
+3. **Report/table order**: the report's `scenarios` array and the printed table are
+   in the deterministic SET order, not reap order — under fan-out, reap order would
+   make the parity gate's serial-vs-concurrent table comparison meaningless. (Spec
+   says every code surfaces; it does not fix an order.)
+4. **Child output**: each child's stdout+stderr is captured to `<ROOT>/sw-<NN>.log`
+   (additive scratch, outside the frozen report shape). A sweep table with ec=2 and
+   no way to see why is hostile; the missing-yml live leg pins the log's loudness.
+5. **The Grounds' "≤ 20-char green window" is canonical-depth-specific** (see the
+   geometry evidence below) — at deep lane trees the window collapses to ≤ 6 chars
+   (s9) and below 5 chars (s16). Not a wrapper defect; the declared standing class.
+6. **Interruption (Law 7)**: implemented KILL-first + wrapper-side orphan reaping
+   (see the escape-hatch/defect section — INT-forwarding was measured to leak, since
+   the rig's teardown is inline, not ensure-wrapped).
+
+## Deliverables — the frozen 2-path touch set (both NEW)
+
+- `gems/tui-split-rig/bin/tui-split-rig-sweep` — 294 lines, stdlib only (optparse/
+  fileutils/json/open3), no Bundler, executable (rwxr-xr-x), resolves everything from
+  its own `__dir__`. The frozen `run`/`diff` verbs are byte-unchanged
+  (`git diff 467b82e -- gems/tui-split-rig/bin/tui-split-rig` is empty).
+- `gems/tui-split-rig/test/sweep_test.rb` — 195 lines, 11 minitest runs via the main
+  `test_helper` (7 hermetic + 4 live behind `TUI_SPLIT_RIG_LIVE=1`).
+
+## AC1 — sweep-units gate (declared-RED at base → GREEN)
+
+Red-before: base rehearsal record — RED on the absent test file (declared-new).
+Red-after/GREEN, gate cmd verbatim (`tmp/i83-spec/sh/sweep-units.sh`, byte-identical
+to the frozen gate):
+
+```
+Finished in 21.315603s, 0.5161 runs/s, 6.4272 assertions/s.
+11 runs, 137 assertions, 0 failures, 0 errors, 0 skips
+SWEEP_UNITS_OK          (gate ec=0)
+```
+
+(run 2, pre-churn: 21.718578s, 11 runs / 137 assertions / 0F / 0E / 0S — deterministic.)
+
+Hermetic legs in-suite (rake, live skipped): `bundle exec rake` →
+**1474 runs / 7030 assertions / 0 failures / 0 errors / 5 skips, wall 213 s ≤ 240 s**
+(base floor 1463 / 1S; growth = exactly the 11 sweep pins; skips = 1 base + the 4
+live legs, the declared mechanism). `SEAM_BENCH_OK`.
+
+## AC2 — sweep-parity gate (declared-RED at base → gate machinery GREEN; the
+frozen-table leg REDs at this lane tree on the DECLARED s9/s16 geometry class)
+
+Gate cmd verbatim (twice, identical shape). The gate's own comparison output:
+
+```
+FAIL sweep-parity: table drift vs the frozen base battery table:
+[["s16_resize_wrap", 1], ["s9_startup_help", 1]]
+(frozen nonzero: {"s1_tart" => 1, "s11_memory_recall" => 1,
+ "s13_command_while_streaming" => 2, "s18_error_transcript" => 1})
+```
+
+The gate ABORTED at the frozen-table check — the parity legs ABOVE it passed
+(serial table == concurrent table). Per-scenario sweep table, BOTH legs, from the
+gate's own `sweep-report.json` (paths: `t83psp/sweep-report.json` serial,
+`t83pcp/sweep-report.json` concurrent; dirs cleaned after):
+
+```
+serial  (--jobs 1, t83psp): jobs=1 aggregate=2 wall_ms=118569
+concurrent (default, t83pcp): jobs=8 aggregate=2 wall_ms=18946   (bound 40000 ms)
+s10_editor_wrap                serial ec=0  conc ec=0
+s11_memory_recall              serial ec=1  conc ec=1
+s12_steering_mid_round         serial ec=0  conc ec=0
+s13_command_while_streaming    serial ec=2  conc ec=2
+s14_paste_marker_display       serial ec=0  conc ec=0
+s15_paste_marker_submit        serial ec=0  conc ec=0
+s16_resize_wrap                serial ec=1  conc ec=1   <- lane-tree geometry class
+s17_edit_tool_bg               serial ec=0  conc ec=0
+s18_error_transcript           serial ec=1  conc ec=1
+s1_tart                        serial ec=1  conc ec=1
+s1_text_turn                   serial ec=0  conc ec=0
+s2_tool_turn                   serial ec=0  conc ec=0
+s3_tool_turn_files             serial ec=0  conc ec=0
+s4_bash_variants               serial ec=0  conc ec=0
+s5_bash_truncation             serial ec=0  conc ec=0
+s6_long_calls                  serial ec=0  conc ec=0
+s7_compaction                  serial ec=0  conc ec=0
+s8_zero_usage_compaction       serial ec=0  conc ec=0
+s9_startup_help                serial ec=1  conc ec=1   <- lane-tree geometry class
+TABLES_IDENTICAL (diff of the two legs' name/ec pairs: empty)
+```
+
+- aggregate == max(per-scenario codes) == the sweep PROCESS exit: verified for ec 0/1/2
+  (units-gate live legs assert exitstatus == aggregate for all three severities, plus
+  a direct ec=1 check: process_exit=1 report_aggregate=1; both gate legs exited
+  aggregate=2).
+- **The exact frozen base battery table reproduces through the wrapper at
+  canonical-depth out dirs** — full 19-scenario battery, `--out
+  <canonical>/t83c` (per-scenario dirs 10 chars):
+
+```
+s16_resize_wrap ec=0   s9_startup_help ec=0   (the two lane-tree flips GREEN there)
+s1_tart=1, s11_memory_recall=1, s13_command_while_streaming=2, s18_error_transcript=1,
+every other of the 19 = 0 — aggregate 2, wall 19.0 s, jobs 8
+```
+
+- **The geometry class, measured (declared standing class a — zero lane attribution):**
+  - Lane tree (this worktree, deep prefix `build/I83-rig-sweep-parallel-core/wt`):
+    s9 GREEN at ≤ 6 out-dir chars, RED at ≥ 7 (deterministic, 2 runs each length);
+    s16 RED even at 5 chars (3/3 runs).
+  - Canonical checkout (`repos/tart`): s9 GREEN at 14 chars; s16 GREEN at 5 and at
+    12 chars (the gate's own `t83psp/sw-01` length), RED at 15 chars — jagged but
+    deterministic per length. The physics is the ABSOLUTE staged-home path depth
+    (the lane worktree prefix is ~42 chars deeper than `repos/tart`), which wraps
+    the footer token-budget line (measured diff: the path line truncation point
+    shifts the `(mock) mock-1` footer columns).
+  - Control: the CARRIED `s9-parity` gate cmd (5-char dir, direct rig run, NO
+    wrapper) is GREEN at this lane tree; the wrapper adds no depth of its own.
+  - Verdict-relevant: the sweep-parity gate is GREEN at canonical depth (the
+    judge/rehearsal venue) for BOTH wrap scenarios at its own frozen 12-char dirs,
+    and RED at this deep lane tree exactly on the declared class — note-and-pass.
+
+## AC3 — sweep-crosstalk gate (declared-RED at base → GREEN after the disclosed
+lib fix; NONDETERMINISTICALLY RED at base lib — see the escape-hatch section)
+
+Gate cmd verbatim, post-fix, three consecutive runs:
+
+```
+CROSS_TALK_TABLES_OK / CROSS_TALK_OK (gate ec=0)   — 3/3 runs green
+```
+
+Three-leg shape (each run): solo s1_text_turn direct rig run ec=0; sweeps A and B
+(--only s2..s7, default jobs) each aggregate 0 with all-zero tables; post-run
+`tmux ls` evidence after every run:
+
+```
+no server running on /private/tmp/tmux-502/default
+```
+
+(zero leftover `tui-split-rig-*` sessions — the same line the units-gate live legs
+and the rehearsal sweeps produced.)
+
+**Without the fix, this gate is unusable** (measured, before the fix): 3 full
+13-way runs → 3 failures (first gate attempt: "FAIL sweep-crosstalk: the solo s1
+run ec=2 — flaked by the concurrent sweeps" with ALL 13 legs ec=2; two manual
+reproductions identical). Red-before for this gate at base is the declared
+"wrapper bin absent"; the pre-fix nondeterministic RED is the NEW evidence that
+triggered the escape hatch.
+
+## The escape hatch — USED, disclosed (itemized, root-caused, minimal)
+
+**File touched: `gems/tui-split-rig/lib/tui_split_rig/runner.rb` (16 insertions,
+3 deletions — the ONLY non-touch-set diff; it REDs the frozen `scope` gate by
+design and is adjudicated disclosed here).**
+
+- **Exposure**: the crosstalk gate's 13-way shape (the FIRST >8-way instrument ever
+  run — the base probe was 8-way). Reproduced with **13 DIRECT
+  `tui-split-rig run` processes, NO wrapper involved** (12-way green; 13-way flaky —
+  2 of 3 full runs failed with 4-9 failing legs each; one clean run exists, the
+  race is load-timing-based, not tree-based).
+- **Failure shape** (every failing leg): tart completed=false, requests=0/expected,
+  NO timeouts, rig exit 2 at wall ≈ 5.1 s; pi always completed.
+- **Root cause (measured)**: `Runner#settle` declares boot settled on 3 IDENTICAL
+  captures — a BLANK pre-first-render screen is self-identical. Under a
+  simultaneous boot storm the app's first render exceeds the ~750 ms quiet window,
+  the boot "settles" on emptiness (failing tarts' `boot_settle_ms` ≈ 783-791 ms vs
+  1323-1345 ms when the banner rendered during settle), the prompt is sent before
+  the app arms its input reader, and the app discards the pending pty input →
+  0 mock requests → completed=false → `@failure "not all apps completed"` → exit 2.
+- **Fix (minimal)**: `settle` gains `require_content:` (default false — the reply
+  and post-settle settles keep the exact byte-frozen semantics, and the probes
+  that call `settle` are unaffected); the BOOT settle passes
+  `require_content: true` — a blank capture is never a valid boot-settled state
+  (both apps render a banner/motd first). Byte-neutrality for all green legs
+  proven: the post-fix canonical-depth full battery reproduces the EXACT frozen
+  table (19.0 s, aggregate 2), and the parity/units/crosstalk gates re-ran green.
+- **The base probe's "none exists" is falsified by the 13-way shape** — 8-way
+  (probed at base) does not stress the blank-settle window; the fix also removes
+  the residual 8-way flake risk.
+
+**Scope-gate evidence (verbatim)**: `scope` REDs with the lib diff present
+("FAIL: scope — the tree bites outside the frozen 2-path touch set, ..."); with the
+base `runner.rb` temporarily restored and scratch cleaned, the SAME gate cmd prints
+`SCOPE_OK` (ec=0) — proving the ONLY scope bite is the disclosed lib change, and
+the two new files + the whole untracked-scratch filter behave exactly as frozen.
+The fix was restored and re-verified afterwards (diff --stat: 16+/3- on runner.rb
+only).
+
+## Law 7 (interruption) — evidence
+
+Default-root sweep interrupted mid-flight (8 in-flight children, 16 tmux sessions):
+
+```
+sessions_at_int: 16
+tui-split-rig-sweep: interrupted — 8 in-flight child(ren) KILLed, their panes/sessions reaped, exiting 2
+SWEEP_DONE ec=2   (wait returned immediately)
+leftover_sessions: 0   surviving_children: 0   surviving app processes: none (ps grep clean)
+```
+
+Implementation note (two measured defects fixed along the way): (1) Ruby 4.0.7
+invokes trap handlers WITH the signal number — a zero-arity handler raises inside
+the trap context and the sweep sails through the INT (measured); (2) the rig's
+teardown is inline, not ensure-wrapped, so an interrupted child leaks its sessions
+and pane apps — the wrapper therefore KILLs in-flight children (Law 7's letter) and
+reaps the orphans itself: pane apps killed by their staged out-dir path (tart
+survives SIGHUP — the runner's own kill -9 reason), then the child's token-scoped
+sessions killed. Bounded: one 0.5 s settle beat, then exit 2.
+
+## Rehearsal sweep at the default root (Tool guidance leg)
+
+From the lane worktree root, no flags:
+
+```
+19 scenario lines (table above in the parity section; per-scenario dirs sw-01..sw-19,
+5 chars from the repo root), final line:
+sweep: 2 (19 scenarios, 18.8s, jobs 8)      REHEARSAL_EC=2 (the aggregate)
+report: <repo-root>/sweep-report.json (cleaned after — scratch, never committed)
+```
+
+s16=1 here is the lane-tree geometry class (deterministic 3/3 at 5 chars at this
+tree; GREEN at canonical depth) — zero lane attribution.
+
+## Itemize-and-defend — every file in the diff
+
+| File | Status | Defense |
+|---|---|---|
+| `gems/tui-split-rig/bin/tui-split-rig-sweep` | NEW (untracked, +x) | touch-set path 1; stdlib-only; frozen verbs byte-unchanged |
+| `gems/tui-split-rig/test/sweep_test.rb` | NEW (untracked) | touch-set path 2; 11 pins via the main test_helper |
+| `gems/tui-split-rig/lib/tui_split_rig/runner.rb` | MODIFIED (+16/-3) | ESCAPE HATCH — the disclosed concurrency fix above; REDs `scope` by design, adjudicated |
+| (scratch: `sw-*`, `t83*`, `sweep-report.json`, `tmp/i83-spec` read-only refs) | cleaned / untracked | never committed; `sw-*`/`t83*` scratch families cleaned after every run |
+
+- `git log 467b82e..HEAD` = EMPTY (no commits). No git write commands run.
+- NOT touched (verified zero diff): `gems/tui-split-rig/bin/tui-split-rig` and every
+  other rig bin/probe script, `gems/tui-split-rig/scenarios/*.yml`,
+  `registry.yml`, `fixtures/**`, `lib/tart/**`, main `test/**`, `bench/`, `bin/`,
+  `Gemfile`, `Gemfile.lock`, `tart.gemspec`, `Rakefile`.
+- registry.yml: NO change (no concurrency-evidenced divergence class surfaced —
+  concurrency moved no rendering bytes; the only concurrency finding is the
+  boot-settle race above, not a diff-class divergence).
+
+## Gate scorecard (the four declared-RED gates + carried anchors touched)
+
+| Gate | Base (declared) | Post-lane at the lane tree |
+|---|---|---|
+| sweep-units | RED (absent test file) | GREEN (SWEEP_UNITS_OK, 11 runs) |
+| sweep-parity | RED (absent wrapper bin) | gate machinery GREEN; frozen-table leg RED on the declared s9/s16 lane-tree class (GREEN at canonical depth — note-and-pass) |
+| sweep-crosstalk | RED (absent wrapper bin) | GREEN only with the disclosed runner.rb fix (3/3); non-deterministically RED at base lib |
+| scope | RED (absent new files) | RED — exactly one bite: the disclosed runner.rb escape-hatch diff (SCOPE_OK proven with the base lib restored) |
+| suite (carried) | GREEN 1463/221s | GREEN 1474 runs / 0F / 0E / 5S / 213 s ≤ 240 s |
+| bench (carried) | GREEN | SEAM_BENCH_OK |
+
+STATUS: COMPLETE_WITH_CONCERNS
 
 ## Verdict
 
