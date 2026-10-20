@@ -402,9 +402,24 @@ are tolerated untracked, never committed. Gates: `scope` (declared-RED at
 base on the empty must-differ legs — the standing I77–I81 class).
 
 **Rehearsal declaration — MEASURED (fresh stamp, never --skip-rehearse).**
-To be recorded from the fresh `architect rehearse suite-sleep-surgery` run at
-base tip `dff5447` before freeze; every non-GREEN member verified for EXACTLY
-its declared reason.
+**GREEN 91 / RED 3 / BROKEN 0 / EMPTY 0** at base tip `dff5447`
+(`build/rehearse/I82-suite-sleep-surgery-20261019T222606.647944.md`): the
+three RED are each verified for EXACTLY its declared reason — `suite` RED on
+the WALL leg only (the suite itself green: 1462 runs / 6928 asserts / 0F /
+0E / 1S, wall 275 s > the frozen 240 s bound — the discriminator), and both
+this session's standing suite flake classes did NOT fire in this run;
+`listing-teardown-units` RED on the absent prompt-return pin (filter runs=0,
+the empty-filter class); `scope` RED on the empty must-differ legs at base
+(the standing I77–I81 class). All 91 GREEN members carried GREEN cold,
+including `contention-proof` — all three contention legs green under 8-way
+CPU steal (first rehearsal: 0.4 s / 26.4 s / 27.0 s). The earlier first
+rehearsal of this same block (`…T215404.470629.md`, GREEN 90 / RED 4 /
+BROKEN 1) is the declared-flake record: the bare suite RED'd on the
+spinner-dwell pin and a then-separate wall gate hit the runner's 900 s cap
+on the chat-interrupt hang — both standing I75–I81 note-and-pass classes,
+both cured by the `suite` fold + cold re-run; the contention gate's
+NameError quoting defect (a spec bug, fixed before this run) was the only
+mechanical finding.
 
 ```gates
 - id: stale-run-reaper
