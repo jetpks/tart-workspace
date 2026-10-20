@@ -9,11 +9,128 @@
 
 ## Grounds
 
-<!-- WHY. Research/spec distilled: problem, decision + why, requirements,
-non-goals, verified facts WITH citation URLs, open questions. If
-architecture/BRIEF.md exists, cite **BRIEF §N** instead of restating — shrink this
-to deltas + citations. Optional — delete this section for iterations that needed
-no research. Write + commit: `architect section rig-sweep-parallel grounds --from <file>`. -->
+### The instrument being parallelized (all citations read this session, at base tip `467b82e`)
+
+- **The frozen CLI** — `gems/tui-split-rig/bin/tui-split-rig` (read in full): two
+  verbs `run <scenario.yml> [--runs N] [--app both|pi|tart] [--out <dir>]
+  [--tart-dir <path>] [--pi-bin <path>]` and `diff <a> <b> [--registry <file>]`;
+  exit codes 0 = all difference lines sanctioned / 1 = unknown-candidate lines
+  exist / 2 = rig failure; **"Stdlib only — runs without Bundler"** (its own
+  header). The fan-out is a NEW sibling wrapper; these verbs are byte-frozen
+  (this iteration's AC5).
+- **The I27 concurrency design** — `gems/tui-split-rig/lib/tui_split_rig/
+  runner.rb` (read in full): every session is named
+  `tui-split-rig-<token>-<app>-<scenario>-r<n>-<hex>` with
+  `@token = format("%04x%04x", rand(65_536), rand(65_536))` per Runner; the
+  end-of-run leftover check (`assert_clean_sessions!`) greps ONLY its own
+  token; the paste buffer is `tui-split-rig-<token>-paste` (same scoping);
+  teardown kills only its own pane-pid tree. `POLL_INTERVAL = 0.25`,
+  `QUIET_POLLS = 3`, `HARD_CAP = 30.0`, `KILL_WAIT = 5.0`. The `--out` seam:
+  every scenario run takes an explicit out dir (default `tmp/parity/<UTC ts>`
+  — a same-second collision hazard under concurrency; the wrapper must never
+  rely on the default).
+- **Per-run mock servers bind EPHEMERAL ports** — `test/support/
+  mock_llm_server.rb:57 @port = @server.addr[1]`; one fresh server per
+  `run_once`, re-armed per app. No fixed-port hazard across processes.
+- **The scenario inventory (measured this session)**: 22 ymls =
+  **19 s-scenarios** (`s1_text_turn`, `s1_tart`, `s2`–`s18`) + **3 probes**
+  (`probe_model_menus`, `probe_tool_pending`, `probe_user_bash` — the probe
+  ymls' own headers mark them "NOT a parity gate"; `probe_user_bash.yml`:
+  "the probe ignores request counts"). The plan's "21 scenarios" is 22 files
+  on disk; the sweep set this spec freezes is the **19-scenario s-battery**
+  (the `scenarios/s*.yml` glob), probes opt-in. NOTE the naming hazard:
+  `s1_tart` matches `s*.yml` and IS a battery member (the tart-face
+  scenario).
+- **The rig's own test tree is INSIDE the main suite** — `Rakefile:56
+  t.test_files = FileList["test/**/*_test.rb",
+  "gems/tui-split-rig/test/**/*_test.rb"]`: a new
+  `gems/tui-split-rig/test/sweep_test.rb` grows `rake`'s run count
+  additively (base floor at `467b82e`: 1463 runs / 0F / 0E / 1S, per the I82
+  verdict). Rig tests drive the real binaries via Open3 and skip live legs
+  unless `TUI_SPLIT_RIG_LIVE=1` (`test/live_run_test.rb` — the pattern this
+  spec reuses).
+
+### The measurements (this session, all cold, base tip `467b82e`, canonical checkout `repos/tart`, `--runs 1`)
+
+- **Serial sweep, per-scenario exit codes** (out dirs `sw-01`…`sw-19`, the
+  5-char geometry the loop gates use): **15 green** (s1_text_turn, s2–s10,
+  s12, s14, s15, s16, s17), **4 nonzero** — `s1_tart` ec=1 (the by-design
+  tart-face candidates; the standing `s1-tart-mode` gate allows ec ≤ 1),
+  `s11_memory_recall` ec=1 (the I47 open item: the staged settings.json
+  renders a port-only [Context] row pi lacks — owner-backlog remedy
+  `TART_MEMORY` env staging), `s18_error_transcript` ec=1 (I60 OQ-1: the
+  ratified standing declared-shape red), and `s13_command_while_streaming`
+  **ec=2** (reproduced 3/3: tart `completed=false`, requests 1 vs
+  `expected_requests: 2` — the I54 leak-cure aftermath: the scenario yml
+  still encodes the LEAK-ERA 2-request premise while the cured port makes
+  1 clean request; the I54 verdict's "amendment REQUIRED, Open items" was
+  never taken, and s13 is carried in NO gate battery since). Per-scenario
+  wall: 4.4–7.9 s (s13 15.3 s — its reply settle waits out the failed
+  follow-up); **serial total ≈ 111 s** — the plan's "~2 minutes" confirmed.
+- **8-way concurrent sweep (the load-bearing probe)**: 19 scenarios fanned
+  across 8 concurrent `tui-split-rig run` processes (equal-length 5-char out
+  dirs `xw-01`…`xw-19`): **wall 19.05 s** (5.8× the serial total), the
+  per-scenario exit table **byte-identical** to the serial table (all 19
+  codes equal, including all four nonzero shapes), and **zero leftover
+  `tui-split-rig-*` tmux sessions** after the fan-out. The I27 token design
+  holds exactly as built — no cross-talk at base, which is the frozen
+  expectation the lane's gates re-prove at the lane tree.
+- **The out-dir geometry law (measured, jagged, deterministic per length)**:
+  the wrap-geometry scenarios (`s9_startup_help`, `s16_resize_wrap`) are
+  GREEN at out-dir names ≤ 20 chars from the repo root (measured green: 5
+  and 19 chars) and flip on longer names (measured red: 22/25/28/33/34
+  chars; one jagged green at 31). The loop gates' short out dirs
+  (`t82s9` etc.) are the proven-green geometry. **The wrapper's default
+  out-dir assignment must stay inside the ≤ 20-char window** or the sweep
+  table permanently disagrees with the carried parity gates on s9/s16.
+
+### Standing classes this iteration inherits (declared, not re-litigated)
+
+- The **s9/herdr lane-tree-depth geometry classes** (I72–I82 verdicts): the
+  carried `s9-parity` + `herdr-wire-probe` gates are GREEN at canonical
+  depth (the rehearsal venue) and RED at deep lane trees — note-and-pass,
+  zero lane attribution.
+- The **standing suite flake classes** (I75–I82): `render_perf_test.rb:265`
+  spinner-dwell + the chat-interrupt 900 s-hang — note-and-pass on cold
+  re-run; one full-suite exposure per battery (the I82 `suite` fold).
+- The **scratch discipline**: `t75*`–`t82*` out-dir families in the main
+  checkout are judge/rehearsal scratch, tolerated untracked, never
+  committed; this iteration adds the `t83*` family. The I82 verdict's
+  carry-in: scope-gate untracked-scratch filters must tolerate mktemp
+  dot-suffixes (`t8Nwall.XXXXXX` — dot + mixed case) — this spec's
+  rewritten `scope` gate honors it.
+- **I82 landed** (integrated `467b82e`): the suite wall 271→~220 s, the
+  timing-window tests de-flaked — ENTRY 1's ordering precondition ("the
+  sleeps are converted first") is satisfied; ENTRY 2 (this iteration) is the
+  plan's own next step (`notes/plan-20261020T034216Z-test-rig-speed.md`).
+
+### Non-goals (owner standing, this plan's own exclusions)
+
+- Running pi and tart CONCURRENTLY **within** one scenario (the plan's
+  excluded (b) — the shared-mock discipline; scenario-level fan-out is the
+  sanctioned lever).
+- Any `bundle exec` boot-cost work (excluded (a)), any test-file
+  deletion/reduction, any scenario yml content change, any `registry.yml`
+  change absent concurrency-evidenced cause (then additions-only, evidence
+  in the Builder Report).
+- Fixing s13's stale leak-era premise (a scenario-content change — owner
+  backlog, recorded here with the I54 citation), and the s11/s18 standing
+  shapes (owner backlog per I47/I60).
+
+### Open questions the spec rules on (no supervisor input needed — the plan delegates the shape)
+
+- **Wrapper shape**: RUBY `gems/tui-split-rig/bin/tui-split-rig-sweep`,
+  stdlib-only, no Bundler — matching the rig's frozen CLI family (uniformly
+  Ruby stdlib scripts, its own header constraint) and directly pinnable by
+  the rig's Ruby test tree. The owner's FISH preference (house memory
+  `shell-fish-preference`) covers watchers/helper scripts/ad-hoc tooling —
+  the rig's instrument surface is not that class; recorded as the deciding
+  reason.
+- **Aggregate exit rule**: `max` over per-scenario exit codes (0 only if
+  every scenario exited 0; any 2 ⇒ 2; else any 1 ⇒ 1) — severity-ordered,
+  deterministic, and honest: at today's base the full sweep exits **2**
+  (s13's standing shape), which is exactly the signal a sweep-as-table
+  instrument should surface.
 
 ## Specification
 
