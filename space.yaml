@@ -3141,7 +3141,16 @@ project:
   - name: parallel-test-runner
     ordinal: 84
     file: architecture/I84-parallel-test-runner.md
-    freeze_sha:
+    freeze_sha: dc28f80583fcbf6a5fb255f152807ca6f46e0689
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - Rakefile
+      - test/support/parallel_runner.rb
+      - test/parallel_runner_test.rb
+    rehearsal:
+      gates_digest: 94b4b1753c453dd36acaabb6d011384dcb67ee7f404d0ca735c80bf668f3ac61
+      at: '2026-10-20T01:59:14-06:00'
   integration_branch: project/pi-port
