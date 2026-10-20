@@ -3116,6 +3116,13 @@ project:
       touch_set:
       - gems/tui-split-rig/bin/tui-split-rig-sweep
       - gems/tui-split-rig/test/sweep_test.rb
+      base_sha: 467b82e729562241ef51297def49219646df4b3a
+      worktree: build/I83-rig-sweep-parallel-core/wt
+      integration_branch:
+      harness: pi
+      model: openrouter/z-ai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: 44b9b567b9e6d24287541f638fdbeb418770de53701e5fbde14f7f5f992d91dc
       at: '2026-10-20T00:16:35-06:00'
