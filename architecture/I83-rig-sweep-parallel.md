@@ -2440,7 +2440,7 @@ base: the two new files are absent — the standing per-iteration class).
     "$SWEEP" --out t83pcp >/dev/null 2>&1; con_ec=$?
     t1=$(date +%s%N)
     con_wall=$(( (t1-t0)/1000000 ))
-    ruby -rjson -e '
+    comp=$(ruby -rjson -e '
     ser = JSON.parse(File.read("t83psp/sweep-report.json"))
     con = JSON.parse(File.read("t83pcp/sweep-report.json"))
     stab = ser["scenarios"].map { |s| [s["name"], s["exit_code"]] }
@@ -2454,7 +2454,9 @@ base: the two new files are absent — the standing per-iteration class).
     abort "FAIL sweep-parity: serial aggregate #{ser["aggregate_exit_code"].inspect} != max #{smax}" unless ser["aggregate_exit_code"] == smax
     abort "FAIL sweep-parity: concurrent aggregate #{con["aggregate_exit_code"].inspect} != max #{cmax}" unless con["aggregate_exit_code"] == cmax
     puts "SWEEP_TABLE_OK #{stab.size} scenarios aggregate=#{smax}"
-    '
+    ' 2>&1); ec=$?
+    echo "$comp"
+    [ "$ec" -eq 0 ] || exit 1
     [ "$ser_ec" -eq "$(ruby -rjson -e 'print JSON.parse(File.read("t83psp/sweep-report.json"))["aggregate_exit_code"]')" ] || { echo "FAIL sweep-parity: serial process exit $ser_ec != report aggregate"; exit 1; }
     [ "$con_ec" -eq "$(ruby -rjson -e 'print JSON.parse(File.read("t83pcp/sweep-report.json"))["aggregate_exit_code"]')" ] || { echo "FAIL sweep-parity: concurrent process exit $con_ec != report aggregate"; exit 1; }
     [ "$con_wall" -le 40000 ] || { echo "FAIL sweep-parity: concurrent wall ${con_wall}ms exceeds the frozen 40000ms bound (serial ${ser_wall}ms)"; exit 1; }
@@ -2488,7 +2490,7 @@ base: the two new files are absent — the standing per-iteration class).
     [ "$solo_ec" -eq 0 ] || { echo "FAIL sweep-crosstalk: the solo s1 run ec=$solo_ec — flaked by the concurrent sweeps"; exit 1; }
     [ "$a_ec" -eq 0 ] || { echo "FAIL sweep-crosstalk: sweep A aggregate ec=$a_ec"; exit 1; }
     [ "$b_ec" -eq 0 ] || { echo "FAIL sweep-crosstalk: sweep B aggregate ec=$b_ec"; exit 1; }
-    ruby -rjson -e '
+    comp=$(ruby -rjson -e '
     want = %w[s2_tool_turn s3_tool_turn_files s4_bash_variants s5_bash_truncation s6_long_calls s7_compaction]
     %w[t83xa t83xb].each do |root|
       rep = JSON.parse(File.read("#{root}/sweep-report.json"))
@@ -2497,7 +2499,9 @@ base: the two new files are absent — the standing per-iteration class).
       abort "FAIL sweep-crosstalk: #{root} aggregate #{rep["aggregate_exit_code"].inspect}" unless rep["aggregate_exit_code"] == 0
     end
     puts "CROSS_TALK_TABLES_OK"
-    '
+    ' 2>&1); ec=$?
+    echo "$comp"
+    [ "$ec" -eq 0 ] || exit 1
     left=$(tmux ls 2>/dev/null | grep -c tui-split-rig || true)
     [ "${left:-0}" -eq 0 ] || { echo "FAIL sweep-crosstalk: ${left} leftover tui-split-rig tmux sessions"; tmux ls 2>/dev/null | grep tui-split-rig; exit 1; }
     echo CROSS_TALK_OK
