@@ -141,34 +141,171 @@ blocked by ratatui_ruby tooling per the Gemfile comment).
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section parallel-test-runner specification --from <file>`. -->
+# I84 specification — parallel-test-runner
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+## Objective
+
+Cut the suite's wall time to the ~60–90 s band by running the canonical
+test files across concurrent minitest processes — process-level parallelism
+(the 65% idle-wait profile overlaps; the framework stays). The serial
+`rake test` REMAINS the canonical gate command, byte-stable; the parallel
+path is purely additive (`rake test:par`) and its verdict must MATCH the
+serial verdict — reproducibility over speed alone. (Plan ENTRY 3; the
+existence proof is the Grounds' 8-way probe: 213.6 s → 51.7/50.8 s with
+byte-identical runs/skips.)
+
+## Deliverable shape (frozen)
+
+ONE lane `core`, repo tart, THREE paths (one edited, two NEW):
+
+- `Rakefile` — ADDITIVE ONLY: a `desc` + `task "test:par"` that shells to
+  the runner. The `Rake::TestTask.new(:test)` block and `task default: :test`
+  are byte-untouched; the Rakefile diff has ZERO deleted lines.
+- `test/support/parallel_runner.rb` (NEW) — the runner, stdlib-only (no new
+  gems; `minitest ~> 5.20` pin stays).
+- `test/parallel_runner_test.rb` (NEW) — hermetic pins for the runner's
+  laws (no live full-suite legs inside the battery; the heavy legs live in
+  the frozen gates).
+
+## Law 1 — the runner (`test/support/parallel_runner.rb`)
+
+1. **Canonical set**: the SAME file set `rake test` runs — the Rakefile's
+   FileList glob `test/**/*_test.rb` +
+   `gems/tui-split-rig/test/**/*_test.rb`, resolved, sorted (66 files /
+   1474 tests at base). One source of truth: the runner derives the list
+   itself with this glob; the pins (Law 3) pin it equal to the Rakefile's
+   own FileList, extracted from the Rakefile text.
+2. **Enumeration pass**: ONE load-only subprocess (`bundle exec ruby
+   -Itest -Ilib`) that requires every canonical file with
+   `minitest/autorun` loaded and a `Minitest.run` override that dumps the
+   sorted `Klass#method` lines and `exit!(0)`s — NEVER executing a test.
+   Mechanical belt (measured, the Grounds' defect): set `Minitest.seed`
+   explicitly before `runnable_methods` (5.27 `srand Minitest.seed`), and
+   **`$stdout.flush` before `exit!`** — `exit!` skips the stdio flush and
+   silently truncates the dump.
+3. **Shard law**: deterministic round-robin over the sorted `Klass#method`
+   list — worker `i` takes indices `≡ i (mod N)`. Properties (pinned):
+   union = the full enumerated set, pairwise disjoint, sizes within 1 of
+   each other, byte-identical across repeated enumerations.
+4. **Worker law**: each worker is `bundle exec ruby -Itest -Ilib -e
+   'require "minitest/autorun"; ENV["FILES"] split require …'` with `--`
+   `--name /<Regexp-escaped alternation of its `Klass#method` entries>/`
+   `--seed <n>` (full-form filters discriminate same-named methods across
+   classes — measured: per-worker runs == its shard size exactly). Worker
+   output (stdout+stderr) to a per-worker log under a temp scratch dir;
+   the worker seed is recorded in the attribution line.
+5. **Merge law**: parse each worker's `N runs, M assertions, F failures, E
+   errors, S skips` line + exit code; sum the counts; **exit nonzero iff
+   any worker exited nonzero or F+E > 0**; print one attribution line per
+   worker (index, files, runs, seed, status) and a final summary line:
+   `PARALLEL_OK runs=<N> assertions=<M> failures=<F> errors=<E> skips=<S>
+   workers=<W> wall=<s>s` (nonzero verdict prints `PARALLEL_FAIL` with the
+   failing workers).
+6. **Coverage audit**: every worker's runs must equal its shard size and
+   the summed runs must equal the enumerated total (no test dropped, none
+   run twice) — the runner prints `COVERAGE_OK runs=<N> enum=<N>` or fails
+   nonzero with the discrepancy.
+7. **Jobs**: `TART_TEST_JOBS` env override; default **8** (the 16-core
+   host, the I83 sweep precedent); values outside 1..32 are refused loudly
+   (nonzero, message) before any spawn.
+8. **Interruption**: INT/TERM to the runner kills the in-flight workers
+   first (kill + reap, the I83 sweep Law-7 idiom), then exits nonzero —
+   no orphaned workers.
+
+## Law 2 — the rake task (`Rakefile`, additive only)
+
+`rake test:par` (frozen name) invokes the runner from the repo root;
+`rake test` behavior is byte-stable (the :test TestTask block untouched,
+zero deleted lines in the diff — pinned by the parity gate). NOTHING in
+this iteration flips any loop gate command to the parallel path (owner
+decision, excluded).
+
+## Law 3 — the pins (`test/parallel_runner_test.rb`, hermetic)
+
+- Enumeration determinism: two enumeration passes produce byte-identical
+  sorted lists.
+- Shard bijection: union/disjoint/balance properties for several jobs
+  values (1, 3, 8) on the real canonical set.
+- Jobs validation: default 8; env override honored; out-of-range refused
+  loudly (nonzero + message) with nothing spawned.
+- Merge aggregation on SYNTHETIC worker results: all-green sums to success
+  and the PARALLEL_OK literal; any-failure and any-crash both yield nonzero
+  with the failing worker attributed.
+- Canonical-set pin: the runner's file list == the Rakefile's own FileList
+  glob (extracted from the Rakefile text) — the structural serial-set
+  equivalence.
+- The pins battery runs green serially AND under the parallel path (it is
+  itself part of the canonical set — its tests must be shard-safe, which
+  they are by construction: no global mutation, mktmpdir staging only).
+- Red at base by absence (the file is NEW; the units gate's filter runs=0
+  is the declared-RED mechanism).
+
+## Law 4 — the interference audit (Builder Report, evidence per surface)
+
+Every global-name surface from the Grounds' audit table re-proven at the
+lane tree with a verdict and evidence line: tmux session names; fixed
+ports/sockets; fixed paths under /tmp or ~ (including any write to the real
+home); process signals/traps; ENV mutation; herdr env inheritance; staged
+homes; cross-worker load on the residual no-observable waits. Any hazard
+found: EITHER an itemized scoping fix confined to the frozen touch set
+(old bytes → new bytes, property unchanged — expected ZERO at base per the
+Grounds audit) OR the offending file pinned to a dedicated worker with the
+measured reason. SILENT non-audit is a defect. If an audit finds a
+`lib/tart/` production global that blocks parallelism: STOP and escalate —
+plan-level decision, not the lane's.
+
+## Boundaries
+
+- MAY touch: exactly `Rakefile`, `test/support/parallel_runner.rb`,
+  `test/parallel_runner_test.rb` — nothing else.
+- MUST NOT touch: `lib/tart/**` (STOP-and-escalate clause above),
+  `gems/tui-split-rig/**` (the rig is untouched), `bin/`, `bench/`,
+  `Gemfile`, `Gemfile.lock`, `tart.gemspec`, every test file other than
+  the two new paths, `test/support/**` other than the new runner file
+  (`mock_llm_server.rb`, `signal_hygiene_harness.rb`, the probes are
+  hard-frozen — shared by the rig and bin/pty-tester).
+- No new gems, no new framework, no minitest version change; no
+  test-file deletion or count reduction (the suite grows only by the new
+  pins); no changes to the carried gate battery other than the declared
+  rebases + the new gates + the scope rewrite.
+- `test/` CONTENT changes to EXISTING files: only where the audit forces a
+  scoping fix (itemized, evidence per item — expected zero).
+
+## Tool guidance (exact verification, this session's tested forms)
+
+- Serial gate anchor: `cd repos/tart && bundle exec rake test` (1474 /
+  7034 / 5S / 213.6 s at base).
+- Parallel: `cd repos/tart && time bundle exec rake test:par` — expect
+  exit 0, `PARALLEL_OK runs=… failures=0 errors=0 skips=… workers=8
+  wall=…s`, `COVERAGE_OK runs=<enum> enum=<enum>`, wall ≈ 51 s (bound
+  ≤ 90 s).
+- Repeat: three consecutive invocations; runs/skips literals identical,
+  assertions within ±10 (the standing dynamic-counter band), each wall
+  ≤ 90 s.
+- Units battery: `bundle exec ruby -Itest -Ilib test/parallel_runner_test.rb`
+  → 0F/0E, and the same file inside both the serial suite and the
+  parallel run.
+- The probe mechanics (scratch reference, NOT a deliverable):
+  `tmp/i84-spec/fanout.rb` — the enumeration -e shape, the worker -e +
+  `-- --name /…/ --seed N` shape, per-worker log files (NOT pipes — a
+  shared-pipe read can deadlock a chatty worker; measured this session).
+- Gate-runner discipline: /bin/sh has NO `set -e` — every comparison in a
+  multi-check gate gates its own exit; never run gates under nohup; short
+  out dirs everywhere.
+
+## Lane plan
+
+ONE lane (repo tart, the 3-path touch set above, no overlap possible).
+Effort at dispatch: medium-high (runner + pins + audit; the mechanics are
+pre-proven by the probe, the audit is the labor).
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision parallel-test-runner`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - Rakefile
+    - test/support/parallel_runner.rb
+    - test/parallel_runner_test.rb
 ```
 
 ## Acceptance Criteria
