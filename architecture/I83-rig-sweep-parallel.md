@@ -406,6 +406,26 @@ The `t83*` rehearsal/judge scratch and the standing `t75*`–`t82*` families
 are tolerated untracked, never committed. Gate: `scope` (declared-RED at
 base: the two new files are absent — the standing per-iteration class).
 
+**Rehearsal declaration — MEASURED (fresh stamp, never --skip-rehearse).**
+**GREEN 93 / RED 4 / BROKEN 0 / EMPTY 0** at base tip `467b82e`
+(`build/rehearse/I83-rig-sweep-parallel-20261020T001635.387606.md`): the
+four RED are each verified for EXACTLY its declared reason — `sweep-units`
+RED on the absent `sweep_test.rb` (the declared-new class),
+`sweep-parity` and `sweep-crosstalk` RED on the absent wrapper bin (the
+declared-new class), `scope` RED on the absent new files (the standing
+per-iteration class; every other scope leg verified clean at base — the
+whitelist covers the whole real untracked inventory, and the frozen-diff
+legs are quiet). All 93 GREEN members carried GREEN cold, including
+`suite` (**1463 runs / 6924 asserts / 0F / 0E / 1S, wall 221 s ≤ 240 s —
+the AC4 floor measured exactly as frozen**) and `contention-proof`; both
+standing suite flake classes did NOT fire in this run (spinner-dwell +
+chat-interrupt — note-and-pass on cold re-run when they do). The new
+gates' judge-time logic was synthetically validated BEFORE the rehearsal
+(happy + negative paths for every embedded comparison; the
+comparison-masking hazard — the gate shell has no `set -e`, so a failed
+`ruby` abort could have been swallowed by later passing lines — was found
+and fixed pre-rehearsal).
+
 ```gates
 - id: stale-run-reaper
   ac: AC1
