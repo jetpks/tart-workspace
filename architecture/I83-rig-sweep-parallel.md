@@ -2841,15 +2841,38 @@ STATUS: COMPLETE_WITH_CONCERNS
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section rig-sweep-parallel verdict --from <file>`. -->
+- **Disagreement rulings** — the builder's six PHASE 0 items, each ruled:
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify rig-sweep-parallel`)?
+  1. **ACCEPT** — the missing-yml live leg has no stated mechanism in the frozen surface (no positional/path flag; Law 1 refuses unknown *names*), so a missing yml can only enter as an `--only` entry ending in `.yml`; the child's own `Scenario.load` refusal surfacing through the fan-out as ec 2 → aggregate 2 is superset-safe (exit 2 under BOTH readings) and the units-gate comment itself calls {s1,missing} a "real small sweep".
+  2. **ACCEPT** — the literal Law 1 reading: `--only` RESTRICTS the selected set; probes stay opt-in via `--probes`; `--only probe_x` without `--probes` refusing as unknown is the letter.
+  3. **ACCEPT** — set order (not reap order) is REQUIRED for the parity gate's serial-vs-concurrent table comparison to be meaningful — reap order is nondeterministic under fan-out; the spec fixes no order.
+  4. **ACCEPT** — the `sw-NN.log` child capture is additive scratch outside the frozen report shape; nothing frozen forbids it and it makes an ec=2 table row debuggable (the missing-yml live leg pins the loudness).
+  5. **ACCEPT (note-and-pass, zero lane attribution)** — judge independently confirmed the ≤ 20-char window is depth-relative: a shallow judge worktree at base `467b82e` with exactly the three lane files applied reproduced the EXACT frozen battery table through the gate cmd verbatim (`SWEEP_TABLE_OK 19 scenarios aggregate=2`, serial==concurrent, concurrent wall 18,743 ms ≤ 40,000 ms) — the lane-tree s9/s16 flips are the declared standing class (a), I72–I82 precedent.
+  6. **ACCEPT** — Law 7's letter is KILL + bounded teardown + no orphans; kill-first plus wrapper-side orphan reaping implements exactly that (builder evidence: 16 sessions at INT → 0 leftover, ec 2, wait returns immediately) — INT-forwarding was measured to leak because the rig's teardown is inline, not ensure-wrapped.
+
+- **The escape hatch (runner.rb +16/−3 `require_content:` boot-settle fix) — USED, ADJUDICATED ACCEPT:**
+  - **REAL** — the judge reproduced the defect independently, 2/2 pre-fix runs at the lane tree (13-way shape): the failing leg is the SOLO *direct* rig run — ec 2, tart `completed=false`, `requests=0/1`, `boot_settle=794 ms` — the exact disclosed blank-settle signature (the builder's 13 direct-rig reproduction stands beside it; 12-way was green).
+  - **EVIDENCED / ROOT-CAUSED** — failing tarts settle at ~783–794 ms vs 1323–1345 ms when the banner renders during settle; the mechanism is coherent and measured (a blank pre-first-render screen is self-identical across QUIET_POLLS, the boot "settles" on emptiness, the prompt precedes the app's armed input reader, the pending pty input is discarded → 0 requests → exit 2).
+  - **MINIMAL** — judge read the diff: one new default-false keyword param on `settle`; ONLY the boot call site passes `require_content: true`; the reply and post-settle settles keep byte-frozen semantics (a dead pane's empty capture still settles them).
+  - **BYTE-NEUTRAL for green legs** — the judge's canonical-depth control WITH the fix in place reproduced the exact frozen table; suite 1474/0F/0E/5S; crosstalk green cold.
+  - **DISCLOSED** — REDs the frozen `scope` gate by design; the judge verified `SCOPE_OK` with the base lib temporarily restored (the ONLY scope bite is this diff; fix restored and re-verified after, 16+/3− exactly).
+  - The base probe's "none exists" is falsified only by the ≥13-way shape (the base probe was 8-way) — this is precisely the escape hatch the freeze wrote for.
+
+- **Acceptance Criteria integrity** — `architect verify` PASS on frozen sections untouched + no builder commits; the gates block parses to 97 well-formed gates (4 new + 93 carried, carry-audit record standing).
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | `sweep-units` GREEN cold (11 runs / 137 asserts, 0F/0E/0S; hermetic pins in-suite) | Spec §pins | PASS |
+| AC2 | `sweep-parity` RED at the lane tree on EXACTLY the frozen-table leg (s9/s16=1), parity legs GREEN (serial==concurrent tables byte-identical, aggregates==process exits, concurrent wall 18,946 ms ≤ 40,000 ms); judge control FULLY GREEN at canonical depth (`SWEEP_TABLE_OK 19 aggregate=2`, wall 18,743 ms) | AC2 + standing class (a) | PASS (note-and-pass, zero lane attribution) |
+| AC3 | `sweep-crosstalk` flaked ONCE in the judge's cold battery (sweep A: s5_bash_truncation ec=1 — the unsanctioned `Took 0.0s`/`Took 0.1s` timing-line drift under 13-way load; NOT cross-talk: both apps completed 2/2, zero leftover sessions); GREEN on immediate cold re-run, builder 3/3; zero leftovers every run | AC3 | PASS (NEW flake class recorded — see residuals) |
+| AC4 | `suite` GREEN cold: 1474 runs / 7030 asserts / 0F / 0E / 5S, wall 215 s ≤ 240 s (growth = exactly the 11 sweep pins over the 1463/1S floor; skips = 1 base + the 4 live legs, the declared mechanism); `bench` SEAM_BENCH_OK | AC4 | PASS |
+| AC5 | `scope` RED on exactly the ONE adjudicated escape-hatch bite (runner.rb); `SCOPE_OK` proven with the base lib restored; the two new files + scratch filter behave exactly as frozen | AC5 escape-hatch clause | PASS (adjudicated disclosed) |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+- **Judge cold ledger** — official battery: **94 PASS / 3 FAIL**, every FAIL adjudicated above (declared standing class ×1, adjudicated escape hatch ×1, new flake ×1-green-on-cold-re-run). Judge-own controls: crosstalk re-run GREEN; pre-fix crosstalk RED 2/2 (the defect reproduction); scope-with-base-lib GREEN; sweep-parity GREEN at canonical depth.
+
+- **Residuals for the human / follow-ups:**
+  1. **The s5 `Took`-line flake class is NEW and undeclared** — under ≥13-way load the scenario's unsanctioned `Took 0.0s/0.1s` bash-duration line can cross the rounding boundary (judge: 1 red in ~5 exposures incl. the builder's). The frozen boundary explicitly anticipates the remedy: a registry.yml ADDITIONS-ONLY sanction for the `Took <d>s` duration line — evidence is this verdict + the judge gate transcript (`build/gate/I83-rig-sweep-parallel-20261020T012451.864452.md`). Until then, treat a crosstalk/parity s5 ec=1 with the `Took` line as the only unknown-candidate as note-and-pass on cold re-run.
+  2. The boot-settle fix is a semantic guard, not a timing cure — QUIET_POLLS/HARD_CAP remain load-sensitive in principle; acceptable and minimal as frozen.
+  3. s13's stale leak-era `expected_requests: 2` premise, s11/s18 standing shapes — owner backlog, unchanged.
+
+- **Iteration** — **CONTINUE** — the diff is faithful to the frozen wrapper laws (every mechanical gate green cold; the exact frozen battery table reproduced through the wrapper at canonical depth), and the ONE out-of-touch-set change is the escape hatch the freeze itself wrote for: a real, judge-reproduced, itemized, evidenced, minimal concurrency defect fix, disclosed and adjudicated — nothing silent, nothing relaxed.

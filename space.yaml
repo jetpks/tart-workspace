@@ -3109,7 +3109,7 @@ project:
     ordinal: 83
     file: architecture/I83-rig-sweep-parallel.md
     freeze_sha: ecf3a1a6ff31cbda60dfab90ea6ac3b7d0b5a196
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
