@@ -3083,7 +3083,18 @@ project:
   - name: suite-sleep-surgery
     ordinal: 82
     file: architecture/I82-suite-sleep-surgery.md
-    freeze_sha:
+    freeze_sha: 59bd63910ca98247d2454d7d08fe0278f4388536
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - lib/tart/models/listing.rb
+      - test/chat_test.rb
+      - test/agent_loop_test.rb
+      - test/subagents_test.rb
+      - test/models_listing_test.rb
+    rehearsal:
+      gates_digest: f5f6871599b518f0382d92dd4d6a6ec2e27e9c155c9522b8a555c8ba4e31d0e3
+      at: '2026-10-19T22:26:06-06:00'
   integration_branch: project/pi-port
