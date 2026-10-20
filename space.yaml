@@ -3108,7 +3108,15 @@ project:
   - name: rig-sweep-parallel
     ordinal: 83
     file: architecture/I83-rig-sweep-parallel.md
-    freeze_sha:
+    freeze_sha: ecf3a1a6ff31cbda60dfab90ea6ac3b7d0b5a196
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - gems/tui-split-rig/bin/tui-split-rig-sweep
+      - gems/tui-split-rig/test/sweep_test.rb
+    rehearsal:
+      gates_digest: 44b9b567b9e6d24287541f638fdbeb418770de53701e5fbde14f7f5f992d91dc
+      at: '2026-10-20T00:16:35-06:00'
   integration_branch: project/pi-port
