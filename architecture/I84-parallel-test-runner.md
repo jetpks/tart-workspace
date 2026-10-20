@@ -2672,11 +2672,131 @@ for stdin dispatch. Record + commit:
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I84-parallel-test-runner-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence parallel-test-runner --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# Builder Report — I84 parallel-test-runner, lane core (repo tart)
+
+Worktree: `build/I84-parallel-test-runner-core/wt`, branch `lane/I84-parallel-test-runner-core`, base `f07c25f`. No git writes performed (no commit/add/branch). Zero live API calls anywhere in this iteration (all legs are mock-server scenarios / in-process doubles / the parallel runner itself).
+
+## PHASE 0 — spec check (no blocking disagreements)
+
+Checked before concluding the spec is sound: the frozen arch file (Grounds / Specification / AC / lanes / the 100-gate block incl. the four new gates verbatim); the Rakefile (`Rake::TestTask.new(:test)` block + `task default: :test` byte-stable target); `test/test_helper.rb` and neighboring batteries for house style; the hard-frozen support seams (`mock_llm_server.rb`, `signal_hygiene_harness.rb`); the probe `tmp/i84-spec/fanout.rb` (READ-ONLY reference); env: ruby 4.0.7, minitest 5.27.0 (pin `~> 5.20` intact), lane tree clean at base.
+
+Gate-imposed output constraints honored by the runner (design, not disagreement): the word `enum=` appears ONLY in the COVERAGE line (parallel-parity greps unanchored for the first `enum=`); `PARALLEL_OK` is printed only when failures=0 and errors=0 (else `PARALLEL_FAIL` + failing workers); `COVERAGE_OK runs=<n> enum=<n>` is its own line; the Rakefile diff carries zero deleted lines.
+
+One spec-tension noted, NOT escalated, resolved by measurement: the frozen worker filter is an UNANCHORED Regexp-escaped alternation — a test-method name that is a strict prefix of another in the same class would overcount a shard. Measured at base: 0 prefix collisions across 1490 enumerated methods, and the Law-6 coverage audit turns any future collision into a loud nonzero (never silent drift). Frozen form kept verbatim.
+
+One deliberate deviation FROM THE PROBE (within the frozen Law-2 text): the probe narrowed worker FILES by a textual `def test_*` scan, which cannot see the 48 metaprogrammed `MarkdownTest#test_md_battery_*` tests (`define_method("test_md_battery_#{...}")`, markdown_test.rb:305 — interpolated, unscannable). The runner instead records each method's own `source_location` in the SAME load-only enumeration pass (child writes `Klass#method\t<file>` to `attrib.log`; the stdout dump stays the frozen sorted `Klass#method` lines). Measured at base: 1490/1490 methods attribute to a file that defines their class (checked with a nested-class-aware regex after Ruby 4.0 removed `Module#source_location`). The unattributable-method belt (full-set fallback for that worker) is retained and pinned. Result: workers load 59–62 files, not 67; wall improved from 52.1 s (pre-fix measurement) to 45.4 s.
+
+## Deliverable — the frozen 3-path touch set
+
+```
+git diff f07c25f --stat
+ Rakefile | 10 ++++++++++
+ 1 file changed, 10 insertions(+)
+git diff f07c25f | grep -cE "^-[^-]"   → 0   (zero deleted lines across the WHOLE diff)
+untracked: test/support/parallel_runner.rb, test/parallel_runner_test.rb
+           (t84par/, t84rep/ are the gates' own untracked scratch — scope-filter
+            families, never committed)
+```
+
+- `Rakefile` — ADDITIVE ONLY: `desc` + `task "test:par"` shelling `ruby "test/support/parallel_runner.rb"` (rake's `ruby` helper propagates the exit code). The `Rake::TestTask.new(:test)` block and `task default: :test` byte-untouched (0 deleted lines, gated twice).
+- `test/support/parallel_runner.rb` (NEW) — the runner, stdlib-only (`open3`, `rbconfig`, `fileutils`, `tmpdir`); no new gems, no minitest version move.
+- `test/parallel_runner_test.rb` (NEW) — 17 hermetic pins, all laws, no live full-suite legs.
+
+## 1. Red-before / green-after — the four declared-RED gates
+
+### parallel-units (AC1)
+- RED at base (verbatim): `FAIL parallel-units: test/parallel_runner_test.rb missing (declared-new)` — exit 1.
+- GREEN after (verbatim, gate cmd verbatim):
+```
+Finished in 1.120758s, 15.1683 runs/s, 2750.8169 assertions/s.
+17 runs, 3083 assertions, 0 failures, 0 errors, 0 skips
+PARALLEL_UNITS_OK
+```
+
+### parallel-parity (AC2/AC3)
+- RED at base (verbatim): `rake aborted! Don't know how to build task 'test:par'` — exit 1.
+- GREEN after (verbatim, gate cmd verbatim):
+```
+wall_ms=45649 ec=0
+worker=4 files=59 shard=186 runs=186 seed=12349 ec=0 ok
+worker=5 files=61 shard=186 runs=186 seed=12350 ec=0 ok
+worker=6 files=62 shard=186 runs=186 seed=12351 ec=0 ok
+worker=7 files=60 shard=186 runs=186 seed=12352 ec=0 ok
+COVERAGE_OK runs=1491 enum=1491
+PARALLEL_OK runs=1491 assertions=10112 failures=0 errors=0 skips=5 workers=8 wall=45.4s
+PARALLEL_PARITY_OK
+```
+All five gate legs pass: exit 0; the anchored `PARALLEL_OK … failures=0 errors=0 …` summary; the anchored `COVERAGE_OK` line with runs == enum; wall 45649 ms ≤ 90000 ms; Rakefile deleted-lines = 0.
+
+### parallel-repeat (AC5)
+- RED at base (verbatim): `rake aborted! Don't know how to build task 'test:par'` — exit 1.
+- GREEN after (verbatim, gate cmd verbatim):
+```
+run 1: ec=0 wall_ms=46040 PARALLEL_OK runs=1491 assertions=10117 failures=0 errors=0 skips=5 workers=8 wall=45.8s
+run 2: ec=0 wall_ms=46764 PARALLEL_OK runs=1491 assertions=10123 failures=0 errors=0 skips=5 workers=8 wall=46.5s
+run 3: ec=0 wall_ms=47725 PARALLEL_OK runs=1491 assertions=10123 failures=0 errors=0 skips=5 workers=8 wall=47.5s
+assertions spread: 10117-10123
+PARALLEL_REPEAT_OK
+```
+runs/skips literals identical across all three (runs=1491, skips=5); assertions spread 6 ≤ 10; each wall ≤ 90000 ms. No declared flake class fired (4 consecutive full parallel runs + this repeat battery = all 0F/0E).
+
+### scope (AC6)
+- RED at base (verbatim legs): `scope: runner absent (red leg)` + `scope: pins absent (red leg)` — while the Rakefile-dels leg (0) and the frozen-tree leg were already green at base.
+- GREEN after (verbatim, gate cmd verbatim): `SCOPE_OK`.
+
+## 2. Measured lane-tree numbers (the judge's cross-check set)
+
+| Leg | Result |
+|---|---|
+| `time bundle exec rake test:par` (cold, default 8 workers) | exit 0, `COVERAGE_OK runs=1491 enum=1491`, `PARALLEL_OK runs=1491 assertions=10106 failures=0 errors=0 skips=5 workers=8 wall=52.1s` (first full run, pre-attribution-fix) — post-fix: `wall=45.4s` (parity gate wall_ms=45649) |
+| `parallel-repeat` three runs | 45.8 s / 46.5 s / 47.5 s; runs=1491, skips=5 identical ×3; assertions 10117–10123 (spread 6) |
+| `bundle exec ruby -Itest -Ilib test/parallel_runner_test.rb` | `17 runs, 3083 assertions, 0 failures, 0 errors, 0 skips` (1.1–1.6 s) |
+| `bundle exec rake test` (serial, lane tree, cold) | exit 0; **1491 runs, 10122 assertions, 0 failures, 0 errors, 5 skips, 221.2 s** (`real 3m41.158s`) |
+| Verdict parity, serial vs parallel | runs 1491 == 1491; skips 5 == 5 (byte-identical); assertions serial 10122 vs parallel 10106–10123 (spread 10 ≤ the ±10 dynamic-counter band); parallel wall 45–52 s vs serial 221 s |
+| Suite growth | 1491 − 1474 (base serial) = **17 = exactly the new battery's run count** (the battery is in the canonical set, shard-safe, ran exactly once in every parallel run — coverage audit proves it) |
+| `bundle exec ruby bench/seam_bench.rb 2>&1 \| tail -1` | `SEAM_BENCH_OK` |
+
+## 3. Law 4 — the interference audit (re-proven at the lane tree)
+
+| Surface | Verdict | Evidence |
+|---|---|---|
+| tmux session names | parallel-safe | Zero tmux USE in any test file: `grep -rln tmux test/*_test.rb gems/tui-split-rig/test/*.rb` → `subagent_box_test.rb` (comments only, lines 12/96/518) and `live_run_test.rb` (opt-in only: `skip "set TUI_SPLIT_RIG_LIVE=1 …"` line 21 — the 4 standing skips; both serial and parallel runs show 5 skips identical). Even the opt-in rig is collision-safe: `tui_split_rig/runner.rb:161` `session_name` = `"tui-split-rig-#{@token}-#{app}-…-#{format('%04x', rand(65_536))}"` (token-scoped + random suffix, I27). |
+| fixed ports / sockets | parallel-safe | Every mock server binds an EPHEMERAL port: `mock_llm_server.rb:56-57` `TCPServer.new("127.0.0.1", 0)` / `@port = @server.addr[1]`; `mock_ingest_server.rb:33` identical. No fixed-port or fixed-socket-path site in the suite (grep over all bind/listen sites returns only comments). The runner binds nothing. |
+| fixed paths under /tmp or ~ (incl. real-home writes) | parallel-safe | No literal-path writes: `grep` for `FileUtils.(cp|mv|write|mkdir)/File.write/File.open` against `"/tmp/…"` in all test files returns EMPTY. The `/tmp/…` literals found are string DATA in fixtures/env assertions (`bash_tool_test.rb:281,286` scripted `PI_SESSION_FILE` value; `chat_test.rb:2315` skill fixture text), never written. `Dir.home` appears as READ-only input (chat footer tests pass it as render data). The one `ENV["HOME"]` write (`subagent_box_test.rb:422`) targets a `Dir.mktmpdir` and is ensure-restored (`ENV["HOME"] = @home_home`, line 432). Suite scratch is `Dir.mktmpdir` staged throughout. |
+| process signals / traps | parallel-safe | All in-suite `Signal.trap` sites trap and restore the OWN process's handlers (`kernel_carryin_test.rb:52-61,67-85`; `signal_hygiene_test.rb:38-52` traps TERM/HUP in-process and puts prior handlers back). All `Process.kill` targets are OWN pid (`agent_loop_test.rb:684`, `kernel_carryin_test.rb:58,78`, `signal_hygiene_test.rb:131,188`, `Process.kill(0, …)` liveness probes) or OWN spawned children/process groups (`subagents_e2e_test.rb:443-445` `-TERM/-KILL -pid` of its own spawned tart; `subagents_health_test.rb:36`). Process isolation covers the rest: a worker's traps cannot reach a sibling. The runner's own traps (Law 8) kill ONLY pids it registered (see live proof below). |
+| ENV mutation | parallel-safe | All in-test ENV writes are process-local to a worker and ensure-restored (the `subagent_box_test.rb:422` HOME write is the representative site, restored line 432). Worker ENV = parent env + runner-added FILES/BUNDLE_GEMFILE/ATTRIB; nothing leaks across workers (separate processes). |
+| herdr env inheritance | parallel-safe | Workers inherit the parent env (which may carry HERDR_*) but test processes NEVER register herdr — registration lives in `bin/tart` (`lib/tart/herdr.rb`); no test file reads/writes HERDR_* (grep empty). The e2e children spawn CLOSED: `subagents_e2e_test.rb:394` `tart_env` + line 429-430 `Process.spawn(tart_env, …, unsetenv_others: true)` — no HERDR_*/live keys reach a spawned tart. Zero live API calls confirmed. |
+| staged homes | parallel-safe | e2e/health/box legs stage `Dir.mktmpdir` homes per leg; mock servers per-instance on ephemeral ports. The runner stages its own `Dir.mktmpdir("t84par-")` per run (system TMPDIR, never the repo) with per-worker log files inside it — unique per run by mktmpdir, no cross-run or cross-worker collision. |
+| cross-worker load on the residual no-observable waits | parallel-safe (this session) | The I82 residuals (BashTool ~6.1 s kill-grace, real bash round-trips, SessionSink real debounce) are true durations, deadline-bounded or property-bearing. FOUR consecutive full 8-way runs (first leg + parity + 3 repeat legs) all finished 0F/0E — the one declared load-sensitive member (the chat-interrupt loud-red class) did NOT fire in any parallel leg. Walls 45.4–47.5 s vs the 90 s floor. |
+
+**Live Law-8 interruption proof** (at the lane tree, INT to the runner process mid-run):
+```
+test:par: INT — killing in-flight workers (kill + reap), then exiting nonzero
+test:par: killed and reaped 8 in-flight child(ren)
+bundle ec=1   (nonzero); surviving `parallel_runner.rb`/`--name /` processes: 0 (ps listing empty)
+```
+Calibration note (not a defect): `bundle exec` does NOT forward INT from the bundle parent to its child — a signal must reach the runner process itself, which a terminal Ctrl-C does via the foreground process group (every group member gets INT). Proven in isolation: trap fires when INT reaches the runner child (`TRAP FIRED child=…`, exit 1); the earlier green completion was a test-harness pid-targeting artifact (signaling the bundle parent), not a runner defect.
+
+## 4. Itemize-and-defend — every file in the diff
+
+1. `Rakefile` — +10/−0 (whole-diff deleted-line count = 0). The block: comment + `desc` + `task "test:par" { ruby "test/support/parallel_runner.rb" }`, inserted between the models:vendor:refresh task and the `Rake::TestTask.new(:test)` block. The `:test` TestTask and `task default: :test` are byte-untouched; `rake test` re-measured green (1491/10122/5S/221.2 s). Defended: the parity gate's deleted-lines leg and the scope gate's deleted-lines leg both pass.
+2. `test/support/parallel_runner.rb` — NEW, 269 lines, stdlib-only. Implements all eight Laws (header comment maps each); the enumeration child carries the two measured belts (`Minitest.seed` set before `runnable_methods`; `$stdout.flush` before `exit!`); worker stdout+stderr → per-worker LOG FILES in the run's mktmpdir (never shared pipes); merge law parses the LAST `N runs, M assertions, …` line per worker; coverage audit emits the frozen `COVERAGE_OK runs=<n> enum=<n>` literal (and `enum=` appears nowhere else in the output); jobs validation is run()'s first act; INT/TERM traps kill+reap registered pids only.
+3. `test/parallel_runner_test.rb` — NEW, 17 tests, hermetic (mktmpdir staging, no global mutation; no live full-suite legs — the enumeration children are load-only). Covers: canonical-set pin (globs extracted FROM the Rakefile text == runner constants == resolved files, both trees), enumeration determinism (two byte-identical passes), sorted full-form shape + ≥1400 floor, shard bijection for jobs 1/3/8 (union/disjoint/within-1/round-robin-slice), shard determinism, jobs default/override/out-of-range-refused/SystemExit-status, run-refuses-bad-jobs-before-any-spawn, filter full-form escaping, worker-files narrowing + unattributable full-set belt, enumeration attribution completeness (every method → a file under ROOT; md_battery → markdown_test.rb), merge law on synthetic results (all-green → PARALLEL_OK literal; any-failure and any-crash → red + attributed), coverage audit (exact literal pass; loud discrepancy failure). Shard-safe by construction AND by evidence (its 17 tests ran exactly once in each of the four green full parallel runs).
+
+No other file changed: `git diff --name-only f07c25f` = Rakefile only; frozen seams (`lib/tart/**`, `gems/tui-split-rig/**`, `bin/`, `bench/`, `Gemfile`, `Gemfile.lock`, `tart.gemspec`, every pre-existing test file, `test/support/**` others) have zero diff (scope gate's frozen-tree leg passes). No audit-forced scoping fix to existing files was needed (expected ZERO at base — confirmed).
+
+## 5. Residual risks / notes for the architect
+
+- The `enum=`-uniqueness constraint on runner output is enforced by construction (only the COVERAGE line contains it) but is a live coupling to the parity gate's unanchored grep — if the gate battery is ever rebased, keep the constraint in mind.
+- The frozen UNANCHORED worker filter is prefix-collision-sensitive; measured 0 collisions at base (1490 methods). Any future same-class prefix collision fails LOUDLY via the coverage audit (nonzero, per-worker discrepancy line) rather than drifting silently.
+- Worker logs + enumeration logs persist in per-run mktmpdir dirs under the system TMPDIR until OS cleanup; each run creates one small dir (never the repo; scope filter unaffected).
+- The kill_and_reap registry push has one unobservable window between `Process.spawn` and `pids << pid` (documented in the runner) — a signal landing exactly there could orphan that single child; every other moment is covered.
+- Serial suite at the lane tree now carries the battery: 1491 runs / 10122 assertions / 5 skips / 221.2 s (≤ the carried suite gate's 240 s floor, ~19 s margin). The suite-gate wall margin shrank slightly because the battery adds ~8 s of serial enumeration spawns — well inside the floor, noted for future wall calibration.
+- Declared flake classes (chat-interrupt loud-red, s5 `Took`-line, s9/herdr depth geometry, render-perf BP2, suite order/env): none fired in any lane-tree leg this session (4 full parallel runs + serial run, all 0F/0E); the standing note-and-pass adjudication applies unchanged.
+
+STATUS: COMPLETE
 
 ## Verdict
 
