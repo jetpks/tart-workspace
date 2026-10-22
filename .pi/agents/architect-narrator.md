@@ -2,7 +2,7 @@
 name: architect-narrator
 description: Narrates one settled loop event to notes/narrative-*.md — verbatim facts, no verdicts; writes nothing else.
 tools: read, grep, find, ls, write
-model: openrouter/z-ai/glm-5.3-flash
+model: zai/glm-5.3-flash
 thinking: low
 systemPromptMode: replace
 inheritProjectContext: true
