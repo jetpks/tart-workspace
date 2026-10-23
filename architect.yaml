@@ -1,7 +1,7 @@
 # architect.yaml — space-architect loop routing for this space (pi-port).
 # Space-local values override ~/.config/space-architect/architect.yaml (global).
 # Model ids are pi provider/model ids; `thinking` is the pi effort level.
-# Builder routing follows the owner's standing directive (builders zai/glm-5.3-flash);
+# Builder routing follows the owner's standing directive (builders openrouter/z-ai/glm-5.3-flash);
 # spec/judge carry the strong-reasoning model; the coordinator only tends, so it rides flash.
 #
 # PEAK WINDOW (owner 2026-10-14): z.ai direct doubles token cost Mon–Fri
@@ -13,26 +13,26 @@
 version: 1
 roles:
   architect:
-    model: zai/glm-5.3
+    model: openrouter/z-ai/glm-5.3
     thinking: high
   spec:
-    model: zai/glm-5.3
+    model: openrouter/z-ai/glm-5.3
     thinking: high
   judge:
-    model: zai/glm-5.3
+    model: openrouter/z-ai/glm-5.3
     thinking: high
   builder:
-    model: zai/glm-5.3-flash
+    model: openrouter/z-ai/glm-5.3-flash
     thinking: high
   coordinator:
     # TEMPORARY (owner 2026-10-18): glm-5.3-flash regressed on multi-field tool-call
     # emission (task key omitted from subagent spawns, 4-for-4 coordinators + probe
     # repro; see notes/exception-20261018T013530Z.md). Swap back to
-    # zai/glm-5.3-flash when the provider recovers.
+    # openrouter/z-ai/glm-5.3-flash when the provider recovers.
     model: openrouter/deepseek/deepseek-v4.1-flash
     thinking: high
   narrator:
-    model: zai/glm-5.3-flash
+    model: openrouter/z-ai/glm-5.3-flash
     thinking: low
   # narrator restored 2026-10-14: space-architect 9.1.1 + the fresh
   # architect-loop extension both route it natively again (the 03c4ad8 drop

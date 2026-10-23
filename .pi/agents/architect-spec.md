@@ -2,7 +2,7 @@
 name: architect-spec
 description: Writes one iteration's Grounds, Specification, and Acceptance Criteria; rehearses; freezes; reports lane prompt paths.
 tools: read, grep, find, ls, bash, edit, write
-model: zai/glm-5.3
+model: openrouter/z-ai/glm-5.3
 thinking: high
 systemPromptMode: replace
 inheritProjectContext: true
