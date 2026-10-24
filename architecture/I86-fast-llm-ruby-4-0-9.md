@@ -785,15 +785,107 @@ STATUS: COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section fast-llm-ruby-4-0-9 verdict --from <file>`. -->
+## Mechanical post-flight (this session, by command)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify fast-llm-ruby-4-0-9`)?
+- `architect verify fast-llm-ruby-4-0-9`: (a) frozen sections untouched
+  **PASS** (`git diff 4ade92f3 HEAD -- architecture/I86-fast-llm-ruby-4-0-9.md`
+  shows only the post-freeze Builder Prompt append (df42eda0) and the
+  Builder Report transcription — Grounds/Specification/Acceptance Criteria
+  byte-frozen); (b) no builder commits **PASS** (`git -C
+  build/I86-fast-llm-ruby-4-0-9-core/wt log 0c1949c..HEAD` empty — lanes
+  committed nothing, confirmed); (c) report exists **PASS**; (d) in-bounds
+  **FAIL** — adjudicated below (the I85 expressiveness gap, same class,
+  same ruling; not a lane defect).
+- `architect evidence fast-llm-ruby-4-0-9 --lane core`: transcribed 112
+  lines (e5a29363). Builder STATUS: COMPLETE.
+
+## The in-bounds FAIL, adjudicated
+
+The lane worktree holds exactly two changes vs base `0c1949c`
+(judge-verified, `git status --porcelain` + `git diff 0c1949c`):
+
+1. **`.ruby-version` NEW, untracked, bytes exactly `4.0.9\n`** — THE
+   deliverable, verified by my own `xxd` (`342e 302e 390a`, 6 bytes, one
+   line). In the frozen touch set.
+2. **`Gemfile.lock` +1 line** — I reproduced the diff myself: exactly one
+   added CHECKSUMS line, `+  bundler (4.0.22)
+   sha256=d8d5ec84c8555e0af71db63ed7aee4d1a8fb839ec46d84212d61979242a5d75a`,
+   byte-identical to the frozen Grounds' measured heal literal, in sorted
+   position between async-pool and console; `--stat` = `1 file changed, 1
+   insertion(+)`, nothing else moved. Frozen AC1 explicitly sanctions it
+   ("byte-unchanged OR carrying exactly the declared bundler self-checksum
+   heal line"); the frozen `ruby-pin`/`scope` lock legs accept exactly
+   this shape. Tooling-produced by `bundle install`, never hand-edited.
+   The frozen ```lanes touch set (`.ruby-version` only) cannot express the
+   AC-sanctioned lock heal — the touch-set/AC expressiveness gap ruled on
+   in I85, not a lane violation. No scratch residue this time (no `fl86*`,
+   no `tmp/` in the repo tree — judge-verified).
+
+## The judge's own cold battery
+
+`architect gate fast-llm-ruby-4-0-9 core` run COLD by this judge
+(transcript `build/gate/I86-fast-llm-ruby-4-0-9-20261024T041158.075205.md`):
+**12 PASS / 0 FAIL / 12 total** — independently reproducing the builder's
+claimed vector (12 GREEN / 0 RED). Every runs/failures literal equals the
+stamped base measurement, judge-observed: suite **247 examples, 0
+failures**; parity **14/0**; strict-wire **2/0**; strict-unit **21/0**;
+strict-dialect **3/0**; strict-tool **3/0**; strict-emission **7/0**; docs
+`STRICT_DOCS_OK`; dep-pin `DEP_PIN_OK` + `NO_FARADAY_OK`; no-catalog
+`NO_CATALOG_OK`; ruby-pin `GEM_LOAD_OK` + `RUBY_PIN_OK`; scope `SCOPE_OK`.
+Zero behavioral movement on 4.0.9. Judge's own independent faraday sweep
+of the lane tree (`grep -ril faraday --exclude-dir=.git .`): zero hits.
+
+## PHASE 0 rulings
+
+The builder raised **zero** spec disagreements (itemize-and-defend table
+EMPTY; STATUS COMPLETE, no concerns). Its three recorded §5 observations
+ruled here:
+
+- **The Gemfile.lock heal itemization — ACCEPT.** Exactly the declared,
+  shape-pinned, tooling-produced line; verified byte-for-byte by this
+  judge; gate-sanctioned by the frozen `ruby-pin`/`scope` lock legs.
+- **The scratch relocation out of the repo tree — ACCEPT** as correct
+  contract reading, not a deviation: the Builder Prompt itself bars the
+  `faraday` token in scratch, the verbatim dep-pin gate greps the whole
+  tree ignoring .gitignore, so holding the gates-block extraction inside
+  the repo (even gitignored `tmp/fl86*`) would have tripped dep-pin. The
+  builder relocated before any gate ran and swept post-run; judge-verified
+  zero residue, zero faraday hits. No spec change requested, none needed —
+  recorded so the next spec's scratch guidance can name the interplay.
+- **The execution-time carry-audit re-performance — ACCEPT** (house
+  discipline: never trust provenance from prose; the builder's measured
+  result matches the frozen preamble's: 7 carried gates byte-identical
+  I63→I86, docs differing on exactly the one declared rebase leg, dep-pin
+  + no-catalog byte-identical I51→I86).
+
+## Per-AC rollup
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | `.ruby-version` bytes exact (`4.0.9\n`, judge xxd); gemspec floor `>= 3.3` byte-untouched; Gemfile byte-untouched; lock carries exactly the sanctioned heal line (judge-reproduced diff) | Law 1 | **PASS** |
+| AC2 | `mise current ruby` → 4.0.9, `ruby -v` → the stamped 4.0.9 string; `bundle install` green; `GEM_LOAD_OK` (VERSION 0.5.0, Client defined) — all cold in the judge's own ruby-pin run | Law 2 | **PASS** |
+| AC3 | Judge's cold battery 12/12; suite 247/0, parity 14/0, quintet 2/21/3/3/7 all 0F — every literal exactly the stamped base value; docs STRICT_DOCS_OK | Law 3 | **PASS** |
+| AC4 | `DEP_PIN_OK` (runtime deps EXACTLY `[["async-http", "~> 0.95"]]`) + `NO_FARADAY_OK` + `NO_CATALOG_OK`, cold; judge's independent faraday sweep zero hits | Law 3/AC4 | **PASS** |
+| AC5 | Zero tracked diff beyond the declared heal (judge-verified); untracked set confined to `.ruby-version`; 12/12 gate entries in the Builder Report, zero absent; itemize-and-defend EMPTY | Law 4 | **PASS** |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+## Iteration
+
+**CONTINUE** — diff vs the frozen Specification faithful: one-file touch
+set delivered byte-exact, the only lock movement is the declared
+tooling-produced heal class (judge-reproduced), the full 12-gate battery
+GREEN in the judge's own cold run with every measured literal equal to the
+stamped base values, zero behavioral movement on ruby 4.0.9, zero
+deviations, builders committed nothing.
+
+## Residual risks (carried forward, not blocking)
+
+1. The bundler self-checksum heal class will fire again at every pristine
+   fast-llm checkout on bundler 4.0.22 (by design; the lock legs pin its
+   shape). After this lands on `main` the heal is committed, so the class
+   goes quiet for this repo.
+2. The verify in-bounds mechanical check still cannot express the
+   AC-sanctioned lock heal (the I85 expressiveness gap; twice now, same
+   class). Candidate tooling note, not an iteration defect.
+3. Scratch discipline interplay (dep-pin greps the whole tree, ignoring
+   .gitignore): gate-block extractions must live OUTSIDE the repo tree.
+   Recorded for the next spec; handled correctly here.

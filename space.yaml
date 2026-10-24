@@ -3194,7 +3194,7 @@ project:
     ordinal: 86
     file: architecture/I86-fast-llm-ruby-4-0-9.md
     freeze_sha: 4ade92f3e3607bcc99ab088b5cb1021d1917a47d
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: fast-llm
