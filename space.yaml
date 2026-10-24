@@ -3193,7 +3193,14 @@ project:
   - name: fast-llm-ruby-4-0-9
     ordinal: 86
     file: architecture/I86-fast-llm-ruby-4-0-9.md
-    freeze_sha:
+    freeze_sha: 4ade92f3e3607bcc99ab088b5cb1021d1917a47d
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: fast-llm
+      touch_set:
+      - ".ruby-version"
+    rehearsal:
+      gates_digest: 8c05ed6ddf6ebeb4099aac707ce948bd41b6710e2679d910b9b70015094a855f
+      at: '2026-10-24T03:59:14-06:00'
   integration_branch: project/pi-port
