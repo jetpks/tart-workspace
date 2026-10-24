@@ -549,7 +549,7 @@ as the behavioral backstop).
     # 1979242a5d75a` — deterministically, under the new runtime; the
     # battery's own bundle-install legs produce it at any pristine tree).
     # Any other lock movement is itemize-and-defend PHASE 0.
-    badlock=$(git diff 0c1949c -- Gemfile.lock | grep -E "^[-+][^-+]" | grep -vE "^  bundler \([0-9.]+\) sha256=[0-9a-f]{64}$" || true)
+    badlock=$(git diff 0c1949c -- Gemfile.lock | grep -E "^[-+][^-+]" | grep -vE "^\+  bundler \([0-9.]+\) sha256=[0-9a-f]{64}$" || true)
     [ -z "$badlock" ] || { echo "FAIL ruby-pin: Gemfile.lock moved beyond the declared bundler self-checksum class:"; echo "$badlock"; exit 1; }
     echo RUBY_PIN_OK
   expect:
@@ -573,7 +573,7 @@ as the behavioral backstop).
     # declared fl86* family (tmp/, pkg/, coverage/, *.gem, .bundle/ are
     # gitignored in this repo and never appear in git status).
     if ! git diff --quiet 0c1949c -- . ":(exclude)Gemfile.lock"; then echo "FAIL scope: tracked diff vs 0c1949c beyond the declared Gemfile.lock class — the touch set is .ruby-version only"; git diff --name-only 0c1949c; exit 1; fi
-    badlock=$(git diff 0c1949c -- Gemfile.lock | grep -E "^[-+][^-+]" | grep -vE "^  bundler \([0-9.]+\) sha256=[0-9a-f]{64}$" || true)
+    badlock=$(git diff 0c1949c -- Gemfile.lock | grep -E "^[-+][^-+]" | grep -vE "^\+  bundler \([0-9.]+\) sha256=[0-9a-f]{64}$" || true)
     [ -z "$badlock" ] || { echo "FAIL scope: Gemfile.lock moved beyond the declared bundler self-checksum class:"; echo "$badlock"; exit 1; }
     [ -f .ruby-version ] || { echo "FAIL scope: .ruby-version absent (declared-new)"; exit 1; }
     if (git status --porcelain | grep "^??" | cut -c4-) | grep -vE "^(\.ruby-version|fl86[0-9a-zA-Z.]*/?)$" | grep -q .; then
