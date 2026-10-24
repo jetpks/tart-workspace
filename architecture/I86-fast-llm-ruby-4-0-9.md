@@ -347,7 +347,7 @@ floor line, the declared lock-heal shape).
   (global mise latest resolves 4.0.9 everywhere — the plan header). The
   `.ruby-version` file CONTENT is the pin gate; the runtime legs prove
   the file drives the resolution.
-- **MEASURED REHEARSAL (the stamp):** REHEARSAL_STAMP_PLACEHOLDER
+- **MEASURED REHEARSAL (the stamp):** `architect rehearse fast-llm-ruby-4-0-9` at base `0c1949c` under ruby 4.0.9 — **GREEN 10 / RED 2 / BROKEN 0 / EMPTY 0** (transcript `build/rehearse/I86-fast-llm-ruby-4-0-9-20261024T035914.283883.md`): RED = `ruby-pin` + `scope`, the DECLARED-RED pair (absent `.ruby-version`, each RED for exactly its declared reason); GREEN incl. `suite` 247 examples / 0 failures and every other carried/re-anchored member. The gates block below is byte-identical to the stamped block (post-record re-extraction + YAML parse verifies).
 
 ## AC1 — the pin is a committed fact
 
