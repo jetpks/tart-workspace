@@ -168,34 +168,125 @@ fast-llm PR; whether loop tooling stops riding `latest`).
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section fast-llm-ruby-4-0-9 specification --from <file>`. -->
+# fast-llm-ruby-4-0-9 specification
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+## Objective
+
+Make the wire gem's home ruby a committed fact and prove the gem's entire
+settled surface on the new runtime: `.ruby-version` → `4.0.9` at the
+fast-llm repo root, `bundle install` green under 4.0.9, and the gem's own
+carried frozen battery green cold on 4.0.9 — the rspec suite (247 examples
+measured at base), the wire-fixture digest table EXACT (the frozen pi
+capture SHA256s inside wire_parity_spec.rb), the dep pins (async-http
+~> 0.95, NO_FARADAY, NO_CATALOG). fast-completions is pure ruby and tart
+consumes the published 0.5.0 gem, so nothing here moves tart's bundle —
+this is dev-env truth for the monorepo, landing on `main`. The diff is one
+line; **the gates are the deliverable**.
+
+## Deliverable shape (frozen)
+
+ONE lane `core`, repo fast-llm, ONE path:
+
+- `.ruby-version` (NEW) — one line, exactly `4.0.9`. Nothing else.
+
+## Law 1 — the pin file
+
+`.ruby-version` at the repo root, content exactly `4.0.9` (one line, one
+trailing newline — the gate pins content and line count). The gemspec
+floor `spec.required_ruby_version = ">= 3.3"` is UNTOUCHED (a floor, not
+the pin); `Gemfile` is UNTOUCHED; `Gemfile.lock` is never hand-edited —
+its only tolerated movement is the DECLARED bundler self-checksum heal
+class (the Grounds' measured single `+  bundler (…) sha256=…` CHECKSUMS
+line, produced by `bundle install` itself at any pristine tree; the
+ruby-pin and scope gates accept exactly it and reject anything else).
+
+## Law 2 — the runtime + bundle verification
+
+In the lane tree: `mise current ruby` and `ruby -v` resolve 4.0.9 (the
+file-content leg is the discriminator — the runtime alone cannot
+discriminate base-vs-lane, the Grounds' mise fact); `bundle install` green
+under 4.0.9; the gem loads under THIS ruby (`require "fast/completions"`,
+`VERSION == "0.5.0"`, `Fast::Completions::Client` defined — the frozen
+ruby-pin gate's load smoke; pure ruby, no native-extension leg exists in
+this repo).
+
+## Law 3 — the carried battery, verbatim, cold
+
+Run the frozen ```gates block VERBATIM (never hand-retype — the I58
+lesson) at the lane tree under 4.0.9: the rspec suite (`bundle exec
+rspec`, the canonical gate — measured base literal **247 examples, 0
+failures**), `parity` (wire_parity_spec.rb — the frozen pi-capture digest
+table, measured **14 examples**), the strict quintet (strict-wire 2,
+strict-unit 21, strict-dialect 3, strict-tool 3, strict-emission 7 —
+measured), `docs` (with the declared release-cut rebase), and the
+re-anchored hygiene pins (`dep-pin`: runtime deps EXACTLY
+`[["async-http", "~> 0.95"]]` + NO_FARADAY; `no-catalog`: NO_CATALOG).
+A count or shape movement on the new runtime (e.g. the suite's 247/0F
+literals, the digest table) is a genuine 4.0.9 behavioral difference:
+itemize-and-defend, never silent. No declared flake classes exist for this
+battery (a ~2 s hermetic suite, no rig/tmux/parallelism) — any RED beyond
+the declared-RED pair is material.
+
+## Law 4 — itemize-and-defend
+
+The touch set is `.ruby-version` ONLY. Anything beyond it is a PHASE 0
+event: a genuine 4.0.9 behavioral difference forcing a change is minimal,
+itemized (old bytes → new bytes), and defended per the standing discipline
+— a silent fix is a defect; a behavioral difference with no test
+consequence is a recorded residual, not churn. The Builder Report carries
+the full 12-gate table with a measured one-liner per gate (an absent gate
+entry is REJECT-class) and the itemization of EVERY deviation (expected:
+zero).
+
+## Tool guidance (exact verification, this session's tested forms)
+
+- Canonical gate anchor: `cd repos/fast-llm && bundle exec rspec` (measured
+  at base under 4.0.9: `247 examples, 0 failures`, ~2.1 s).
+- Pin legs: `cat .ruby-version` → `4.0.9`; `mise current ruby` → `4.0.9`;
+  `ruby -v` → `ruby 4.0.9 (2026-10-23 revision 3e93b23afc) +PRISM
+  [arm64-darwin25]`.
+- Gates: run verbatim from the frozen ```gates block; /bin/sh has NO
+  `set -e` — every comparison gates its own exit; never run gates under
+  nohup (the I85 lesson: SIGHUP→SIG_IGN inherits across exec and cascades
+  false REDs); scratch goes under the repo's gitignored `tmp/` (declare
+  `tmp/fl86*`) or root-level `fl86*` (the scope whitelist's only scratch
+  family). **Scratch must NEVER contain the token `faraday`
+  (case-insensitive)** — the re-anchored dep-pin gate greps the whole
+  tree.
+- provision: `architect provision fast-llm-ruby-4-0-9 --base 0c1949c`
+  (re-verify `git -C repos/fast-llm log --oneline -1 main` == `0c1949c`
+  immediately before dispatch). **Known provision class (the e724afe /
+  I53/I61/I62 precedent):** fast-llm lanes materialize `integration_branch`
+  NIL — the coordinator hand-sets it to **`main`** at provision; the lane
+  lands on `main` (the owner's PR-landing pattern for this repo).
+
+## Boundaries
+
+- MAY touch: exactly `.ruby-version` (NEW) — nothing else.
+- MUST NOT touch: `Gemfile`, `Gemfile.lock` (never hand-edited; the
+  declared heal is tooling-produced and gate-sanctioned), `.rspec`,
+  `gems/completions/**` (lib, spec, fixtures, docs, CHANGELOG, gemspec),
+  `README.md`, `.github/**` — unless a genuine 4.0.9 behavioral difference
+  forces it (Law 4: minimal, itemized, defended; a PHASE 0 event).
+- repos/tart is entirely out of bounds.
+- Builders never commit (`.ruby-version` lands untracked at the lane tree;
+  integration commits it).
+- No new gems, no version changes, no changes to the carried gate battery
+  other than the declared docs rebase + the per-iteration scope rewrite
+  (all frozen in the AC).
+
+## Lane plan
+
+ONE lane (repo fast-llm, the one-path touch set — no overlap possible).
+Effort at dispatch: **medium** — the edit is one line, but the deliverable
+is the battery: a full 12-gate cold run plus the itemize-and-defend
+report.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision fast-llm-ruby-4-0-9`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: fast-llm
+  touch:
+    - .ruby-version
 ```
 
 ## Acceptance Criteria
