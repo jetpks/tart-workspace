@@ -3165,12 +3165,19 @@ project:
     ordinal: 85
     file: architecture/I85-ruby-4-0-9.md
     freeze_sha: 8ac5ddffc8a471c3fe9511dd3cd186006e00e919
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
       touch_set:
       - ".ruby-version"
+      base_sha: 6a054dfd98b69a845d16024d99fec0a6535756de
+      worktree: build/I85-ruby-4-0-9-core/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: 5d41e0fdac084aac355ce78c985b36cdfd1af34288f645cd0fc7e515eac22ad6
       at: '2026-10-24T00:52:50-06:00'
