@@ -3172,12 +3172,21 @@ project:
       touch_set:
       - ".ruby-version"
       base_sha: 6a054dfd98b69a845d16024d99fec0a6535756de
-      worktree: build/I85-ruby-4-0-9-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 0c898c8e7ff59a9cd45140d3d4b61d9d08db63c8
+      bounds_override_reason: 'Touch-set/AC expressiveness gap, not a lane violation:
+        frozen AC1 explicitly sanctions the byte-exact bundler self-checksum heal
+        line on Gemfile.lock (judge-verified: exactly ''+  bundler (4.0.22) sha256=d8d5ec84...a5d75a'',
+        tooling-produced, nothing else moved; 1 file changed, 1 insertion), but the
+        frozen lanes touch-set {.ruby-version} cannot express it. Judge swept the
+        whitelisted t85* scratch families from the worktree before integrate per the
+        I83 precedent; the commit carries .ruby-version + the sanctioned heal line
+        only.'
     rehearsal:
       gates_digest: 5d41e0fdac084aac355ce78c985b36cdfd1af34288f645cd0fc7e515eac22ad6
       at: '2026-10-24T00:52:50-06:00'
