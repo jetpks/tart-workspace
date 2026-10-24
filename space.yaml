@@ -81,7 +81,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: ruby-4-0-9
+  current_iteration: fast-llm-ruby-4-0-9
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -3190,4 +3190,10 @@ project:
     rehearsal:
       gates_digest: 5d41e0fdac084aac355ce78c985b36cdfd1af34288f645cd0fc7e515eac22ad6
       at: '2026-10-24T00:52:50-06:00'
+  - name: fast-llm-ruby-4-0-9
+    ordinal: 86
+    file: architecture/I86-fast-llm-ruby-4-0-9.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
