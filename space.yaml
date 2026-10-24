@@ -3200,6 +3200,13 @@ project:
       repo: fast-llm
       touch_set:
       - ".ruby-version"
+      base_sha: 0c1949c7b53c1c771ebfb6cefba4f8882ae4036a
+      worktree: build/I86-fast-llm-ruby-4-0-9-core/wt
+      integration_branch: main
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: 8c05ed6ddf6ebeb4099aac707ce948bd41b6710e2679d910b9b70015094a855f
       at: '2026-10-24T03:59:14-06:00'
