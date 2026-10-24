@@ -3201,12 +3201,18 @@ project:
       touch_set:
       - ".ruby-version"
       base_sha: 0c1949c7b53c1c771ebfb6cefba4f8882ae4036a
-      worktree: build/I86-fast-llm-ruby-4-0-9-core/wt
-      integration_branch: main
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: 553ce0b4734c6e35c51226c027dcf5b27b879660
+      bounds_override_reason: 'touch-set/AC expressiveness gap (I85 precedent): frozen
+        AC1 + ruby-pin/scope lock legs explicitly sanction the tooling-produced bundler
+        4.0.22 self-checksum heal line (sha256=d8d5ec...5d75a, judge-reproduced byte-exact,
+        1 insertion 0 deletions); the lanes touch glob (.ruby-version only) cannot
+        express it. Not a lane defect.'
     rehearsal:
       gates_digest: 8c05ed6ddf6ebeb4099aac707ce948bd41b6710e2679d910b9b70015094a855f
       at: '2026-10-24T03:59:14-06:00'
