@@ -291,51 +291,298 @@ report.
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse fast-llm-ruby-4-0-9` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze fast-llm-ruby-4-0-9` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# fast-llm-ruby-4-0-9 acceptance criteria
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+Property-level, each independently judgeable. The frozen ```gates block
+below (12 gates: 8 carried from the I63 ARCH FILE with ONE declared
+release-cut rebase, 2 hygiene pins re-anchored byte-verbatim from the I51
+ARCH FILE, 2 new — ruby-pin + the per-iteration scope rewrite) is the
+runnable floor this iteration is judged against; the prose ACs name which
+gate carries which property and what the Builder Report must evidence.
+Calibration: floors from the defect's side only; exactness only where the
+number is itself the deliverable (the `.ruby-version` content, the gemspec
+floor line, the declared lock-heal shape).
 
-**AC1.** ...
+## AC preamble — declared states and the measured base
+
+- **Carried-block provenance.** Extracted from the ARCH FILE
+  (`architecture/I63-strict-sampling-gem.md`, the frozen 9-gate block —
+  never a digest): 8 carried (scope rewritten per-iteration). Declared
+  rebase, the ONLY change to the carried 8: the `docs` gate's
+  `grep -q "^## Unreleased" gems/completions/CHANGELOG.md` leg →
+  `grep -q "^## 0\.4\.0" gems/completions/CHANGELOG.md` — the Unreleased
+  premise expired when the owner cut 0.4.0/0.4.1/0.5.0 (the strict
+  machinery shipped in 0.4.0; measured at base `0c1949c`: the I63 form
+  REDs on exactly that leg, all four other legs GREEN, the rebased form
+  GREEN standalone). Carry audit (`tmp/fllm409-spec/rebase.rb`):
+  rebase-then-invert reproduces the extracted I63 block minus scope
+  byte-identically — `CARRY_AUDIT_OK`. Re-anchored byte-verbatim from the
+  I51 ARCH FILE: `dep-pin`, `no-catalog` (the entry's acceptance
+  direction; dropped from the battery after I51, re-anchored here).
+  Carried/re-anchored gates keep origin `ac:` labels verbatim.
+- **Declared-RED at base `0c1949c`** (each verified STANDALONE this
+  session for EXACTLY its declared reason): `ruby-pin` (the file is absent
+  — exit 1, `FAIL ruby-pin: .ruby-version absent (declared-new)`) and
+  `scope` (the `.ruby-version` must-exist leg — its tracked-diff and lock
+  legs verified GREEN at base first, and the full gate GREEN in a
+  lane-simulation with the pin file written and the lock healed).
+- **GREEN-expected at base:** the other 10 — every one measured
+  standalone this session at base under 4.0.9: `suite` 247 examples / 0
+  failures; `parity` 14/0; `strict-wire` 2/0; `strict-unit` 21/0;
+  `strict-dialect` 3/0; `strict-tool` 3/0; `strict-emission` 7/0; `docs`
+  (post-rebase) STRICT_DOCS_OK; `dep-pin` DEP_PIN_OK + NO_FARADAY_OK;
+  `no-catalog` NO_CATALOG_OK. The rehearsal measures the true vector.
+- **The declared bundler self-checksum heal class** (the Grounds'
+  measurement, the I85 discovery carried): bundler 4.0.22's
+  `bundle install` at a pristine tree adds EXACTLY ONE line —
+  `+  bundler (4.0.22) sha256=d8d5ec84c8555e0af71db63ed7aee4d1a8fb839ec46d84212d61979242a5d75a`
+  — to the lock's CHECKSUMS. The `ruby-pin` and `scope` lock legs accept
+  zero-diff OR exactly this shape and reject anything else; any other
+  Gemfile.lock movement is itemize-and-defend PHASE 0. The lane NEVER
+  hand-edits the lock.
+- **Declared flake classes:** NONE for this battery (a ~2 s hermetic
+  rspec suite; no rig, tmux, or parallelism — tart's classes do not
+  carry). Any RED beyond the declared-RED pair is material.
+- **Base-vs-lane ruby discrimination:** NOT available via the runtime
+  (global mise latest resolves 4.0.9 everywhere — the plan header). The
+  `.ruby-version` file CONTENT is the pin gate; the runtime legs prove
+  the file drives the resolution.
+- **MEASURED REHEARSAL (the stamp):** REHEARSAL_STAMP_PLACEHOLDER
+
+## AC1 — the pin is a committed fact
+
+`.ruby-version` exists at the repo root containing exactly `4.0.9` (one
+line, one trailing newline); the gemspec floor
+`spec.required_ruby_version = ">= 3.3"` is byte-untouched; `Gemfile`
+byte-untouched; `Gemfile.lock` byte-unchanged OR carrying exactly the
+declared bundler self-checksum heal line (anything else is
+itemize-and-defend PHASE 0). Since the runtime cannot discriminate base
+from lane (the preamble's mise fact), the file content itself is THE pin.
+Carried by: `ruby-pin`, `scope`.
+
+## AC2 — the runtime resolves and the bundle is live
+
+`mise current ruby` and `ruby -v` in the lane tree resolve 4.0.9;
+`bundle install` completes green under 4.0.9; the gem loads under THIS
+ruby — `require "fast/completions"`, `Fast::Completions::VERSION ==
+"0.5.0"`, `Fast::Completions::Client` defined (pure ruby; no
+native-extension leg exists in this repo — that class is tart's, I85's
+native-bundle gate). Carried by: `ruby-pin`.
+
+## AC3 — the carried battery green cold on 4.0.9
+
+The whole carried battery green cold at the lane tree under 4.0.9: the
+rspec suite (`bundle exec rspec` — the canonical gate; measured base
+literal **247 examples, 0 failures**), `parity` (wire_parity_spec.rb —
+the frozen pi-capture digest table EXACT: the 13-fixture shape/path/
+SHA256 pin lives inside the spec, wire_parity_spec.rb :76/:269-281;
+measured 14 examples), the strict quintet (strict-wire 2, strict-unit 21,
+strict-dialect 3, strict-tool 3, strict-emission 7 — the measured
+literals), `docs` (post-rebase). The runs/failures literals are expected
+UNCHANGED from these measured values — a count or shape movement is a
+genuine 4.0.9 behavioral difference: itemize-and-defend, never silent.
+Carried by: `suite`, `parity`, `strict-wire`, `strict-unit`,
+`strict-dialect`, `strict-tool`, `strict-emission`, `docs`.
+
+## AC4 — the dep pins and hygiene floor
+
+The gemspec's runtime dependencies are EXACTLY
+`[["async-http", "~> 0.95"]]`; NO faraday token anywhere in the tree
+(NO_FARADAY); NO catalog/pricing/model-id/base-url constants in
+`gems/completions/lib/` (NO_CATALOG). Carried by: `dep-pin`, `no-catalog`
+(re-anchored byte-verbatim from the I51 ARCH FILE).
+
+## AC5 — scope: the frozen one-path touch set, nothing else
+
+Exactly `.ruby-version` NEW; ZERO tracked diff vs `0c1949c` beyond the
+declared Gemfile.lock heal class; the untracked set confined to
+`.ruby-version` + the declared `fl86*` scratch family (repo-gitignored
+tmp/ etc. never appear). Any change forced by a genuine 4.0.9 behavioral
+difference is minimal, itemized, and defended (expected: ZERO — a silent
+fix is a defect; a behavioral difference with no test consequence is a
+recorded residual, not churn). The Builder Report itemizes every frozen
+gate (12/12 — an absent entry is REJECT-class) and every deviation.
+Carried by: `scope` (+ `ruby-pin`'s floor/lock legs; the carried battery
+as the behavioral backstop).
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse fast-llm-ruby-4-0-9` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+- id: suite
+  ac: AC4
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec 2>&1 | grep -E "examples?, 0 failures"
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: parity
+  ac: AC4
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec -O /dev/null gems/completions/spec/fast/completions/wire_parity_spec.rb 2>&1 | grep -E "[1-9][0-9]* examples?, 0 failures"
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: strict-wire
+  ac: AC2
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec -O /dev/null gems/completions/spec/fast/completions/wire_parity_spec.rb -e "zai_strict" 2>&1 | grep -E "[1-9][0-9]* examples?, 0 failures"
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: strict-unit
+  ac: AC3
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec -O /dev/null gems/completions/spec/fast/completions/constrained_sampling_spec.rb 2>&1 | grep -E "[1-9][0-9]* examples?, 0 failures"
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: strict-dialect
+  ac: AC1
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec -O /dev/null gems/completions/spec/fast/completions/dialects_spec.rb -e "supports_strict_mode" 2>&1 | grep -E "[1-9][0-9]* examples?, 0 failures"
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: strict-tool
+  ac: AC1
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec -O /dev/null gems/completions/spec/fast/completions/tool_spec.rb -e "constrained" 2>&1 | grep -E "[1-9][0-9]* examples?, 0 failures"
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: strict-emission
+  ac: AC2
+  cwd: repos/fast-llm
+  cmd: |-
+    bundle exec rspec -O /dev/null gems/completions/spec/fast/completions/protocol_spec.rb -e "strict" 2>&1 | grep -E "[1-9][0-9]* examples?, 0 failures"
+  expect:
+    exit_code: 0
+    stdout_match: 0 failures
+
+- id: docs
+  ac: AC5
+  cwd: repos/fast-llm
+  cmd: |-
+    grep -q "supports_strict_mode" gems/completions/docs/reference/dialects.md && grep -q "constrained_sampling" gems/completions/docs/reference/tools.md && grep -q "ConstrainedSamplingError" gems/completions/docs/reference/errors.md && grep -q "^## 0\.4\.0" gems/completions/CHANGELOG.md && grep -qi "constrained" gems/completions/CHANGELOG.md && echo STRICT_DOCS_OK
+  expect:
+    exit_code: 0
+    stdout_match: STRICT_DOCS_OK
+
+- id: dep-pin
+  ac: AC4
+  cwd: repos/fast-llm
+  cmd: |-
+    set -e
+    ruby -e '
+      spec = Gem::Specification.load("gems/completions/fast-completions.gemspec")
+      abort "gemspec failed to load" unless spec
+      deps = spec.runtime_dependencies.map { |d| [d.name, d.requirement.to_s] }
+      abort "runtime deps must be exactly [async-http ~> 0.95], got #{deps.inspect}" unless deps == [["async-http", "~> 0.95"]]
+      puts "DEP_PIN_OK"
+    '
+    if grep -ri faraday --exclude-dir=.git . | grep -q .; then echo "FARADAY PRESENT"; grep -ri faraday --exclude-dir=.git . | head -5; exit 1; fi
+    echo NO_FARADAY_OK
+  expect:
+    exit_code: 0
+    stdout_match: NO_FARADAY_OK
+
+- id: no-catalog
+  ac: AC4
+  cwd: repos/fast-llm
+  cmd: |-
+    if grep -rniE 'models\.json|pricing|price_per_million|per_million_tokens' gems/completions/lib/ | grep -q .; then
+      echo "CATALOG/PRICING TOKEN PRESENT"; grep -rniE 'models\.json|pricing|price_per_million|per_million_tokens' gems/completions/lib/; exit 1
+    fi
+    if grep -rEn '"(glm|gpt|claude|kimi|grok|gemini|o[13]-|dsr|deepseek-chat|llama)[-_][a-z0-9]' gems/completions/lib/ | grep -q .; then
+      echo "MODEL-ID LITERAL PRESENT"; grep -rEn '"(glm|gpt|claude|kimi|grok|gemini|o[13]-|dsr|deepseek-chat|llama)[-_][a-z0-9]' gems/completions/lib/; exit 1
+    fi
+    if grep -rnE 'https?://[a-z0-9.-]+\.(ai|com|cn)/' gems/completions/lib/ | grep -q .; then
+      echo "PROVIDER BASE-URL CONSTANT PRESENT"; exit 1
+    fi
+    echo NO_CATALOG_OK
+  expect:
+    exit_code: 0
+    stdout_match: NO_CATALOG_OK
+
+- id: ruby-pin
+  ac: AC1
+  cwd: repos/fast-llm
+  cmd: |-
+    # The pin is a committed FILE fact. Base-vs-lane ruby-version
+    # discrimination is NOT available via the runtime alone (global mise
+    # `latest` already resolves 4.0.9 — the plan header), so the
+    # .ruby-version CONTENT is the discriminating leg; the runtime legs
+    # prove the file actually drives the resolution. Declared-RED at base:
+    # the file is absent (declared-new). (I85 tart gate shape, re-anchored:
+    # gemspec path + diff base 0c1949c.)
+    [ -f .ruby-version ] || { echo "FAIL ruby-pin: .ruby-version absent (declared-new)"; exit 1; }
+    content=$(cat .ruby-version)
+    [ "$content" = "4.0.9" ] || { echo "FAIL ruby-pin: content '$content', want exactly 4.0.9"; exit 1; }
+    lines=$(wc -l < .ruby-version | tr -d " ")
+    [ "$lines" = "1" ] || { echo "FAIL ruby-pin: $lines lines, want exactly one"; exit 1; }
+    cur=$(mise current ruby 2>/dev/null || echo unavailable)
+    [ "$cur" = "4.0.9" ] || { echo "FAIL ruby-pin: mise current ruby = '$cur', want 4.0.9"; exit 1; }
+    case "$(ruby -v)" in "ruby 4.0.9 "*) ;; *) echo "FAIL ruby-pin: ruby -v = $(ruby -v)"; exit 1;; esac
+    grep -qF 'spec.required_ruby_version = ">= 3.3"' gems/completions/fast-completions.gemspec || { echo "FAIL ruby-pin: the >= 3.3 gemspec floor moved (ruled a FLOOR, unchanged)"; exit 1; }
+    git diff --quiet 0c1949c -- Gemfile gems/completions/fast-completions.gemspec || { echo "FAIL ruby-pin: Gemfile/gemspec touched"; exit 1; }
+    # bundle install must be green under 4.0.9 (AC2's install leg). Side
+    # effect at any pristine tree: bundler 4.0.22 self-heals its own
+    # CHECKSUMS line into the lock (the DECLARED class below).
+    bundle install --quiet || { echo "FAIL ruby-pin: bundle install not green under 4.0.9"; exit 1; }
+    # The gem's own load smoke (pure ruby — no native-extension leg
+    # needed; tart carries that class, not this repo).
+    bundle exec ruby -e 'require "fast/completions"; abort "VERSION moved" unless Fast::Completions::VERSION == "0.5.0"; abort "Client missing" unless defined?(Fast::Completions::Client); puts "GEM_LOAD_OK"' || { echo "FAIL ruby-pin: gem load smoke"; exit 1; }
+    # Gemfile.lock: byte-unchanged OR exactly the DECLARED bundler
+    # self-checksum heal (measured at spec time, this session: bundler
+    # 4.0.22's `bundle install` adds its own CHECKSUMS line — `bundler
+    # (4.0.22) sha256=d8d5ec84c8555e0af71db63ed7aee4d1a8fb839ec46d84212d6
+    # 1979242a5d75a` — deterministically, under the new runtime; the
+    # battery's own bundle-install legs produce it at any pristine tree).
+    # Any other lock movement is itemize-and-defend PHASE 0.
+    badlock=$(git diff 0c1949c -- Gemfile.lock | grep -E "^[-+][^-+]" | grep -vE "^  bundler \([0-9.]+\) sha256=[0-9a-f]{64}$" || true)
+    [ -z "$badlock" ] || { echo "FAIL ruby-pin: Gemfile.lock moved beyond the declared bundler self-checksum class:"; echo "$badlock"; exit 1; }
+    echo RUBY_PIN_OK
+  expect:
+    exit_code: 0
+    stdout_match: RUBY_PIN_OK
+
+- id: scope
+  ac: AC5
+  cwd: repos/fast-llm
+  cmd: |-
+    # fast-llm-ruby-4-0-9 frozen ONE-path touch set: `.ruby-version` NEW at
+    # the repo root (untracked at the lane tree — builders never commit; the
+    # content pin lives in ruby-pin). HARD-FROZEN with zero TRACKED diff vs
+    # 0c1949c: the whole tree — Gemfile, gems/, spec fixtures, docs — a
+    # ruby-only bump moves nothing tracked; ANY tracked diff is a PHASE 0
+    # event (a genuine 4.0.9 behavioral difference forcing a change is
+    # minimal, itemized, defended — never silent). Gemfile.lock carries ONE
+    # declared exception: the bundler self-checksum heal class (the ruby-pin
+    # comment; a single `+  bundler (...) sha256=...` CHECKSUMS line,
+    # nothing else). Untracked-scratch filter: .ruby-version itself plus the
+    # declared fl86* family (tmp/, pkg/, coverage/, *.gem, .bundle/ are
+    # gitignored in this repo and never appear in git status).
+    if ! git diff --quiet 0c1949c -- . ":(exclude)Gemfile.lock"; then echo "FAIL scope: tracked diff vs 0c1949c beyond the declared Gemfile.lock class — the touch set is .ruby-version only"; git diff --name-only 0c1949c; exit 1; fi
+    badlock=$(git diff 0c1949c -- Gemfile.lock | grep -E "^[-+][^-+]" | grep -vE "^  bundler \([0-9.]+\) sha256=[0-9a-f]{64}$" || true)
+    [ -z "$badlock" ] || { echo "FAIL scope: Gemfile.lock moved beyond the declared bundler self-checksum class:"; echo "$badlock"; exit 1; }
+    [ -f .ruby-version ] || { echo "FAIL scope: .ruby-version absent (declared-new)"; exit 1; }
+    if (git status --porcelain | grep "^??" | cut -c4-) | grep -vE "^(\.ruby-version|fl86[0-9a-zA-Z.]*/?)$" | grep -q .; then
+      echo "FAIL scope: out-of-bounds untracked paths:"; (git status --porcelain | grep "^??" | cut -c4-) | grep -vE "^(\.ruby-version|fl86[0-9a-zA-Z.]*/?)$"; exit 1
+    fi
+    echo SCOPE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_OK
 ```
 
 ## Builder Prompt
