@@ -587,10 +587,84 @@ as the behavioral backstop).
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I86-fast-llm-ruby-4-0-9-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section fast-llm-ruby-4-0-9 prompt --append --lane <lane> --from build/I86-fast-llm-ruby-4-0-9-<lane>/prompt.md`. -->
+### core
+
+# Builder Prompt — fast-llm-ruby-4-0-9, lane `core` (repo fast-llm)
+
+RUBY-PIN PROGRAM ENTRY 2. The full contract is the frozen arch file
+`architecture/I86-fast-llm-ruby-4-0-9.md` (Grounds / Specification /
+Acceptance Criteria + the 12-gate frozen ```gates block). This prompt is
+the operational summary — the arch file governs on any conflict.
+
+## The task
+
+Make fast-llm's ruby a committed repo fact and prove the gem's settled
+surface on it:
+
+1. Write `.ruby-version` at the lane-tree repo root: exactly `4.0.9`, one
+   line, one trailing newline. NOTHING else is in the touch set.
+2. `bundle install` under 4.0.9 (green; ~5 s measured at base). EXPECTED
+   SIDE EFFECT, declared and gate-sanctioned: bundler 4.0.22 self-heals
+   its own CHECKSUMS line into Gemfile.lock — EXACTLY
+   `+  bundler (4.0.22) sha256=d8d5ec84c8555e0af71db63ed7aee4d1a8fb839ec46d84212d61979242a5d75a`
+   (measured at spec time). NEVER hand-edit the lock; any other lock
+   movement is a PHASE 0 itemize-and-defend event.
+3. Run the frozen 12-gate battery VERBATIM from the arch file's ```gates
+   block (never hand-retype — the I58 lesson) at the lane tree and record
+   every result.
+
+## Declared base states (measured at spec time, base `0c1949c`, ruby 4.0.9)
+
+- Declared-RED at base (by construction — the file is absent):
+  `ruby-pin`, `scope`. At YOUR lane tree they must be GREEN.
+- GREEN-expected at base (all measured standalone at spec time):
+  `suite` 247 examples / 0 failures; `parity` 14/0; `strict-wire` 2/0;
+  `strict-unit` 21/0; `strict-dialect` 3/0; `strict-tool` 3/0;
+  `strict-emission` 7/0; `docs` STRICT_DOCS_OK; `dep-pin` DEP_PIN_OK +
+  NO_FARADAY_OK; `no-catalog` NO_CATALOG_OK.
+- NO declared flake classes exist for this battery. Any RED at the lane
+  tree is material: if it is a genuine 4.0.9 behavioral difference, STOP
+  on that gate, itemize (old bytes → new bytes) and defend — never fix
+  silently. Expected deviations: ZERO.
+
+## Hard rules
+
+- Builders NEVER commit. `.ruby-version` lands untracked; the integrator
+  commits it.
+- Touch set: `.ruby-version` ONLY. MUST NOT touch Gemfile, Gemfile.lock
+  (hand), .rspec, gems/completions/** (lib/spec/fixtures/docs/CHANGELOG/
+  gemspec), README.md, .github/**. repos/tart is entirely out of bounds.
+- Gates: /bin/sh has NO `set -e` — every comparison gates its own exit;
+  NEVER run gates under nohup (SIGHUP→SIG_IGN inherits across exec and
+  cascades false REDs — the I85 lesson); scratch under the repo's
+  gitignored `tmp/` (`tmp/fl86*`) or root-level `fl86*` only; scratch must
+  NEVER contain the token `faraday` (case-insensitive — the dep-pin gate
+  greps the whole tree).
+- Base-vs-lane ruby discrimination is NOT available via the runtime
+  (global mise latest resolves 4.0.9 everywhere). The `.ruby-version`
+  file CONTENT is the pin gate.
+
+## Verification commands (exact, tested at spec time)
+
+- Canonical gate: `bundle exec rspec` → expect `247 examples, 0 failures`.
+- Pin legs: `cat .ruby-version` → `4.0.9`; `mise current ruby` → `4.0.9`;
+  `ruby -v` → `ruby 4.0.9 (2026-10-23 revision 3e93b23afc) +PRISM
+  [arm64-darwin25]`.
+- Load smoke: `bundle exec ruby -e 'require "fast/completions"; abort
+  unless Fast::Completions::VERSION == "0.5.0" &&
+  defined?(Fast::Completions::Client)'`.
+- Full battery: run each gate's `cmd` verbatim from the frozen block in
+  the lane tree root context (each gate carries `cwd: repos/fast-llm` —
+  at the lane tree that is the worktree root).
+
+## Builder Report shape
+
+Report raw results only: the one-file diff confirmation (`.ruby-version`
+bytes); the bundle-install outcome and the EXACT lock movement (expected:
+the one declared heal line or zero); the full 12-gate table with a
+measured one-liner per gate (an absent gate entry is REJECT-class) —
+suite literal counts included; and the itemize-and-defend table for EVERY
+deviation from the frozen touch set or expected literals (expected: zero).
 
 ## Builder Report
 
