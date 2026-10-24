@@ -668,11 +668,120 @@ deviation from the frozen touch set or expected literals (expected: zero).
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I86-fast-llm-ruby-4-0-9-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence fast-llm-ruby-4-0-9 --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# Builder Report — fast-llm-ruby-4-0-9, lane `core` (repo fast-llm)
+
+Lane tree: `build/I86-fast-llm-ruby-4-0-9-core/wt` @ `0c1949c7b53c1c771ebfb6cefba4f8882ae4036a`
+(branch `lane/I86-fast-llm-ruby-4-0-9-core`). Builders never commit — HEAD unchanged at
+exit; the full diff is left uncommitted for the integrator.
+
+## 1. The pin file (one-file diff confirmation)
+
+`.ruby-version` (NEW, untracked) at the lane-tree repo root:
+
+- `xxd .ruby-version` → `00000000: 342e 302e 390a                           4.0.9.`
+- bytes: 6 = `34 2e 30 2e 39 0a` — exactly `4.0.9` plus one trailing newline
+- `wc -l .ruby-version` → `1`
+- `cat .ruby-version` → `4.0.9`
+
+## 2. bundle install under 4.0.9 + EXACT lock movement
+
+- runtime legs: `mise current ruby` → `4.0.9`; `ruby -v` → `ruby 4.0.9 (2026-10-23
+  revision 3e93b23afc) +PRISM [arm64-darwin25]`; bundler `4.0.22`
+- pre-install `git diff 0c1949c --stat` → empty (tree pristine)
+- `bundle install --quiet` → exit 0, `real 0m0.187s` (gems warm; the ~5 s base figure
+  was cold)
+- EXACT lock movement — `git diff 0c1949c -- Gemfile.lock`, verbatim:
+
+```
+diff --git c/Gemfile.lock w/Gemfile.lock
+index 9f5429b..6385589 100644
+--- c/Gemfile.lock
++++ w/Gemfile.lock
+@@ -74,6 +74,7 @@ CHECKSUMS
+   async (2.46.0) sha256=34f984733dbf63a997376346451ec995e858cacc3105e86ccfeaf8877b4f490b
+   async-http (0.105.0) sha256=55191969d5cf61be5fbc2e0aadd51d77085318ba192a5ff5e12e3aba0826906a
+   async-pool (0.12.0) sha256=5580493dc024bd704dab2ed0bf1307100722e49cbb825c7965f8501194f58506
++  bundler (4.0.22) sha256=d8d5ec84c8555e0af71db63ed7aee4d1a8fb839ec46d84212d61979242a5d75a
+   console (1.38.0) sha256=35b82f59130e95e9be6b832d9e539c8b3988fc192e4a8e9a86ab4922f44ad5de
+   diff-lcs (1.6.2) sha256=9ae0d2cba7d4df3075fe8cd8602a8604993efc0dfa934cff568969efb1909962
+   fast-completions (0.5.0)
+```
+
+- `git diff 0c1949c --stat` → `Gemfile.lock | 1 +` — `1 file changed, 1 insertion(+)`.
+  The inserted line is byte-identical to the declared heal literal (bundler 4.0.22,
+  sha256 `d8d5ec…5d75a`), in sorted position between async-pool and console. No other
+  movement. Lock never hand-edited.
+- Load smoke, prompt form: `bundle exec ruby -e 'require "fast/completions"; abort
+  unless Fast::Completions::VERSION == "0.5.0" && defined?(Fast::Completions::Client)'`
+  → exit 0. Gate form (inside ruby-pin) printed `GEM_LOAD_OK`.
+
+## 3. The frozen 12-gate battery — run VERBATIM from the arch-file ```gates block
+
+Method: gates block extracted from
+`architecture/I86-fast-llm-ruby-4-0-9.md` by awk fence-scan, YAML-parsed (12 gates,
+ids verified), each gate's `cmd` executed via `/bin/sh -c` with cwd = lane tree root
+(the `repos/fast-llm` mapping), foreground, no nohup; exit code + stdout captured;
+frozen `expect` (exit_code 0 + stdout_match) evaluated per gate. Never hand-retyped.
+
+| # | gate            | exit (want) | stdout_match (want) | measured stdout              | verdict |
+|---|-----------------|-------------|---------------------|------------------------------|---------|
+| 1 | suite           | 0 (0)       | "0 failures" HIT    | `247 examples, 0 failures`   | GREEN   |
+| 2 | parity          | 0 (0)       | "0 failures" HIT    | `14 examples, 0 failures`    | GREEN   |
+| 3 | strict-wire     | 0 (0)       | "0 failures" HIT    | `2 examples, 0 failures`     | GREEN   |
+| 4 | strict-unit     | 0 (0)       | "0 failures" HIT    | `21 examples, 0 failures`    | GREEN   |
+| 5 | strict-dialect  | 0 (0)       | "0 failures" HIT    | `3 examples, 0 failures`     | GREEN   |
+| 6 | strict-tool     | 0 (0)       | "0 failures" HIT    | `3 examples, 0 failures`     | GREEN   |
+| 7 | strict-emission | 0 (0)       | "0 failures" HIT    | `7 examples, 0 failures`     | GREEN   |
+| 8 | docs            | 0 (0)       | STRICT_DOCS_OK HIT  | `STRICT_DOCS_OK`             | GREEN   |
+| 9 | dep-pin         | 0 (0)       | NO_FARADAY_OK HIT   | `DEP_PIN_OK` + `NO_FARADAY_OK` | GREEN |
+| 10| no-catalog      | 0 (0)       | NO_CATALOG_OK HIT   | `NO_CATALOG_OK`              | GREEN   |
+| 11| ruby-pin        | 0 (0)       | RUBY_PIN_OK HIT     | `GEM_LOAD_OK` + `RUBY_PIN_OK` | GREEN  |
+| 12| scope           | 0 (0)       | SCOPE_OK HIT        | `SCOPE_OK`                   | GREEN   |
+
+TOTAL: 12 GREEN / 0 RED / 0 BROKEN / 0 EMPTY. Every runs/failures literal equals the
+measured base value (suite 247/0; parity 14/0; strict quintet 2/21/3/3/7 — all with
+0 failures). stderr empty on all 12 gates.
+
+## 4. Itemize-and-defend — deviations from the frozen touch set / expected literals
+
+| # | deviation | old bytes → new bytes | defense |
+|---|-----------|-----------------------|---------|
+| — | NONE      | —                     | —       |
+
+Zero deviations. Final `git status --porcelain` (verbatim):
+
+```
+ M Gemfile.lock
+?? .ruby-version
+```
+
+Tracked diff vs `0c1949c` confined to Gemfile.lock's single declared heal line;
+untracked set confined to `.ruby-version`; HEAD `0c1949c` (no commits, nothing staged).
+
+## 5. PHASE 0 notes (recorded observations — no spec change requested)
+
+- Carry audit re-performed at execution time (not trusted from prose): the I86 gates
+  block, the I63 block (`architecture/I63-strict-sampling-gem.md:511`), and the I51
+  block (`architecture/I51-fast-completions-gem.md:1208`) were extracted and
+  YAML-parsed. Result: 7 carried gates byte-identical I63→I86; `docs` differs on
+  exactly the one declared leg (`grep -q "^## Unreleased" …` → `grep -q "^## 0\.4\.0" …`);
+  `dep-pin` + `no-catalog` byte-identical I51→I86 (including dep-pin's `set -e`).
+- Carried gates' `ac:` labels are the verbatim I63 origin labels (declared house
+  convention; the prose ACs name the gate→AC mapping).
+- Scratch location note: the gates-block extraction and runner live in the lane build
+  dir `build/I86-fast-llm-ruby-4-0-9-core/scratch/`, OUTSIDE the repo tree, because the
+  verbatim dep-pin gate cmd text itself contains the token that gate greps the whole
+  tree for — and plain `grep -r` ignores .gitignore, so even gitignored `tmp/fl86*`
+  scratch holding the extraction would trip dep-pin. An initial extraction briefly
+  placed under `wt/tmp/fl86/` was relocated before any gate ran and `wt/tmp` removed;
+  the tree was swept post-run (`grep -ril <token> --exclude-dir=.git .`) → zero hits.
+  No `tmp/` or `fl86*` paths remain in the repo tree.
+- bundle install ran warm (0.19 s vs the ~5 s cold base figure) — same exit-0 outcome;
+  heal line identical.
+
+STATUS: COMPLETE
 
 ## Verdict
 
