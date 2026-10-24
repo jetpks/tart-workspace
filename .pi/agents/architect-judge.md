@@ -2,7 +2,7 @@
 name: architect-judge
 description: "Judges one iteration cold: gate, per-AC verdicts, PHASE 0 rulings, then integrate or kill."
 tools: read, grep, find, ls, bash, edit, write
-model: zai/glm-5.3
+model: kimi-coding/k3
 thinking: high
 systemPromptMode: replace
 inheritProjectContext: true
