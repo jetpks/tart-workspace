@@ -478,15 +478,53 @@ the watchdog budgets, the byte-frozen sentinels).
   `tmp/t88-spec/probe-amplifier.log`); the idle standalone leg went
   GREEN ×32 in the same probe. A base firing is the live class; a
   POST-CURE red on either leg is REAL.
-- **GREEN-expected at base:** `deflake-par-streak` /
-  `deflake-interrupt-streak` / `deflake-drain-streak` (the (a)/(f)
-  regression proofs — the I87 cure landed; the judge record: 27
-  consecutive judge-cold full runs zero (a)/(f) firings),
-  `deflake-no-widening` (the belt landed at I87; the sleep-audit leg
-  vacuous over the I87 touch set), `ruby-pin`/`native-bundle` (the
-  landed re-verification guards). Every other carried member is
-  GREEN-expected per the I87 rehearsal + judge ledger at this tree
-  content; the rehearsal measures the true vector.
+- **GREEN-expected at base:** `deflake-interrupt-streak` /
+  `deflake-drain-streak` (the (a)/(f) regression proofs — the I87 cure
+  landed; the judge record: 27 consecutive judge-cold full runs zero
+  (a)/(f) firings), `deflake-no-widening` (the belt landed at I87; the
+  sleep-audit leg vacuous over the I87 touch set),
+  `ruby-pin`/`native-bundle` (the landed re-verification guards).
+  Every other carried member is GREEN-expected per the I87 rehearsal +
+  judge ledger at this tree content; the rehearsal measures the true
+  vector.
+- **`deflake-par-streak` at base — GREEN-expected w.r.t. the (a)/(f)
+  signatures, with the LIVE-TOCTOU exposure declared.** The gate breaks
+  its 16-run streak on ANY red run, and at base the live intercom-TOCTOU
+  class still rides every full `rake test:par` run — at p ≈ 0.103/run
+  the streak carries ~82% probability of ≥1 TOCTOU firing
+  (1−(1−p)^16). A base RED whose preserved worker log carries the
+  TOCTOU signature is the declared live class (cured by this
+  iteration), never a spec defect; a base RED on an (a)/(f) signature
+  is REAL. Measured this session (the rehearsal): RED at run 6 of 16 on
+  EXACTLY the TOCTOU signature —
+  `test_progress_requests_never_surface_and_are_consumed` :300 →
+  `request_path` :711 `IO.read` `Errno::ENOENT` on a vanished
+  `supervisor-requests/*.json` (worker log preserved at
+  `tmp/t88-spec/rehearse-deflake-par-streak-r6-failing-worker.log`).
+  Post-cure the gate is GREEN-expected outright — the class is off the
+  live record.
+- **The measured rehearsal vector (the fresh stamp, base `5ee64ce`,
+  this session).** `architect rehearse intercom-toctou --color never`
+  (detached 2026-10-25T13:58→14:51 -06:00, ~53 min wall,
+  REHEARSE_EC=0; transcript
+  `build/rehearse/I88-intercom-toctou-20261025T135822.386695.md`):
+  **GREEN 105 / RED 5 / BROKEN 1** — every non-green mapped to a
+  declared or measured base state, no spec defect found:
+  `scope` RED (the declared must-differ leg, the verbatim declared
+  message); `toctou-pin-units` RED (pins absent — `pin runs=0`, the
+  declared base state); `toctou-no-widening` RED (the declared audit
+  leg — 2 ParserError-only rescue lines survive at :712/:736);
+  `toctou-par-streak` RED (the declared LIVE class — fired at run 1 of
+  38 on the exact TOCTOU signature, worker log preserved at
+  `tmp/t88-spec/rehearse-toctou-par-streak-r1-failing-worker.log`);
+  `deflake-par-streak` RED (the same LIVE class at run 6 of 16 — the
+  bullet above); `deflake-drain-streak` BROKEN (the declared runner-cap
+  artifact — the 900 s runner SIGTERM landed mid steal-leg with its
+  standalone ×16 leg GREEN before the cap; adjudicated per the
+  runner-cap declaration below). `toctou-amplifier` GREEN at base
+  (declared RED-POSSIBLE — the ×32 idle + ×16 steal legs happened not
+  to fire this pass; the gate's detection power stands proven by its
+  spec-time base probe, `tmp/t88-spec/probe-amplifier.log`).
 - **The runner-cap declaration.** `toctou-par-streak` (~30 min),
   `deflake-par-streak` (~13 min) and `deflake-drain-streak` (~25 min)
   EXCEED the official gate runner's 900 s per-gate cap BY CONSTRUCTION
