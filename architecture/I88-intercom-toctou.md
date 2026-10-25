@@ -228,34 +228,198 @@ classes — they ride as declared).
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section intercom-toctou specification --from <file>`. -->
+# I88 specification — intercom-toctou
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+## Objective
+
+Cure the intercom-TOCTOU ENOENT loud-red class at the ROOT, so the
+suite runs clean of it under parallel load on ruby 4.0.9: **measured,
+not asserted**. BRIEF §8's daily-driver bar: a battery that cries wolf
+trains its operator to ignore red. The race is code-evident (the
+Grounds' audit map): test helpers in `test/subagents_intercom_test.rb`
+glob then read request files that the channel's consumer may unlink in
+between, rescuing only `JSON::ParserError`. The cure removes the
+mechanism — ENOENT tolerance at EVERY such site — never the timing
+window.
+
+## Deliverable shape (frozen)
+
+ONE lane `core`, repo tart, frozen touch set:
+
+- `test/subagents_intercom_test.rb` — the whole-class cure AND its
+  hermetic pins (new test methods in the same file, named with the
+  `toctou` token per the frozen naming rule).
+
+No other file. No new file is sanctioned (the helpers are private to
+the test class — the pins' natural home is the same file). No
+production `lib/` change: the production channel is already
+ENOENT-immune (the Grounds' verified record); forensics contradicting
+that record is a **PHASE 0 stop for owner ruling** (the plan's
+letter).
+
+## Law 0 — audit first, immunity confirmed, mechanism named
+
+BEFORE any fix: (1) enumerate EVERY glob→read and stat→read site in
+`test/subagents_intercom_test.rb` — the Grounds map five racy sites
+(`request_path` :709-716, `request_file` :733-738,
+`read_single_request` :718-723, the answerer-thread reads at :170 and
+:223) plus two declared-non-racy (:365 stat-only, :373 self-written
+reply read); confirm or EXTEND the map (any site the Grounds missed is
+added to the audit table with its disposition); (2) re-confirm at the
+lane tree that the production channel (`lib/tart/subagents/
+supervisor.rb` sweep/consume/read paths) tolerates the vanished file —
+if NOT, STOP: PHASE 0, owner ruling; (3) state the race mechanism
+precisely per site (who unlinks, between which two calls). A fix
+without the audit table and the per-site mechanism is a defect.
+
+## Law 1 — the whole-class cure (ENOENT tolerance, per-site semantics)
+
+Every racy site tolerates the vanished file. The judge's named
+candidate, frozen as the shape for the find helpers: the `find` block
+rescues `Errno::ENOENT` alongside `JSON::ParserError`, returning
+`false` (a vanished file is not the marker — for the firing test, gone
+IS the awaited consumed state). Per-site semantics:
+
+- **`request_path` / `request_file`**: vanish → non-match (`false` in
+  the `find` block); the missing-marker fallback path is unchanged.
+- **The answerer threads (:170, :223)**: vanish → skip and continue
+  the thread's EXISTING poll loop (the loop's normal next iteration —
+  NOT a timed-retry cure; no new retry machinery, no backoff, no
+  added sleep).
+- **`read_single_request`**: vanish → a controlled, honest failure
+  (a distinct flunk naming the vanish) — its payload is required by
+  the caller; an uncaught raw `Errno::ENOENT` is the defect, a named
+  flunk is not a flake. (If forensics show a genuinely benign vanish
+  path here, the builder itemizes the alternative.)
+- Any site the Grounds map missed: same discipline, itemized.
+
+The single-line combined-rescue shape (`rescue JSON::ParserError,
+Errno::ENOENT`) is frozen for the two find helpers (the
+`toctou-no-widening` gate's audit leg is the mechanical backstop); the
+other sites' ENOENT tolerance structure is the builder's, itemized.
+
+Hard requirements: asserted properties and test NAMES unchanged (no
+test deleted, none renamed — the amplifier's frozen filter must keep
+selecting exactly 2 runs); every existing assertion stands —
+strengthened, never weakened; NEVER raise any deadline
+(`test/test_helper.rb` is hard-frozen; the file's own 5/10/20 s
+deadlines stay), never add a sleep, never pad a poll interval, never
+a timed retry as the cure mechanism.
+
+## Law 2 — the hermetic pins (new in-file tests)
+
+New test methods IN `test/subagents_intercom_test.rb`, each named with
+the `toctou` token (the frozen naming rule — the `toctou-pin-units`
+gate selects them by `/toctou/`), proving hermetically:
+
+1. **Vanish tolerated**: a staged request file that disappears between
+   the helper's glob and its read does NOT raise — deterministic
+   staging (e.g. a `Dir.glob` stub that unlinks the staged file before
+   returning its path, or an equivalent deterministic interposition the
+   builder itemizes), applied to the cured find-helper shape.
+2. **Found-marker preserved**: the helper still finds a staged marker
+   request among others (the pre-cure happy path, byte-preserved
+   semantics).
+3. **Missing-marker preserved**: the helper's missing-marker fallback
+   (`missing.json` / nil per helper) is unchanged when no marker
+   exists.
+
+The suite's run count grows by EXACTLY the declared new pins (≥ 3; the
+growth is itemized in the Builder Report; any other count movement is
+itemize-and-defend, never silent).
+
+## Law 3 — nothing weakens (the belt-and-timeouts law)
+
+Byte-frozen vs `5ee64ce` (the `toctou-no-widening` gate is the
+mechanical backstop): `test/test_helper.rb`, `Rakefile`,
+`test/support/signal_hygiene_harness.rb`,
+`test/support/parallel_runner.rb`. ZERO added `sleep` statements in the
+diff. ZERO production bytes (`lib/`, `gems/`, `bin/`, `bench/`). Every
+timing literal the fix touches — expectation: NONE — is itemized
+old→new with the reason it is not a widening. Every existing
+watchdog/belt/deadline stays or tightens.
+
+## Law 4 — the cure bar is MEASURED
+
+The frozen bar (the AC preamble carries the N = 38 defense):
+
+- **The streak**: **38** consecutive full `rake test:par` runs at the
+  lane tree with ZERO intercom-TOCTOU firings — every run exit 0,
+  clean `PARALLEL_OK` (0F/0E), well-formed `COVERAGE_OK` (the
+  `toctou-par-streak` gate; a red run breaks the streak and preserves
+  the failing worker log; a red whose signature is a STANDING declared
+  class rides the standing note-and-pass adjudication at judge time —
+  zero lane attribution unless the diff proves otherwise).
+- **The amplifier**: the two named channel-consumer tests
+  (`test_progress_requests_never_surface_and_are_consumed`,
+  `test_lifecycle_sweep_reply_expiry_and_terminal_runs`) ×32 standalone
+  + ×16 under deliberate 8-way CPU steal, every iteration under a hard
+  60 s wall watchdog (`toctou-amplifier` — the gate FIRED the live
+  class at base under steal at spec time; it has demonstrated
+  detection power).
+- **The pins**: `toctou-pin-units` GREEN at the lane tree (≥ 3 pin
+  runs by the `/toctou/` filter).
+- **The floor**: serial `rake test` green AND ≤ 240 s wall (the
+  carried timed `suite` gate — the one-full-suite-run-per-battery fold
+  holds), and the whole carried 106-gate battery green cold at the
+  lane tree (the remaining declared classes ride as declared).
+- The Builder Report carries: the audit table (every site, its
+  mechanism, its disposition), the production-immunity re-confirmation
+  with line citations, the per-edit itemization (old bytes → new
+  bytes), the full 111-gate table with a measured one-liner per gate
+  (an absent gate entry is REJECT-class), the streak logs' summary
+  lines, and the suite runs/skips literal with the declared new-pin
+  growth.
+
+## Tool guidance (exact verification, this session's tested forms)
+
+- Parallel run: `cd repos/tart && bundle exec rake test:par`
+  (measured 41.4 s at base this session, 8 workers, 1497/5S).
+- Serial gate anchor: `bundle exec rake` (I87 judge-cold at this tree
+  content: 1497 runs / 0F / 0E / 5S / 221–222 s).
+- The named amplifier pair standalone (measured ~1.3 s idle at base,
+  green): `bundle exec ruby -Itest -Ilib test/subagents_intercom_test.rb
+  -n "/test_progress_requests_never_surface_and_are_consumed|test_lifecycle_sweep_reply_expiry_and_terminal_runs/"`
+  → exactly `2 runs, 15 assertions`.
+- Gates: run verbatim from the frozen ```gates block; /bin/sh has NO
+  `set -e` — EVERY comparison gates its own exit (a `bundle exec ruby`
+  abort does NOT stop the gate — capture `ec=$?`); never gates under
+  nohup (the I85 SIGHUP-inheritance lesson); gate gem-home anchors use
+  `Gem.default_dir`, never `Gem.dir`.
+- provision: `architect provision intercom-toctou --base 5ee64ce`
+  (origin/main holds squashed PR merges — re-verify `git -C repos/tart
+  merge-base --is-ancestor 5ee64ce origin/main` FAILS immediately
+  before dispatch; measured FAIL this session).
+
+## Boundaries
+
+- MAY touch: `test/subagents_intercom_test.rb` ONLY.
+- MUST NOT touch: `.ruby-version`, `Gemfile`, `Gemfile.lock`,
+  `tart.gemspec`, `Rakefile`, `test/test_helper.rb`,
+  `test/support/signal_hygiene_harness.rb`,
+  `test/support/parallel_runner.rb`, every other test file,
+  `lib/**`, `gems/**`, `bin/`, `bench/`, `architecture/`.
+- Builders never commit (lane work lands modified-untracked at the
+  lane tree; integration commits it).
+- No new gems, no rig changes, no new files, no timeout widened, no
+  sleep added, no timed-retry cure, no belt weakened or removed, no
+  test renamed or deleted.
+- Production-immunity surprise: PHASE 0, owner ruling (the plan's
+  letter).
+
+## Lane plan
+
+ONE lane (repo tart; the one-file touch set overlaps nothing). Effort
+at dispatch: **high** — the diff is small, but the deliverable is the
+audit plus the measured bar: a full 111-gate cold battery whose streak
+gates alone run ~45 min, plus the amplifier and the carried drain/
+interrupt streaks.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision intercom-toctou`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - test/subagents_intercom_test.rb
 ```
 
 ## Acceptance Criteria
