@@ -3229,12 +3229,18 @@ project:
       - test/subagents_e2e_test.rb
       - test/support/mock_llm_server.rb
       base_sha: 40ed92bceed288eb596c4962f46d114792f912f7
-      worktree: build/I87-suite-deflake-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: dc04d5f95f153a17bf6d4b858676c218b1d5c602
+      bounds_override_reason: 'core: the AC6-sanctioned ONE NEW test/support file
+        (mock_llm_match_test.rb, the 6 declared match: pins) sits outside the frozen
+        3-path touch-set glob by the contract''s own design; judge-verified the post-cleanup
+        changed-set is EXACTLY the 3 frozen files + that 1 file (t87* gate scratch
+        swept pre-integrate); no-builder-commits check never overridden'
     rehearsal:
       gates_digest: 76ab9400320763e9aaa21a40f6e60a5655c6d0dfddec6a714e9ae9fc1cc48626
       at: '2026-10-24T21:18:22-06:00'
