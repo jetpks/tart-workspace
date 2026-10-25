@@ -81,7 +81,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: suite-deflake
+  current_iteration: intercom-toctou
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -3244,4 +3244,10 @@ project:
     rehearsal:
       gates_digest: 76ab9400320763e9aaa21a40f6e60a5655c6d0dfddec6a714e9ae9fc1cc48626
       at: '2026-10-24T21:18:22-06:00'
+  - name: intercom-toctou
+    ordinal: 88
+    file: architecture/I88-intercom-toctou.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
