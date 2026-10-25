@@ -3692,15 +3692,241 @@ STATUS: COMPLETE
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section suite-deflake verdict --from <file>`. -->
+# I87 suite-deflake — Verdict
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify suite-deflake`)?
+**CONTINUE.** One lane `core` (repo tart). Judged in a fresh session against the
+frozen contract (freeze SHA `01cfa4c5`, freeze commit `6633bb8`); the builder's
+report transcribed verbatim (`architect evidence` → `cbbeb9d4`).
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+## Mechanical post-flight
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+- `architect verify suite-deflake`: (a) frozen sections untouched PASS
+  (`git diff 01cfa4c5 HEAD -- architecture/I87-suite-deflake.md` empty at
+  post-flight); (b) no builder commits PASS (`git -C …/wt log 40ed92b..`
+  empty); (c) report exists PASS; (d) in-bounds FAIL — mechanical only: the
+  frozen 3-path touch-set glob cannot express the AC6-sanctioned ONE NEW
+  `test/support/[a-z0-9_]+\.rb` file (`test/support/mock_llm_match_test.rb`).
+  After judge-side cleanup of the regenerable `t87*` gate-scratch dirs (the
+  I72/I75 pre-integrate discipline), the worktree changed-set is EXACTLY the
+  3-file frozen touch set + the 1 sanctioned new file. The override is
+  recorded non-silently via `--accept-bounds` at integrate (I69/I77/I80
+  pattern).
+- `Gemfile.lock` byte-unchanged; zero production bytes (`lib/ gems/ bin/
+  bench/` clean vs `40ed92b`); zero added sleeps in the diff (grep leg
+  re-run by this judge: 0); the temporary forensics instrumentation fully
+  reverted (0 `I87WaitProbe` bytes in the final diff).
+
+## PHASE 0 rulings
+
+The builder raised **ZERO** PHASE 0 disagreements (explicit "NONE"). The
+spec digest's four open questions are answered by this judge:
+
+1. **W1 vs W2 (the operative class-(a) mechanism) — RESOLVED: both refuted
+   in their literal forms; ACCEPT the lane's refinement.** The preserved
+   instrument dump (`scratch/forensics/i87-forensics-14617.json`,
+   judge-read) shows `interrupt_work!` FINDING both tasks alive
+   (`found=true, tasks_alive=[true,true]` at t=26.6235 — refuting W1's
+   dropped-before-registration), then NOTHING for 5 s: `tasks=[nil,nil]`,
+   `interrupted?=false`, `@in_run=true`, **`server_requests=0`** — the
+   request never hit the wire, so the fiber was parked pre-IO and
+   `Task#stop`'s cancellation was never DELIVERED (async 2.46.0 /
+   io-event 1.22.1 / ruby 4.0.9 stack). This is not W2's starved-teardown
+   either (no teardown ever started). Law 1's frozen property maps exactly
+   onto the measured mechanism: gating ESC on (request captured) AND
+   (3 chunks rendered) guarantees the fiber is parked at the SSE read —
+   the state where cancellation delivery is the exercised mechanism. The
+   refinement strengthens the contract; the cure shape is precisely Law
+   1's letter.
+2. **Does the (a) cure need a minimal production change? — NO, and none is
+   sanctioned.** The delivery failure localizes BELOW tart's seams (the
+   async/io-event/fiber layers, production-frozen); Law 3 permits
+   production bytes only for a proven tart defect, and the forensics prove
+   the tart-side code (`interrupt_work!`) did its part. The test-side
+   handshake cure is the sanctioned shape. RESIDUAL (owner-facing): a
+   real-user ESC landing inside the pre-IO window under load can still
+   stick a run the same way — a candidate problems.md note / future
+   production hardening entry, NOT this iteration's scope.
+3. **Drain-streak steal-leg walls at the lane tree — measured fine.** The
+   verbatim standalone cold run: `DEFLAKE_DRAIN_OK standalone=16 steal=8`
+   (24 iterations inside their 300 s watchdogs).
+4. **The two cap-exceeding gates vs the runner — confirmed and
+   adjudicated per the frozen declaration.** Neither gate carries a
+   `timeout:` override, so the runner's 900 s cap applies:
+   `deflake-drain-streak` was SIGTERM'd mid-steal-leg after printing
+   "standalone x16 green" — a declared runner artifact; the verbatim
+   standalone cold re-run (the operative record, I77/I80 precedent) is
+   GREEN. `deflake-par-streak` ran to its own verdict inside the cap
+   (664–780 s envelopes) — its REDs are NOT runner artifacts; see the
+   adjudication below.
+
+## Judge-cold battery ledger (`architect gate suite-deflake core`, transcript
+## `build/gate/I87-suite-deflake-20261025T011142.645817.md`)
+
+102/107 PASS direct under the runner, cold, at the lane tree. The 5 REDs,
+each adjudicated (itemize-and-defend):
+
+1. **`deflake-par-streak` — RED twice judge-cold, BOTH times on the I85
+   verdict-DECLARED intercom TOCTOU residual, NEVER on (a)/(f).
+   NOTE-AND-PASS; the (a)/(f) bar is measured MET.** Cold battery run 12
+   and standalone verbatim re-run 1 run 1 + re-run 2 run 15 all broke with
+   the IDENTICAL signature:
+   `SubagentsIntercomTest#test_progress_requests_never_surface_and_are_consumed
+   — Errno::ENOENT @ rb_sysopen …/control/supervisor-requests/<uuid>.json,
+   test/subagents_intercom_test.rb:711` (the `request_path` glob→find→
+   `File.read` rescues only `JSON::ParserError`; the channel's consumer
+   unlinks between glob and read). Attribution, mechanical: (i) the I85
+   verdict RECORDED this exact test/line/signature as an ACCEPTED residual
+   riding note-and-pass ("1 sighting in ~9 parallel runs", architecture/
+   I85-ruby-4-0-9.md Verdict); (ii) the mechanism is byte-identical at
+   base (`git show 40ed92b:test/subagents_intercom_test.rb` = lane bytes);
+   (iii) ZERO lane bytes anywhere in the path (the lane's diff is
+   chat_test ×2 tests, subagents_e2e ×2 legs, the additive mock-server
+   `match:` selector, +1 new pin file); (iv) the firing test's race is
+   filesystem-side (staged home, channel poller vs helper glob) — the
+   mock-server selector is not on it. The frozen preamble's machinery
+   governs: (a)/(f) reds are REAL failures (none fired); other declared
+   classes ride note-and-pass with zero lane attribution "unless the diff
+   proves otherwise" — the diff proves otherwise-clean. **The (a)/(f) cure
+   bar, measured judge-cold: 27 CONSECUTIVE full `rake test:par` runs with
+   ZERO (a)/(f) firings** (battery 12 + attempt-1 run 1 + attempt-2 runs
+   1–14 — the three red runs carried zero (a)/(f) signatures, so the
+   (a)/(f)-zero count runs through them), PLUS the builder's verbatim
+   16/16 green streak, PLUS parallel-parity + parallel-repeat ×3 + the
+   serial suite. Were either class live at its measured base rate
+   (0.29/0.22 per run), 27 clean runs has probability ≤ 0.01% — the frozen
+   N=16 math is satisfied several-fold by the judge's own exposure alone.
+   The residual's observed rate (~3/29 judge runs; 0/16 builder) is
+   consistent with the I85 sighting rate; it is now the suite's hottest
+   known loud-red class and SHOULD headline the next deflake entry (the
+   one-line cure: `rescue Errno::ENOENT → false` in `request_path`'s find
+   block — OUT of this iteration's frozen touch set, so it rides).
+2. **`deflake-drain-streak` — runner SIGTERM at the 900 s cap; PASS on the
+   verbatim standalone cold re-run** (`DEFLAKE_DRAIN_OK standalone=16
+   steal=8`; the frozen runner-cap declaration + I77/I80 precedent; the
+   runner's own log shows the standalone ×16 leg green before the kill).
+3. **`render-perf-probe` — declared class (d) (BP load-margin).
+   NOTE-AND-PASS.** Lane-tree FAIL (BP1 3.05, BP2 262.1) and standalone
+   cold re-run FAIL (BP1 3.24, BP2 260.2), with the judge's BASE control
+   at `repos/tart` (zero lane bytes) failing the same leg the same night
+   (BP2 255.3 > 250, BP1 2.81 passing — the I74 pattern: "the judge's
+   BASE control fails identically … the builder's quiet-box PASS stands").
+   The lane diff contains zero render-path bytes; attribution is nil by
+   construction. All AV shape legs PASS on every run.
+4. **`s9-parity` — declared class (c) (lane-tree-depth geometry).
+   NOTE-AND-PASS**, judge-proven: the identical gate bytes at canonical
+   depth (`repos/tart`) exit 0 this session.
+5. **`sweep-parity` — declared class (c), same mechanism.** Lane-tree RED
+   drift is EXACTLY `s16_resize_wrap=1 + s9_startup_help=1` (the geometry
+   pair; serial/concurrent tables AGREE); the identical gate bytes at
+   canonical depth: `SWEEP_TABLE_OK 19 scenarios` / `SWEEP_PARITY_OK`
+   (serial 122 s / concurrent 19 s) this session.
+
+Headline cold measurements: `suite` 1497 runs / 10153 assertions / 0F /
+0E / 5S, wall **221 s ≤ 240 s**; `parallel-parity` PARALLEL_OK 1497/10147/
+0F/0E/5S wall 41.0 s, COVERAGE_OK runs=1497 enum=1497; `parallel-repeat`
+3 runs identical literals (1497/5S, assertions 10142–10148 inside the ±20
+band); `deflake-interrupt-streak` GREEN cold under the runner
+(`DEFLAKE_INTERRUPT_OK standalone=16 steal=8`, every iteration inside the
+90 s watchdog); `deflake-no-widening` GREEN cold (all five legs —
+sentinels byte-frozen vs `40ed92b`, zero production bytes, zero added
+sleeps, `PARENT_DEADLINE_S = 180` unmoved, `BELT_AUDIT_OK` both named
+tests belted); `scope` GREEN cold.
+
+## Diff review (read in full against the Specification's intent)
+
+- `test/chat_test.rb` (2 hunks): both named tests gate ESC on
+  `captured.any? { … user "long stream" }` AND ≥3 rendered chunks
+  (`widget_lines_with_spans` — both helpers pre-exist at base); script
+  40→80 chars at the FROZEN 0.1 s/char server pace (≈8 s > the 5 s
+  deadline — a dropped interrupt can never mask as natural end; the
+  interrupt path cancels immediately, measured green cost +0.25 s/test —
+  NOT a widening: no deadline, timeout, pace, or poll interval moved);
+  the `:1608` test gains the I82 Law-4 `ensure kernel.stop!` belt (the
+  escape twin's belt untouched). Test names and every assertion
+  byte-unchanged.
+- `test/support/mock_llm_server.rb` (4 hunks, strictly additive): doc
+  comment; `@script_mutex`; `serve`'s `@script.shift || fallback` →
+  `take_spec(parsed_body)`; the new selector — first `match:`-truthy entry
+  (removed, served once), else first match-less entry (= the old blind
+  shift, byte-identical for every pre-I87 caller), else the unchanged
+  `{type: :message, content: ""}` fallback; selection under the mutex
+  (per-connection serve threads). `rearm!`/`suppress_usage!`/request
+  logs/EPIPE arms/top-level minitest-optional shape untouched (the rig's
+  `mock_llm_extension_test` pins pass in the cold suite).
+- `test/subagents_e2e_test.rb` (2 hunks): legs B + E2 scripts — the same
+  three response specs byte-identical, now `match:`-routed (parent turn 1
+  by the B_PROMPT user message, parent turn 2 by the `c1` tool message,
+  the child by the B_CHILD_TASK user message). Order-independent by
+  construction; every leg assertion byte-untouched; drain pair still 2
+  runs / 46 assertions.
+- NEW `test/support/mock_llm_match_test.rb` — 6 hermetic pins over a real
+  TCP socket (routing order-independence incl. the flipped child-first
+  order, legacy blind-shift preservation, park + unchanged fallback,
+  `rearm!` restoration, first-match-wins/serve-once, the streaming arm
+  end-to-end). Suite growth exactly +6 (1491→1497, judge-measured in the
+  cold serial suite AND the parallel COVERAGE legs). NIT (recorded, no
+  action): the file's header comment says "grows by exactly THESE five" —
+  six pins ship; the report and every measured literal say 6. Cosmetic
+  comment drift only.
+
+## Per-AC rollup
+
+- **AC1 (forensics) — PASS.** Both classes: named firing tests; stated
+  mechanisms with evidence (the class-(a) instrumented in-suite firing at
+  pre-cure par cycle 5/11 with the preserved worker log + judge-read
+  instrument dump refuting W1/W2 literally; the class-(f) arrival-order
+  flip confirmed as Grounds stated, reproduced reduced-context against
+  BASE mock-server bytes firing the exact `B_FINAL`-inversion signature —
+  Law 0's "same signature" sanction); per-edit itemization old→new
+  complete.
+- **AC2 (class (a) cured) — PASS.** Handshake ordered on the
+  request-captured + chunks-rendered observables; stream outlasts the
+  deadline; both belts in place (`BELT_AUDIT_OK` cold); amplifier GREEN
+  cold (×16 + ×8 steal); ZERO (a) signatures across 27 consecutive
+  judge-cold full runs + the builder's 16/16.
+- **AC3 (class (f) cured) — PASS.** Content routing verified additive in
+  the diff; both legs converted with every assertion intact; 6 hermetic
+  pins (+6 exactly); drain amplifier GREEN verbatim standalone cold (×16 +
+  ×8 steal); ZERO (f) signatures across the same exposure.
+- **AC4 (measured bar) — PASS, with one recorded adjudication.** The
+  (a)/(f) streak bar is measured met over several-fold the frozen N
+  (judge-cold 27 + builder 16, zero (a)/(f) anywhere); the streak gate's
+  two judge-cold REDs are the I85-declared intercom TOCTOU residual only,
+  note-and-pass with mechanical attribution (above); serial suite green
+  221 s ≤ 240 s cold; the carried floor green with (c)×2/(d)×1 adjudicated
+  as declared; suite literals 1497/5S = base + exactly the declared 6
+  pins.
+- **AC5 (nothing weakens) — PASS.** `deflake-no-widening` all five legs
+  GREEN cold; zero production bytes; zero sleeps; every sentinel
+  byte-frozen; belts only ever ADDED.
+- **AC6 (scope) — PASS.** Tracked diff exactly the frozen 3-file set; ONE
+  sanctioned new support file matching the pattern; `Gemfile.lock`
+  byte-unchanged; untracked confined to the `t87*` scratch families
+  (judge-cleaned pre-integrate) + the sanctioned file; the report itemizes
+  107/107 gates with a measured row each.
+
+## Residual risks (carried forward)
+
+1. **The intercom TOCTOU ENOENT** (`test_progress_requests_never_surface…`,
+   `request_path` glob→read vs consumer unlink) — now the suite's hottest
+   known loud-red class (~3/29 judge-cold full runs; I85 1/9). Rides
+   note-and-pass per the I85 standing ruling; RECOMMENDED headline for the
+   next deflake entry (one-line test-side cure identified, out of this
+   iteration's frozen scope).
+2. **The class-(a) delivery failure lives in the async/io-event/fiber
+   stack** (production-frozen seams): a real-user ESC inside the pre-IO
+   window under load can still stick a run. The suite cure gates the
+   TEST into the delivered-cancellation state; production hardening (if
+   desired) is an owner-routed follow-up — candidate problems.md note.
+3. The parallel exit-teardown wedge (I85 residual #1) was observed once
+   more during this judge's base-tree attribution runs (run 3 wedged at
+   base `40ed92b`, scratch OS-cleaned before inspection) — the standing
+   residual stands, unchanged by this lane.
+4. Rehearsal-era `t87*` scratch sits untracked at the canonical checkout
+   (`repos/tart`, spec-time 2026-10-24 21:25–22:23 + this judge's
+   attribution runs) — housekeeping for the integrator/owner, no tracked
+   drift.
+5. Cosmetic: the new pin file's header comment says "five" where six pins
+   ship.
+
+STATUS: lane core — COMPLETE, verdict CONTINUE, integration follows.
