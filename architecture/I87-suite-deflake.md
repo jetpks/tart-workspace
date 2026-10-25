@@ -249,34 +249,213 @@ PHASE 0.
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section suite-deflake specification --from <file>`. -->
+# I87 specification — suite-deflake
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+## Objective
+
+Cure flake classes (a) — the chat-interrupt loud-red — and (f) — the
+subagents-e2e drain-timing inversion — at the ROOT, so the suite runs
+clean under full parallel load on ruby 4.0.9: **measured, not
+asserted**. BRIEF §8's daily-driver bar: a battery that cries wolf
+trains its operator to ignore red. Each class gets a named firing test,
+a stated race mechanism confirmed by reproduction, and a fix that
+REMOVES the mechanism by deterministic synchronization (await the
+condition, order the handshake, content-address the script) — never a
+widened timeout, never an added sleep.
+
+## Deliverable shape (frozen)
+
+ONE lane `core`, repo tart, frozen touch set:
+
+- `test/chat_test.rb` — the class-(a) cure (the streaming-interrupt
+  family).
+- `test/subagents_e2e_test.rb` — the class-(f) cure (drain legs B + E2).
+- `test/support/mock_llm_server.rb` — the declared-possible
+  test-support seam for the class-(f) deterministic-ordering cure.
+- PLUS at most ONE NEW file under `test/support/` (e.g. a hermetic pin
+  battery for a new mock-server capability) — its presence REQUIRES an
+  itemize-and-defend entry.
+
+No production `lib/` change unless forensics PROVE a production defect —
+minimal, itemized, and a PHASE 0 event if the shape surprises (the
+judge adjudicates per the I77 precedent).
+
+## Law 0 — forensics first, reproduction before cure
+
+BEFORE any fix, for EACH class: (1) name the firing test; (2) state the
+race mechanism precisely — confirm or refine the Grounds' hypotheses
+(W1/W2 for (a); the arrival-order flip for (f)) with EVIDENCE; (3)
+reproduce the firing under deliberate load with the failing artifact
+PRESERVED (the class-(a) reproduction keeps the failing parallel-run
+worker log — the streak gate's `cp` leg shows the shape; a standalone
+or reduced-context reproduction is acceptable iff it fires the SAME
+signature); (4) only then fix. A fix without a named, evidenced
+mechanism is a defect. Two base firings of class (a) with preserved
+worker logs already sit at `tmp/t87-spec/base-par-{1,5}-failing-worker.log`
+(space scratch — the lane re-measures at its own tree).
+
+## Law 1 — the class-(a) cure (deterministic interrupt handshake)
+
+In the streaming-interrupt family (the named tests:
+`test_kernel_interrupt_during_streaming_cancels_and_leaves_render_coherent`,
+`test_escape_interrupts_a_streaming_run_through_the_kernel_path`):
+
+- **Order the handshake.** The ESC is pushed ONLY after an observable
+  that guarantees the kernel's work task is live AND the stream is in
+  flight (e.g. the mock server captured the request AND a first content
+  chunk has rendered/started — the exact observable is the builder's,
+  itemized and defended). The interrupt must deterministically find a
+  live task to cancel — the W1 silent-no-op window is closed BY
+  CONSTRUCTION, not by timing.
+- **Unmask the drop.** The scripted stream must OUTLAST the test's
+  observation deadline, so a dropped or delayed interrupt can never be
+  masked by the stream's natural end — a missed interrupt is ALWAYS a
+  loud red. (At base the 40-chunk × 0.1 s ≈ 4 s stream ends inside the
+  5 s deadline, silently greening a dropped interrupt serially; on the
+  interrupt path the stream is cancelled immediately, so a longer
+  script costs NOTHING on green runs.)
+- **Close the belt gap.** BOTH named tests carry the I82 Law-4 belt:
+  `kernel.stop!` rides an `ensure` on every scenario-thread exit path
+  (the `:1608` test lacks it at base — a missed window there WEDGES the
+  suite; proven at spec time).
+- **Asserted properties and test NAMES unchanged.** Each test still
+  proves the same pi-parity property (the escape interrupt cancels the
+  run, the loop survives, the transcript renders "interrupted"
+  coherently); no test deleted, none renamed, counts grow only by any
+  DECLARED new pins.
+- **Never** raise `wait_until`'s 5 s deadline (`test/test_helper.rb` is
+  hard-frozen), never add a sleep, never pad a poll interval.
+
+## Law 2 — the class-(f) cure (kill the arrival-order bet)
+
+The drain legs (`test_leg_b_async_delegation_and_print_drain`,
+`test_default_on_e2_async_detached_notify_and_print_drain`) currently
+bet on REQUEST ARRIVAL ORDER at the mock server (the child's slow boot
+usually loses). The cure removes the bet: scripted responses route by
+REQUEST CONTENT, deterministically — e.g. a strictly additive per-entry
+match capability in `test/support/mock_llm_server.rb` (a `match:`
+predicate selecting the entry whose predicate matches the captured
+request body; unmatched entries keep the blind shift; the exhausted
+fallback `{type: :message, content: ""}` unchanged), or an equivalent
+deterministic-ordering mechanism the builder itemizes and defends.
+Hard requirements on whichever mechanism:
+
+- **Strictly additive**: every existing caller's semantics
+  byte-preserved (the suite's many order-dependent scripts, the
+  pty-tester parity rig's minitest-free load of the file, `rearm!`,
+  `suppress_usage!`, the request logs, the EPIPE arms); the file's
+  top-level, minitest-optional shape holds.
+- The child's slow stream lands on the CHILD's request regardless of
+  arrival order; the parent's two turns get their two fast responses
+  regardless. Both legs converted; both keep every existing assertion
+  (the stdout pin, the notify session tail, the run-dir facts) —
+  strengthened, never weakened.
+- Any new mock-server capability carries NEW hermetic pins (in-suite,
+  discovered by the canonical globs — the suite's run count grows by
+  exactly the declared new pins; the growth is itemized in the Builder
+  Report).
+
+## Law 3 — nothing weakens (the belt-and-timeouts law)
+
+The anti-wedge belt and EVERY existing timeout/loud-red safety stay or
+tighten — never loosen. Byte-frozen vs `40ed92b` (the
+`deflake-no-widening` gate is the mechanical backstop):
+`test/test_helper.rb` (the 5 s `wait_until`), `Rakefile`,
+`test/support/signal_hygiene_harness.rb` (the I75/I82 six-leg belt),
+`test/support/parallel_runner.rb` (the I84 fan-out mechanics — frozen
+unless forensics prove it the race source, then itemize-and-defend per
+the task's letter), `PARENT_DEADLINE_S = 180` in the e2e harness. ZERO
+added `sleep` statements in the diff. ZERO production bytes (`lib/`,
+`gems/`, `bin/`, `bench/`) unless Law 0's forensics prove a production
+defect — then minimal, itemized (old bytes → new bytes), and the
+`deflake-no-widening`/`scope` REDs are judge-adjudicated per the I77
+precedent. Any timing literal the fix DOES touch is itemized old→new
+with the reason it is not a widening.
+
+## Law 4 — the cure bar is MEASURED
+
+The frozen bar (the AC preamble carries the N defense):
+
+- **The streak**: **16** consecutive full `rake test:par` runs at the
+  lane tree with ZERO (a)/(f) firings — every run exit 0, clean
+  `PARALLEL_OK` (0F/0E), well-formed `COVERAGE_OK` (the
+  `deflake-par-streak` gate; a red run breaks the streak and preserves
+  the failing worker log).
+- **The amplifiers**: the two named interrupt tests ×16 standalone +
+  ×8 under deliberate 8-way CPU steal, every iteration under a hard 90 s
+  wall watchdog (`deflake-interrupt-streak`); the two drain legs ×16
+  standalone + ×8 under the same steal, 300 s watchdog
+  (`deflake-drain-streak`).
+- **The floor**: serial `rake test` green AND ≤ 240 s wall (the carried
+  timed `suite` gate — the one-full-suite-run-per-battery fold holds;
+  the serial suite is run ONCE per battery, by that gate), and the
+  whole carried 102-gate battery green cold at the lane tree.
+- The Builder Report carries: the forensics record per class (mechanism,
+  reproduction, pre-fix firing), the per-edit itemization (old bytes →
+  new bytes + the mechanism each edit removes), the full 107-gate table
+  with a measured one-liner per gate (an absent gate entry is
+  REJECT-class), the streak logs' summary lines, and the suite
+  runs/skips literal with the declared new-pin growth if any.
+
+## Tool guidance (exact verification, this session's tested forms)
+
+- Parallel run: `cd repos/tart && bundle exec rake test:par` (measured
+  ~45.5–47.5 s at base, 8 workers, this session ×5).
+- Serial gate anchor: `bundle exec rake` (I85 judge-cold at this tree
+  content: 1491 runs / 0F / 0E / 5S / 214 s).
+- The named interrupt pair standalone (measured ~1 s idle, green):
+  `bundle exec ruby -Itest -Ilib test/chat_test.rb -n
+  "/kernel_interrupt_during_streaming_cancels_and_leaves_render_coherent|escape_interrupts_a_streaming_run_through_the_kernel_path/"`
+  → exactly `2 runs`.
+- The drain pair standalone (measured ~37 s idle, green):
+  `bundle exec ruby -Itest -Ilib test/subagents_e2e_test.rb -n
+  "/leg_b_async_delegation_and_print_drain|default_on_e2_async_detached_notify_and_print_drain/"`
+  → exactly `2 runs, 46 assertions`.
+- Gates: run verbatim from the frozen ```gates block; /bin/sh has NO
+  `set -e` — EVERY comparison gates its own exit (a `bundle exec ruby`
+  abort does NOT stop the gate — capture `ec=$?`); never gates under
+  nohup (the I85 SIGHUP-inheritance lesson); gate gem-home anchors use
+  `Gem.default_dir`, never `Gem.dir`.
+- provision: `architect provision suite-deflake --base 40ed92b`
+  (origin/main holds squashed PR merges — re-verify `git -C repos/tart
+  merge-base --is-ancestor 40ed92b origin/main` FAILS immediately
+  before dispatch; measured FAIL this session).
+
+## Boundaries
+
+- MAY touch: `test/chat_test.rb`, `test/subagents_e2e_test.rb`,
+  `test/support/mock_llm_server.rb`, + at most ONE NEW
+  `test/support/[a-z0-9_]+\.rb` file (itemized).
+- MUST NOT touch: `.ruby-version`, `Gemfile`, `Gemfile.lock`,
+  `tart.gemspec`, `Rakefile`, `test/test_helper.rb`,
+  `test/support/signal_hygiene_harness.rb`,
+  `test/support/parallel_runner.rb` (unless forensics PROVE it the race
+  source — then itemize-and-defend, PHASE 0), `lib/**`, `gems/**`,
+  `bin/`, `bench/`, `architecture/` — unless Law 0's forensics prove a
+  production defect (minimal, itemized, PHASE 0 if the shape
+  surprises).
+- Builders never commit (lane work lands untracked/modified at the lane
+  tree; integration commits it).
+- No new gems, no rig changes, no timeout widened, no sleep added, no
+  belt weakened or removed, no test renamed or deleted.
+- If a class proves INCURABLE at acceptable cost: it stays declared —
+  owner ruling, PHASE 0 (the plan's letter).
+
+## Lane plan
+
+ONE lane (repo tart; the three-file touch set overlaps nothing). Effort
+at dispatch: **high** — the diff is small, but the deliverable is the
+forensics plus the measured bar: a full 107-gate cold battery whose
+streak/amplifier gates alone run ~45–60 min, plus the pre-fix
+reproduction record.
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision suite-deflake`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: core
+  repo: tart
+  touch:
+    - test/chat_test.rb
+    - test/subagents_e2e_test.rb
+    - test/support/mock_llm_server.rb
 ```
 
 ## Acceptance Criteria
