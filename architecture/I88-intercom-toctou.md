@@ -3338,11 +3338,389 @@ for stdin dispatch. Record + commit:
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I88-intercom-toctou-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence intercom-toctou --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# I88 intercom-toctou — Builder Report (lane core)
+
+Builder: lane `core`, repo tart, worktree `build/I88-intercom-toctou-core/wt`
+(branch `lane/I88-intercom-toctou-core`, base `5ee64ce`). Never committed —
+the lane work sits modified-tracked on top of `5ee64ce` at the lane tree.
+
+## Law 0 — the whole-class audit table
+
+Whole-file enumeration of every glob→read and stat→read site in
+`test/subagents_intercom_test.rb` (814 lines at base; confirmed by grep over
+`Dir.glob|Dir.children|File.read|IO.read|File.open|JSON.parse|File.exist`).
+The Grounds' map is CONFIRMED EXACTLY — five racy sites, two declared
+non-racy, no missed racy site. Additional stat-only sites are listed for
+completeness (they perform NO read, so `Errno::ENOENT` cannot escape them:
+a glob/children snapshot or `File.exist?` on a vanished path returns empty
+or false, never raises).
+
+| # | Site (base lines) | Shape | Mechanism (who unlinks, between which two calls) | Disposition |
+|---|---|---|---|---|
+| 1 | `request_path` :709-716 (read :711, rescue :712) | glob→read, `JSON::ParserError`-only rescue | The live channel's sweep (`SupervisorChannel` → `Supervisor#scan_requests`, supervisor.rb:299-328) unlinks the progress/poison/stale request file (`File.unlink` at :306/:313/:320) between the helper's `Dir.glob` snapshot (:710) and its `File.read` (:711). Callers: :300, :307 (the firing test), :321-322, :327, :346, :367, :378. | CURED — single-line combined rescue `rescue JSON::ParserError, Errno::ENOENT → false` (a vanished file is not the marker; for the firing test gone IS the awaited consumed state). This is THE firing site: the spec-time base probe and the rehearsal both fired here (`Errno::ENOENT @ rb_sysopen` at :711 from :300). |
+| 2 | `request_file` :733-738 (read :735, rescue :736) | glob→read, `JSON::ParserError`-only rescue | Same consumer class: the live channel sweep or the child tool (which unlinks its own ask on reply consumption/timeout) unlinks between the `Dir.glob` (:734) and the `File.read` (:735). Caller: `wait_for_request_file` :725-731 (until-loop :727), driven by the round-trip tests :432, :488. | CURED — same single-line combined rescue → `false` (non-match; the poll loop's next tick re-globs). |
+| 3 | `read_single_request` :718-723 (read :722, NO rescue) | glob→size-flunk→read, no tolerance | The channel sweep or the child tool unlinks the one request file between the `Dir.glob` (:720) and the `File.read(files.first)` (:722); a raw `Errno::ENOENT` escapes as a loud red with no diagnostic. Callers: :138 (self-written, no live channel — benign in practice), :435, :524 (real children + live channels). | CURED — `rescue Errno::ENOENT` → a distinct, honest flunk naming the vanish ("the single request file vanished between the glob and the read (the channel consumed it mid-read): <path>"). Its payload is required by the caller, so the failure stays LOUD — controlled, never a silent pass. |
+| 4 | Answerer thread, `test_child_tool_validation_and_interview_free_object` :168-171 (read :170, NO rescue) | glob→first→read, no tolerance | The child tool unlinks its own request on its 8000 ms timeout (the :213 pin: "the request unlinked on timeout") or on reply consumption, between the thread's `Dir.glob` (:168) and `File.read(file)` (:170). An escape kills the bare answerer thread → `seen.pop` blocks → the test WEDGES. | CURED — `begin ... rescue Errno::ENOENT → next`: skip the vanished file, continue the EXISTING while-loop poll (the loop's normal next tick; no new retry machinery, no backoff, no sleep). |
+| 5 | Answerer thread, `test_child_tool_consumes_the_reply_and_unlinks_the_request` :219-228 (read :223, NO rescue) | stat (`Dir.children`)→read, no tolerance | The child tool unlinks the consumed request between the thread's `Dir.children` snapshot (:221) and the `File.read` (:223). An escape kills the bare thread before it writes the reply → the tool blocks to its 600 s default → near-wedge. | CURED — `begin ... rescue Errno::ENOENT → next`: skip and continue the EXISTING `100.times` poll loop. |
+| 6 | :365-366 — reply-dir glob + `assert_empty` | glob→assert (STAT-ONLY, no read) | No read exists; a vanished reply cannot raise. | CONFIRMED NON-RACY (matches the Grounds) — no change. |
+| 7 | :373 — `JSON.parse(File.read(...supervisor-replies/#{rid}.json))` | direct read of a self-written file | The test itself wrote that reply via `channel.reply` on the previous line (synchronous receipt :370-372); nothing unlinks `supervisor-replies/*` in that test (the channel sweeps `supervisor-requests/*` only — `request_glob`, supervisor.rb:342-344; `remove_request_file` unlinks `request[:path]`, a request-side path). | CONFIRMED NON-RACY (matches the Grounds) — no change. |
+| 8 | :148 — glob `*.tmp` + `assert_empty`; :200/:213/:238 — `Dir.children` + `assert_empty`; :411/:415/:447 — `File.exist?` | stat-only extensions beyond the Grounds' two | Snapshots/stats only; a vanished path yields empty/false, never an exception. The `File.exist?(request_path(...))` calls (:300, :307, :321-322, :327, :346, :367, :378) carry their race INSIDE site 1 (`request_path`), not in `exist?` itself. | NON-RACY (stat-only) — no change; itemized per Law 0's "confirm or extend". |
+
+## Production-immunity re-confirmation (Law 0 leg 2, at the lane tree)
+
+`lib/tart/subagents/supervisor.rb` @ lane tree, byte-identical to `5ee64ce`
+(zero production bytes in the diff — `git diff --name-only 5ee64ce` = the
+touch set only):
+
+- `scan_requests` :299-328 — the whole `Dir.glob(request_glob).sort.each`
+  consumption loop is wrapped in `rescue SystemCallError → nil` (:327-328,
+  "a vanished file loses to the next tick"); its unlink sites are
+  :306 (`File.unlink(path)` poison), :313 (`File.unlink(path)` progress),
+  :320 (`File.unlink(path) rescue nil` lifecycle verdicts).
+- `run_terminal?` :349-353 — `rescue StandardError → false` (:352).
+- `remove_request_file` :434-437 — `File.unlink ... rescue StandardError`
+  (:436).
+- `read_json` :448-453 — `File.file?` guard + `JSON.parse(File.read(path))
+  rescue JSON::ParserError, StandardError → nil` (:452).
+
+The production channel is ENOENT-immune at every consume path — the record
+stands; the cure is test-side only. NO PHASE 0 stop.
+
+## Per-edit itemization (old bytes → new bytes)
+
+Five edits, one file (`git diff 5ee64ce --stat`: 1 file changed,
+86 insertions(+), 6 deletions(-)). No timing literal touched by any edit
+(old→new list: NONE — expectation met); no deadline touched; zero added
+sleep (gate-audited: 0 matches); zero production bytes.
+
+1. Answerer thread 1 (:168-171 at base) — OLD: `payload = JSON.parse(File.read(file))`
+   (bare, no rescue). NEW:
+   `begin payload = JSON.parse(File.read(file)) rescue Errno::ENOENT → next
+   (comment: the child unlinked its own request between the glob and the
+   read — the poll loop's next tick retries) end`. Mechanism removed: the
+   thread-killing raw ENOENT escape (and its `seen.pop` wedge consequence).
+2. Answerer thread 2 (:219-228 at base) — OLD: `id = JSON.parse(File.read(
+   File.join(ctrl, "supervisor-requests", file)))["id"]` (bare). NEW: same
+   read wrapped `begin ... rescue Errno::ENOENT → next (comment: the child
+   unlinked its consumed request between the Dir.children snapshot and the
+   read) end`. Mechanism removed: the thread-killing raw ENOENT escape (and
+   its 600 s tool-block consequence).
+3. `request_path` (:709-716 at base) — OLD rescue line: `rescue
+   JSON::ParserError` → `false`. NEW: `rescue JSON::ParserError,
+   Errno::ENOENT → false` (single-line combined rescue, the frozen shape;
+   comment: a vanished file is not the marker — gone IS the awaited consumed
+   state). Mechanism removed: the ENOENT escape at the firing site
+   (:711 from :300 — the firing test's while/refute legs) — the vanished marker now reads as a non-match and the
+   test's own while-loop treats "gone" as the awaited consumed state.
+4. `read_single_request` (:718-723 at base) — OLD: bare
+   `JSON.parse(File.read(files.first))`. NEW: + `rescue Errno::ENOENT →
+   flunk "the single request file vanished between the glob and the read
+   (the channel consumed it mid-read): #{files.first.inspect}"`. Mechanism
+   removed: the untagged loud red (an uncaught raw ENOENT with no
+   diagnostic) — replaced by the honest named flunk; the assertion is not
+   weakened (a vanish still fails the test).
+5. `request_file` (:733-738 at base) — OLD rescue line: `rescue
+   JSON::ParserError` → `false`. NEW: `rescue JSON::ParserError,
+   Errno::ENOENT → false` (single-line combined rescue; comment: the child
+   may consume its own ask mid-poll). Mechanism removed: the ENOENT escape
+   inside `wait_for_request_file`'s until-poll.
+6. NEW pins (Law 2) — four test methods + two staging/restore helpers,
+   inserted before `# --- helpers ---` (+70 lines). See below.
+
+## Law 2 — the hermetic pins (declared growth: 4)
+
+Four new test methods in the same file, each named with the `toctou` token:
+
+1. `test_toctou_request_path_tolerates_a_vanish_between_glob_and_read` —
+   DETERMINISTIC staging: a `Dir.glob` singleton stub
+   (`stub_glob_unlinking_first`) that UNLINKS the staged request file before
+   returning its path — the consumer's unlink lands exactly inside the
+   helper's glob→read window, never a timing bet. Asserts the cured
+   `request_path` returns the `missing.json` fallback (the vanished file is
+   not the marker). Pre-cure this pin REDs with the raw class signature.
+2. `test_toctou_read_single_request_flunks_honestly_on_a_vanish` — same
+   deterministic staging; asserts the vanish fails as the named flunk
+   (`Minitest::Assertion` whose message includes "vanished between the glob
+   and the read"), never a raw `Errno::ENOENT` escape.
+3. `test_toctou_found_marker_is_still_found` — the pre-cure happy path
+   preserved: `request_path` AND `request_file` still find the staged
+   marker among other requests (found-marker path byte-preserved).
+4. `test_toctou_missing_marker_fallback_is_unchanged` — with no marker (and
+   with non-matching files present) `request_path` returns `missing.json`
+   and `request_file` returns nil, exactly as before.
+
+Suite growth: base 1497 runs → **1501 runs** (+ exactly the 4 declared
+pins; skips stay 5; measured on every streak run below:
+`PARALLEL_OK runs=1501 ... skips=5`). The two private staging helpers
+(`stub_glob_unlinking_first`, `restore_glob`) do NOT start with `test_` so
+the `-n "/toctou/"` filter selects exactly the 4 pins:
+`4 runs, 11 assertions, 0 failures, 0 errors, 0 skips`.
+
+## Law 4 — the measured bar
+
+### toctou-amplifier (standalone cold, BEFORE the streak)
+
+Verbatim gate at the lane tree. Result:
+
+```
+standalone x32 green — starting the 8-way steal leg
+TOCTOU_AMPLIFIER_OK standalone=32 steal=16
+```
+
+The gate that FIRED the live class at base under steal at spec time
+(steal iteration 4, `Errno::ENOENT @ rb_sysopen` at `request_path` :711)
+is GREEN post-cure: 32 idle iterations + 16 under deliberate 8-way CPU
+steal, every iteration inside its 60 s watchdog, filter exactly
+`2 runs, 15 assertions` every iteration.
+
+### toctou-par-streak (standalone cold — the cure bar)
+
+Verbatim gate at the lane tree, plain-`&` background, never nohup, nothing
+else running concurrently. Result — 38/38 runs exit 0, every run clean:
+
+```
+TOCTOU_STREAK_OK streak=38
+```
+
+- `grep -c "ec=0"` over the gate log = **38** (of 38).
+- First/mid/last runs, verbatim:
+  `run 1: ec=0 wall=36s PARALLEL_OK runs=1501 assertions=10162 failures=0 errors=0 skips=5 workers=8 wall=35.8s`
+  `run 19: ec=0 wall=35s PARALLEL_OK runs=1501 assertions=10156 failures=0 errors=0 skips=5 workers=8 wall=35.1s`
+  `run 38: ec=0 wall=35s PARALLEL_OK runs=1501 assertions=10166 failures=0 errors=0 skips=5 workers=8 wall=35.5s`
+- Zero TOCTOU firings; zero reds of ANY signature (no failing-worker log
+  exists — `t88toc/` holds only the 38 green `r*.log` run logs). Full log:
+  `scratch/toctou-par-streak.log`.
+- Runs/skips literal across all 38 runs: `runs=1501 skips=5` (base 1497/5
+  + exactly the 4 declared pins); assertions 10156–10172 (inside the
+  carried dynamic-counter band).
+
+### deflake-par-streak (standalone cold — the (a)/(f) regression proof)
+
+Verbatim gate at the lane tree, standalone (runner-cap declaration), plain
+`&` background, never nohup. Result — 16/16 runs exit 0, clean:
+
+```
+DEFLAKE_STREAK_OK streak=16
+```
+
+Sample runs, verbatim:
+`run 12: ec=0 wall=35s PARALLEL_OK runs=1501 assertions=10157 failures=0 errors=0 skips=5 workers=8 wall=35.2s`
+`run 16: ec=0 wall=35s PARALLEL_OK runs=1501 assertions=10162 failures=0 errors=0 skips=5 workers=8 wall=35.0s`
+
+Zero (a)/(f) firings and zero TOCTOU firings (the class is off the live
+record — a red on the TOCTOU signature post-I88 is REAL per the amended
+flake preamble). Full log: `scratch/deflake-par-streak.log`.
+
+### deflake-drain-streak (standalone cold — the (f) amplifier)
+
+Verbatim gate at the lane tree, standalone (runner-cap declaration), plain
+`&` background, never nohup. Result:
+
+```
+standalone x16 green — starting the 8-way steal leg
+DEFLAKE_DRAIN_OK standalone=16 steal=8
+```
+
+16 standalone iterations + 8 under deliberate 8-way CPU steal, each pair
+of real parent+child boots inside the 300 s watchdog, filter exactly
+`2 runs, 46 assertions, 0 failures, 0 errors, 0 skips` every iteration
+(e.g. s1: `Finished in 37.829198s ... 2 runs, 46 assertions`). This is the
+gate the rehearsal BROKE at base on the runner-cap SIGTERM artifact — the
+standalone cold run is the operative record and it is GREEN. Full log:
+`scratch/deflake-drain-streak.log`; per-iteration logs `t88drn/s*.log`,
+`t88drn/c*.log`.
+
+### Serial suite floor (the carried timed `suite` gate)
+
+In-battery, verbatim: **PASS ec=0 wall=214.4s — `SUITE_OK`** (green AND ≤
+the frozen 240 s bound; the one-full-suite-run-per-battery fold holds).
+Suite literals with the declared pin growth: **runs=1501 skips=5** on every
+one of the 60 full parallel runs measured this session (38 streak + 16
+deflake streak + 3 parallel-repeat + parallel-parity + amplifier/suite-adjacent
+runs; base 1497 + exactly the 4 declared pins), `COVERAGE_OK runs=1501
+enum=1501` (the enumerated set pinned == rake test's own FileList by the
+parallel-units battery); assertions 10156–10172 across the runs (inside the
+carried ±20 dynamic-counter band; parallel-repeat PASS at spread 16).
+
+## The 111-gate battery (measured one-liner per gate)
+
+**109 PASS / 2 FAIL; the 2 reds are the standing declared class-(c)
+(`s9/sweep-parity lane-tree-depth`), reproduced BYTE-IDENTICALLY at base
+content in this same tree — zero lane attribution, mechanically
+demonstrated below.** The three cap-exceeding streak gates ran standalone
+(the runner-cap declaration — the standalone cold run is the operative
+record); everything else in frozen-block order at the lane tree, serially,
+nothing concurrent.
+
+| # | gate | result | measured one-liner |
+|---|------|--------|--------------------|
+| 1 | stale-run-reaper | PASS ec=0 wall=1.0s | STALE_RUN_REAPER_OK |
+| 2 | unknown-model-reject | PASS ec=0 wall=1.0s | UNKNOWN_MODEL_REJECT_OK |
+| 3 | subagents-health-units | PASS ec=0 wall=7.1s | SUBAGENTS_HEALTH_UNITS_OK |
+| 4 | edit-fold-repro | PASS ec=0 wall=1.0s | EDIT_FOLD_REPRO_OK |
+| 5 | edit-fold-units | PASS ec=0 wall=1.0s | EDIT_FOLD_UNITS_OK |
+| 6 | session-model-identity | PASS ec=0 wall=1.0s | SESSION_MODEL_IDENTITY_OK |
+| 7 | session-model-units | PASS ec=0 wall=1.0s | SESSION_MODEL_UNITS_OK |
+| 8 | suite | PASS ec=0 wall=214.4s | SUITE_OK |
+| 9 | bench | PASS ec=0 wall=17.1s | SEAM_BENCH_OK |
+| 10 | md-repro | PASS ec=0 wall=1.0s | MD_REPRO_OK |
+| 11 | md-inline-units | PASS ec=0 wall=1.0s | MD_INLINE_UNITS_OK |
+| 12 | pending-registry-units | PASS ec=0 wall=1.0s | PENDING_REGISTRY_UNITS_OK |
+| 13 | footer-window | PASS ec=0 wall=1.0s | FOOTER_WINDOW_OK 1000000 |
+| 14 | thinking-pins | PASS ec=0 wall=2.0s | THINKING_PINS_OK |
+| 15 | hermeticity | PASS ec=0 wall=10.1s | HERMETICITY_OK |
+| 16 | lock-deps | PASS ec=0 wall=1.0s | GEM_LOAD_OK |
+| 17 | zai-data | PASS ec=0 wall=1.0s | ZAI_DATA_OK |
+| 18 | threads-budget | PASS ec=0 wall=1.0s | THREADS_BUDGET_OK |
+| 19 | session-golden | PASS ec=0 wall=1.0s | SESSION_GOLDEN_OK |
+| 20 | strict-wire | PASS ec=0 wall=1.0s | 8 runs, 76 assertions, 0 failures, 0 errors, 0 skips |
+| 21 | error-transcript-units | PASS ec=0 wall=1.0s | ERROR_TRANSCRIPT_UNITS_OK |
+| 22 | error-transcript-render-units | PASS ec=0 wall=1.0s | ERROR_TRANSCRIPT_RENDER_UNITS_OK |
+| 23 | render-perf-units | PASS ec=0 wall=1.0s | 7 runs, 29 assertions, 0 failures, 0 errors, 0 skips |
+| 24 | render-perf-probe | PASS ec=0 wall=145.0s | RENDER_PERF_OK |
+| 25 | tool-pending-gate | PASS ec=0 wall=20.1s | TOOL_PENDING_GATE_OK |
+| 26 | user-bash-stream-gate | PASS ec=0 wall=14.1s | USER_BASH_STREAM_GATE_OK |
+| 27 | zai-max-tokens-units | PASS ec=0 wall=3.0s | ZAI_MAX_TOKENS_UNITS_OK |
+| 28 | rail-bg | PASS ec=0 wall=1.0s | RAIL_BG_OK |
+| 29 | jump-pill-units | PASS ec=0 wall=1.0s | JUMP_PILL_UNITS_OK |
+| 30 | rail-bg-units | PASS ec=0 wall=1.0s | RAIL_BG_UNITS_OK |
+| 31 | viewport-probe | PASS ec=0 wall=1.0s | VIEWPORT_PROBE_OK c |
+| 32 | oracle-pin-state | PASS ec=0 wall=1.0s | ORACLE_PIN_OK |
+| 33 | oracle-bin-units | PASS ec=0 wall=1.0s | ORACLE_BIN_UNITS_OK |
+| 34 | oracle-resolve | PASS ec=0 wall=1.0s | ORACLE_RESOLVE_OK |
+| 35 | s1-parity | PASS ec=0 wall=6.1s | exit 0 |
+| 36 | s2-parity | PASS ec=0 wall=6.1s | exit 0 |
+| 37 | s3-parity | PASS ec=0 wall=6.0s | exit 0 |
+| 38 | s4-parity | PASS ec=0 wall=6.0s | exit 0 |
+| 39 | s5-parity | PASS ec=0 wall=6.0s | exit 0 |
+| 40 | s6-parity | PASS ec=0 wall=6.0s | exit 0 |
+| 41 | s7-parity | PASS ec=0 wall=5.0s | exit 0 |
+| 42 | s8-parity | PASS ec=0 wall=5.0s | exit 0 |
+| 43 | s9-parity | FAIL ec=1 wall=7.0s | rig report: 1x unknown-candidate (rest sanctioned) — DECLARED class-(c) lane-tree-depth; reproduced at base content (see adjudication below) |
+| 44 | s10-parity | PASS ec=0 wall=7.0s | exit 0 |
+| 45 | s17-parity | PASS ec=0 wall=8.1s | exit 0 |
+| 46 | s1-tart-mode | PASS ec=0 wall=5.0s | TART_MODE_OK |
+| 47 | wire-delta | PASS ec=0 wall=5.0s | WIRE_DELTA_OK |
+| 48 | zai-max-tokens-wire | PASS ec=0 wall=5.0s | ZAI_WIRE_OK tart=pi=512 |
+| 49 | identity-law | PASS ec=0 wall=1.0s | IDENTITY_LAW_OK |
+| 50 | default-face | PASS ec=0 wall=1.0s | DEFAULT_FACE_OK |
+| 51 | default-boot | PASS ec=0 wall=2.0s | DEFAULT_BOOT_OK |
+| 52 | herdr-units | PASS ec=0 wall=1.0s | HERDR_UNITS_OK |
+| 53 | herdr-wire-probe | PASS ec=0 wall=3.0s | HERDR_WIRE_OK |
+| 54 | rig-identity-assert | PASS ec=0 wall=1.0s | RIG_IDENTITY_OK |
+| 55 | subagents-default-law | PASS ec=0 wall=1.0s | SUBAGENTS_DEFAULT_LAW_OK |
+| 56 | subagents-default-boot | PASS ec=0 wall=1.0s | SUBAGENTS_DEFAULT_BOOT_OK |
+| 57 | subagents-motd-units | PASS ec=0 wall=1.0s | SUBAGENTS_MOTD_UNITS_OK |
+| 58 | subagents-motd-probe | PASS ec=0 wall=3.0s | SUBAGENTS_MOTD_OK |
+| 59 | subagents-e2e-default-on | PASS ec=0 wall=37.3s | SUBAGENTS_E2E_DEFAULT_OK |
+| 60 | rig-staging-units | PASS ec=0 wall=1.0s | RIG_STAGING_OK |
+| 61 | vendored-attribution | PASS ec=0 wall=1.0s | VENDORED_ATTRIBUTION_OK |
+| 62 | vendored-units | PASS ec=0 wall=2.0s | VENDORED_UNITS_OK |
+| 63 | listing-units | PASS ec=0 wall=1.0s | LISTING_UNITS_OK |
+| 64 | model-menu-live-merge | PASS ec=0 wall=1.0s | MODEL_MENU_LIVE_MERGE_OK |
+| 65 | launcher-listing-thread | PASS ec=0 wall=1.0s | LAUNCHER_LISTING_THREAD_OK |
+| 66 | vendored-no-boot-network | PASS ec=0 wall=1.0s | VENDORED_NO_BOOT_NETWORK_OK |
+| 67 | listing-thread-law | PASS ec=0 wall=1.0s | LISTING_THREAD_LAW_OK |
+| 68 | md-battery-fixture | PASS ec=0 wall=1.0s | MD_BATTERY_FIXTURE_OK |
+| 69 | md-battery-units | PASS ec=0 wall=1.0s | MD_BATTERY_UNITS_OK |
+| 70 | md-regression-units | PASS ec=0 wall=1.0s | MD_REGRESSION_UNITS_OK |
+| 71 | md-flanking-repro | PASS ec=0 wall=1.0s | MD_FLANKING_OK |
+| 72 | md-micro-perf | PASS ec=0 wall=2.0s | MD_MICRO_OK 4.67 ms/conv ratio 1.98 |
+| 73 | child-env-law-repro | PASS ec=0 wall=1.0s | CHILD_ENV_LAW_OK |
+| 74 | child-env-units | PASS ec=0 wall=1.0s | CHILD_ENV_UNITS_OK |
+| 75 | child-env-site-units | PASS ec=0 wall=5.0s | CHILD_ENV_SITE_UNITS_OK |
+| 76 | bash-child-env-live | PASS ec=0 wall=1.0s | BASH_CHILD_ENV_LIVE_OK |
+| 77 | session-sink-config-units | PASS ec=0 wall=1.0s | SESSION_SINK_CONFIG_UNITS_OK |
+| 78 | session-sink-projection-units | PASS ec=0 wall=1.0s | SESSION_SINK_PROJECTION_UNITS_OK |
+| 79 | session-sink-engine-e2e | PASS ec=0 wall=7.0s | SESSION_SINK_ENGINE_E2E_OK |
+| 80 | session-sink-child-e2e | PASS ec=0 wall=4.0s | SESSION_SINK_CHILD_E2E_OK |
+| 81 | signal-hygiene-units | PASS ec=0 wall=4.0s | SIGNAL_HYGIENE_UNITS_OK |
+| 82 | signal-orphan-e2e | PASS ec=0 wall=30.1s | SIGNAL_ORPHAN_OK |
+| 83 | subagent-box-units | PASS ec=0 wall=34.2s | SUBAGENT_BOX_UNITS_OK |
+| 84 | subagent-status-probe | PASS ec=0 wall=63.4s | SUBAGENT_STATUS_OK |
+| 85 | child-encoding-units | PASS ec=0 wall=4.0s | CHILD_ENCODING_UNITS_OK |
+| 86 | child-encoding-e2e | PASS ec=0 wall=6.0s | CHILD_ENCODING_E2E_OK |
+| 87 | runner-encoding-direct | PASS ec=0 wall=1.0s | RUNNER_ENCODING_DIRECT_OK |
+| 88 | agent-loading-units | PASS ec=0 wall=2.0s | AGENT_LOADING_UNITS_OK |
+| 89 | nested-grant-units | PASS ec=0 wall=37.3s | NESTED_GRANT_UNITS_OK |
+| 90 | forensics-units | PASS ec=0 wall=2.0s | FORENSICS_UNITS_OK |
+| 91 | agent-loading-e2e | PASS ec=0 wall=10.1s | AGENT_LOADING_E2E_OK |
+| 92 | listing-teardown-units | PASS ec=0 wall=1.0s | LISTING_TEARDOWN_OK |
+| 93 | contention-proof | PASS ec=0 wall=12.1s | CONTENTION_OK |
+| 94 | sweep-units | PASS ec=0 wall=22.1s | SWEEP_UNITS_OK |
+| 95 | sweep-parity | FAIL ec=1 wall=135.8s | FAIL sweep-parity: table drift vs the frozen base battery table: [["s16_resize_wrap", 1], ["s9_startup_help", 1]] (frozen nonzero: {"s1_tart" => 1, "s11_memory_ |
+| 96 | sweep-crosstalk | PASS ec=0 wall=7.0s | CROSS_TALK_OK |
+| 97 | parallel-units | PASS ec=0 wall=2.0s | PARALLEL_UNITS_OK |
+| 98 | parallel-parity | PASS ec=0 wall=37.3s | PARALLEL_PARITY_OK |
+| 99 | parallel-repeat | PASS ec=0 wall=107.7s | PARALLEL_REPEAT_OK |
+| 100 | ruby-pin | PASS ec=0 wall=1.0s | RUBY_PIN_OK |
+| 101 | native-bundle | PASS ec=0 wall=1.0s | NATIVE_BUNDLE_OK /Users/eric/.local/share/mise/installs/ruby/4.0.9/lib/ruby/gems/4.0.0/gems/ratatui_ruby-1.5.0/lib/ratatui_ruby/ratatui_ruby.bundle |
+| 102 | premise-remeasure | PASS ec=0 wall=18.1s | PREMISE_PROBE_OK wedge=real plain=stands hard=escapes |
+| 103 | deflake-par-streak | PASS (standalone, the runner-cap declaration) | standalone cold: DEFLAKE_STREAK_OK streak=16 — 16/16 ec=0, runs=1501 skips=5, zero (a)/(f) and zero TOCTOU firings; ~9.5 min |
+| 104 | deflake-interrupt-streak | PASS ec=0 wall=25.2s | DEFLAKE_INTERRUPT_OK standalone=16 steal=8 |
+| 105 | deflake-drain-streak | PASS (standalone, the runner-cap declaration) | standalone cold: DEFLAKE_DRAIN_OK standalone=16 steal=8 — every iteration 2 runs, 46 assertions, 0F/0E (e.g. s1 in 37.8 s); ~16 min |
+| 106 | deflake-no-widening | PASS ec=0 wall=1.0s | NO_WIDENING_OK |
+| 107 | scope | PASS ec=0 wall=1.0s | SCOPE_OK |
+| 108 | toctou-par-streak | PASS (standalone, the runner-cap declaration) | standalone cold: TOCTOU_STREAK_OK streak=38 — 38/38 ec=0, PARALLEL_OK runs=1501 assertions=10156-10172 failures=0 errors=0 skips=5 workers=8, zero TOCTOU firings, no failing-worker log exists; ~22.5 min |
+| 109 | toctou-amplifier | PASS (standalone, the runner-cap declaration) | standalone cold pre-flight: TOCTOU_AMPLIFIER_OK standalone=32 steal=16 (~100 s); ALSO in-battery PASS ec=0 wall=97.7s |
+| 110 | toctou-pin-units | PASS ec=0 wall=1.0s | TOCTOU_PIN_UNITS_OK |
+| 111 | toctou-no-widening | PASS ec=0 wall=1.0s | TOCTOU_NO_WIDENING_OK |
+
+### The two reds, adjudicated per the frozen preamble (declared class-(c))
+
+- **s9-parity** (battery FAIL ec=1, and cold re-run FAIL ec=1 with the
+  IDENTICAL signature): the rig report carries `1x unknown-candidate` (all
+  other classes sanctioned: 6x parity-run-path, 3x
+  staged-path-wrap-fragment, 2x footer-provider-prefix) — the startup-help
+  path text wraps differently at the DEEP lane-tree path
+  (`.../build/I88-intercom-toctou-core/wt/t88s9/run-1/sandbox/...`),
+  producing one unclassifiable diff line. Deterministic, not a timing
+  flake (two consecutive runs, same counts).
+- **sweep-parity** (battery FAIL ec=1, and cold re-run FAIL ec=1,
+  identical): `table drift vs the frozen base battery table:
+  [["s16_resize_wrap", 1], ["s9_startup_help", 1]]` — the same
+  wrap-geometry class on the two path/resize-sensitive scenarios.
+- **Zero lane attribution, PROVEN at base content**: with
+  `test/subagents_intercom_test.rb` restored to its `5ee64ce` bytes (the
+  tracked diff EMPTY — `git diff --stat 5ee64ce` silent), re-run in THIS
+  SAME tree: s9-parity FAIL ec=1 with the identical `1x unknown-candidate`
+  counts, and sweep-parity FAIL ec=1 with the identical
+  `["s16_resize_wrap", 1], ["s9_startup_help", 1]` drift. The reds are a
+  property of the lane-tree path depth, present at base, untouched by the
+  lane diff (the rig boots `bin/tart` — the intercom test file is not in
+  the s9/s16 code path at all). Logs: `scratch/s9-parity-cold-rerun.log`,
+  `scratch/sweep-parity-cold-rerun.log`, `scratch/s9-parity-base-content.log`,
+  `scratch/sweep-parity-base-content.log`.
+- Disposition: the standing note-and-pass adjudication of the declared
+  class-(c) (AC preamble: "class-(c) s9/sweep-parity lane-tree-depth …
+  ride exactly as before (note-and-pass on cold re-run, zero lane
+  attribution unless the diff proves otherwise)") — with the stronger
+  base-content reproduction above. NOT silent; itemized here.
+
+## Deviations
+
+None beyond the two adjudicated class-(c) reds above (declared, standing,
+proven zero-lane-attribution). Touch set respected (`git diff --name-only 5ee64ce` =
+`test/subagents_intercom_test.rb` only); no new file in-repo (runner +
+logs live in the builder scratch `build/I88-intercom-toctou-core/scratch/`,
+outside the repo); no gem/env change; no deadline moved; zero added sleep;
+zero production bytes; no test renamed or deleted (the amplifier filter
+still selects exactly `2 runs, 15 assertions`).
+
+## STATUS
+
+STATUS: COMPLETE_WITH_CONCERNS — the cure, pins, and all cure-dependent
+bars are GREEN and measured (amplifier ×32+×16; toctou-par-streak 38/38;
+suite 214.4 s ≤ 240 s; 109/111 gates PASS; pins 4/4; scope/no-widening
+GREEN; zero production bytes; zero added sleep). Concerns (both declared,
+adjudicated, proven zero-lane-attribution by base-content reproduction in
+this same tree): (1) `s9-parity` RED — standing class-(c) lane-tree-depth
+(`1x unknown-candidate` wrap fragment at the deep worktree path);
+(2) `sweep-parity` RED — the same class drift (`s16_resize_wrap=1`,
+`s9_startup_help=1`). Neither is cure-dependent; both reproduce
+byte-identically with the lane diff REMOVED.
 
 ## Verdict
 
