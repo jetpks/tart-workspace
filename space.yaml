@@ -3247,7 +3247,14 @@ project:
   - name: intercom-toctou
     ordinal: 88
     file: architecture/I88-intercom-toctou.md
-    freeze_sha:
+    freeze_sha: eb0d725bae70c27d2a09549ac3e5177e46efd6df
     verdict: pending
-    lanes: []
+    lanes:
+    - name: core
+      repo: tart
+      touch_set:
+      - test/subagents_intercom_test.rb
+    rehearsal:
+      gates_digest: 37072190c6db588b6b68b73c433241a8821e011ac2247152facdc840405f5288
+      at: '2026-10-25T13:58:22-06:00'
   integration_branch: project/pi-port
