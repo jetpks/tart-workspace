@@ -81,7 +81,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: fast-llm-ruby-4-0-9
+  current_iteration: suite-deflake
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -3216,4 +3216,10 @@ project:
     rehearsal:
       gates_digest: 8c05ed6ddf6ebeb4099aac707ce948bd41b6710e2679d910b9b70015094a855f
       at: '2026-10-24T03:59:14-06:00'
+  - name: suite-deflake
+    ordinal: 87
+    file: architecture/I87-suite-deflake.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
