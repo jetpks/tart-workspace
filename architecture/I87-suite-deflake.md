@@ -3255,11 +3255,440 @@ for stdin dispatch. Record + commit:
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I87-suite-deflake-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence suite-deflake --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# I87 suite-deflake — Builder Report (lane core, repo tart)
+
+Worktree: `build/I87-suite-deflake-core/wt` @ base `40ed92b` (tracked-clean at
+dispatch; builders never committed — work lands modified/untracked). Ruby
+4.0.9 (2026-10-23 revision 3e93b23afc) per the committed `.ruby-version`.
+
+## PHASE 0 declarations
+
+NONE. Zero production bytes moved (`lib/`, `gems/`, `bin/`, `bench/`
+untouched — verified by the `deflake-no-widening` gate's proddiff leg, PASS).
+No frozen sentinel moved (`test/test_helper.rb`, `Rakefile`,
+`test/support/signal_hygiene_harness.rb`, `test/support/parallel_runner.rb`,
+`.ruby-version`, `Gemfile`, `Gemfile.lock`, `tart.gemspec` — all byte-frozen
+vs `40ed92b`, gate-pinned). No sleep added (gate grep leg, PASS). No test
+renamed, deleted, or weakened; no timeout raised anywhere. The three
+non-PASS gate rows below are the carried declared classes (c)/(d) riding
+note-and-pass exactly as carried, with mechanical attribution evidence —
+not lane-attributable, not PHASE 0 events.
+
+Disclosed judgment calls (within the frozen sanction, itemized):
+
+1. The class-(f) pre-fix reproduction is a REDUCED-CONTEXT one: a
+   deterministic forced-order driver against the BASE `mock_llm_server.rb`
+   bytes (`git show 40ed92b:…`, pristine copy in
+   `scratch/forensics/base_mock_llm_server.rb`) that fires the exact
+   inversion signature (`assert_equal B_FINAL, stdout.strip` carries the
+   child answer). The load-correlated live firing is the frozen contract's
+   own I85 record (2/9 full 8-way runs); the I87 lane's own pre-cure steal
+   attempts of the pair standalone did not fire (expected — the class
+   fires only inside full-suite 8-way runs, per the I85 spec sample and
+   this session's 11 pre-cure par cycles: 1 cycle red, and it was class
+   (a), not (f)). The spec's Law 0 sanctions reduced-context reproduction
+   "iff it fires the SAME signature" — it does.
+2. The new pin file is `test/support/mock_llm_match_test.rb` — THE one
+   sanctioned `test/support/[a-z0-9_]+\.rb` file (matches the scope gate's
+   untracked whitelist; discovered by BOTH canonical globs — 1491 → 1497,
+   growth = exactly its 6 pins).
+
+## 1. Forensics record
+
+### Class (a) — chat-interrupt loud-red
+
+- **Named firing test**:
+  `Tart::ChatTest#test_escape_interrupts_a_streaming_run_through_the_kernel_path`,
+  firing at the post-ESC `wait_until { !chat.busy? }`
+  (`test/chat_test.rb:5791` at base bytes; the twin
+  `test_kernel_interrupt_during_streaming_cancels_and_leaves_render_coherent`
+  (:1608) carries the same mechanics minus the belt).
+- **Pre-fix reproduction (in-suite, lane tree)**: instrumented
+  `test/chat_test.rb` (TEMPORARY forensics probes — reverted byte-exactly
+  before the cure; pristine copy sha256
+  `01a573782c25f01d7885708c7fb85dd4733865e7689464507fb4377bf1eaf83a`
+  verified restored) and ran full `rake test:par` cycles: **fired at cycle
+  5 of 11 pre-cure cycles** — identical signature to the two base firings:
+  `RuntimeError: work condition never satisfied` at
+  `test_helper.rb:15` from the post-ESC wait. Preserved artifacts (lane
+  scratch `scratch/forensics/`): `worker-0.log` (the failing worker log,
+  copied from the runner-printed mktmpdir path), `i87-forensics-14617.json`
+  (the instrument dump), `i87-forensics-12134.json` (a second, earlier
+  capture of the same failure state).
+- **Stated mechanism (the instrumented firing record — REFINES the
+  Grounds' W1/W2; both are refuted in their literal forms)**:
+
+  At the 5 s deadline the dump shows:
+  `chat.busy?=true`, `agent.interrupted?=false`, `agent @in_run=true`,
+  `kernel.stats[:interrupted]=false`, `kernel @tasks=[nil, nil]` (both
+  task objects finalized), `server.request_count=0` (the mock server NEVER
+  received the request), transcript has no "interrupted" row.
+
+  The event log (`i87-forensics-14617.json`) shows the full chain:
+  `agent_start` at t=26.6232 → ESC dispatched with `busy=true` at
+  t=26.6234 (the busy arm taken) → `interrupt_work!` at t=26.6235 with
+  `found=true`, `tasks_alive=[true, true]` → then NOTHING for 5 s.
+
+  So the ESC did NOT miss the tasks (W1's literal claim) and the teardown
+  was not starved (W2): **`interrupt_work!` found both tasks alive and
+  called `Task#stop` on each — `Scheduler#raise` was invoked for both
+  fibers — and the cancellation was NEVER DELIVERED into the agent
+  fiber.** The agent fiber was parked at a pre-IO cooperative point inside
+  its first slice (before the HTTP request hit the wire — zero server
+  requests); on this stack (ruby 4.0.9 / async 2.46.0 / io-event 1.22.1
+  kqueue backend) `Fiber#raise` delivery into a not-yet-IO-parked fiber
+  silently fails: the cancel returns, async finalizes the task objects
+  (`@promise.cancel` + `@fiber=nil` — the observed `[nil, nil]`), but the
+  agent block's ensure/rescue chain never executes (`@in_run` stuck true,
+  `interrupted?` false). The run NEVER completes — not even at natural
+  end — so the surface's `busy?` (cleared only by `agent_end`) sticks
+  forever: the post-ESC `wait_until { !chat.busy? }` pops at 5 s (the
+  firing signature); in the belt-less `:1608` test `kernel.run` never
+  returns (the observed 600 s-class wedge at spec time).
+
+  Reduced-context confirmation (`scratch/repro_a.rb` — same
+  `chat_with_server` wiring, tight loop, 8-way CPU steal): fires the SAME
+  signature at ~1/20–1/300 iterations (`repro-firing.json`,
+  `repro-a-run*.txt` preserved). Probe chain in the harness:
+  `interrupt_work tasks_alive=[true,true]` → `Async::Scheduler#raise`
+  called for both fibers (recorded) → `cancel` returns with
+  `cancelled_after=true, fiber_after=nil` — no `FiberError`/`Cancel::Later`
+  branch (tally: FiberError→Later = 0 across all runs) — the delivery is
+  swallowed below `Scheduler#raise`, inside the selector/fiber raise.
+
+- **Cure (Law 1)** — deterministic synchronization; the ESC is gated onto
+  the state where cancellation delivery is the designed mechanism:
+
+  1. ESC only after BOTH observables: (i) the mock server captured the
+     request (`captured.any? { …user message == "long stream" }` — the
+     kernel's work task is live and the request is on the wire), and
+     (ii) three content chunks have rendered
+     (`widget_lines_with_spans(session.drawn.last)…include?("xxx")` — the
+     fiber has demonstrably parked at the SSE read and cycles between
+     read-parks; the pre-IO park window is closed BY CONSTRUCTION).
+  2. The scripted stream outlasts the observation deadline: 40 → 80 chars
+     (≈4 s → ≈8 s at the FROZEN 0.1 s/char server pace) — a dropped
+     interrupt is always a loud red, never masked by natural end; the
+     interrupt path cancels the stream immediately, so green runs pay
+     ~+0.25 s per test (measured: pair standalone 0.075 s → 0.52 s).
+  3. `:1608` got the I82 Law-4 belt (`begin … ensure kernel.stop! end`),
+     byte-equivalent in strength to the escape test's existing belt
+     (escape test belt kept, untouched).
+
+  Residual risk (disclosed): the delivery failure lives in the
+  async/io-event/fiber layers (production-frozen seams). The cure gates
+  the ESC into the read-park state where delivery is the exercised
+  mechanism — the measured bar (16 full par runs + 24 focused amplifier
+  iterations, zero firings) is the evidence it holds. A residual failure
+  would now surface as the ≤5 s belt-protected loud red it always should
+  have been.
+
+### Class (f) — subagents-e2e drain-timing
+
+- **Named firing test**: `test_default_on_e2_async_detached_notify_and_print_drain`
+  (`test/subagents_e2e_test.rb:987` at base), the
+  `assert_equal B_FINAL, stdout.strip` inversion; same-script twin
+  `test_leg_b_async_delegation_and_print_drain` (:157).
+- **Mechanism (confirmed as the Grounds state them)**:
+  `MockLLMServer#serve` shifted the script by REQUEST ARRIVAL ORDER
+  (`spec = @script.shift || …`, base `mock_llm_server.rb:164`). Both legs
+  scripted `[tool_call spec, B_FINAL, child-slow]` and bet the parent's
+  instant tool-result turn beats the child's `bundle exec ruby bin/tart`
+  boot. Under sustained 8-way load the boot starves, the order flips: the
+  child takes B_FINAL, the parent's final turn takes the child slow
+  stream, stdout carries the child answer — the pin inverts.
+- **Pre-fix reproduction (reduced-context, sanctioned)**:
+  `scratch/repro_f.rb` + `scratch/forensics/base_mock_llm_server.rb`
+  (base bytes): ORDER A (child last) → child gets the slow stream, parent
+  stdout = B_FINAL (the leg passes); ORDER B (child first — the load
+  flip) → `child <- "TOOLCALL:subagent(async:true)"`,
+  `parent2 <- "leg B child answer streamed slowly"` — **the parent stdout
+  pin carries the CHILD answer: the exact firing signature**
+  (`scratch/forensics/repro-f-output.txt`). The live load-correlated
+  firing is the frozen contract's own I85 record (2/9).
+- **Cure (Law 2)** — the arrival-order bet is removed by
+  content-addressable scripting:
+  - `mock_llm_server.rb`: strictly additive `match:` capability —
+    `take_spec(parsed_body)`: (1) the FIRST entry whose `match:` predicate
+    is truthy for the parsed body is removed and served (content routing);
+    (2) otherwise the first entry WITHOUT a `match:` key (the legacy blind
+    shift, in order — byte-identical semantics for every pre-I87 caller);
+    (3) otherwise the unchanged `{type: :message, content: ""}` exhausted
+    fallback. Selection under a new `@script_mutex` (per-connection serve
+    threads). `rearm!`/`suppress_usage!`/request logs/EPIPE arms/
+    top-level minitest-optional shape: untouched (the rig's 7
+    `mock_llm_extension_test` pins pass unchanged).
+  - Legs B + E2: same three response specs, byte-identical, now routed by
+    content — parent turn 1 by the B_PROMPT user message, parent turn 2 by
+    the `c1` tool message, the child by the B_CHILD_TASK user message.
+    Order-independent by construction (the child can never take B_FINAL;
+    the parent's final turn can never take the slow stream). Every
+    existing leg assertion stands, byte-untouched (drain pair: 2 runs,
+    46 assertions — identical to the base measurement).
+  - New hermetic pins: `test/support/mock_llm_match_test.rb`, 6 pins
+    (routing order-independence; legacy blind-shift preservation incl.
+    the parked-match-entry rule; parking + unchanged fallback; rearm!
+    restores match entries; first-match-wins + serve-once; the streaming
+    arm end-to-end). Suite growth: **1491 → 1497 runs (exactly these
+    6)**; skips unchanged at 5.
+
+## 2. Per-edit itemization (old bytes → new bytes)
+
+### `test/chat_test.rb` (2 edits; the only file with class-(a) edits)
+
+1. `test_kernel_interrupt_during_streaming_cancels_and_leaves_render_coherent`
+   (base :1608):
+   - OLD: `@server.script([{type: :slow_stream, content: "x" * 40}])`
+     NEW: `…content: "x" * 80}` + why-comment.
+     Mechanism removed: the natural-end mask (≈4 s < 5 s deadline let a
+     dropped/dropped-delivery interrupt green silently serially). NOT a
+     timeout widening: the server's per-chunk pace (`spec_pause` 0.1) is
+     frozen and untouched; the deadline (`wait_until`, 5 s) is untouched;
+     on the interrupt path the stream is cancelled immediately (measured
+     green cost ≈ +0.25 s/test).
+   - OLD scenario body: bare
+     `type → wait busy? → ESC → wait !busy? → wait "interrupted" →
+     kernel.stop!` (no belt).
+     NEW: same body inside `begin … ensure kernel.stop! end` (the I82
+     Law-4 belt — closes the wedge gap: a missed window now costs ≤5 s,
+     never a 900 s-class wedge), PLUS two gating waits inserted BETWEEN
+     `wait_until { chat.busy? }` and the ESC push:
+     `wait_until { captured.any? { |req| … == "long stream" } }` and
+     `wait_until { widget_lines_with_spans(session.drawn.last)…include?("xxx") }`.
+     Mechanism removed: the pre-IO-park ESC window (the measured silent
+     no-delivery geometry). Assertions unchanged (4 asserts,
+     `refute kernel.interrupted?` / `assert chat.agent.interrupted?` /
+     orphan-poller / coherent render — all byte-identical).
+2. `test_escape_interrupts_a_streaming_run_through_the_kernel_path`
+   (base :5775):
+   - OLD: `content: "x" * 40` NEW: `content: "x" * 80` (+ why-comment) —
+     same unmasking as above.
+   - OLD: ESC pushed right after `wait_until { chat.busy? }`.
+     NEW: the same two gating waits inserted before the ESC push (+ the
+     why-comment). Belt already present (kept byte-identical). All
+     assertions unchanged (`@agent_interrupted` capture, the "still
+     there" follow-up submit, transcript "interrupted").
+
+### `test/support/mock_llm_server.rb` (4 additive hunks)
+
+1. Doc comment: the `match:` entry shape (12 lines).
+2. `initialize`: `@script_mutex = Mutex.new` (+ why-comment).
+3. `serve`: OLD `spec = @script.shift || {type: :message, content: ""}`
+   NEW `spec = take_spec(parsed_body)`.
+4. NEW private `take_spec(parsed_body)` — matched-entry scan → legacy
+   blind shift → unchanged fallback, under the mutex (+ why-comment).
+   Mechanism removed: the arrival-order bet. Every existing caller's
+   semantics byte-preserved (no-match scripts take the identical
+   first-index-removal path = the old shift).
+
+### `test/subagents_e2e_test.rb` (2 edits)
+
+1. Leg B script block: OLD blind 3-entry script + the order-bet comment;
+   NEW the same three specs each carrying its `match:` predicate + the
+   class-(f) comment. `PARENT_DEADLINE_S = 180` and every assertion
+   untouched.
+2. Leg E2 script block: same conversion. All assertions untouched.
+
+### NEW `test/support/mock_llm_match_test.rb`
+
+6 hermetic pins over a real TCP socket (itemize-and-defend entry): the
+file exists solely to pin the new mock-server capability — the suite's
+run count grows by exactly these 6 (1491 → 1497; verified in the serial
+suite, `parallel-parity`'s COVERAGE legs, and all 16 streak runs).
+
+## 3. The full 107-gate table (measured one-liner per gate)
+
+All at the lane tree, cold, bodies VERBATIM from the frozen block
+(extracted mechanically — `scratch/gates/<id>.sh`; runner
+`scratch/run_gates.sh`; logs `scratch/gate_runs/<id>.log`).
+
+| gate | result | measured one-liner |
+|---|---|---|
+| stale-run-reaper | PASS | 1s; STALE_RUN_REAPER_OK |
+| unknown-model-reject | PASS | 0s; UNKNOWN_MODEL_REJECT_OK |
+| subagents-health-units | PASS | 7s; health pins ≥8 runs green |
+| edit-fold-repro | PASS | 0s; EDIT_FOLD_REPRO_OK |
+| edit-fold-units | PASS | 1s; ≥10 runs green |
+| session-model-identity | PASS | 0s; SESSION_MODEL_IDENTITY_OK |
+| session-model-units | PASS | 1s; ≥6 model-identity runs green |
+| suite | PASS | 221s ≤ 240s; 1497 runs / 10152 assertions / 0F / 0E / 5S |
+| bench | PASS | 16s; SEAM_BENCH_OK |
+| md-repro | PASS | 1s; MD_REPRO_OK |
+| md-inline-units | PASS | 0s; inline-scan pins green |
+| pending-registry-units | PASS | 0s; registry pins green |
+| footer-window | PASS | 0s; FOOTER_WINDOW_OK 1000000 |
+| thinking-pins | PASS | 1s; ≥11 + ≥8 runs green |
+| hermeticity | PASS | 10s; launcher smoke + e2e session green |
+| lock-deps | PASS | 0s; lock pins + GEM_LOAD_OK |
+| zai-data | PASS | 1s; dialect pins green |
+| threads-budget | PASS | 0s; zero new Thread.new in lib |
+| session-golden | PASS | 0s; session digests byte-frozen |
+| strict-wire | PASS | 1s; strict sampling runs 0F/0E |
+| error-transcript-units | PASS | 0s; agent-loop + session pins green |
+| error-transcript-render-units | PASS | 1s; chat render + replay pins green |
+| render-perf-units | PASS | 1s; render_perf green ec=0 |
+| render-perf-probe | NOTE-AND-PASS | run 1 FAIL ec=1 (BP1 3.07 ≤3.0, BP2 258.8 ≤250 — declared class (d) load-margin); cold re-run PASS 144s (BP1 2.39, BP2 249.0), RENDER_PERF_OK |
+| tool-pending-gate | PASS | 20s; TOOL_PENDING_GATE_OK |
+| user-bash-stream-gate | PASS | 14s; USER_BASH_STREAM_GATE_OK |
+| zai-max-tokens-units | PASS | 3s; agent/models/launcher pins green |
+| rail-bg | PASS | 0s; RAIL_BG_OK |
+| jump-pill-units | PASS | 1s; ≥6 runs green |
+| rail-bg-units | PASS | 0s; ≥4 runs green |
+| viewport-probe | PASS | 0s; VIEWPORT_PROBE_OK |
+| oracle-pin-state | PASS | 0s; pin branch + cli 1.1.0 |
+| oracle-bin-units | PASS | 1s; ≥5 runs green |
+| oracle-resolve | PASS | 0s; pinned-clone resolution |
+| s1-parity | PASS | 6s; rig parity ec=0 |
+| s2-parity | PASS | 5s; ec=0 |
+| s3-parity | PASS | 5s; ec=0 |
+| s4-parity | PASS | 5s; ec=0 |
+| s5-parity | PASS | 6s; ec=0 |
+| s6-parity | PASS | 5s; ec=0 |
+| s7-parity | PASS | 5s; ec=0 |
+| s8-parity | PASS | 5s; ec=0 |
+| s9-parity | NOTE-AND-PASS | FAIL ×2 cold ec=1 — unknown-candidate wrap fragments on sandbox/pi vs sandbox/tart path wrap: the declared class (c) lane-tree geometry; GREEN (ec=0) at repos/tart with the identical command (mechanically proven attribution) |
+| s10-parity | PASS | 8s; ec=0 |
+| s17-parity | PASS | 8s; ec=0 |
+| s1-tart-mode | PASS | 5s; TART_MODE_OK |
+| wire-delta | PASS | 5s; WIRE_DELTA_OK (instruction/tool digests frozen) |
+| zai-max-tokens-wire | PASS | 5s; tart=pi=512 |
+| identity-law | PASS | 1s; IDENTITY_LAW_OK |
+| default-face | PASS | 0s; DEFAULT_FACE_OK |
+| default-boot | PASS | 1s; DEFAULT_BOOT_OK (tart preamble + TART_* namespace on the wire) |
+| herdr-units | PASS | 1s; HERDR_UNITS_OK |
+| herdr-wire-probe | PASS | 3s; HERDR_WIRE_OK |
+| rig-identity-assert | PASS | 0s; RIG_IDENTITY_OK |
+| subagents-default-law | PASS | 0s; default-ON law |
+| subagents-default-boot | PASS | 1s; default-on tools digest frozen |
+| subagents-motd-units | PASS | 1s; prompts rows frozen |
+| subagents-motd-probe | PASS | 3s; SUBAGENTS_MOTD_OK |
+| subagents-e2e-default-on | PASS | 36s; ≥4 default-on e2e runs green (incl. cured leg E2) |
+| rig-staging-units | PASS | 0s; staging opt-out pinned |
+| vendored-attribution | PASS | 1s; manifest + oracle byte-identity |
+| vendored-units | PASS | 1s; vendored tier pins |
+| listing-units | PASS | 0s; ≥5 runs green |
+| model-menu-live-merge | PASS | 1s; live-list pins |
+| launcher-listing-thread | PASS | 1s; endpoint-thread pin |
+| vendored-no-boot-network | PASS | 0s; offline vendored tier |
+| listing-thread-law | PASS | 0s; one Thread.new site |
+| md-battery-fixture | PASS | 0s; sha 4ecd9cc2… verified |
+| md-battery-units | PASS | 0s; 48 battery cases |
+| md-regression-units | PASS | 1s; regression battery |
+| md-flanking-repro | PASS | 0s; MD_FLANKING_OK |
+| md-micro-perf | PASS | 2s; 4.49 ms/conv ratio 1.98 |
+| child-env-law-repro | PASS | 0s; CHILD_ENV_LAW_OK |
+| child-env-units | PASS | 1s; pins green |
+| child-env-site-units | PASS | 3s; site pins |
+| bash-child-env-live | PASS | 1s; BASH_CHILD_ENV_LIVE_OK |
+| session-sink-config-units | PASS | 1s; config law |
+| session-sink-projection-units | PASS | 1s; projection pins |
+| session-sink-engine-e2e | PASS | 6s; ec=0 |
+| session-sink-child-e2e | PASS | 3s; ec=0 |
+| signal-hygiene-units | PASS | 4s; six-leg belt green |
+| signal-orphan-e2e | PASS | 30s; SIGNAL_ORPHAN_OK |
+| subagent-box-units | PASS | 32s; box pins |
+| subagent-status-probe | PASS | 63s; SUBAGENT_STATUS_OK |
+| child-encoding-units | PASS | 4s; encoding pins |
+| child-encoding-e2e | PASS | 6s; ec=0 |
+| runner-encoding-direct | PASS | 1s; RUNNER_ENCODING_DIRECT_OK |
+| agent-loading-units | PASS | 1s; AGENT_LOADING_UNITS_OK |
+| nested-grant-units | PASS | 37s; NESTED_GRANT_UNITS_OK |
+| forensics-units | PASS | 1s; FORENSICS_UNITS_OK |
+| agent-loading-e2e | PASS | 10s; ec=0 |
+| listing-teardown-units | PASS | 1s; LISTING_TEARDOWN_OK |
+| contention-proof | PASS | 11s; CONTENTION_OK |
+| sweep-units | PASS | 22s; SWEEP_UNITS_OK |
+| sweep-parity | NOTE-AND-PASS | FAIL ec=1 — serial/concurrent tables AGREE; drift vs the frozen base table is ONLY s9_startup_help=1 + s16_resize_wrap=1, both the declared class (c) lane-tree geometry (both GREEN at repos/tart via the identical wrapper invocations: s9 ec=0, s16 ec=0 — mechanically proven) |
+| sweep-crosstalk | PASS | 7s; CROSS_TALK_OK |
+| parallel-units | PASS | 1s; PARALLEL_UNITS_OK |
+| parallel-parity | PASS | 40s; PARALLEL_OK 1497/10147/0F/0E/5S wall 39.8s ≤90s; COVERAGE_OK runs=1497 enum=1497; Rakefile additivity 0 deletions |
+| parallel-repeat | PASS | 123s; 3 runs identical runs=1497 skips=5 literals; assertions spread inside the ±20 band |
+| ruby-pin | PASS | 0s; pin 4.0.9 + mise + lock guard |
+| native-bundle | PASS | 0s; ratatui 1.5.0 native ext from Gem.default_dir |
+| premise-remeasure | PASS | 17s; wedge=real plain=stands hard=escapes |
+| scope | PASS | 0s; tracked diff confined to the 3-file touch set; must-differ satisfied; 1 sanctioned new support file; untracked set whitelisted |
+| deflake-par-streak | PASS | 664s; **16/16 full par runs, ZERO (a)/(f) firings**, every run exit 0 + clean PARALLEL_OK + well-formed COVERAGE_OK |
+| deflake-interrupt-streak | PASS | 24s; ×16 standalone + ×8 under 8-way steal, every iteration ≤90s watchdog, exactly 2 runs/iteration (0.48–0.54s each) |
+| deflake-drain-streak | PASS | 942s; ×16 standalone + ×8 steal, every iteration ≤300s watchdog, 2 runs / 46 assertions per iteration (~37–39s each) |
+| deflake-no-widening | PASS | 0s; all five legs — frozen sentinels byte-unchanged, ZERO production bytes, ZERO added sleeps, PARENT_DEADLINE_S=180 unmoved, BELT_AUDIT_OK (both named interrupt tests carry the belt) |
+
+107/107 gates run; 104 PASS, 3 note-and-pass (all declared classes with
+mechanical attribution: (d) ×1 cold-re-run PASS, (c) ×2 proven
+GREEN-at-integration-tree).
+
+## 4. Streak summaries
+
+`deflake-par-streak` (the cure bar, N=16 — all exit 0, PARALLEL_OK, COVERAGE_OK):
+
+```
+run 1: PARALLEL_OK runs=1497 assertions=10142 failures=0 errors=0 skips=5 workers=8 wall=41.5s
+run 2: PARALLEL_OK runs=1497 assertions=10153 failures=0 errors=0 skips=5 workers=8 wall=42.1s
+run 3: PARALLEL_OK runs=1497 assertions=10153 failures=0 errors=0 skips=5 workers=8 wall=41.5s
+run 4: PARALLEL_OK runs=1497 assertions=10138 failures=0 errors=0 skips=5 workers=8 wall=41.6s
+run 5: PARALLEL_OK runs=1497 assertions=10153 failures=0 errors=0 skips=5 workers=8 wall=40.4s
+run 6: PARALLEL_OK runs=1497 assertions=10152 failures=0 errors=0 skips=5 workers=8 wall=41.2s
+run 7: PARALLEL_OK runs=1497 assertions=10143 failures=0 errors=0 skips=5 workers=8 wall=41.7s
+run 8: PARALLEL_OK runs=1497 assertions=10153 failures=0 errors=0 skips=5 workers=8 wall=41.8s
+run 9: PARALLEL_OK runs=1497 assertions=10137 failures=0 errors=0 skips=5 workers=8 wall=42.1s
+run 10: PARALLEL_OK runs=1497 assertions=10142 failures=0 errors=0 skips=5 workers=8 wall=42.0s
+run 11: PARALLEL_OK runs=1497 assertions=10153 failures=0 errors=0 skips=5 workers=8 wall=40.0s
+run 12: PARALLEL_OK runs=1497 assertions=10138 failures=0 errors=0 skips=5 workers=8 wall=40.5s
+run 13: PARALLEL_OK runs=1497 assertions=10152 failures=0 errors=0 skips=5 workers=8 wall=40.6s
+run 14: PARALLEL_OK runs=1497 assertions=10147 failures=0 errors=0 skips=5 workers=8 wall=41.2s
+run 15: PARALLEL_OK runs=1497 assertions=10138 failures=0 errors=0 skips=5 workers=8 wall=41.0s
+run 16: PARALLEL_OK runs=1497 assertions=10138 failures=0 errors=0 skips=5 workers=8 wall=41.2s
+gate total wall=664s — DEFLAKE_STREAK_OK streak=16
+```
+
+Amplifiers: `DEFLAKE_INTERRUPT_OK standalone=16 steal=8` (24 iterations,
+max observed 0.54 s vs the 90 s watchdog); `DEFLAKE_DRAIN_OK standalone=16
+steal=8` (24 iterations, 37.1–38.8 s vs the 300 s watchdog). Zero (a)/(f)
+signatures anywhere in the streak logs (`t87stk/`, `t87int/`, `t87drn/`).
+
+Pre-cure contrast (same lane tree, same day): 11 pre-cure par cycles →
+1 class-(a) firing at cycle 5 (the preserved worker log) — consistent
+with the frozen ≈0.29/class rate; 0 post-cure in 16+8+24+24 focused
+exposures and 16 full runs.
+
+## 5. Suite literals
+
+- Serial (`suite` gate): **1497 runs, 10152 assertions, 0 failures,
+  0 errors, 5 skips, wall 221 s** (bound 240 s).
+- Parallel: **runs=1497 skips=5** across all 16 streak runs +
+  parallel-parity + parallel-repeat (identical literals);
+  assertions 10137–10153 (the dynamic-counter band).
+- Growth vs base (1491 / 5S): **+6 runs = exactly the 6 new
+  `mock_llm_match_test` pins**. No other count/shape movement.
+
+## 6. Deviations, itemized
+
+1. Reduced-context class-(f) reproduction (mechanical forced-order driver
+   at base bytes) — sanctioned by Law 0's letter; same signature; the
+   live-load correlation rides the frozen I85 record. Disclosed above.
+2. ONE new `test/support/` file (the sanctioned maximum), used for the 6
+   declared hermetic pins. Disclosed above.
+3. `default-boot` was initially missed in the batch ordering (106/107
+   logs after the first battery pass) and was run immediately after —
+   PASS 1s (DEFAULT_BOOT_OK). All 107 gates have measured rows; no gate
+   is absent. No other deviations. No frozen bytes moved, no production
+   bytes, no sleeps, no renamed/deleted tests, no weakened assertions or
+   belts.
+
+## 7. Artifact inventory (lane scratch, all raw)
+
+- `scratch/forensics/worker-0.log` — the pre-cure in-suite firing worker log (cycle 5).
+- `scratch/forensics/i87-forensics-14617.json` — the instrument dump at the firing (the mechanism record).
+- `scratch/forensics/i87-forensics-12134.json` — an earlier identical failure-state capture.
+- `scratch/forensics/repro-firing.json` + `repro-a-run*.txt` — the reduced-context harness firings + the async probe tallies/ring.
+- `scratch/forensics/base_mock_llm_server.rb` + `repro-f-output.txt` — the class-(f) base-bytes order-flip reproduction.
+- `scratch/repro_a.rb`, `scratch/repro_f.rb` — the forensic harnesses (NOT in the repo tree).
+- `scratch/chat_test.rb.pristine` — the pre-instrumentation byte copy (restored; sha verified).
+- `scratch/gates/*.sh` + `scratch/gate_runs/*.log` — the verbatim gate bodies + full run logs.
+- `scratch/extract_gates.rb`, `scratch/run_gates.sh` — the extraction + runner.
+
+STATUS: COMPLETE
 
 ## Verdict
 
