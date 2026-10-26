@@ -3255,12 +3255,13 @@ project:
       touch_set:
       - test/subagents_intercom_test.rb
       base_sha: 5ee64ceee15ae94000fda8ba4a9db80ca49f61e6
-      worktree: build/I88-intercom-toctou-core/wt
-      integration_branch:
+      worktree:
+      integration_branch: project/pi-port
       harness: pi
       model: zai/glm-5.3-flash
       variant: false
       effort: high
+      integrate_sha: df79c5f9904547e8c51ad8e83df4cd5081e5451c
     rehearsal:
       gates_digest: 37072190c6db588b6b68b73c433241a8821e011ac2247152facdc840405f5288
       at: '2026-10-25T13:58:22-06:00'
