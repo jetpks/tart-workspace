@@ -3724,15 +3724,70 @@ byte-identically with the lane diff REMOVED.
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section intercom-toctou verdict --from <file>`. -->
-
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify intercom-toctou`)?
+- **Disagreement rulings** — NONE raised. The builder declared no PHASE 0
+  stop: the production-immunity re-confirmation (Law 0 leg 2) found
+  `lib/tart/subagents/supervisor.rb` ENOENT-immune at every consume path
+  (scan_requests :327-328, run_terminal? :352, remove_request_file :436,
+  read_json :452), byte-identical to `5ee64ce` — judge-verified: the lane
+  diff carries zero production bytes. The two battery reds are not PHASE 0
+  disagreements; they are the declared class-(c) adjudicated below.
+- **Acceptance Criteria integrity** — `architect verify intercom-toctou`:
+  (a) frozen sections untouched PASS (the only post-freeze diff is the
+  Builder Report transcription + this Verdict, the two sections the freeze
+  leaves writable); (b) no builder commits PASS (`git log 5ee64ce..` empty
+  at the lane tree); (c) scratch report exists PASS; (d) in-bounds FAIL on
+  the UNTRACKED `t88*` gate-output dirs only — judge/builder gate scratch,
+  the standing `t75`–`t88` families the frozen AC6 itself declares ("the
+  standing scratch families"), tracked diff confined to exactly the frozen
+  touch set; cleaned before integration per the I72/I73/I74/I75 precedent,
+  NO accept-bounds override.
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | Audit table: 8 sites enumerated, 5 racy CURED, 3 non-racy itemized; immunity re-confirmed with line citations; per-edit old→new itemization | Law 0 / AC1 | PASS — judge diff-read: the 86+/6− diff matches the itemization edit-for-edit, byte-for-byte in shape |
+| AC2 | All 5 racy sites cured per frozen semantics (2 combined rescues, 2 skip-and-continue, 1 honest flunk); amplifier ×32 idle + ×16 steal GREEN; zero TOCTOU firings across the streak bar | Law 1 / AC2 | PASS — amplifier GREEN judge-cold in-battery; streak judge-cold below |
+| AC3 | 4 `toctou`-named pins (≥3 required), deterministic Dir.glob-unlink staging, found-marker + missing-marker paths pinned; suite 1497→1501, skips 5 | Law 2 / AC3 | PASS — `toctou-pin-units` GREEN judge-cold; growth exactly +4 on every cold run |
+| AC4 | toctou-par-streak 38/38 ec=0 zero firings (judge-cold foreground); suite 1501/10161/0F/0E/5S wall 221s ≤ 240s (judge-cold); parallel-parity + parallel-repeat ×3 GREEN (judge-cold); carried battery adjudicated 109 PASS + 2 note-and-pass | Law 4 / AC4 | PASS — the N=38 bar met judge-cold, not builder-claimed |
+| AC5 | Zero added sleep, zero production bytes, no timing literal touched; test_helper/Rakefile/support byte-frozen; toctou-no-widening + deflake-no-widening GREEN judge-cold; signal-orphan-e2e 6/6 legs ≤1.0s | Law 3 / AC5 | PASS |
+| AC6 | Tracked diff = exactly `test/subagents_intercom_test.rb`; Gemfile.lock untouched; untracked = the declared standing t88* scratch families only; scope gate GREEN judge-cold | AC6 | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+- **The two reds, adjudicated (the standing declared class-(c), zero lane
+  attribution)** — `s9-parity`: judge-own cold ×3 at the lane tree — one
+  ec=0 (boundary geometry: the deep-path skills line sits one char from
+  the wrap), two ec=1 with the EXACT declared signature (`1x
+  unknown-candidate` = the `-d` wrap fragment of the deep sandbox path,
+  `6x parity-run-path`, `3x staged-path-wrap-fragment`, `2x
+  footer-provider-prefix`, zero style differences — `t88s9/report.md`),
+  byte-identical to the builder's base-content reproduction in this same
+  tree with the lane diff REMOVED. `sweep-parity`: judge-cold FAIL with
+  the identical declared drift `[["s16_resize_wrap",1],
+  ["s9_startup_help",1]]` == the base-content reproduction. The lane diff
+  is test-only; the intercom test file is not in the s9/s16 code path.
+  Note-and-pass per the frozen preamble; the owner-backlog re-freeze
+  stands.
+- **The nohup-artifact finding (the prior judge's confirmed hypothesis,
+  folded in and closed)** — the first judge-cold battery (17:21) ran
+  detached under nohup: SIGHUP=SIG_IGN inherited across exec flipped the
+  two HUP-disposition routing pins to `"IGNORE"`, and EVERY full-suite
+  gate red'd with exactly `failures=2` == those 2 pins (suite,
+  parallel-parity, parallel-repeat run 1, deflake-par-streak run 1,
+  toctou-par-streak run 1; signal-hygiene-units red'd directly). Every
+  tainted gate re-run FOREGROUND GREEN: signal-hygiene-units OK, suite
+  221s SUITE_OK, parallel-parity OK, parallel-repeat ×3 OK,
+  deflake-par-streak 16/16, toctou-par-streak 38/38 (prior judge),
+  deflake-drain-streak standalone=16 steal=8. The I75 house note fires a
+  second time: NEVER run gates under nohup. Full record:
+  `build/I88-intercom-toctou-core/scratch/judge-cold-adjudication.md`.
+- **Runner-cap declaration honored** — the three cap-exceeding streak
+  gates SIGTERM at 900 s under the official runner by construction; the
+  standalone cold re-runs are the operative records and are ALL GREEN
+  judge-cold (toctou 38/38, deflake 16/16, drain 16+8).
+- **Cured-status amendment takes effect** — per the frozen preamble, the
+  intercom-TOCTOU ENOENT class comes OFF the live note-and-pass record:
+  a red on that signature after this iteration is REAL.
+- **Iteration** — **CONTINUE**. Diff vs Specification Laws 0–4 faithful
+  (audit-first, per-site ENOENT semantics, deterministic pins, nothing
+  weakened, the measured N=38 bar met judge-cold); every builder claim
+  independently re-measured; both reds adjudicated declared-class with
+  base-content proof. This is the LAST planned iteration of the
+  intercom-toctou plan — integration follows.
