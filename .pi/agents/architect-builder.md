@@ -2,7 +2,7 @@
 name: architect-builder
 description: Implements one architect lane inside its worktree under lane discipline; raw-results report; never commits.
 tools: read, grep, find, ls, bash, edit, write, web_search, fetch_content, get_search_content
-model: zai/glm-5.3-flash
+model: openrouter/z-ai/glm-5.3-flash
 thinking: high
 systemPromptMode: replace
 inheritProjectContext: true
