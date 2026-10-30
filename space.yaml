@@ -3318,7 +3318,15 @@ project:
   - name: raise-mechanism
     ordinal: 91
     file: architecture/I91-raise-mechanism.md
-    freeze_sha:
+    freeze_sha: f64b2a4fd08a4c5939b5d97e3a8c51291dd8eeb6
     verdict: pending
-    lanes: []
+    lanes:
+    - name: forensics
+      repo: io-event
+      touch_set:
+      - build/I91-raise-mechanism/scratch/**
+      - build/I91-raise-mechanism/report.md
+    rehearsal:
+      gates_digest: 5647245663c0dbf669377dcbd1e43b7c69a679125615c61483e5c3761f2354ab
+      at: '2026-10-30T12:36:20-06:00'
   integration_branch: project/pi-port
