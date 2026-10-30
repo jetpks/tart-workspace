@@ -3616,10 +3616,129 @@ rewrite); `architect verify`.
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I90-interrupt-delivery-belt-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section interrupt-delivery-belt prompt --append --lane <lane> --from build/I90-interrupt-delivery-belt-<lane>/prompt.md`. -->
+### core
+
+# Lane core — interrupt-delivery-belt (I90) — Builder Prompt
+
+You are the builder for lane **core** of iteration **interrupt-delivery-belt**
+(repo `tart`). Your worktree is the provisioned lane tree at
+`build/I90-interrupt-delivery-belt-core/wt`; your scratch is
+`build/I90-interrupt-delivery-belt-core/scratch/`; your report is
+`build/I90-interrupt-delivery-belt-core/report.md`. **Never commit, never
+push, never create branches — anywhere.** Read the frozen
+`architecture/I90-interrupt-delivery-belt.md` (Grounds / Specification /
+Acceptance Criteria) FIRST — it is the contract; this prompt is the
+orientation.
+
+## The mission
+
+The io-event pin STAYS 1.22.1 (ENTRY 1's A/B measured NOT CLEAN — 1.22.3
+fires the class-(a) undelivered-cancellation defect too; ENTRY 3 SKIPPED).
+This belt is the ONLY production protection against the defect: a real-user
+ESC in the pre-IO window can leave a tart run forever-busy —
+`interrupt_work!` returns, the cancel is never delivered, `agent_end` never
+fires, `busy?` forever. You are adding a delivery belt to tart's OWN seam:
+after a surface-dispatched `interrupt_work!`, require `:agent_end` within a
+bounded deadline; on miss, escalate loudly (the exact line `interrupt
+delivery failed — run aborted` + stderr warn + `kernel.stop!`). Zero
+dependency bytes. The failure mode becomes loud and recoverable; it is
+never cured (not ours — the io-event machinery) and never masked.
+
+## The ground truth you inherit (do not re-litigate)
+
+- The forensic: `architecture/I87-suite-deflake.md` (class (a) section +
+  Residual risks #2) and the I89 verdict (`architecture/I89-io-event-ab.md`).
+- The seam, measured at base 752c370 (Grounds cites file:line):
+  `lib/tart/render/chat.rb` — ESC arm :1018-1020 (`elsif busy?` →
+  `@kernel.interrupt_work!`), `busy_command_arm` :1205-1214, the
+  `:agent_end` arm :688-737 (`@busy = false` at :689). `busy?` is
+  `@mutex`-guarded; `:agent_start` sets `@busy = true` (:556).
+- Honest-delivery latency (spec-time probe, 30 iters under 8-way steal):
+  esc→delivery p-max 22 ms. The frozen default 10.0 s is ~450× that; the
+  catch-gate injection 3.0 s is ~136× and beats the suite's 5 s
+  `wait_until`.
+- The I87 cure (the two named tests' ESC gating into the read-park state)
+  is LOAD-BEARING and BYTE-FROZEN — you never open `test/chat_test.rb`.
+
+## The laws (frozen in the Specification — restated as discipline)
+
+- **Law 0 — the seam.** Arm at EXACTLY the two dispatch sites, immediately
+  after the `@kernel.interrupt_work!` call. Disarm in the `:agent_end`
+  arm — ANY agent_end is delivery evidence. Everything else at the
+  interrupt path is BYTE-UNTOUCHED. Reactor-serial by construction; never
+  call `busy?` while holding `@mutex` (the I79 deadlock lesson).
+- **Law 1 — idempotent arm.** ONE watchdog task (`@kernel.async`), its
+  timer a fiber `sleep` of the deadline (the ONE sanctioned production
+  sleep — its line must match `/sleep.*delivery_deadline/`). Already-armed
+  ⇒ still call `interrupt_work!`, do NOT re-arm. `interrupt_belt_arms`
+  increments per arm. No dispatch (idle ESC etc.) ⇒ no arm.
+- **Law 2 — disarm.** `Task#stop` the watchdog + clear the flag; zero
+  residue. Gate the expiry body on the armed flag anyway (stop-vs-fire
+  ordering must never escalate a delivered run).
+- **Law 3 — escalation, exactly once.** Still armed at expiry AND
+  `!kernel.stop_requested?`: enqueue_scrollback the EXACT line
+  (`interrupt delivery failed — run aborted`, em-dash U+2014,
+  `fg: Theme[:error]`), `warn "tart: interrupt delivery failed — run
+  aborted (kernel stopped)"`, `request_draw`, `@kernel.stop!`. Teardown
+  race (`stop_requested?`) ⇒ silent disarm. Never retry the interrupt;
+  never write the session.
+- **Law 4 — frozen constants/seams.** `INTERRUPT_DELIVERY_DEADLINE_S =
+  10.0`; `attr_writer :interrupt_delivery_deadline` (nil/unset ⇒ default);
+  `interrupt_belt_armed?`; `interrupt_belt_arms`. Zero changes to
+  core/loop.rb, agent/loop.rb, print.rb, bin/tart, gems/, test_helper.rb,
+  Rakefile, test/support/**.
+- **Law 5 — never mask.** The 10.0 > 5.0 ordering is the structural
+  no-mask property; a belt fire in-suite makes a failure LOUDER, never
+  greener.
+- **Law 6 — the six pins**, exact names/properties, in the ONE new file
+  `test/interrupt_delivery_belt_test.rb`, self-contained wiring (the
+  repro_a.rb inline shape — build the MockLLMServer + ScriptedSession +
+  real kernel + agent in-file; do NOT reach into chat_test.rb). Pin 2's
+  swallow surrogate: a fake agent whose `run` emits `:agent_start`, parks
+  on `Async::Queue#pop`, survives EXACTLY ONE `Async::Cancel` (pops again),
+  honors the second (teardown cleanliness — a hang here is the I82 wedge
+  class), and NEVER emits `:agent_end`. Pins poll observables via the
+  frozen `wait_until`; ZERO sleep tokens in the pins file.
+- **Law 7 — cost.** Suite 1501 → 1507 runs exactly (your six pins), ≤
+  240 s; the interrupt/escape family stays 11 runs ≤ 15 s (base 1.3 s).
+
+## Watch-outs (learned the hard way in this house)
+
+- /bin/sh has NO `set -e` — your gate-facing scripts chain with `&&` /
+  explicit exits.
+- NEVER nohup anything that runs gates or the suite (SIGHUP taints the
+  signal-routing pins — two firings on record).
+- The added-sleep audit (`belt-no-widening`) greps your chat.rb diff for
+  `sleep[ (]` tokens: only lines ALSO matching `delivery_deadline` pass.
+  Word comments accordingly ("the watchdog timer", not "sleeps").
+- The loud line contains a literal em-dash (U+2014) — match it byte-exact
+  in both the scrollback enqueue and the stderr warn.
+- `git status --porcelain` at your tree must show ONLY your two paths
+  (chat.rb modified, the pins file untracked-new) plus declared gate
+  scratch. Gemfile.lock moves ZERO bytes — no installs, no bumps.
+
+## PHASE 0
+
+Before writing code: read the frozen I90 Grounds/Specification/AC end to
+end, the I87 class-(a) forensic section, and the I89 verdict. Verify at
+your tree: base SHA 752c370, the seam line numbers, the suite boots green
+(`bundle exec ruby -Ilib -Itest test/chat_test.rb -n "/interrupt|escape/"`
+= 11 runs). If any frozen fact contradicts what you measure, declare it in
+the report's PHASE 0 section BEFORE proceeding — a contradiction is a
+stop-and-declare event, never a silent adaptation.
+
+## The report (the deliverable beside the diff)
+
+`build/I90-interrupt-delivery-belt-core/report.md`, frozen sections in
+order: `STATUS:` line; PHASE 0 declarations; THE DIFF ITEMIZED (old bytes
+→ new bytes per hunk, the law each hunk serves); BELT SEMANTICS AS
+SHIPPED; THE PINS (per pin: name, property, why deterministic); CATCH
+RECORD (run the frozen `belt-catch` gate's exact command at your tree —
+every `BELT_CATCH_SUMMARY` line, per-catch preserved firing JSONs named;
+`caught=0` is a declared vacuous green, say so); COST RECORD (the
+`belt-cost` output + the suite wall); GATE TABLE (all 115 gates, a
+measured one-liner each — an absent gate entry is REJECT-class); ARTIFACT
+INDEX (every scratch file, one line each). Nothing silent.
 
 ## Builder Report
 
