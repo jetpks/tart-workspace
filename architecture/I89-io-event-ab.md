@@ -377,51 +377,318 @@ is confined to firing classification and the Law-6 probe design).
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse io-event-ab` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze io-event-ab` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# I89 acceptance criteria — io-event-ab
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+Property-level, each independently judgeable. This is an
+investigate-only spike: the deliverable is a measured recommendation,
+and most ACs are report-content properties the judge verifies against
+the lane's preserved artifacts; the frozen ```gates block below (6
+gates, all bespoke — no carried battery: zero tracked changes means
+nothing to regression-guard beyond the house bar) is the runnable
+floor. Calibration: the base literals (1501 runs / 5 skips; the three
+sha256s; the base SHA) are exactness-frozen because they ARE the
+property (zero footprint); the statistical parameters (batch size 100,
+R_max 15, the decision rule) are frozen in the Specification, not
+re-derived here.
 
-**AC1.** ...
+## AC preamble — declared states at base `752c370`
+
+- Base: `repos/tart` @ `752c3701c3ef0215547d31956e3563fbebdbe4c1`
+  (project/pi-port tip). Suite literals: 1501 runs / 0F / 0E / 5
+  skips, serial wall ~221 s; parallel `PARALLEL_OK runs=1501` +
+  `COVERAGE_OK runs=1501`.
+- `suite`, `pin-swap-mechanics`, `scope-zero` — GREEN-expected at base
+  (all three verified standalone this session; pin-swap is the
+  verbatim spec-time recipe).
+- `parallel-suite` — GREEN-expected; declared RED-POSSIBLE: the I85
+  exit-teardown wedge (`rb_ec_cleanup → io-event kevent`, standing
+  residual #1) can hang `rake test:par` under load; the gate's 900 s
+  watchdog converts a wedge into a LOUD red with a captured `sample`
+  stack — that red is the declared class, note-and-pass on a cold
+  re-run, and is itself wedge data point for AC5.
+- `rig-smoke` — declared RED-POSSIBLE: class (a) is LIVE at this base
+  (spec-time: fired in a 3-iteration no-steal smoke; see Grounds). A
+  red carrying `FIRING at iteration` + the `CANCEL TALLY` line is the
+  live class (the rig WORKING — the A-side's fuel), not harness rot;
+  note-and-pass on cold re-run. Any other red shape is a real gate
+  failure.
+- `ab-protocol-smoke` — GREEN-expected; firing-TOLERANT by
+  construction (a firing in either 5-iteration mini-batch is data, not
+  a gate failure; only harness rot — boot errors, pin-assertion
+  failures, malformed artifacts — reds the gate).
+- No carried flake preamble applies beyond these: the I88-cured
+  classes stay cured (zero tracked changes), and the streak batteries
+  are deliberately not carried (nothing to deflake).
+
+## AC1 — rig fidelity and zero footprint (the constraint AC)
+
+The repro copy at `build/I89-io-event-ab-forensics/scratch/repro_a.rb`
+is byte-identical to the committed evidence (sha256
+`561812eb06c99d9f16526d0e5e422f9055c37fbfaffd317defc6c49a0d4abb21`);
+probe instrumentation semantics untouched. ZERO tracked-file changes
+and zero new commits in `repos/tart` AND the lane worktree; every
+`Gemfile.lock` byte-frozen (sha256
+`5d380f1764883ceedcc519529f37b757760548acf83dfa9435259de1eb335ad0`);
+the socketry reference clones untouched at their Grounds SHAs. All
+gems installed only into the Law-1 scratch homes anchored on
+`Gem.default_dir`. Carried by: `rig-smoke` (byte legs), `scope-zero`,
+the `pin-swap-mechanics` lock legs; report PHASE 0.
+
+## AC2 — the A-side baseline, re-established or loudly inconclusive
+
+The A side ran per Laws 1–3 (worktree env, per-batch pin assertion
+`1.22.1`, interleaved rounds, 100-iteration batches, 300 s watchdogs,
+8-way steal continuous). The report's A-SIDE RECORD carries the
+per-round table with every artifact named, and either (a) the baseline
+re-established (≥ 2 counted firings within ≤ 15 rounds, each
+ring-classified per Law 3 with the preserved firing JSON quoted) or
+(b) the loud INCONCLUSIVE verdict with the observed rate band. The
+judge re-verifies at least one preserved firing artifact's ring
+against Law 3 independently. Carried by: the report + artifacts;
+`ab-protocol-smoke` is the runnable mechanics control.
+
+## AC3 — the B side, measured under identical conditions in the scratch env
+
+The B side ran per Laws 1–2: scratch GEM_HOME anchored on
+`Gem.default_dir`, scratch Gemfile (eval_gemfile + the 1.22.3 pin),
+per-batch pin assertion `1.22.3`, identical steal/batch/watchdog
+shape, interleaved with the A batches. No canonical or worktree lock
+moved (before/after sha256 in the report). Carried by: the report +
+artifacts; `pin-swap-mechanics` + `ab-protocol-smoke` are the runnable
+mechanics controls.
+
+## AC4 — the frozen decision rule, applied exactly
+
+The report's DECISION-RULE APPLICATION carries: A_firings, A_iters,
+B_firings, N_B, r_A, the required N_B = max(300, ceil(3 × A_iters /
+A_firings)), the exact survival (1 − r_A)^N_B, and the resulting
+verdict — exactly one of **BUMP** (clean) / **FILE-UPSTREAM** /
+**NEITHER** / **INCONCLUSIVE (ENTRY 3 SKIP)** — matching Law 4's
+mapping, no other verdicts, no partial credit. The judge re-computes
+the arithmetic from the recorded per-round table.
+
+## AC5 — the wedge, observed per pin (never cured)
+
+The WEDGE RECORD carries, per pin: every batch-watchdog expiry with
+its mid-run vs exit-teardown classification and `sample` capture (or
+"none"), and the one post-protocol `rake test:par` per pin with its
+outcome (green with PARALLEL_OK line, or wedged with the sample +
+kill record). Cure not attempted (any cure attempt = automatic FAIL).
+Carried by: the report; `parallel-suite` is the runnable mechanism
+control (its own declared wedge red would be additional data).
+
+## AC6 — layer isolation, conditional and honest
+
+IFF the verdict was NOT clean: `scratch/layer_probe.rb` exists (raw
+Fiber transfer + raise, no async/io-event requires), ran ≥ 1000
+iterations under 8-way steal, and the LAYER ISOLATION section carries
+the honest verdict (CRuby-semantics / io-event-machinery /
+could-not-reduce + what was tried) and, iff FILE-UPSTREAM was
+recommended, `scratch/upstream-dossier.md` exists with the mechanism,
+ring evidence, repro reference, and A/B numbers. IFF the verdict was
+CLEAN or INCONCLUSIVE: one line records Law 6 was not taken.
+Architect-read (no gate — the branch is data-dependent).
+
+## AC7 — the report is the deliverable (raw numbers, environment, house bar)
+
+`report.md` carries every frozen section (Specification, Deliverable
+shape), the ENVIRONMENT block complete (ruby -v, uname, ncpu, load
+averages at protocol start/end, both envs' gem versions, steal
+verification), the ARTIFACT INDEX covering every scratch file, and the
+RECOMMENDATION bound to Law 4 — no production change recommended from
+this lane. The house bar stands at the lane tree: `suite` green
+(1501/0F/0E/5S ≤ 240 s). Carried by: `suite`; the report itself.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse io-event-ab` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+---
+# I89 gate battery — bespoke, 6 gates, era prefix t89 (mktemp-only
+# scratch; no repo-local gate residue). Base literals frozen from the
+# I88 judge-cold record + this session's spec-time probes. /bin/sh: no
+# set -e — every leg chains its own exit; every gate ends in a
+# sentinel echo + stdout_match.
+- id: suite
+  ac: AC7
+  cwd: repos/tart
+  cmd: |-
+    # House bar, zero-footprint iteration: the serial suite must be
+    # exactly the base shape (1501 runs / 0F / 0E / 5 skips, <= 240 s)
+    # at the lane tree — nothing moved, nothing may move.
+    bundle install --quiet
+    start=$(date +%s)
+    out=$(bundle exec rake test 2>&1); ec=$?
+    end=$(date +%s); wall=$((end - start))
+    echo "$out" | tail -4
+    echo "SUITE_WALL ${wall}s"
+    [ "$ec" -eq 0 ] || { echo "FAIL suite: ec=$ec"; exit 1; }
+    echo "$out" | grep -q "^1501 runs, " || { echo "FAIL suite: runs literal drift (want 1501)"; exit 1; }
+    echo "$out" | grep -q "0 failures, 0 errors, " || { echo "FAIL suite: not 0F/0E"; exit 1; }
+    echo "$out" | grep -q ", 5 skips" || { echo "FAIL suite: skips literal drift (want 5)"; exit 1; }
+    [ "$wall" -le 240 ] || { echo "FAIL suite: wall ${wall}s > 240s"; exit 1; }
+    echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+- id: parallel-suite
+  ac: AC5
+  cwd: repos/tart
+  cmd: |-
+    # One rake test:par under a 900 s wall watchdog — the wedge
+    # observation mechanism's control. Declared RED-POSSIBLE: the I85
+    # exit-teardown wedge (rb_ec_cleanup -> io-event kevent, standing
+    # residual #1) can hang the par suite under load; the watchdog
+    # converts a wedge into a LOUD red with a captured sample stack
+    # (that red is the declared class — note-and-pass on cold re-run,
+    # and wedge data for AC5).
+    bundle install --quiet
+    tmp=$(mktemp -d /tmp/t89par.XXXXXX) || { echo "FAIL parallel-suite: mktemp"; exit 1; }
+    bundle exec rake test:par > "$tmp/par.log" 2>&1 &
+    pid=$!
+    elapsed=0
+    while kill -0 $pid 2>/dev/null && [ $elapsed -lt 900 ]; do sleep 5; elapsed=$((elapsed + 5)); done
+    if kill -0 $pid 2>/dev/null; then
+      sample $pid 5 -file "$tmp/wedge-sample.txt" 2>/dev/null
+      echo "FAIL parallel-suite: WEDGED at the 900 s watchdog (declared class: I85 exit-teardown wedge; sample $tmp/wedge-sample.txt)"
+      tail -5 "$tmp/par.log"
+      kill -TERM $pid 2>/dev/null; sleep 2; kill -KILL $pid 2>/dev/null
+      exit 1
+    fi
+    wait $pid; ec=$?
+    tail -4 "$tmp/par.log"
+    [ "$ec" -eq 0 ] || { echo "FAIL parallel-suite: ec=$ec"; exit 1; }
+    grep -q "PARALLEL_OK runs=1501 " "$tmp/par.log" || { echo "FAIL parallel-suite: PARALLEL_OK runs literal drift (want 1501)"; tail -3 "$tmp/par.log"; exit 1; }
+    grep -q "COVERAGE_OK runs=1501" "$tmp/par.log" || { echo "FAIL parallel-suite: COVERAGE_OK literal drift"; tail -3 "$tmp/par.log"; exit 1; }
+    grep -q "skips=5" "$tmp/par.log" || { echo "FAIL parallel-suite: skips literal drift"; exit 1; }
+    echo PARALLEL_SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: PARALLEL_SUITE_OK
+- id: rig-smoke
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    # The frozen rig: byte-identity of the committed evidence repro,
+    # then a 3-iteration no-steal smoke in a mktemp layout (symlink wt
+    # -> the checkout, so require_relative "../wt/test/..." resolves —
+    # the I87 lane layout). Declared RED-POSSIBLE: class (a) is LIVE
+    # at this base (spec-time: fired in exactly this smoke); a red
+    # carrying "FIRING at iteration" + the CANCEL TALLY line is the
+    # live class = the rig WORKING (the A side's fuel), note-and-pass
+    # on cold re-run; any other red shape is real.
+    bundle install --quiet
+    [ "$(shasum -a 256 ../../notes/evidence-20261026-io-event-delivery/repro_a.rb | cut -d' ' -f1)" = "561812eb06c99d9f16526d0e5e422f9055c37fbfaffd317defc6c49a0d4abb21" ] || { echo "FAIL rig-smoke: committed evidence repro sha256 drift"; exit 1; }
+    tmp=$(mktemp -d /tmp/t89rig.XXXXXX) && mkdir -p "$tmp/scratch" && ln -s "$PWD" "$tmp/wt" || { echo "FAIL rig-smoke: scratch layout"; exit 1; }
+    cp ../../notes/evidence-20261026-io-event-delivery/repro_a.rb "$tmp/scratch/repro_a.rb" || { echo "FAIL rig-smoke: cp"; exit 1; }
+    [ "$(shasum -a 256 "$tmp/scratch/repro_a.rb" | cut -d' ' -f1)" = "561812eb06c99d9f16526d0e5e422f9055c37fbfaffd317defc6c49a0d4abb21" ] || { echo "FAIL rig-smoke: copied repro byte drift"; exit 1; }
+    mkdir -p /tmp/i87-cycles
+    out=$(bundle exec ruby -Ilib -Itest "$tmp/scratch/repro_a.rb" 3 2>&1); ec=$?
+    echo "$out" | tail -6
+    [ "$ec" -eq 0 ] || { echo "FAIL rig-smoke: smoke ec=$ec (declared RED-POSSIBLE: a class-(a) firing in the smoke is the live base class — discriminate by the FIRING line + CANCEL TALLY above)"; exit 1; }
+    echo "$out" | grep -q "firings=0" || { echo "FAIL rig-smoke: tally line missing"; exit 1; }
+    echo RIG_SMOKE_OK
+  expect:
+    exit_code: 0
+    stdout_match: RIG_SMOKE_OK
+- id: pin-swap-mechanics
+  ac: AC3
+  cwd: repos/tart
+  cmd: |-
+    # The frozen B-side recipe, end-to-end in mktemp: scratch GEM_HOME
+    # anchored on Gem.default_dir, io-event 1.22.3 compiled + resolved
+    # alongside async 2.46.0, and the checkout's Gemfile.lock PROVEN
+    # byte-frozen across the whole exchange (sha256 literal, plus a
+    # git-level no-touch leg). GREEN-expected (the verbatim spec-time
+    # recipe).
+    bundle install --quiet
+    lock_sha_before=$(shasum -a 256 Gemfile.lock | cut -d' ' -f1)
+    [ "$lock_sha_before" = "5d380f1764883ceedcc519529f37b757760548acf83dfa9435259de1eb335ad0" ] || { echo "FAIL pin-swap-mechanics: Gemfile.lock sha drift at entry"; exit 1; }
+    tmp=$(mktemp -d /tmp/t89pin.XXXXXX) && mkdir -p "$tmp/gems" || { echo "FAIL pin-swap-mechanics: mktemp"; exit 1; }
+    DEFDIR=$(ruby -e 'print Gem.default_dir')
+    GEM_HOME="$tmp/gems" GEM_PATH="$tmp/gems:$DEFDIR" gem install io-event -v 1.22.3 --no-document > "$tmp/gem-install.log" 2>&1 || { echo "FAIL pin-swap-mechanics: gem install io-event 1.22.3"; tail -5 "$tmp/gem-install.log"; exit 1; }
+    printf 'source "https://rubygems.org"\neval_gemfile "%s/Gemfile"\ngem "io-event", "1.22.3"\n' "$PWD" > "$tmp/Gemfile"
+    BUNDLE_GEMFILE="$tmp/Gemfile" GEM_HOME="$tmp/gems" GEM_PATH="$tmp/gems:$DEFDIR" bundle install --quiet || { echo "FAIL pin-swap-mechanics: scratch bundle install"; exit 1; }
+    ver=$(BUNDLE_GEMFILE="$tmp/Gemfile" GEM_HOME="$tmp/gems" GEM_PATH="$tmp/gems:$DEFDIR" bundle exec ruby -e 'require "io/event"; print Gem.loaded_specs["io-event"].version') && [ "$ver" = "1.22.3" ] || { echo "FAIL pin-swap-mechanics: B env io-event=$ver (want 1.22.3)"; exit 1; }
+    aver=$(BUNDLE_GEMFILE="$tmp/Gemfile" GEM_HOME="$tmp/gems" GEM_PATH="$tmp/gems:$DEFDIR" bundle exec ruby -e 'require "async"; print Gem.loaded_specs["async"].version') && [ "$aver" = "2.46.0" ] || { echo "FAIL pin-swap-mechanics: B env async=$aver (want 2.46.0)"; exit 1; }
+    [ "$(shasum -a 256 Gemfile.lock | cut -d' ' -f1)" = "$lock_sha_before" ] || { echo "FAIL pin-swap-mechanics: Gemfile.lock moved across the exchange"; exit 1; }
+    [ -z "$(git status --porcelain -- Gemfile Gemfile.lock)" ] || { echo "FAIL pin-swap-mechanics: git-level lock/Gemfile touch"; git status --porcelain -- Gemfile Gemfile.lock; exit 1; }
+    echo PIN_SWAP_MECHANICS_OK
+  expect:
+    exit_code: 0
+    stdout_match: PIN_SWAP_MECHANICS_OK
+- id: ab-protocol-smoke
+  ac: AC2
+  cwd: repos/tart
+  cmd: |-
+    # The interleaved-protocol mechanics control, miniaturized: build
+    # BOTH envs, assert both pins, run ONE 5-iteration A batch then ONE
+    # 5-iteration B batch under 4-way steal (miniaturized only in batch
+    # size / steal width / round count — the env recipe, pin assertions,
+    # batch classification, and firing-JSON preservation path are the
+    # frozen ones). FIRING-TOLERANT by construction: a class-(a) firing
+    # in either mini-batch is DATA (the live base class), never a gate
+    # failure; only harness rot reds this gate.
+    bundle install --quiet
+    start=$(date +%s)
+    tmp=$(mktemp -d /tmp/t89ab.XXXXXX) && mkdir -p "$tmp/scratch" "$tmp/gems" /tmp/i87-cycles && ln -s "$PWD" "$tmp/wt" || { echo "FAIL ab-protocol-smoke: layout"; exit 1; }
+    rm -f /tmp/i87-cycles/repro-firing.json
+    cp ../../notes/evidence-20261026-io-event-delivery/repro_a.rb "$tmp/scratch/repro_a.rb" || { echo "FAIL ab-protocol-smoke: cp"; exit 1; }
+    [ "$(shasum -a 256 "$tmp/scratch/repro_a.rb" | cut -d' ' -f1)" = "561812eb06c99d9f16526d0e5e422f9055c37fbfaffd317defc6c49a0d4abb21" ] || { echo "FAIL ab-protocol-smoke: repro byte drift"; exit 1; }
+    DEFDIR=$(ruby -e 'print Gem.default_dir')
+    GEM_HOME="$tmp/gems" GEM_PATH="$tmp/gems:$DEFDIR" gem install io-event -v 1.22.3 --no-document > "$tmp/gem-install.log" 2>&1 || { echo "FAIL ab-protocol-smoke: gem install 1.22.3"; tail -5 "$tmp/gem-install.log"; exit 1; }
+    printf 'source "https://rubygems.org"\neval_gemfile "%s/Gemfile"\ngem "io-event", "1.22.3"\n' "$PWD" > "$tmp/Gemfile"
+    BUNDLE_GEMFILE="$tmp/Gemfile" GEM_HOME="$tmp/gems" GEM_PATH="$tmp/gems:$DEFDIR" bundle install --quiet || { echo "FAIL ab-protocol-smoke: B bundle install"; exit 1; }
+    a_ver=$(bundle exec ruby -e 'require "io/event"; print Gem.loaded_specs["io-event"].version') && [ "$a_ver" = "1.22.1" ] || { echo "FAIL ab-protocol-smoke: A pin assertion (want 1.22.1, got $a_ver)"; exit 1; }
+    b_ver=$(BUNDLE_GEMFILE="$tmp/Gemfile" GEM_HOME="$tmp/gems" GEM_PATH="$tmp/gems:$DEFDIR" bundle exec ruby -e 'require "io/event"; print Gem.loaded_specs["io-event"].version') && [ "$b_ver" = "1.22.3" ] || { echo "FAIL ab-protocol-smoke: B pin assertion (want 1.22.3, got $b_ver)"; exit 1; }
+    w=1; pids=""; while [ $w -le 4 ]; do ruby -e 'loop {}' & pids="$pids $!"; w=$((w + 1)); done
+    bundle exec ruby -Ilib -Itest "$tmp/scratch/repro_a.rb" 5 > "$tmp/a1.log" 2>&1; aec=$?
+    BUNDLE_GEMFILE="$tmp/Gemfile" GEM_HOME="$tmp/gems" GEM_PATH="$tmp/gems:$DEFDIR" bundle exec ruby -Ilib -Itest "$tmp/scratch/repro_a.rb" 5 > "$tmp/b1.log" 2>&1; bec=$?
+    kill $pids 2>/dev/null
+    classify() {
+      name=$1; ec=$2; log=$3
+      if [ "$ec" -eq 0 ] && grep -q "^1 runs, " "$log" && grep -q "firings=0" "$log"; then
+        echo "batch $name: clean"
+        return 0
+      fi
+      if grep -q "FIRING at iteration" "$log" && grep -q "CANCEL TALLY" "$log"; then
+        echo "batch $name: class-(a) firing (live base class — tolerated data)"
+        return 0
+      fi
+      echo "FAIL ab-protocol-smoke: batch $name harness rot (ec=$ec)"
+      tail -8 "$log"
+      return 1
+    }
+    classify A "$aec" "$tmp/a1.log" || exit 1
+    classify B "$bec" "$tmp/b1.log" || exit 1
+    ruby -rjson -e 'f = "/tmp/i87-cycles/repro-firing.json"; exit 0 unless File.exist?(f); j = JSON.parse(File.read(f)); abort "firing JSON malformed" unless j["ring"].is_a?(Array) && j.key?("iter"); puts "firing JSON preserved and parses (iter=#{j["iter"]})"' || { echo "FAIL ab-protocol-smoke: firing JSON preservation path"; exit 1; }
+    echo AB_PROTOCOL_SMOKE_OK
+  expect:
+    exit_code: 0
+    stdout_match: AB_PROTOCOL_SMOKE_OK
+- id: scope-zero
+  ac: AC1
+  cwd: repos/tart
+  cmd: |-
+    # THE constraint gate: zero tracked-file changes AND zero untracked
+    # residue AND zero commits — at the tree under test (the lane
+    # worktree at judge time, repos/tart at rehearsal) AND at the
+    # canonical checkout (path fallback: rehearsal's cwd IS the
+    # canonical checkout) — plus the two socketry reference clones
+    # proven untouched at their Grounds SHAs, plus every Gemfile.lock
+    # at its frozen sha256.
+    [ -z "$(git status --porcelain)" ] || { echo "FAIL scope-zero: tree under test not clean"; git status --porcelain | head -10; exit 1; }
+    [ "$(git rev-parse HEAD)" = "752c3701c3ef0215547d31956e3563fbebdbe4c1" ] || { echo "FAIL scope-zero: HEAD moved (no-commit protocol)"; exit 1; }
+    [ "$(shasum -a 256 Gemfile.lock | cut -d' ' -f1)" = "5d380f1764883ceedcc519529f37b757760548acf83dfa9435259de1eb335ad0" ] || { echo "FAIL scope-zero: Gemfile.lock sha drift"; exit 1; }
+    if [ -d ../../../repos/tart ]; then CANON=../../../repos/tart; else CANON=.; fi
+    [ "$(git -C "$CANON" rev-parse HEAD)" = "752c3701c3ef0215547d31956e3563fbebdbe4c1" ] || { echo "FAIL scope-zero: canonical repos/tart HEAD moved"; exit 1; }
+    [ -z "$(git -C "$CANON" status --porcelain)" ] || { echo "FAIL scope-zero: canonical repos/tart not clean"; git -C "$CANON" status --porcelain | head -10; exit 1; }
+    [ "$(shasum -a 256 "$CANON/Gemfile.lock" | cut -d' ' -f1)" = "5d380f1764883ceedcc519529f37b757760548acf83dfa9435259de1eb335ad0" ] || { echo "FAIL scope-zero: canonical Gemfile.lock sha drift"; exit 1; }
+    [ "$(git -C "$HOME/architect/src/github.com/socketry/io-event" rev-parse HEAD)" = "6cc4bfd62bea33f7b35726b71e4ab698051bdbf8" ] || { echo "FAIL scope-zero: io-event reference clone moved"; exit 1; }
+    [ -z "$(git -C "$HOME/architect/src/github.com/socketry/io-event" status --porcelain)" ] || { echo "FAIL scope-zero: io-event reference clone dirty"; exit 1; }
+    [ "$(git -C "$HOME/architect/src/github.com/socketry/async" rev-parse HEAD)" = "d8f59c95c3083558aa543101ee5fdcc006054f4d" ] || { echo "FAIL scope-zero: async reference clone moved"; exit 1; }
+    [ -z "$(git -C "$HOME/architect/src/github.com/socketry/async" status --porcelain)" ] || { echo "FAIL scope-zero: async reference clone dirty"; exit 1; }
+    echo SCOPE_ZERO_OK
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_ZERO_OK
 ```
 
 ## Builder Prompt
