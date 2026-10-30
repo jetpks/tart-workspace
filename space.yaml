@@ -81,7 +81,7 @@ tickets: []
 tags: []
 project:
   status: active
-  current_iteration: intercom-toctou
+  current_iteration: io-event-ab
   iterations:
   - name: seam-spike
     ordinal: 1
@@ -3265,4 +3265,10 @@ project:
     rehearsal:
       gates_digest: 37072190c6db588b6b68b73c433241a8821e011ac2247152facdc840405f5288
       at: '2026-10-25T13:58:22-06:00'
+  - name: io-event-ab
+    ordinal: 89
+    file: architecture/I89-io-event-ab.md
+    freeze_sha:
+    verdict: pending
+    lanes: []
   integration_branch: project/pi-port
