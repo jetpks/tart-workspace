@@ -176,35 +176,204 @@ All at `repos/tart` @ 752c370, ruby 4.0.9, this session:
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section io-event-ab specification --from <file>`. -->
+# I89 specification — io-event-ab (lane: forensics, repo: tart)
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+## Objective
+
+Settle, measured not asserted, whether io-event 1.22.3 changes the
+class-(a) undelivered-cancellation firing rate vs the 1.22.1 pin — and
+whether it moves the exit-teardown wedge — so the owner's pre-authorized
+ENTRY 3 decision is evidence-based (plan
+`notes/plan-20261030T051905Z-io-event-delivery.md` ENTRY 1; defect
+forensic `architecture/I87-suite-deflake.md`; BRIEF §2 — the
+async/io-event substrate is touched by ZERO production bytes). The
+deliverable is a RECOMMENDATION, not a fix.
+
+## Deliverable shape (frozen)
+
+ONE lane `forensics`, investigate-only. Deliverables, all under
+`build/I89-io-event-ab-forensics/`:
+
+1. `report.md` — the Builder Report, sections frozen below.
+2. `scratch/` — every artifact the report cites: the byte-identical
+   repro copy, the B-side scratch Gemfile + lock + gem home, per-batch
+   logs, per-firing preserved JSONs, the runner script(s), wedge
+   samples (if any), the layer-isolation probe (if taken), the
+   upstream dossier draft (iff the recommendation is file-upstream).
+
+The report's sections, frozen: `STATUS:` line; PHASE 0 declarations;
+PROTOCOL AS RUN (deviations itemized-and-defended — none sanctioned);
+A-SIDE RECORD; B-SIDE RECORD (each: per-round table — round, batch id,
+pin, version-probe output, iterations run, first-firing iter or
+clean-100, wait line if firing, cancel-tally line, wall s, firing-JSON
+artifact name); FIRING CLASSIFICATION (per firing: ring-signature
+match yes/no, the classifying entries quoted); DECISION-RULE
+APPLICATION (the frozen rule's inputs and arithmetic, exact); WEDGE
+RECORD (per pin); LAYER ISOLATION (or the not-taken statement);
+ENVIRONMENT (ruby -v, uname -a, ncpu, load averages at protocol
+start/end, gem versions both envs, steal verification); RECOMMENDATION
+(one of the four frozen verdicts + one-paragraph justification bound
+to the rule); ARTIFACT INDEX (every scratch file, one line each).
+
+## The frozen protocol
+
+**Law 0 — the rig is the committed evidence, verbatim.** The runner
+uses a byte-identical copy of
+`notes/evidence-20261026-io-event-delivery/repro_a.rb` (sha256
+`561812eb06c99d9f16526d0e5e422f9055c37fbfaffd317defc6c49a0d4abb21`)
+at `build/I89-io-event-ab-forensics/scratch/repro_a.rb`, so its
+`require_relative "../wt/test/…"` resolves into the provisioned lane
+worktree `build/I89-io-event-ab-forensics/wt` — the I87 layout
+exactly. No probe-instrumentation changes (the inert `Select::Waiter`
+wrapped-selector leg STAYS inert — recorded, not repaired). The
+runner `mkdir -p /tmp/i87-cycles` before the first batch and copies
+`/tmp/i87-cycles/repro-firing.json` into `scratch/firings/<batch>.json`
+IMMEDIATELY after any firing batch (the probe overwrites per firing).
+
+**Law 1 — the two envs.** A side: cwd = the lane worktree, plain
+`bundle install --quiet` (system gem home; the worktree's
+`Gemfile.lock` is never modified — sha256 recorded before and after
+the whole protocol). B side: the spec-time-verified scratch recipe —
+`GEM_HOME=<lane>/scratch/gemhome`,
+`GEM_PATH=<lane>/scratch/gemhome:$(ruby -e 'print Gem.default_dir')`;
+`gem install io-event -v 1.22.3 --no-document` into the scratch home;
+`<lane>/scratch/Gemfile` =
+`source "https://rubygems.org"` + `eval_gemfile "<abs path to the
+lane worktree>/Gemfile"` + `gem "io-event", "1.22.3"`;
+`BUNDLE_GEMFILE=<lane>/scratch/Gemfile bundle install --quiet`
+(writes `<lane>/scratch/Gemfile.lock` ONLY). **Every batch opens with
+a pin assertion** in its own env: `bundle exec ruby -e 'require
+"io/event"; abort "pin drift" unless
+Gem.loaded_specs["io-event"].version.to_s == ENV["WANT_PIN"]'` with
+`WANT_PIN=1.22.1` (A) / `1.22.3` (B), captured into the batch log. A
+pin-assertion failure aborts the protocol loudly (never silently
+re-pin).
+
+**Law 2 — interleaved rounds under continuous identical steal.** Same
+host, same session, sequential — no other gate batteries or heavy
+processes while the protocol runs; NEVER under nohup (house). Steal =
+8 × `ruby -e 'loop {}'` (the I82 contention idiom) started before
+round 1 and killed only at protocol end; the runner verifies 8
+stealers alive at each round start (re-spawning lapsed ones, logged).
+A BATCH = one process running `repro_a.rb 100` (up to 100 iterations,
+self-stops at the first firing) under a **300 s wall watchdog**; an
+expiry kills the batch (TERM then KILL after 2 s) and is classified
+(mid-run vs exit-teardown, via the log tail — Law 5). A ROUND = one A
+batch then one B batch, in that fixed order. Rounds run to the cap
+**R_max = 15** or until the decision rule settles.
+
+**Law 3 — firing classification (the ring, not the line).** A batch's
+firing COUNTS as class (a) iff its preserved firing-JSON ring shows:
+`interrupt_work` with `tasks_alive=[true,true]`, ≥ 1 `scheduler_raise`
+entry, and a `Cancel` branch `returned` with `cancelled_after=true`
+and `fiber_after=nil` (the swallowed-delivery signature); the failing
+wait may be `:153` or `:154` (both are the delivery surface at this
+base — see Grounds). A firing whose ring does NOT match is an
+ANOMALY: disclosed with its ring, never counted, protocol continues
+(the anomaly itself is a finding). `FiberError→Later` tally entries
+are reported as data (all spec-time tallies: 0).
+
+**Law 4 — the decision rule (frozen numbers).** Let A_firings /
+A_iters = counted A firings / total A iterations executed; N_B = total
+B iterations executed; B_firings = counted B firings.
+- **Baseline re-established:** A_firings ≥ 2. If A_firings < 2 after
+  15 rounds → verdict **INCONCLUSIVE** (loud; recommend ENTRY 3 SKIP;
+  report the observed A rate band).
+- **NOT clean:** B_firings ≥ 1 (at any round, given the baseline is
+  re-established in the same session — a B firing before A's second
+  firing is banked and settles NOT-clean the moment A re-establishes).
+  → take the Law 6 branch, then recommend **FILE-UPSTREAM** or
+  **NEITHER** per Law 6's verdict.
+- **CLEAN:** B_firings = 0 AND N_B ≥ max(300, ceil(3 × A_iters /
+  A_firings)). (At the observed A rate this bounds a no-op 1.22.3's
+  zero-firing survival to ≲ e⁻³ ≈ 5%.) → recommend **BUMP** (ENTRY 3
+  authorized).
+- **Budget exhausted** (15 rounds, B_firings = 0, N_B short of the
+  requirement) → verdict **INCONCLUSIVE (lean clean)**, survival
+  probability reported exactly; recommend ENTRY 3 SKIP.
+- The report carries the exact arithmetic: r_A = A_firings/A_iters,
+  the required N_B, the achieved N_B, and the survival
+  (1 − r_A)^N_B computed exactly (not just the e⁻³ shorthand).
+
+**Law 5 — the wedge rides along, observation only.** (a) Every batch
+watchdog expiry is classified: log tail shows the minitest summary or
+all 100 dots printed → EXIT-TEARDOWN wedge (capture `sample <pid> 5`
+into scratch BEFORE the kill); otherwise mid-run. (b) Once per pin,
+AFTER the rounds settle: one `bundle exec rake test:par` (A: worktree
+env; B: the Law-1 scratch env) under a 900 s wall watchdog; on expiry
+capture `sample <pid> 5` + `ps` line into scratch, then kill. Wedge
+verdict per pin ∈ {observed, not-observed} with the evidence paths;
+cure is out of scope and must not be attempted.
+
+**Law 6 — layer isolation (conditional).** Taken IFF the verdict is
+NOT clean. Write `scratch/layer_probe.rb` — raw `Fiber` transfer +
+raise ONLY (no `require "async"`, no `require "io/event"`): replicate
+the interleaving the Grounds trace names (target fiber parked at a
+cooperative yield while enqueued on a userland ready queue;
+interrupter `Fiber#raise`s into it out-of-band), ≥ 1000 iterations
+under the same 8-way steal, swallow event = raise returns yet the
+target's ensure never runs. Verdict: fires with raw fibers → the
+swallow pins to CRuby fiber semantics (recommend NEITHER — not
+io-event's to fix); does not fire → implicates io-event's ready-queue
+machinery (recommend FILE-UPSTREAM, with `scratch/upstream-dossier.md`
+drafted: mechanism, the ring evidence, the repro, the A/B numbers);
+cannot be made to run honestly → say so and recommend NEITHER. If the
+verdict is CLEAN or INCONCLUSIVE, Law 6 is not taken — one line in the
+report says so.
+
+## Tool guidance (exact, spec-time-tested at `repos/tart` @ 752c370)
+
+- Rig smoke (A env, cwd = lane worktree):
+  `bundle exec ruby -Ilib -Itest ../scratch/repro_a.rb 3`
+- B-env build (verbatim recipe verified 2026-10-30):
+  `DEFDIR=$(ruby -e 'print Gem.default_dir') &&
+   GEM_HOME=<lane>/scratch/gemhome GEM_PATH=<lane>/scratch/gemhome:$DEFDIR gem install io-event -v 1.22.3 --no-document &&
+   printf 'source "https://rubygems.org"\neval_gemfile "%s/Gemfile"\ngem "io-event", "1.22.3"\n' "$PWD" > <lane>/scratch/Gemfile &&
+   BUNDLE_GEMFILE=<lane>/scratch/Gemfile GEM_HOME=<lane>/scratch/gemhome GEM_PATH=<lane>/scratch/gemhome:$DEFDIR bundle install --quiet`
+- B-env batch: same env vars +
+  `BUNDLE_GEMFILE=<lane>/scratch/Gemfile bundle exec ruby -Ilib -Itest ../scratch/repro_a.rb 100`
+- Version probe (per batch, per env): the Law-1 pin assertion.
+- Steal: `w=1; pids=""; while [ $w -le 8 ]; do ruby -e 'loop {}' &
+  pids="$pids $!"; w=$((w + 1)); done` … `kill $pids` (killed on
+  EVERY exit path — trap or explicit).
+- Serial suite: `bundle exec rake test` (house bar ≤ 240 s, 1501 runs,
+  0F/0E, 5 skips at base). Parallel: `bundle exec rake test:par`
+  (`PARALLEL_OK runs=1501` + `COVERAGE_OK`).
+- Gates rehearse at `repos/tart` (cwd = the repo); the lane's own
+  runs are at the worktree.
+
+## Boundaries
+
+- **May touch:** ONLY `build/I89-io-event-ab-forensics/scratch/**` and
+  `build/I89-io-event-ab-forensics/report.md` (the frozen touch set —
+  nothing inside any git repo's tracked tree).
+- **Must not touch:** every tracked file in `repos/tart` AND in the
+  lane worktree (zero tracked-file changes, zero new commits —
+  `git status --porcelain` empty, `git rev-parse HEAD` stays the
+  provision base); `Gemfile.lock` everywhere (sha256
+  `5d380f1764883ceedcc519529f37b757760548acf83dfa9435259de1eb335ad0`
+  before and after); the socketry reference clones (read-only: no
+  checkouts, branches, fetches, or writes); the repro bytes.
+- **Never:** commit, push, create branches; install gems outside the
+  Law-1 scratch homes; run the protocol concurrently with other heavy
+  work; run anything under nohup; change probe semantics; attempt a
+  wedge cure or a production fix.
+- Out of scope: ENTRY 2 (the belt), ENTRY 3 (the pin bump — gated on
+  this verdict), any `notes/` landing (post-landing follow-up).
+
+## Lane plan
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision io-event-ab`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: forensics
+  repo: tart
+  touch:
+    - build/I89-io-event-ab-forensics/scratch/**
+    - build/I89-io-event-ab-forensics/report.md
 ```
+
+Effort: high at dispatch (a measurement protocol with a frozen
+decision rule; the builder runs, classifies, and computes — judgment
+is confined to firing classification and the Law-6 probe design).
 
 ## Acceptance Criteria
 
