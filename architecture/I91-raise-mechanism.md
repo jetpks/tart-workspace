@@ -500,51 +500,363 @@ attribution).
 
 ## Acceptance Criteria
 
-<!-- PROOF. Write the prose conditions of correctness (AC1, AC2, …) that the
-architect judges against. Calibrate precision to the property (SKILL.md §4): a
-property criterion is bounded from the defect's side only — freeze a floor, not
-an equality; exactness is for criteria whose number is itself the deliverable.
-A presence-grep gate on prose is a tripwire, never the proof — its criterion
-should say which. Runnable checks live in the fenced ```gates block below
-(parsed at freeze time — absent or empty is allowed; malformed fails freeze).
-Pre-freeze check — snapshot: no count/name-set/byte-identity frozen at merely
-today's value; control: every baseline actually run this session; mechanism: no
-*how* where the *what* is the requirement; interface: every CLI surface the
-Specification names (verb, flag spelling, subcommand) executed once before it
-freezes; dry-run:
-`architect rehearse raise-mechanism` — RED (clean non-zero) discriminates; GREEN
-is a declared regression guard or a gate that measures nothing; BROKEN is
-advisory (a correct RED can look broken — confirm it); EMPTY is no gates or an
-untouched placeholder.
-`architect freeze raise-mechanism` needs a fresh rehearsal stamp — editing gates
-stales it; `--skip-rehearse REASON` records the skip. The stamp records that you
-looked, never that gates passed. Freeze commits this file and records its SHA as
-freeze_sha. Read-only afterward — any change to Grounds/Specification/Acceptance
-Criteria = automatic iteration FAIL. -->
+# I91 acceptance criteria — raise-mechanism
 
-> Gate-pass is necessary, not sufficient: the architect also reads the diff against the
-> cited **BRIEF §sections** intent and the §1 cardinal invariant before the verdict.
+Property-level, each independently judgeable. This is an
+investigate-only spike: the deliverable is a caught mechanism + a
+repro + a recommendation, so most ACs are report/artifact properties
+the judge verifies against the lane's preserved scratch; the frozen
+```gates block below (8 bespoke gates, era prefix t91 — NO carried
+battery: zero tracked changes means nothing to regression-guard
+beyond the io-event house bar) is the runnable floor. Calibration:
+the base literals (suite 320/21/341; the three repo SHAs) are
+exactness-frozen because they ARE the property (zero footprint); the
+measurement parameters (batch size 100, caps, steal width) are frozen
+in the Specification, not re-derived here.
 
-**AC1.** ...
+## AC preamble — declared states at base `6cc4bfd`
+
+- Base: `repos/io-event` @
+  `6cc4bfd62bea33f7b35726b71e4ab698051bdbf8` (fork main = upstream
+  main, clean). Suite literals measured twice this session: **320
+  passed / 21 skipped / 341 total (1034 assertions)**, ~2 s; build
+  ~5 s; build artifacts gitignored (porcelain stays clean).
+- `suite`, `scope-zero`, `container-preflight` — GREEN-expected at
+  base (all three verified standalone this session).
+- `repro-independence`, `repro-smoke`, `instrumentation-record`,
+  `linux-record`, `report-structure` — declared **RED at base**: the
+  deliverables (`build/I91-raise-mechanism/scratch/**`, `report.md`)
+  do not exist before the lane runs (the I90 belt-units precedent).
+  GREEN-expected at the lane tree, with one exception:
+- `repro-smoke` at the lane tree is **firing-TOLERANT** by
+  construction: a class-(a) ring-match firing in either 5-iteration
+  mini-batch is DATA (the rig working), never a gate failure; only
+  harness rot (boot errors, pin/backend assertion failures, malformed
+  artifacts) reds the gate.
+- No carried flake preamble applies: io-event's suite is fast and
+  this host showed no io-event flake classes in the spec-time probes;
+  the I85 exit-teardown wedge was a tart par-suite observation and is
+  not carried here (the wedge is out of scope for this program).
+
+## AC1 — scope zero (the constraint AC)
+
+ZERO tracked-file changes and zero commits in `repos/io-event` AND
+the lane worktree (porcelain empty, HEAD =
+`6cc4bfd62bea33f7b35726b71e4ab698051bdbf8`), `repos/tart` tracked
+tree byte-frozen at `48c34de59140bd566420f1f75321688c46eb0b2c`
+(untracked `t90*` residue tolerated), both socketry reference clones
+untouched at their Grounds SHAs. All C instrumentation and builds
+lived in `build/I91-raise-mechanism/scratch/**`; all gems beyond the
+preinstalled set only in scratch GEM_HOMEs or inside the disposable
+container. No pushes, no upstream interaction, no host config
+changes. Carried by: `scope-zero`; report PHASE 0.
+
+## AC2 — the self-contained repro, firing on darwin at both arms
+
+`scratch/repro.rb` satisfies the frozen Law-1 contract
+(async+io-event ONLY — zero tart; the CLI/env/output contract; the
+native-backend boot assertion). Measured per Law 3 (interleaved
+rounds, 8-way steal, 300 s watchdogs, WANT_PIN + loaded-from +
+BACKEND assertions captured per batch): Arm A (io-event 1.22.1) and
+Arm B (fork tip from the worktree build) EACH record **≥ 1 counted
+ring-match firing** within the Law-3 cap, each classified per Law 2
+with the preserved firing JSON quoted in the report; per-arm rates
+(firings/iterations) reported. Zero counted firings on either arm =
+AC2 NOT met, loudly (the report carries the exact exposure either
+way). The judge independently re-verifies ≥ 1 preserved firing ring
+per arm against Law 2. Carried by: `repro-independence`,
+`repro-smoke` (the runnable mechanics controls); the report +
+artifacts.
+
+## AC3 — the Linux leg: the epoll verdict + per-platform rates
+
+The Law-4 leg ran (or the escalation path was taken and recorded with
+its ruling): `scratch/linux/` carries the verbatim re-runnable recipe
+(`run_linux.sh`), the image tag+digest and in-container `ruby -v`,
+the from-source epoll build log, per-batch logs with the WANT_PIN +
+BACKEND=EPoll assertions, and `scratch/linux/VERDICT` = one of
+**EPOLL_REPRODUCES** / **EPOLL_NOT_OBSERVED** (exact exposure
+reported) / **EPOLL_UNMEASURED** (escalation recorded); a REPRODUCES
+verdict is backed by ≥ 1 preserved ring-match firing JSON. The
+report's per-platform comparison table covers darwin 1.22.1, darwin
+fork-tip, linux 1.22.1. Carried by: `linux-record` (structural),
+`container-preflight` (environment); the judge MAY re-run
+`run_linux.sh` to corroborate.
+
+## AC4 — the deterministic attempt, shipped or precisely refused
+
+Either `scratch/deterministic.rb` exists and swallows ON DEMAND
+(raise returns, the target's ensure never runs — the report carries
+the annotated interleaving and the judge re-runs it), OR the
+DETERMINISTIC ATTEMPT section carries the precise impossibility
+record: every cell of the Law-5 construction matrix with its outcome,
+and exactly which internal state cannot be reached from Ruby/public
+API — with the measured probabilistic form (Laws 3–4) standing as the
+repro of record. A hand-waved "couldn't make it deterministic"
+without the matrix is NOT met. Architect-read (no gate — the branch
+is data-dependent); `report-structure` checks the section exists.
+
+## AC5 — the caught mechanism, line-level, instrumented
+
+The CAUGHT MECHANISM section names the exact interleaving with named
+functions AND line numbers in io-event source (at minimum the
+`selector.c` raise/queue sites), backed by the Law-6 disposable
+instrumentation: `scratch/instrumented-io-event/` (a fork-tip copy —
+never the repo) with `INSTRUMENTATION.md` enumerating every trace
+point, building cleanly via the house mechanics, and
+`scratch/traces/` preserving ≥ 1 firing's trace + firing-JSON pair
+showing queue-state evidence AT RAISE TIME. The frozen consistency
+checklist is addressed item by item: V0 (a lost raise is permanent),
+V1/V2 (CRuby delivers 2000/2000), V3 (cross-thread refused — the
+deferral path), the wrong-fiber `finish!` signature, and the
+1.22.1 ≡ 1.22.3 equality. A REFUTATION of the dossier thesis is a
+complete answer ONLY if it names the replacement mechanism at the
+same line-level standard; "inconclusive" is NOT met. Carried by:
+`instrumentation-record`; architect-read of the attribution +
+consistency.
+
+## AC6 — the fix-shape recommendation
+
+The FIX-SHAPE RECOMMENDATION section addresses BOTH named candidates
+(invalidate-stale-entry, guarantee-delivery) against the caught
+mechanism, plus any alternative the mechanism suggests; states ONE
+recommendation; and carries an upstream-acceptability note (single
+minimal patch shape, no API change, no behavior change outside the
+swallow window, io-event house style). ZERO patch bytes in any
+tracked file (an ILLUSTRATIVE sketch diff in scratch is permitted,
+labeled). Carried by: `report-structure`; architect-read.
+
+## AC7 — the report is the deliverable + the io-event house bar
+
+`report.md` carries every frozen section (Specification, Deliverable
+shape), the ENVIRONMENT block complete (host + in-container), the
+ARTIFACT INDEX covering every scratch file, and the report's claims
+are backed by the preserved artifacts (no orphan claims). The io-event
+house bar stands at the lane tree: `bundle exec sus` green with the
+exact base literals (320/21/341) — nothing moved, nothing may move.
+Carried by: `suite`, `report-structure`; the report itself.
 
 ```gates
-# Each gate backs one prose AC above. Remove the comment markers to activate.
-# `cmd` paths resolve against the REPO TREE; `cwd` is relative to the SPACE
-# ROOT. The judge-time remap is asymmetric: a `cwd` under repos/<repo> is
-# remapped into the lane worktree, one outside it passes through unchanged.
-# End a multi-step `cmd` with `echo SENTINEL` + `stdout_match`: /bin/sh (the
-# gate runner's shell) has no `set -e`, so an early branch can exit 0 — the
-# sentinel proves the command reached its end.
-# Draft, then run `architect rehearse raise-mechanism` — before the freeze, while
-# a bad gate still costs nothing.
-# - id: suite-green        # unique slug within the iteration (required)
-#   ac: AC1                # which prose AC this gate backs (required)
-#   cwd: repos/my-repo     # run dir, space-root-relative (optional)
-#   cmd: |-                # block style by default — a plain scalar breaks on `: `
-#     bundle exec rake test && echo SUITE_OK
-#   expect:                # at least one of: exit_code, stdout_match, threshold
-#     exit_code: 0
-#     stdout_match: SUITE_OK
+---
+# I91 gate battery — bespoke, 8 gates, era prefix t91 (mktemp-only
+# scratch; no repo-local gate residue). Base literals frozen from this
+# session's spec-time probes at repos/io-event @ 6cc4bfd. /bin/sh: no
+# set -e — every leg chains its own exit; every gate ends in a sentinel
+# echo + stdout_match. Dual-tree: gates rehearse at repos/io-event and
+# run at the lane worktree at judge time; S/TART/CANON path fallbacks
+# resolve both. Five gates are declared RED at base (deliverables
+# absent) — see the AC preamble.
+- id: suite
+  ac: AC7
+  cwd: repos/io-event
+  cmd: |-
+    # The io-event house bar, zero-footprint iteration: the sus suite
+    # must be exactly the base shape (320 passed / 21 skipped / 341
+    # total) at the tree under test — nothing moved, nothing may move.
+    BUNDLE_GEMFILE=gems.rb bundle install --quiet
+    BUNDLE_GEMFILE=gems.rb bundle exec bake build > /dev/null 2>&1 || { echo "FAIL suite: bake build"; exit 1; }
+    out=$(BUNDLE_GEMFILE=gems.rb bundle exec sus 2>&1); ec=$?
+    echo "$out" | tail -3
+    [ "$ec" -eq 0 ] || { echo "FAIL suite: sus ec=$ec"; exit 1; }
+    echo "$out" | grep -q "320 passed 21 skipped out of 341 total" || { echo "FAIL suite: literal drift (want '320 passed 21 skipped out of 341 total')"; echo "$out" | grep -E "passed|failed" | tail -3; exit 1; }
+    echo SUITE_OK
+  expect:
+    exit_code: 0
+    stdout_match: SUITE_OK
+- id: scope-zero
+  ac: AC1
+  cwd: repos/io-event
+  cmd: |-
+    # THE constraint gate: zero tracked changes, zero commits — at the
+    # tree under test (lane worktree at judge time, repos/io-event at
+    # rehearsal) AND the canonical checkout (path fallback), plus tart
+    # tracked-frozen at the I90 merge (untracked t90* tolerated), plus
+    # both socketry reference clones untouched at their Grounds SHAs.
+    [ -z "$(git status --porcelain)" ] || { echo "FAIL scope-zero: tree under test not clean"; git status --porcelain | head -10; exit 1; }
+    [ "$(git rev-parse HEAD)" = "6cc4bfd62bea33f7b35726b71e4ab698051bdbf8" ] || { echo "FAIL scope-zero: HEAD moved (no-commit protocol)"; exit 1; }
+    if [ -d ../../../repos/io-event ]; then CANON=../../../repos/io-event; else CANON=.; fi
+    [ "$(git -C "$CANON" rev-parse HEAD)" = "6cc4bfd62bea33f7b35726b71e4ab698051bdbf8" ] || { echo "FAIL scope-zero: canonical repos/io-event HEAD moved"; exit 1; }
+    [ -z "$(git -C "$CANON" status --porcelain)" ] || { echo "FAIL scope-zero: canonical repos/io-event not clean"; git -C "$CANON" status --porcelain | head -10; exit 1; }
+    if [ -d ../tart ]; then TART=../tart; else TART=../../../repos/tart; fi
+    [ "$(git -C "$TART" rev-parse HEAD)" = "48c34de59140bd566420f1f75321688c46eb0b2c" ] || { echo "FAIL scope-zero: repos/tart HEAD moved (tart is frozen for this program)"; exit 1; }
+    [ -z "$(git -C "$TART" diff --name-only HEAD)" ] && [ -z "$(git -C "$TART" diff --cached --name-only)" ] || { echo "FAIL scope-zero: repos/tart tracked tree modified"; git -C "$TART" status --porcelain | grep -v "^??" | head -10; exit 1; }
+    [ "$(git -C "$HOME/architect/src/github.com/socketry/io-event" rev-parse HEAD)" = "6cc4bfd62bea33f7b35726b71e4ab698051bdbf8" ] || { echo "FAIL scope-zero: io-event reference clone moved"; exit 1; }
+    [ -z "$(git -C "$HOME/architect/src/github.com/socketry/io-event" status --porcelain)" ] || { echo "FAIL scope-zero: io-event reference clone dirty"; exit 1; }
+    [ "$(git -C "$HOME/architect/src/github.com/socketry/async" rev-parse HEAD)" = "d8f59c95c3083558aa543101ee5fdcc006054f4d" ] || { echo "FAIL scope-zero: async reference clone moved"; exit 1; }
+    [ -z "$(git -C "$HOME/architect/src/github.com/socketry/async" status --porcelain)" ] || { echo "FAIL scope-zero: async reference clone dirty"; exit 1; }
+    echo SCOPE_ZERO_OK
+  expect:
+    exit_code: 0
+    stdout_match: SCOPE_ZERO_OK
+- id: container-preflight
+  ac: AC3
+  cwd: repos/io-event
+  cmd: |-
+    # The Linux leg's environment preflight: the Apple container CLI
+    # exists and its system service is running. NO image pull here
+    # (the lane's scripted leg pulls; first use is sanctioned).
+    [ -x /opt/homebrew/bin/container ] || { echo "FAIL container-preflight: CLI missing"; exit 1; }
+    out=$(/opt/homebrew/bin/container system status 2>&1); ec=$?
+    echo "$out"
+    [ "$ec" -eq 0 ] || { echo "FAIL container-preflight: system status ec=$ec (escalation path — see Law 8)"; exit 1; }
+    echo "$out" | grep -qi "running" || { echo "FAIL container-preflight: service not running (escalation path — see Law 8)"; exit 1; }
+    echo CONTAINER_PREFLIGHT_OK
+  expect:
+    exit_code: 0
+    stdout_match: CONTAINER_PREFLIGHT_OK
+- id: repro-independence
+  ac: AC2
+  cwd: repos/io-event
+  cmd: |-
+    # DECLARED RED AT BASE (deliverable absent — AC preamble). The
+    # self-contained repro: exists, carries zero tart references
+    # (word-bounded grep — "start" must not match), and its 0-iteration
+    # boot self-check passes with the native backend and tart-free
+    # $LOADED_FEATURES, io-event pinned 1.22.1 via gem activation.
+    if [ -d ../scratch ]; then S=../scratch; else S=../../build/I91-raise-mechanism/scratch; fi
+    [ -f "$S/repro.rb" ] || { echo "FAIL repro-independence: $S/repro.rb absent (declared at base)"; exit 1; }
+    hits=$(grep -nE "(^|[^A-Za-z])[Tt]art([^A-Za-z]|$)" "$S"/*.rb 2>/dev/null | grep -v "tart_free" | head -5)
+    [ -z "$hits" ] || { echo "FAIL repro-independence: tart references in repro sources:"; echo "$hits"; exit 1; }
+    tmp=$(mktemp -d /tmp/t91ind.XXXXXX) || { echo "FAIL repro-independence: mktemp"; exit 1; }
+    WANT_PIN=1.22.1 FIRING_JSON="$tmp/firing.json" ruby -e 'gem "io-event", "1.22.1"; gem "async", "2.46.0"; load ARGV[0]' "$S/repro.rb" 0 > "$tmp/boot.log" 2>&1; ec=$?
+    tail -5 "$tmp/boot.log"
+    [ "$ec" -eq 0 ] || { echo "FAIL repro-independence: 0-iteration boot ec=$ec"; exit 1; }
+    grep -q "REPRO_BOOT io-event=1.22.1 " "$tmp/boot.log" || { echo "FAIL repro-independence: REPRO_BOOT line missing/wrong pin"; exit 1; }
+    grep -q "backend=IO::Event::Selector::KQueue" "$tmp/boot.log" || { echo "FAIL repro-independence: native backend assertion missing (pure-ruby fallback is harness rot)"; exit 1; }
+    grep -q "tart_free=true" "$tmp/boot.log" || { echo "FAIL repro-independence: tart_free self-check missing/false"; exit 1; }
+    grep -q "BATCH_CLEAN iterations=0 firings=0" "$tmp/boot.log" || { echo "FAIL repro-independence: 0-iteration clean line missing"; exit 1; }
+    echo REPRO_INDEPENDENCE_OK
+  expect:
+    exit_code: 0
+    stdout_match: REPRO_INDEPENDENCE_OK
+- id: repro-smoke
+  ac: AC2
+  cwd: repos/io-event
+  cmd: |-
+    # DECLARED RED AT BASE (deliverable absent — AC preamble). The
+    # Law-3 measurement mechanics control, miniaturized: BOTH darwin
+    # arms, ONE 5-iteration batch each under 4-way steal, with the
+    # frozen assertion lines. FIRING-TOLERANT by construction: a
+    # class-(a) ring-match firing in either mini-batch is DATA; only
+    # harness rot reds this gate.
+    if [ -d ../scratch ]; then S=../scratch; else S=../../build/I91-raise-mechanism/scratch; fi
+    [ -f "$S/repro.rb" ] || { echo "FAIL repro-smoke: $S/repro.rb absent (declared at base)"; exit 1; }
+    tmp=$(mktemp -d /tmp/t91smk.XXXXXX) && mkdir -p "$tmp/gems" || { echo "FAIL repro-smoke: mktemp"; exit 1; }
+    # Arm B env: build the tree under test, scratch Gemfile path-pinned.
+    BUNDLE_GEMFILE=gems.rb bundle exec bake build > "$tmp/build.log" 2>&1 || { echo "FAIL repro-smoke: bake build (Arm B tree)"; tail -5 "$tmp/build.log"; exit 1; }
+    DEFDIR=$(ruby -e 'print Gem.default_dir')
+    printf 'source "https://rubygems.org"\ngem "async", "2.46.0"\ngem "io-event", path: "%s"\n' "$PWD" > "$tmp/Gemfile"
+    BUNDLE_GEMFILE="$tmp/Gemfile" GEM_HOME="$tmp/gems" GEM_PATH="$tmp/gems:$DEFDIR" bundle install --quiet || { echo "FAIL repro-smoke: Arm B bundle install"; exit 1; }
+    # Pin assertions, both arms.
+    ruby -e 'gem "io-event", "1.22.1"; require "io/event"; abort "pin drift" unless Gem.loaded_specs["io-event"].version.to_s == "1.22.1"' || { echo "FAIL repro-smoke: Arm A pin assertion"; exit 1; }
+    BUNDLE_GEMFILE="$tmp/Gemfile" GEM_HOME="$tmp/gems" GEM_PATH="$tmp/gems:$DEFDIR" bundle exec ruby -e 'require "io/event"; s = Gem.loaded_specs["io-event"]; abort "pin/path drift: #{s.version} @ #{s.full_gem_path}" unless s.version.to_s == "1.22.3" && s.full_gem_path == ARGV[0]' "$PWD" || { echo "FAIL repro-smoke: Arm B pin/loaded-from assertion"; exit 1; }
+    w=1; pids=""; while [ $w -le 4 ]; do ruby -e 'loop {}' & pids="$pids $!"; w=$((w + 1)); done
+    WANT_PIN=1.22.1 FIRING_JSON="$tmp/a-firing.json" ruby -e 'gem "io-event", "1.22.1"; gem "async", "2.46.0"; load ARGV[0]' "$S/repro.rb" 5 > "$tmp/a1.log" 2>&1; aec=$?
+    WANT_PIN=1.22.3 FIRING_JSON="$tmp/b-firing.json" BUNDLE_GEMFILE="$tmp/Gemfile" GEM_HOME="$tmp/gems" GEM_PATH="$tmp/gems:$DEFDIR" bundle exec ruby -I"$PWD/ext" "$S/repro.rb" 5 > "$tmp/b1.log" 2>&1; bec=$?
+    kill $pids 2>/dev/null
+    classify() {
+      name=$1; ec=$2; log=$3; pin=$4
+      grep -q "REPRO_BOOT io-event=$pin " "$log" || { echo "FAIL repro-smoke: batch $name boot line/pin assertion (ec=$ec)"; tail -5 "$log"; return 1; }
+      grep -q "backend=IO::Event::Selector::KQueue" "$log" || { echo "FAIL repro-smoke: batch $name native backend assertion"; tail -5 "$log"; return 1; }
+      if [ "$ec" -eq 0 ] && grep -q "BATCH_CLEAN" "$log" && grep -q "firings=0" "$log"; then echo "batch $name: clean"; return 0; fi
+      if grep -q "FIRING at iteration" "$log"; then echo "batch $name: class-(a) firing (live data — tolerated)"; return 0; fi
+      echo "FAIL repro-smoke: batch $name harness rot (ec=$ec)"
+      tail -8 "$log"
+      return 1
+    }
+    classify A "$aec" "$tmp/a1.log" 1.22.1 || exit 1
+    classify B "$bec" "$tmp/b1.log" 1.22.3 || exit 1
+    for f in "$tmp/a-firing.json" "$tmp/b-firing.json"; do
+      [ -f "$f" ] || continue
+      ruby -rjson -e 'j = JSON.parse(File.read(ARGV[0])); abort "firing JSON malformed" unless j["ring"].is_a?(Array) && j.key?("iter"); puts "firing JSON parses (iter=#{j["iter"]})"' "$f" || { echo "FAIL repro-smoke: firing JSON malformed"; exit 1; }
+    done
+    echo REPRO_SMOKE_OK
+  expect:
+    exit_code: 0
+    stdout_match: REPRO_SMOKE_OK
+- id: instrumentation-record
+  ac: AC5
+  cwd: repos/io-event
+  cmd: |-
+    # DECLARED RED AT BASE (deliverable absent — AC preamble). The
+    # Law-6 disposable instrumentation: the fork-tip COPY exists in
+    # scratch with trace edits (never the repo), INSTRUMENTATION.md
+    # enumerates the trace points, the copy BUILDS via the house
+    # mechanics, >= 1 trace capture is preserved, and the repo tree
+    # stays clean through the whole exchange.
+    if [ -d ../scratch ]; then S=../scratch; else S=../../build/I91-raise-mechanism/scratch; fi
+    [ -d "$S/instrumented-io-event" ] || { echo "FAIL instrumentation-record: copy absent (declared at base)"; exit 1; }
+    [ -f "$S/INSTRUMENTATION.md" ] || { echo "FAIL instrumentation-record: INSTRUMENTATION.md absent"; exit 1; }
+    n=$(grep -cE "\.c:[0-9]+" "$S/instrumented-io-event" 2>/dev/null || true); n=$(grep -cE "\.c:[0-9]+" "$S/INSTRUMENTATION.md")
+    [ "$n" -ge 4 ] || { echo "FAIL instrumentation-record: INSTRUMENTATION.md lists < 4 trace points (file:line)"; exit 1; }
+    grep -qE "fprintf|fflush" "$S/instrumented-io-event/ext/io/event/selector/selector.c" || { echo "FAIL instrumentation-record: no trace output found in the copy's selector.c"; exit 1; }
+    (cd "$S/instrumented-io-event" && BUNDLE_GEMFILE=gems.rb bundle install --quiet && BUNDLE_GEMFILE=gems.rb bundle exec bake build) > /tmp/t91inst-build.$$.log 2>&1 || { echo "FAIL instrumentation-record: instrumented copy does not build"; tail -8 /tmp/t91inst-build.$$.log; exit 1; }
+    rm -f /tmp/t91inst-build.$$.log
+    [ "$(find "$S/traces" -type f 2>/dev/null | wc -l | tr -d ' ')" -ge 1 ] || { echo "FAIL instrumentation-record: scratch/traces/ empty"; exit 1; }
+    [ -z "$(git status --porcelain)" ] || { echo "FAIL instrumentation-record: tree under test dirty after instrumented build (leak)"; git status --porcelain | head -5; exit 1; }
+    echo INSTRUMENTATION_RECORD_OK
+  expect:
+    exit_code: 0
+    stdout_match: INSTRUMENTATION_RECORD_OK
+- id: linux-record
+  ac: AC3
+  cwd: repos/io-event
+  cmd: |-
+    # DECLARED RED AT BASE (deliverable absent — AC preamble). The
+    # Law-4 Linux leg record, structural: the re-runnable recipe, the
+    # VERDICT file with its frozen fields, and — iff REPRODUCES — at
+    # least one ring-bearing firing JSON. The judge may re-run
+    # run_linux.sh to corroborate; this gate never drives the
+    # container itself.
+    if [ -d ../scratch ]; then S=../scratch; else S=../../build/I91-raise-mechanism/scratch; fi
+    [ -f "$S/linux/run_linux.sh" ] || { echo "FAIL linux-record: recipe absent (declared at base)"; exit 1; }
+    [ -f "$S/linux/VERDICT" ] || { echo "FAIL linux-record: VERDICT absent"; exit 1; }
+    verdict=$(grep -E "^verdict=" "$S/linux/VERDICT" | head -1 | cut -d= -f2)
+    case "$verdict" in
+      EPOLL_REPRODUCES|EPOLL_NOT_OBSERVED|EPOLL_UNMEASURED) ;;
+      *) echo "FAIL linux-record: verdict field invalid: '$verdict'"; exit 1 ;;
+    esac
+    grep -qE "^image=" "$S/linux/VERDICT" || { echo "FAIL linux-record: image field missing"; exit 1; }
+    grep -qE "^ruby=" "$S/linux/VERDICT" || { echo "FAIL linux-record: in-container ruby field missing"; exit 1; }
+    if [ "$verdict" != "EPOLL_UNMEASURED" ]; then
+      grep -qE "^batches=" "$S/linux/VERDICT" && grep -qE "^firings=" "$S/linux/VERDICT" && grep -qE "^iterations=" "$S/linux/VERDICT" || { echo "FAIL linux-record: exposure fields (batches/firings/iterations) missing"; exit 1; }
+      [ "$(find "$S/linux" -name "*batch*.log" -o -name "*.log" 2>/dev/null | wc -l | tr -d ' ')" -ge 1 ] || { echo "FAIL linux-record: no batch logs preserved"; exit 1; }
+    fi
+    if [ "$verdict" = "EPOLL_REPRODUCES" ]; then
+      f=$(find "$S/linux" -name "*.json" | head -1)
+      [ -n "$f" ] || { echo "FAIL linux-record: REPRODUCES without a preserved firing JSON"; exit 1; }
+      ruby -rjson -e 'j = JSON.parse(File.read(ARGV[0])); abort "firing JSON malformed" unless j["ring"].is_a?(Array) && j.key?("iter"); puts "linux firing JSON parses (iter=#{j["iter"]})"' "$f" || { echo "FAIL linux-record: linux firing JSON malformed"; exit 1; }
+    fi
+    echo LINUX_RECORD_OK
+  expect:
+    exit_code: 0
+    stdout_match: LINUX_RECORD_OK
+- id: report-structure
+  ac: AC7
+  cwd: repos/io-event
+  cmd: |-
+    # DECLARED RED AT BASE (deliverable absent — AC preamble). The
+    # deliverable report: every frozen section present, the mechanism
+    # attribution carries named functions + line refs, the consistency
+    # checklist is addressed, and both fix-shape candidates are named.
+    # Content judgment is the architect's; this gate is the skeleton.
+    if [ -d ../scratch ]; then L=..; else L=../../build/I91-raise-mechanism; fi
+    R="$L/report.md"
+    [ -f "$R" ] || { echo "FAIL report-structure: report.md absent (declared at base)"; exit 1; }
+    grep -q "^STATUS:" "$R" || { echo "FAIL report-structure: STATUS line missing"; exit 1; }
+    for h in "PHASE 0" "REPRO DESIGN" "DETERMINISTIC ATTEMPT" "DARWIN RECORD" "LINUX RECORD" "CAUGHT MECHANISM" "FIX-SHAPE RECOMMENDATION" "ENVIRONMENT" "ARTIFACT INDEX"; do
+      grep -q "$h" "$R" || { echo "FAIL report-structure: section missing: $h"; exit 1; }
+    done
+    grep -q "IO_Event_Selector_raise" "$R" || { echo "FAIL report-structure: mechanism names no io-event raise path"; exit 1; }
+    grep -qE "selector\.c:[0-9]+" "$R" || { echo "FAIL report-structure: mechanism carries no selector.c line ref"; exit 1; }
+    grep -q "V0" "$R" && grep -q "V3" "$R" || { echo "FAIL report-structure: consistency checklist (V0/V3) absent"; exit 1; }
+    grep -qi "finish!" "$R" || { echo "FAIL report-structure: wrong-fiber finish! consistency item absent"; exit 1; }
+    grep -qi "invalidate-stale-entry" "$R" && grep -qi "guarantee-delivery" "$R" || { echo "FAIL report-structure: fix-shape candidates not addressed"; exit 1; }
+    grep -qi "upstream" "$R" || { echo "FAIL report-structure: upstream-acceptability note absent"; exit 1; }
+    echo REPORT_STRUCTURE_OK
+  expect:
+    exit_code: 0
+    stdout_match: REPORT_STRUCTURE_OK
 ```
 
 ## Builder Prompt
