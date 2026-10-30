@@ -4186,3 +4186,37 @@ consistent with the frozen preamble.
   an owner who wants coverage there routes a follow-up.
 - Real-user live confirmation (ESC-miss under load) is the owner's live
   run.
+
+## Post-integration corroboration (this judge, at the integrated tip 48c34de)
+
+The merge landed lane core → `project/pi-port` as **48c34de5** (+155
+chat.rb, +354 pins file; teardown done, lane branch deleted, worktree
+removed). At the integrated tip (canonical depth — the one tree where
+the frozen gate runs BYTE-VERBATIM, its `../../notes/` provenance leg
+resolving correctly):
+
+- `belt-catch` VERBATIM, unmodified, no deltas: **ec=0, wall 10.2 s —
+  `BELT_CATCH_SUMMARY iters=60 clean=59 caught=1 false_pos=0 missed=0
+  rot=0` → BELT_CATCH_OK.** The defect fired for real at iteration 27
+  and THE BELT CAUGHT IT. The frozen Grounds' conditional duty triggered
+  (caught ≥ 1): the preserved firing JSON
+  (`scratch/judge-cold-battery/repro-firing-iter27.json`) re-verifies
+  the I89 Law-3 signature — `interrupt_work tasks_alive=[true,true]` ✓,
+  ≥1 `scheduler_raise` (192 ring entries) ✓, Cancel `returned
+  cancelled_after=true fiber_after=nil` ✓. The catch gate's GREEN is
+  therefore NOT only the declared vacuous shape: the mechanism-level
+  catch is measured, once, on the byte-verbatim rig.
+- `belt-units` PASS (1.6 s), `belt-cost` PASS (1.9 s),
+  `belt-no-widening` PASS (0.0 s) — all verbatim at the tip.
+- `scope` FAILs at the tip on a lane-tree-vs-integration-shape artifact
+  only: its must-differ leg was written for the lane tree where the
+  pins file is UNTRACKED; at the tip the same bytes are tracked, so the
+  tracked-diff leg lists `test/interrupt_delivery_belt_test.rb` (the
+  sanctioned file itself — the gate ran as designed pre-integration,
+  where it PASSed cold; nothing moved outside the two frozen paths).
+
+This post-integration catch also settles the predecessor's unfinished
+business by a better route: instead of amplifying the vacuous-green
+lane run under artificial steal, the byte-verbatim gate at the
+integrated tip dealt the belt one real firing in 60 iterations — and
+the belt converted it, with zero false positives and zero misses.
