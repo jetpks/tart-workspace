@@ -718,7 +718,10 @@ Carried by: `suite`, `report-structure`; the report itself.
     hits=$(grep -nE "(^|[^A-Za-z])[Tt]art([^A-Za-z]|$)" "$S"/*.rb 2>/dev/null | grep -v "tart_free" | head -5)
     [ -z "$hits" ] || { echo "FAIL repro-independence: tart references in repro sources:"; echo "$hits"; exit 1; }
     tmp=$(mktemp -d /tmp/t91ind.XXXXXX) || { echo "FAIL repro-independence: mktemp"; exit 1; }
-    WANT_PIN=1.22.1 FIRING_JSON="$tmp/firing.json" ruby -e 'gem "io-event", "1.22.1"; gem "async", "2.46.0"; load ARGV[0]' "$S/repro.rb" 0 > "$tmp/boot.log" 2>&1; ec=$?
+    DEFDIR=$(ruby -e 'print Gem.default_dir')
+    printf 'source "https://rubygems.org"\ngem "async", "2.46.0"\ngem "io-event", "1.22.1"\n' > "$tmp/Gemfile"
+    BUNDLE_GEMFILE="$tmp/Gemfile" GEM_PATH="$DEFDIR" bundle install --quiet || { echo "FAIL repro-independence: Arm A bundle install"; exit 1; }
+    WANT_PIN=1.22.1 FIRING_JSON="$tmp/firing.json" BUNDLE_GEMFILE="$tmp/Gemfile" GEM_PATH="$DEFDIR" bundle exec ruby "$S/repro.rb" 0 > "$tmp/boot.log" 2>&1; ec=$?
     tail -5 "$tmp/boot.log"
     [ "$ec" -eq 0 ] || { echo "FAIL repro-independence: 0-iteration boot ec=$ec"; exit 1; }
     grep -q "REPRO_BOOT io-event=1.22.1 " "$tmp/boot.log" || { echo "FAIL repro-independence: REPRO_BOOT line missing/wrong pin"; exit 1; }
@@ -750,8 +753,10 @@ Carried by: `suite`, `report-structure`; the report itself.
     # Pin assertions, both arms.
     ruby -e 'gem "io-event", "1.22.1"; require "io/event"; abort "pin drift" unless Gem.loaded_specs["io-event"].version.to_s == "1.22.1"' || { echo "FAIL repro-smoke: Arm A pin assertion"; exit 1; }
     BUNDLE_GEMFILE="$tmp/Gemfile" GEM_HOME="$tmp/gems" GEM_PATH="$tmp/gems:$DEFDIR" bundle exec ruby -e 'require "io/event"; s = Gem.loaded_specs["io-event"]; abort "pin/path drift: #{s.version} @ #{s.full_gem_path}" unless s.version.to_s == "1.22.3" && s.full_gem_path == ARGV[0]' "$PWD" || { echo "FAIL repro-smoke: Arm B pin/loaded-from assertion"; exit 1; }
+    printf 'source "https://rubygems.org"\ngem "async", "2.46.0"\ngem "io-event", "1.22.1"\n' > "$tmp/GemfileA"
+    BUNDLE_GEMFILE="$tmp/GemfileA" GEM_PATH="$DEFDIR" bundle install --quiet || { echo "FAIL repro-smoke: Arm A bundle install"; exit 1; }
     w=1; pids=""; while [ $w -le 4 ]; do ruby -e 'loop {}' & pids="$pids $!"; w=$((w + 1)); done
-    WANT_PIN=1.22.1 FIRING_JSON="$tmp/a-firing.json" ruby -e 'gem "io-event", "1.22.1"; gem "async", "2.46.0"; load ARGV[0]' "$S/repro.rb" 5 > "$tmp/a1.log" 2>&1; aec=$?
+    WANT_PIN=1.22.1 FIRING_JSON="$tmp/a-firing.json" BUNDLE_GEMFILE="$tmp/GemfileA" GEM_PATH="$DEFDIR" bundle exec ruby "$S/repro.rb" 5 > "$tmp/a1.log" 2>&1; aec=$?
     WANT_PIN=1.22.3 FIRING_JSON="$tmp/b-firing.json" BUNDLE_GEMFILE="$tmp/Gemfile" GEM_HOME="$tmp/gems" GEM_PATH="$tmp/gems:$DEFDIR" bundle exec ruby -I"$PWD/ext" "$S/repro.rb" 5 > "$tmp/b1.log" 2>&1; bec=$?
     kill $pids 2>/dev/null
     classify() {
@@ -787,7 +792,7 @@ Carried by: `suite`, `report-structure`; the report itself.
     if [ -d ../scratch ]; then S=../scratch; else S=../../build/I91-raise-mechanism/scratch; fi
     [ -d "$S/instrumented-io-event" ] || { echo "FAIL instrumentation-record: copy absent (declared at base)"; exit 1; }
     [ -f "$S/INSTRUMENTATION.md" ] || { echo "FAIL instrumentation-record: INSTRUMENTATION.md absent"; exit 1; }
-    n=$(grep -cE "\.c:[0-9]+" "$S/instrumented-io-event" 2>/dev/null || true); n=$(grep -cE "\.c:[0-9]+" "$S/INSTRUMENTATION.md")
+    n=$(grep -cE "\.c:[0-9]+" "$S/INSTRUMENTATION.md")
     [ "$n" -ge 4 ] || { echo "FAIL instrumentation-record: INSTRUMENTATION.md lists < 4 trace points (file:line)"; exit 1; }
     grep -qE "fprintf|fflush" "$S/instrumented-io-event/ext/io/event/selector/selector.c" || { echo "FAIL instrumentation-record: no trace output found in the copy's selector.c"; exit 1; }
     (cd "$S/instrumented-io-event" && BUNDLE_GEMFILE=gems.rb bundle install --quiet && BUNDLE_GEMFILE=gems.rb bundle exec bake build) > /tmp/t91inst-build.$$.log 2>&1 || { echo "FAIL instrumentation-record: instrumented copy does not build"; tail -8 /tmp/t91inst-build.$$.log; exit 1; }
