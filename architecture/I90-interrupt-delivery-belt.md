@@ -963,7 +963,7 @@ rewrite); `architect verify`.
   ac: AC5
   cwd: repos/tart
   cmd: |-
-    added=$(git diff 752c370 -- lib ':(exclude)lib/tart/models/listing.rb' ':(exclude)lib/tart/session_sink.rb' | grep -E "^[^+].*Thread\.new" || true)
+    added=$(git diff 752c370 -- lib ':(exclude)lib/tart/models/listing.rb' ':(exclude)lib/tart/session_sink.rb' | grep -E "^\+[^+].*Thread\.new" || true)
     if [ -n "$added" ]; then echo "FAIL: new Thread.new sites in lib:"; echo "$added"; exit 1; fi
     echo THREADS_BUDGET_OK
   expect:
@@ -1897,8 +1897,8 @@ rewrite); `architect verify`.
     abort "R3c ** intraword strong lost: #{x.inspect}" unless x == [[["foo", nil, []], ["bar", nil, ["bold"]], ["baz", nil, []]]]
     x = flat.call("*em **inner** em*")
     abort "R4 em not spanning inner *: #{x.inspect}" unless x == [[["em ", nil, ["italic"]], ["inner", nil, ["bold", "italic"]], [" em", nil, ["italic"]]]]
-    x = flat.call("back \to *em* now")
-    abort "R5 backslash before letter eaten: #{x.inspect}" unless x == [[["back \to ", nil, []], ["em", nil, ["italic"]], [" now", nil, []]]]
+    x = flat.call("back \\to *em* now")
+    abort "R5 backslash before letter eaten: #{x.inspect}" unless x == [[["back \\to ", nil, []], ["em", nil, ["italic"]], [" now", nil, []]]]
     x = flat.call("see [wiki](https://en.wikipedia.org/wiki/Foo_(bar)) here")
     abort "R6 parens-in-URL span boundary: #{x.inspect}" unless x == [[["see ", nil, []], ["wiki", "light_blue", ["underlined"]], [" (https://en.wikipedia.org/wiki/Foo_(bar))", "gray", []], [" here", nil, []]]]
     x = flat.call("  ```\n  indented body\n  ```")
@@ -1916,7 +1916,7 @@ rewrite); `architect verify`.
   cwd: repos/tart
   cmd: |-
     bundle exec ruby -Ilib -e 'require "tart"
-    line = ->(i) { "row #{i} of some_var_name plus __dunder__ and **bold words** and *em words* and [link #{i}](https://example.test/wiki/Foo_(bar)) and `code #{i}` and ~~strike this~~ and \no escape; filler text to widen the line toward the wrap width ninety-four" }
+    line = ->(i) { "row #{i} of some_var_name plus __dunder__ and **bold words** and *em words* and [link #{i}](https://example.test/wiki/Foo_(bar)) and `code #{i}` and ~~strike this~~ and \\no escape; filler text to widen the line toward the wrap width ninety-four" }
     p80 = (1..80).map(&line).join("\n")
     p160 = (1..160).map(&line).join("\n")
     3.times { Tart::Render::Markdown.rows(p80, width: 94) }
@@ -2081,7 +2081,7 @@ rewrite); `architect verify`.
     runs1=$(echo "$out1" | grep -oE "[0-9]+ runs, " | head -1 | cut -d" " -f1)
     [ "${runs1:-0}" -ge 8 ] || { echo "FAIL config law pins runs=${runs1:-0} (want >=8; 0 = filter empty, declared-new)"; exit 1; }
     [ "$ec" -eq 0 ] || { echo "FAIL config law pins ec=$ec"; echo "$out1" | tail -8; exit 1; }
-    if grep -nE "extensions (<<|=) .?.?session-sink" bin/tart; then echo "FAIL: a session-sink MOTD/extensions row was added (the no-row ruling)"; exit 1; fi
+    if grep -nE "extensions (<<|\+=) .?.?session-sink" bin/tart; then echo "FAIL: a session-sink MOTD/extensions row was added (the no-row ruling)"; exit 1; fi
     bundle exec ruby -Ilib -e 'require "tart"
     abort "QUEUE_CAP moved" unless Tart::SessionSink::QUEUE_CAP == 2000
     abort "DEBOUNCE_MS moved" unless Tart::SessionSink::DEBOUNCE_MS == 250 && Tart::SessionSink::DEBOUNCE_MS <= 500
@@ -2725,7 +2725,7 @@ rewrite); `architect verify`.
     # 1979242a5d75a` — deterministically, under the new runtime; the battery's
     # own `bundle install --quiet` legs produce it at any pristine tree).
     # Any other lock movement is itemize-and-defend PHASE 0.
-    badlock=$(git diff 752c370 -- Gemfile.lock | grep -E "^[-+][^-+]" | grep -vE "^  bundler \([0-9.]+\) sha256=[0-9a-f]{64}$" || true)
+    badlock=$(git diff 752c370 -- Gemfile.lock | grep -E "^[-+][^-+]" | grep -vE "^\+  bundler \([0-9.]+\) sha256=[0-9a-f]{64}$" || true)
     [ -z "$badlock" ] || { echo "FAIL ruby-pin: Gemfile.lock moved beyond the declared bundler self-checksum class:"; echo "$badlock"; exit 1; }
     echo RUBY_PIN_OK
   expect:
@@ -3048,7 +3048,7 @@ rewrite); `architect verify`.
     done
     proddiff=$(git diff --name-only 752c370 -- lib gems bin bench || true)
     [ -z "$proddiff" ] || { echo "FAIL no-widening: production bytes moved (a forensics-proven production defect is PHASE 0, judged):"; echo "$proddiff"; exit 1; }
-    adds=$(git diff 752c370 -- test/chat_test.rb test/subagents_e2e_test.rb test/support/mock_llm_server.rb | grep -E "^" | grep -vE "^" | grep -cE '(^|[^_.a-zA-Z"])sleep[ (]' || true)
+    adds=$(git diff 752c370 -- test/chat_test.rb test/subagents_e2e_test.rb test/support/mock_llm_server.rb | grep -E "^\+" | grep -vE "^\+\+\+" | grep -cE '(^|[^_.a-zA-Z"])sleep[ (]' || true)
     [ "$adds" -eq 0 ] || { echo "FAIL no-widening: $adds added sleep statement(s) in the touch set — a sleep is a defect, not a cure"; exit 1; }
     grep -q "PARENT_DEADLINE_S = 180" test/subagents_e2e_test.rb || { echo "FAIL no-widening: the e2e parent watchdog moved from 180"; exit 1; }
     bundle exec ruby -e 'src = File.read("test/chat_test.rb")
@@ -3212,7 +3212,7 @@ rewrite); `architect verify`.
     done
     proddiff=$(git diff --name-only 752c370 -- lib gems bin bench || true)
     [ -z "$proddiff" ] || { echo "FAIL toctou-no-widening: production bytes moved (a forensics-proven production defect is PHASE 0, judged):"; echo "$proddiff"; exit 1; }
-    adds=$(git diff 752c370 -- test/subagents_intercom_test.rb | grep -E "^" | grep -vE "^" | grep -cE '(^|[^_.a-zA-Z"])sleep[ (]' || true)
+    adds=$(git diff 752c370 -- test/subagents_intercom_test.rb | grep -E "^\+" | grep -vE "^\+\+\+" | grep -cE '(^|[^_.a-zA-Z"])sleep[ (]' || true)
     [ "$adds" -eq 0 ] || { echo "FAIL toctou-no-widening: $adds added sleep statement(s) in the touch set — a sleep is a defect, not a cure"; exit 1; }
     po=$(grep -cE "rescue JSON::ParserError[[:space:]]*$" test/subagents_intercom_test.rb || true)
     [ "$po" -eq 0 ] || { echo "FAIL toctou-no-widening: $po ParserError-only rescue line(s) survive — the whole-class audit is incomplete:"; grep -nE "rescue JSON::ParserError[[:space:]]*$" test/subagents_intercom_test.rb; exit 1; }
@@ -3572,7 +3572,7 @@ rewrite); `architect verify`.
     for f in test/test_helper.rb Rakefile test/support/signal_hygiene_harness.rb test/support/parallel_runner.rb test/chat_test.rb; do
       git diff --quiet 752c370 -- "$f" || { echo "FAIL belt-no-widening: frozen sentinel $f moved vs 752c370"; exit 1; }
     done
-    sleeps=$(git diff 752c370 -- lib/tart/render/chat.rb | grep -E "^" | grep -vE "^" | grep -E '(^|[^_.a-zA-Z"])sleep[ (]' | grep -cvE "sleep.*delivery_deadline" || true)
+    sleeps=$(git diff 752c370 -- lib/tart/render/chat.rb | grep -E "^\+" | grep -vE "^\+\+\+" | grep -E '(^|[^_.a-zA-Z"])sleep[ (]' | grep -cvE "sleep.*delivery_deadline" || true)
     [ "$sleeps" -eq 0 ] || { echo "FAIL belt-no-widening: $sleeps unsanctioned added sleep lines in chat.rb (only the /sleep.*delivery_deadline/ watchdog timer is sanctioned)"; exit 1; }
     if [ -f test/interrupt_delivery_belt_test.rb ]; then
       tsleeps=$(grep -cE '(^|[^_.a-zA-Z"])sleep[ (]' test/interrupt_delivery_belt_test.rb || true)
