@@ -3995,15 +3995,194 @@ Both escalation rulings are part of this lane's record: ruling #1 (tick-seam bel
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section interrupt-delivery-belt verdict --from <file>`. -->
+# Verdict — I90 interrupt-delivery-belt (lane: core, repo: tart)
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify interrupt-delivery-belt`)?
+**CONTINUE.** The interrupt-delivery belt ships exactly per the frozen
+Specification as amended by escalation ruling #1 (tick seam): the diff is
+`M lib/tart/render/chat.rb` +155/−0 plus the ONE sanctioned new file
+`test/interrupt_delivery_belt_test.rb` (the six frozen pins), zero
+commits, zero lock bytes, io-event stays 1.22.1. Every acceptance
+criterion PASSES, two of them via the pre-declared adjudication shapes
+the frozen AC preamble itself froze. This is the LAST planned entry of
+`notes/plan-20261030T051905Z-io-event-delivery.md` (ENTRY 3 was SKIPPED
+at I89 — A/B NOT CLEAN → FILE-UPSTREAM); this verdict CLOSES the plan.
 
-| AC# | Raw result | Brief § | Verdict |
-|-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+Replacement-judge note: the first judge timed out mid-forensics. Its
+evidence transcription (commit bfffa67) is verified BYTE-FAITHFUL to the
+builder report; its scratch contamination of the lane worktree (untracked
+`t90*` dirs + `test/t90j_amplify.rb`, all post-report mtimes) was the
+sole cause of the initial `architect verify` in-bounds FAIL — judge-side
+residue, not builder scope. It is archived at
+`build/I90-interrupt-delivery-belt-core/scratch/judge-forensics-lane-wt/`;
+after archival `architect verify` is 4/4 PASS. The predecessor's
+unfinished belt-catch amplification was OPTIONAL corroboration and was
+not repeated: no defect was found in the decisive record.
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+## Mechanical post-flight (all by command)
+
+- `architect verify interrupt-delivery-belt`: **4/4 PASS** (frozen
+  sections untouched; no builder commits — `git log 752c370..` empty;
+  report exists; in-bounds after judge-scratch archival).
+- `git diff 13777b6 HEAD -- architecture/I90-interrupt-delivery-belt.md`:
+  touches ONLY the post-freeze Builder Report section (the bfffa67
+  evidence transcription). Frozen regions byte-untouched.
+- Evidence transcription: the transcribed Builder Report section diffs
+  byte-identical against `build/I90-interrupt-delivery-belt-core/report.md`.
+- Gemfile.lock sha256 cold-verified:
+  `5d380f1764883ceedcc519529f37b757760548acf83dfa9435259de1eb335ad0` —
+  the frozen literal; io-event 1.22.1; ruby 4.0.9.
+
+## Judge cold battery (decisive subset, each gate VERBATIM from the
+frozen gates block, cwd = the lane worktree; logs at
+`build/I90-interrupt-delivery-belt-core/scratch/judge-cold-battery/`)
+
+| gate | cold result |
+|---|---|
+| scope | PASS (0.0s) — tracked diff confined to chat.rb; pins file present; lock/gemspec zero bytes |
+| belt-no-widening | PASS (0.0s) — sentinels byte-frozen; 0 unsanctioned sleeps; 0 sleep tokens in pins; 10.0 > 5 s no-mask; loud-line literal present |
+| belt-units | PASS (1.5s) — 6 runs / 32 assertions / 0F/0E/0S |
+| belt-cost | PASS (1.8s) — 11 runs / 0F/0E, wall 2 s ≤ 15 s |
+| deflake-interrupt-streak | PASS (24.7s) — standalone=16 steal=8, belt armed+disarmed every iteration |
+| lock-deps / threads-budget | PASS / PASS |
+| suite | PASS (215.5s) — **1507 runs / 0F / 0E / 5 skips**, SUITE_WALL 216 s ≤ 240 s; growth exactly +6 (the six declared pins) |
+| deflake-no-widening | RED-as-declared — leg 2 ONLY, naming exactly `lib/tart/render/chat.rb` (the sanctioned deliverable); every other leg green |
+| toctou-no-widening | RED-as-declared — identical shape, leg 2 only |
+| belt-catch (verbatim) | RED-as-declared (0.2s) — fails ONLY on the `../../notes/` provenance leg (canonical-checkout-relative path at the lane tree); the sha256 literal re-verified against the committed repro |
+
+The full 115-gate battery was not re-run wall-to-wall: the builder ran it
+cold at the lane tree in-battery (append-only `gates-results.tsv`,
+05:12→06:50), the long streak gates ride the preamble's runner-cap
+operative-record rule (toctou-par-streak 1234.6 s / streak=38,
+deflake-drain-streak 944.3 s, deflake-par-streak third cold attempt
+16/16), and the decisive, belt-bearing, and RED-shape gates above were
+re-run cold by this judge. The remaining environmental adjudications
+(s9/sweep lane-depth wrap geometry — standing class (c); herdr-wire-probe
+105>104-byte socket path) are carried adjudications with green controls,
+consistent with the frozen preamble.
+
+## PHASE 0 disagreement rulings
+
+1. **Law 1 `@kernel.async` letter → tick seam (escalation ruling #1):
+   ACCEPT.** The letter implementation measured 1507 runs / 1 failure
+   against the byte-frozen I54 compact pin (whose `kernel_runs` IS the
+   `kernel#async` recording seam) — the letter was unsatisfiable, the
+   escalation was mandatory, and the INTENT amendment (ONE
+   kernel-spawned, @tasks-registered, teardown-safe watchdog; ABSOLUTE
+   deadline; exactly-once Law-3 body) is what shipped. Adherence to the
+   binding points verified in the diff and pins: (a) absolute-deadline
+   expiry authority ✓ (`@interrupt_belt_deadline_at` monotonic-absolute;
+   the guard compares against it, never a relative re-anchor); (b)
+   sweep revival re-ticks the REMAINING time only, arms never
+   re-incremented, 1 ms floor against tick hot-looping ✓; (c) duck-typed
+   `#stop`/`#stopped?` — NO test detection ✓; (d) one code path for real
+   kernel and double ✓; (e) graceful degradation — the guard rides the
+   flag + the I58 render cadence with the belt's own tick swept, PROVEN
+   by pin 2 (which stops the belt's tick test-side and still observes
+   the escalation) ✓. Deviation (iii) leaves chat.rb with ZERO sleep
+   tokens — the belt-no-widening sleep audit passes vacuously, confirmed
+   cold.
+2. **Declared collision: `deflake-no-widening` / `toctou-no-widening`
+   RED-by-construction (escalation ruling #2): ACCEPT.** Re-ran both
+   gates cold: each REDs ONLY on its verbatim "zero production bytes"
+   leg, naming exactly `lib/tart/render/chat.rb` — the AC1/AC6-sanctioned
+   deliverable (removing it contradicts the entry's purpose; editing the
+   frozen gates contradicts the freeze). Every other leg of both gates
+   is green (sentinels byte-frozen, zero added sleeps, PARENT_DEADLINE_S
+   unmoved, ENOENT/ParserError audits — re-asserted by the cold
+   belt-no-widening/scope runs). The draft-only gate deltas live in the
+   report appendix, never applied — the frozen gates block is
+   byte-untouched (verify check (a)).
+
+## Per-AC rollup
+
+- **AC1 (belt contract, pinned): PASS.** The diff read against Laws 0–4
+  (as amended): arm sites EXACTLY TWO, both immediately after the
+  byte-untouched `@kernel.interrupt_work!` (chat.rb:1063 ESC-busy, :1256
+  busy_command_arm); disarm on ANY `:agent_end` (:731) with zero
+  residue; escalation order verbatim — flag-clear first (exactly-once,
+  reactor-serial, no await between check and clear), teardown gate
+  (`stop_requested?` → silent disarm), then the byte-exact em-dash
+  U+2014 line (verified at chat.rb:1335-1336) + stderr warn +
+  `request_draw` + `stop!`; frozen seams (`INTERRUPT_DELIVERY_DEADLINE_S
+  = 10.0`, `interrupt_delivery_deadline=`, `interrupt_belt_armed?`,
+  `interrupt_belt_arms`) all present. belt-units cold: 6/32/0F/0E/0S,
+  the six frozen pin names, sleep-free.
+- **AC2 (the catch gate): PASS (adjudicated, per the frozen preamble's
+  own declaration).** The verbatim command cannot run at the lane tree
+  (provenance leg is canonical-relative — cold-corroborated RED in
+  0.2 s); the sha256 lineage was verified VERBATIM (judge re-verified:
+  the committed repro matches the frozen sha256 literal), then the
+  UNMODIFIED rig ran with the single declared path delta:
+  **iters=60 clean=60 caught=0 false_pos=0 missed=0 rot=0** — the
+  declared vacuous green (firing is bursty; I89 measured 2/16 then
+  0/90). The run's measured value: ZERO false positives across 60
+  honestly delivered runs (the structural no-mask property, measured);
+  zero rot. `caught=0` means no firing JSONs exist, so the preamble's
+  conditional ring re-verification duty does not trigger. The
+  deterministic catch proof (pin 2, the swallow surrogate) is green
+  cold. No defect found in this record — the budget-blowing 8-way-steal
+  amplification was not repeated.
+- **AC3 (nothing weakens, loud-red never masked): PASS.** belt-no-widening
+  PASS cold (all five legs); deflake-interrupt-streak PASS cold
+  (standalone=16 steal=8, the belt armed+disarmed every iteration); the
+  two carried no-widening gates are the ACCEPTED declared collision
+  (leg-2-only RED, cold-confirmed); chat_test.rb byte-frozen; the no-mask
+  ordering (10.0 > 5 s wait_until) holds structurally and was
+  corroborated by the catch run's zero false positives.
+- **AC4 (normal-path cost): PASS.** belt-cost cold 11 runs / 0F/0E /
+  wall 2 s ≤ 15 s (base 1.3 s); suite 216 s ≤ 240 s with the belt in;
+  threads-budget PASS cold; wire/session goldens green in the builder's
+  battery; pin 3 (arms == 0 on an interrupt-free run) green.
+- **AC5 (carried floor + house bar): PASS.** Serial suite cold:
+  1507/0F/0E/5S (growth exactly the six pins — itemized, never silent);
+  parallel-parity green in the builder's battery (PARALLEL_OK runs=1507
+  + COVERAGE_OK); the report's gate table covers all 115 with a measured
+  one-liner each: 109 PASS, 4 environmental adjudications with green
+  controls (s9-parity, sweep-parity — class (c) lane-depth wrap
+  geometry; herdr-wire-probe — 105>104-byte socket path; belt-catch —
+  provenance path), 2 declared collisions (ruling #2). The two standing
+  flake firings (class (d) spinner cadence 0.0747/0.0745 vs 0.075; the
+  class-(e)-family print-parent-intercom empty stdout under load, prior
+  I59 house history) were investigated with mechanisms shown to be
+  belt-free (the spinner pin drives Loop#tick directly; print mode never
+  loads Render::Chat) and cold re-runs green — the preamble's standing
+  adjudication classes, note-and-pass.
+- **AC6 (scope): PASS.** scope gate PASS cold; tracked diff confined to
+  the ONE sanctioned file; the pins file the ONE new file; Gemfile.lock
+  sha256 cold-verified unchanged, io-event 1.22.1; zero commits,
+  branches, pushes; `architect verify` 4/4 PASS.
+
+## Open questions from the frozen Grounds — answered
+
+1. **belt-catch vacuous-green rule: UPHELD.** `caught=0` with
+   `false_pos=missed=rot=0` is the frozen preamble's declared vacuous
+   green; the deterministic catch proof is pin 2; no `caught ≥ 1`
+   firing JSONs exist to ring-verify.
+2. **Pin-2/pin-5 surrogate honors the second cancel: CONFIRMED.** The
+   surrogate's `rescue Async::Cancel; retry if @cancels == 1; raise`
+   survives exactly one cancel and honors the second; the pins complete
+   cold in ~1.0 s — teardown cleanliness measured, no I82 wedge class.
+3. **Trap-net/print-mode exclusions: CONFIRMED as rulings, not
+   oversights.** They are frozen "Deliberately excluded" entries
+   (core/loop.rb:288 has its own `|| stop!` fallback; no ESC in print
+   mode); the builder built neither, and core/loop.rb / print.rb are
+   byte-untouched (cold scope/sentinel gates).
+4. **toctou-par-streak operative record: ACCEPTED.** The builder's cold
+   in-battery run (streak=38, 1234.6 s, zero ENOENT) is the verbatim
+   standalone cold record the preamble's runner-cap rule requires; the
+   rehearsal break was the standing I58 spinner-dwell class, not the
+   TOCTOU mechanism.
+
+## Residuals (owner-routable, outside the loop)
+
+- The belt is the SOLE production guard at io-event 1.22.1; the upstream
+  dossier (I89 FILE-UPSTREAM) is the owner's filing.
+- Spec-side follow-up for the NEXT spec that carries the no-widening
+  gates: fold the appendix's draft-only leg-2 deltas (exclude the entry's
+  sanctioned production file) into the carry assembler, and anchor
+  belt-catch's provenance path on the space root — both are spec-time
+  acts, forbidden mid-run.
+- The SIGINT trap net and print mode carry no belt (frozen exclusions);
+  an owner who wants coverage there routes a follow-up.
+- Real-user live confirmation (ESC-miss under load) is the owner's live
+  run.

@@ -3290,13 +3290,20 @@ project:
     ordinal: 90
     file: architecture/I90-interrupt-delivery-belt.md
     freeze_sha: 13777b6a6fd29bf84f2303cefebb959c44be680a
-    verdict: pending
+    verdict: continue
     lanes:
     - name: core
       repo: tart
       touch_set:
       - lib/tart/render/chat.rb
       - test/interrupt_delivery_belt_test.rb
+      base_sha: 752c3701c3ef0215547d31956e3563fbebdbe4c1
+      worktree: build/I90-interrupt-delivery-belt-core/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: 514ad081e731b8dfc9b795679f800f443d32724eedc4daadc6fed96cf7161923
       at: '2026-10-30T02:58:25-06:00'
