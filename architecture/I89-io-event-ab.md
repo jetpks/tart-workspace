@@ -693,10 +693,163 @@ this lane. The house bar stands at the lane tree: `suite` green
 
 ## Builder Prompt
 
-<!-- The exact lane-prompt(s) dispatched, recorded as provenance. One ###
-subsection per lane. A copy is written to build/I89-io-event-ab-<lane>/prompt.md
-for stdin dispatch. Record + commit:
-`architect section io-event-ab prompt --append --lane <lane> --from build/I89-io-event-ab-<lane>/prompt.md`. -->
+### forensics
+
+# Lane forensics — io-event-ab (I89) — Builder Prompt
+
+You are the builder for lane **forensics** of iteration **io-event-ab**
+(repo `tart`). Your worktree is the provisioned lane tree at
+`build/I89-io-event-ab-forensics/wt`; your scratch is
+`build/I89-io-event-ab-forensics/scratch/`; your report is
+`build/I89-io-event-ab-forensics/report.md`. **Never commit, never
+push, never create branches — anywhere.** Touch NOTHING inside any git
+repo's tracked tree. Read the frozen `architecture/I89-io-event-ab.md`
+(Grounds / Specification / Acceptance Criteria) first — it is the
+contract; this prompt is the orientation.
+
+## The mission
+
+An investigate-only A/B spike: settle, MEASURED NOT ASSERTED, whether
+io-event 1.22.3 changes the class-(a) undelivered-cancellation firing
+rate vs the 1.22.1 pin — and whether it moves the exit-teardown wedge.
+Your deliverable is a RECOMMENDATION (`BUMP` / `FILE-UPSTREAM` /
+`NEITHER` / `INCONCLUSIVE`), produced by applying the frozen decision
+rule (Specification Law 4) to your measured per-round table — not an
+opinion, not a fix. Zero production bytes. Zero tracked-file changes
+anywhere.
+
+## The ground truth you inherit (do not re-litigate)
+
+- The defect: a real-user ESC in the pre-IO window can stick a tart
+  run forever — cancel RETURNED but never delivered into the parked
+  agent fiber (frozen forensic `architecture/I87-suite-deflake.md`).
+- The delivery path: async 2.46.0 `lib/async/scheduler.rb:215` is a
+  two-line passthrough; the machinery is io-event C
+  (`IO_Event_Selector_raise`). 1.22.1→1.22.3 = #232 (worker-pool
+  re-entry, `Fiber.blocking`) + a Linux-only futex change (inert on
+  this darwin host) + signing.
+- The rig `notes/evidence-20261026-io-event-delivery/repro_a.rb`
+  (sha256 `561812eb…4abb21`) STILL FIRES at this base at BOTH pins —
+  spec-time probes proved it, at the `:154` transcript wait with the
+  same swallowed-delivery ring signature. The firing classification
+  keys on the RING (Law 3), never the line number.
+- The rate is BURSTY and host-state-sensitive: spec-time, 1.22.1 went
+  2/2 batches then 0/90 twenty minutes later; 1.22.3 fired 3/3 in the
+  second window. That is WHY the protocol interleaves A and B batches
+  round-by-round (Law 2) — sequential A-then-B windows attribute host
+  weather to the pin. Never de-interleave.
+- The probe's `wrapped_selector` ring leg records the inert pure-ruby
+  `Select::Waiter` class on this darwin host — the `selector_raise_ok`
+  / `selector_push` ring legs are INERT BY CONSTRUCTION. Recorded, NOT
+  a defect. Do NOT "repair" the probe: its bytes are the frozen
+  evidence artifact (sha256-pinned); its load-bearing legs (Wait
+  firing detection, Cancel tally, SchedulerProbe, interrupt_work,
+  Finalize) all record correctly.
+
+## The laws (frozen in the Specification — restated as discipline)
+
+- **Law 0 — verbatim rig.** Byte-identical copy of the committed
+  repro at `scratch/repro_a.rb`; the `wt` layout resolves its
+  `require_relative "../wt/test/…"`. `mkdir -p /tmp/i87-cycles` before
+  the first batch; copy `/tmp/i87-cycles/repro-firing.json` into
+  `scratch/firings/<batch>.json` IMMEDIATELY after any firing batch
+  (the probe overwrites per firing).
+- **Law 1 — two envs, pin-asserted.** A: the worktree's own bundle
+  (its `Gemfile.lock` sha256-recorded before AND after the whole
+  protocol — it must not move). B: the spec-time-verified scratch
+  recipe (scratch GEM_HOME anchored on `Gem.default_dir`,
+  `gem install io-event -v 1.22.3`, scratch Gemfile =
+  source + `eval_gemfile "<abs wt>/Gemfile"` + `gem "io-event",
+  "1.22.3"`, `BUNDLE_GEMFILE` scratch bundle). EVERY batch opens with
+  the frozen `WANT_PIN` assertion in its own env, captured into the
+  batch log; a pin-assertion failure aborts the protocol LOUDLY.
+- **Law 2 — interleaved rounds under continuous identical steal.** 8 ×
+  `ruby -e 'loop {}'` up before round 1, killed on EVERY exit path
+  (trap or explicit), 8-alive verified each round start. Batch =
+  `repro_a.rb 100` under a 300 s wall watchdog (expiry → TERM, KILL
+  after 2 s, classified per Law 5). Round = one A batch then one B
+  batch, fixed order. Cap R_max = 15, or stop when Law 4 settles.
+  Sequential, same session, no other heavy work while the protocol
+  runs. NEVER under nohup (house: SIGHUP disposition taints
+  signal-routing pins — two firings on record).
+- **Law 3 — classification by the ring.** A firing COUNTS iff its
+  preserved JSON shows `interrupt_work tasks_alive=[true,true]`, ≥ 1
+  `scheduler_raise`, and a Cancel branch `returned` with
+  `cancelled_after=true, fiber_after=nil`. A non-matching firing is an
+  ANOMALY: disclosed with its ring, never counted, the protocol
+  continues (the anomaly itself is a finding). `FiberError→Later`
+  tallies reported as data.
+- **Law 4 — the decision rule, applied exactly.** Baseline
+  re-established = A_firings ≥ 2 (else INCONCLUSIVE, loudly). NOT
+  clean = B_firings ≥ 1 (banked; settles when A re-establishes).
+  CLEAN = B_firings = 0 AND N_B ≥ max(300, ceil(3 × A_iters /
+  A_firings)) → BUMP. Budget exhausted = 15 rounds, B_firings = 0,
+  N_B short → INCONCLUSIVE (lean clean) with the exact survival
+  (1 − r_A)^N_B reported. Carry the exact arithmetic in the report.
+- **Law 5 — the wedge, observed never cured.** Classify every batch
+  watchdog expiry (minitest summary or 100 dots in the log tail →
+  exit-teardown wedge → `sample <pid> 5` into scratch BEFORE the
+  kill). Once per pin AFTER the rounds settle: one `rake test:par`
+  (A: worktree env; B: scratch env) under a 900 s wall watchdog;
+  expiry → `sample` + `ps` captured, then kill. Cure is out of scope —
+  any cure attempt is an automatic FAIL (AC5).
+- **Law 6 — layer isolation, conditional.** Taken IFF the verdict is
+  NOT clean: `scratch/layer_probe.rb`, raw `Fiber` transfer + raise
+  ONLY (no async/io-event requires), ≥ 1000 iterations under the same
+  8-way steal, honest verdict (CRuby-semantics → NEITHER;
+  io-event-machinery → FILE-UPSTREAM + `scratch/upstream-dossier.md`
+  drafted; cannot-reduce-honestly → NEITHER, say what was tried). If
+  CLEAN or INCONCLUSIVE: one line records Law 6 not taken.
+
+## Boundaries (the frozen touch set)
+
+May touch ONLY `build/I89-io-event-ab-forensics/scratch/**` and
+`build/I89-io-event-ab-forensics/report.md`. `git status --porcelain`
+empty and `git rev-parse HEAD` = the provision base at BOTH
+`repos/tart` and the lane worktree, throughout and at the end. Every
+`Gemfile.lock` at its frozen sha256. The socketry reference clones
+(`~/architect/src/github.com/socketry/{io-event,async}`) READ-ONLY —
+no checkouts, branches, fetches, writes. Gems installed ONLY into the
+Law-1 scratch homes. Never commit, push, nohup, change probe
+semantics, attempt a wedge cure or a production fix.
+
+## PHASE 0
+
+Before running anything: read the frozen I89 Grounds/Specification/AC
+end to end and the committed evidence README
+(`notes/evidence-20261026-io-event-delivery/README.md`). If any frozen
+fact contradicts what you measure at your tree (base SHA, sha256s,
+gem versions, the rig's require layout), declare it in the report's
+PHASE 0 section BEFORE proceeding — a contradiction is a stop-and-
+declare event, never a silent adaptation.
+
+## The report (the deliverable)
+
+`build/I89-io-event-ab-forensics/report.md`, frozen sections in order:
+`STATUS:` line; PHASE 0 declarations; PROTOCOL AS RUN (deviations
+itemized-and-defended — none sanctioned); A-SIDE RECORD; B-SIDE
+RECORD (per-round tables: round, batch id, pin, version-probe output,
+iterations run, first-firing iter or clean-100, wait line if firing,
+cancel-tally line, wall s, firing-JSON artifact name); FIRING
+CLASSIFICATION (per firing: ring match yes/no, classifying entries
+quoted); DECISION-RULE APPLICATION (exact inputs + arithmetic); WEDGE
+RECORD (per pin); LAYER ISOLATION (or the not-taken line);
+ENVIRONMENT (ruby -v, uname -a, ncpu, load averages at protocol
+start/end, gem versions both envs, steal verification);
+RECOMMENDATION (one of the four frozen verdicts + one-paragraph
+justification bound to Law 4); ARTIFACT INDEX (every scratch file,
+one line each). Every artifact the report cites lives in `scratch/`.
+Nothing silent.
+
+## House discipline
+
+/bin/sh has NO `set -e` — every comparison chains with `&&` /
+explicit exits. Gem-home anchors on `Gem.default_dir`. Ruby 4.0.9 via
+the committed `.ruby-version`. Gates and rehearsals NEVER under
+nohup. The frozen 6-gate battery is the runnable floor; your own
+protocol runs at the lane worktree, not `repos/tart`. The serial
+suite bar stands at your lane tree (1501 runs / 0F / 0E / 5 skips, ≤
+240 s) — nothing moved, nothing may move.
 
 ## Builder Report
 
