@@ -3742,11 +3742,256 @@ INDEX (every scratch file, one line each). Nothing silent.
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I90-interrupt-delivery-belt-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence interrupt-delivery-belt --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### core
+
+# Builder Report — I90 interrupt-delivery-belt, lane core (repo tart)
+
+STATUS: COMPLETE_WITH_CONCERNS (concerns are all adjudicated, none silent: [1] Law 1's @kernel.async spelling was amended to the tick seam by escalation ruling #1 after the letter implementation measured 1507 runs/1 failure against the byte-frozen I54 compact pin; [2] carried `deflake-no-widening`/`toctou-no-widening` are RED-by-construction on their "zero production bytes" legs only — escalation ruling #2 declared the collision (carry-time scope omission: the legs came verbatim from test-only touch sets) with every other leg green; [3] three environmental adjudications with green controls: s9-parity/sweep-parity lane-name-depth wrap geometry, herdr-wire-probe 105>104-byte UNIX socket path, belt-catch's `../../notes/` provenance path resolving wrong at the lane tree (sha256 verified verbatim; the unmodified rig then ran: iters=60 clean=60 caught=0 false_pos=0 missed=0 rot=0 — the declared vacuous green); [4] two standing flake firings investigated with no belt mechanism: class (d) render-perf spinner cadence (0.0747/0.0745 vs 0.075 floor) and a class-(e)-family `test_leg_e_print_parent_intercom_shape` empty-stdout under load (test has prior I59 house history; standalone 3/3 green). No commits: `git log 752c370..` empty; tracked diff = `M lib/tart/render/chat.rb` (+155/−0) + the one new file `test/interrupt_delivery_belt_test.rb`; Gemfile.lock sha256 unchanged `5d380f17…3ad0`, io-event stays 1.22.1.)
+
+## PHASE 0 declarations
+
+Measured at the lane tree (`build/I90-interrupt-delivery-belt-core/wt`) before any code, all against the frozen contract:
+
+| frozen fact | measured | verdict |
+|---|---|---|
+| base SHA `752c3701c3ef0215547d31956e3563fbebdbe4c1`, tracked-clean | HEAD == 752c370, `git status --porcelain` empty at start | match |
+| ESC arm `chat.rb:1018-1020` (`elsif busy?` → `@kernel.interrupt_work!`) | `interrupt_work!` at :1020 | match |
+| `busy_command_arm` :1205-1214 (`interrupt_work!` at :1210) | :1205-1214, `interrupt_work!` :1210 | match |
+| `:agent_end` arm :688-737, `@busy = false` :689 | `when :agent_end` :688, `@busy = false` :689 | match |
+| `:agent_start` sets `@busy = true` :556 | :556 | match |
+| `core/loop.rb:250-259 interrupt_work!`, `:217-221 stop!` | :250, :217 | match |
+| `agent/loop.rb:343-364 run` (`@in_run` :349, rescue Cancel :352, ensure :359, natural end :363) | all present | match |
+| Gemfile.lock sha256 `5d380f17…3ad0`, io-event 1.22.1, ruby 4.0.9 | all exact | match |
+| family `chat_test.rb -n "/interrupt\|escape/"` = 11 runs | 11 runs / 32 assertions / 0F/0E, wall 1.3 s | match |
+
+**Stop-and-declare event #1 (escalation ruling #1, tick seam).** The Law-1-letter implementation (watchdog = `@kernel.async` at both arm sites) measured **1507 runs / 1 failure** at the lane tree: `Tart::ChatTest#test_compact_while_busy_defers_the_dispatch_to_agent_end [test/chat_test.rb:2385] — "no run started. Expected [#<Proc … chat.rb>] to be empty."` The frozen I54 pin's `kernel_runs` IS the IdleKernel double's `kernel#async` recording seam (chat_test.rb:6348), so any `@kernel.async` at arm site 2 is a loud red; the sibling `/new` twin additionally drains recorded blocks through a real reactor (`drain_runs`), which would execute the watchdog block (a 10 s fiber sleep at the default deadline) inside the test. Dead alternatives probed and preserved in the artifact log: `Async::Task.current` RAISES outside a reactor (RuntimeError "No async task available!"), and an unregistered stray watchdog is NOT reaped — `Async do…end` waited its full 30 s probe deadline (probe wall 30.0 s) — so bypassing `@kernel.async` wedges `kernel.run` teardown for the full default deadline. Ruling #1 amended Law 1's spelling to the tick seam (intent: ONE kernel-spawned, @tasks-registered, teardown-safe watchdog, ABSOLUTE deadline, exactly-once Law-3 body); deviations (i)–(iii) sanctioned as letter-only.
+
+**Stop-and-declare event #2 (escalation ruling #2, declared collision).** Carried gates `deflake-no-widening` and `toctou-no-widening` each trip ONLY their verbatim "zero production bytes move (`git diff 752c370 -- lib gems bin bench`)" leg — the red names exactly `lib/tart/render/chat.rb`, the one AC6-sanctioned production file. Every other leg of both gates measured green at the lane tree: deflake-no-widening leg-1 sentinels (test_helper.rb, signal_hygiene_harness.rb, parallel_runner.rb, Rakefile) byte-frozen ✓; leg-3 zero added sleeps in the I87/I88 test touch set (count 0) ✓; leg-4 `PARENT_DEADLINE_S = 180` unmoved ✓; leg-5 the I82 belt audit of both named interrupt tests ✓. toctou-no-widening: leg-1 sentinels ✓; leg-3 zero intercom sleeps (0) ✓; leg-4 ParserError-only rescues 0 + ENOENT sites 6 ≥ 5 ✓. Cause: a carry-time scope omission — the assembler remapped era prefixes, diff bases, and `scope`, but carried the production-freeze legs verbatim from test-only touch sets. Ruling #2: RED-by-construction declared; removing chat.rb from the diff contradicts AC1/AC6 (the belt IS the deliverable); editing the frozen gates block contradicts the freeze. Draft-only gate deltas attached as an appendix (never applied).
+
+**Environmental adjudications (controls green, evidence preserved):**
+- `s9-parity` at the lane tree: FAIL with classes `unknown-candidate 2 / parity-run-path 6 / staged-path-wrap-fragment 4 / footer-provider-prefix 2` — the staged sandbox path at the deep lane-tree path wraps one column early (`…/tart/AGENTS.` + `md`, `…/.tart/s` + `kills/demo.md`); the standing class (c). Verbatim cold re-run at canonical depth (`repos/tart` @ 752c370): **ec=0 GREEN**.
+- `sweep-parity` at the lane tree: FAIL with table drift `[["s16_resize_wrap", 1]]` — the serial/concurrent parity legs themselves HELD (identical tables); s16's own classes: `unknown-candidate 2` (the truncated sandbox cwd differs purely by lane-name depth: `…I90-interrupt-delivery-be…` vs `…I90-interrupt-delivery-belt-`) + `footer-provider-prefix 2` (standing). s16 cold: **ec=0 at canonical depth AND ec=0 at the lane tree with short out dir**.
+- `herdr-wire-probe` at the lane tree: FAIL "no reports received" ×2 (systematic). Mechanism proven: the probe's staged socket path at this lane tree is 105 bytes — `ArgumentError: too long unix socket path (105bytes given but 104bytes max)` (the I88 lane's shorter dir name fit at 98). Controls: **verbatim gate at canonical depth = HERDR_WIRE_OK**; **lane tree with short `--out` = HERDR_WIRE_OK**. Not diff-attributable.
+- `belt-catch` verbatim at the lane tree: FAIL at its provenance leg — `../../notes/evidence-20261026-io-event-delivery/repro_a.rb` is canonical-checkout-relative and resolves to `build/notes/` (nonexistent) at the lane tree. The sha256 was verified VERBATIM against the space-root committed file (`561812eb06c99d9f16526d0e5e422f9055c37fbfaffd317defc6c49a0d4abb21`), then the UNMODIFIED rig ran at the lane tree with the single path delta (CATCH RECORD below).
+
+**Standing flake firings investigated (no belt mechanism, documented):**
+- class (d) `test_render_perf_spinner_tick_fires_at_the_spinner_interval`: gaps 0.0747 s (parallel-repeat run 3) and 0.0745 s (deflake-par-streak attempt 1, run 15) vs the 0.075 floor — the pin drives `Core::Loop#tick` directly with a plain-proc renderer (loop.rb byte-frozen; no Chat, no belt in scope). Standing class (d) note-and-pass; parallel-repeat cold re-run **PASS 3/3**; deflake-par-streak cold re-run **PASS 16/16**.
+- `test_leg_e_print_parent_intercom_shape` (deflake-par-streak attempt 2, run 10): expected `"leg E parent final: ask recorded"`, got `""` — parent stdout empty under full-suite 8-way load. Zero "Resolving dependencies" lines (not the I59 re-lock class); the test has prior house flake history (I59); standalone cold **3/3 GREEN** (1 run / 31 assertions each); print mode never touches `Render::Chat` (print.rb has no Chat reference — the belt arms only on ESC/busy-command dispatch, absent in `-p` mode). Class-(e)-family load timing; the third cold streak ran 16/16 clean.
+
+## THE DIFF ITEMIZED
+
+Tracked diff vs `752c370`: `lib/tart/render/chat.rb` — **155 insertions, 0 deletions** (verified `git diff --stat`: `1 file changed, 155 insertions(+)`). Plus the ONE sanctioned new file `test/interrupt_delivery_belt_test.rb` (232 lines, untracked-new). Gemfile/Gemfile.lock/tart.gemspec: zero bytes. Zero commits (`git log 752c370..` empty).
+
+| hunk | site (post-diff line) | old bytes → new bytes | law served |
+|---|---|---|---|
+| A | :104-110 (after `FLASH_SECONDS = 1.0`) | nothing → `INTERRUPT_DELIVERY_DEADLINE_S = 10.0` + 6-line calibration comment | Law 4 (frozen constant) |
+| B | :321-330 (initialize, after `@pending_after_interrupt = nil`) | nothing → `@interrupt_belt_armed = false` / `@interrupt_belt_task = nil` / `@interrupt_belt_deadline_at = nil` / `@interrupt_belt_arms = 0` + 6-line reactor-serial comment | Laws 1-2 (belt state, zero-residue init, I79 discipline) |
+| C | :402-419 (after `attr_writer :flash_seconds`) | nothing → `attr_writer :interrupt_delivery_deadline` + `interrupt_belt_armed?` + `interrupt_belt_arms` readbacks + comments | Law 4 (frozen test seams; flash_seconds=/I58-stats precedents) |
+| D | :731-733 (`when :agent_end`, right after `@busy = false`) | nothing → 2-line why-comment + `disarm_interrupt_delivery_belt` | Law 0/2 (ANY agent_end = delivery evidence) |
+| E | :1060 (ESC arm, immediately after `@kernel.interrupt_work!`) | nothing → `arm_interrupt_delivery_belt` | Law 0/1 (arm site 1) |
+| F | :1250 (busy_command_arm, immediately after `@kernel.interrupt_work!`) | nothing → `arm_interrupt_delivery_belt` | Law 0/1 (arm site 2) |
+| G | :1257-1361 (new belt section after busy_command_arm) | nothing → the belt internals (below) | Laws 0-4 (mechanism per ruling #1) |
+| H | :521-523 (`render_frame` top) | nothing → 2-line why-comment + `escalate_expired_interrupt_belt` | Law 3 (ruling #1 deviation ii: the tick-woken render path) |
+
+Belt internals (hunk G), verbatim shape:
+- `arm_interrupt_delivery_belt` — `return if @interrupt_belt_armed && live_interrupt_belt_watchdog?` (Law 1 idempotence: one live watchdog, the original deadline stands); fresh arm sets flag + `@interrupt_belt_arms += 1` + the ABSOLUTE `@interrupt_belt_deadline_at = now + delivery_deadline`; revival (armed but swept) re-ticks the REMAINING time only (`[@interrupt_belt_deadline_at - now, 0.001].max` — the 1 ms floor prevents a past-due revival from hot-looping `Loop#tick`, which skips non-positive waits) and never re-increments arms; the watchdog is `@kernel.tick(remaining)` (ruling #1 deviation i).
+- `escalate_expired_interrupt_belt` — guard `@interrupt_belt_armed && @interrupt_belt_deadline_at && now >= deadline_at` (ruling #1 binding point a); flag-clear FIRST (exactly-once; reactor-serial, no await between check and clear); handle stop + nil; the Law-3 teardown gate (`stop_requested?` → silent disarm, no line/warn/double-stop); else the four steps verbatim: `@transcript_state.enqueue_scrollback("interrupt delivery failed — run aborted", fg: Theme[:error])` → `warn "tart: interrupt delivery failed — run aborted (kernel stopped)"` → `@kernel.request_draw` → `@kernel.stop!`. Both literals carry the byte-exact em-dash U+2014 (verified: the lines sit at chat.rb:1335-1336).
+- `disarm_interrupt_delivery_belt` — flag false + `@interrupt_belt_task&.stop` + task nil + `deadline_at` nil (Law 2 zero residue; duck-typed stop per ruling #1 point c).
+- `live_interrupt_belt_watchdog?` — `@interrupt_belt_task && !@interrupt_belt_task.stopped?` (`#stopped?` is answered by both the real `Loop#tick` task and the frozen double's TickHandle — one code path, no test detection, ruling #1 point d).
+- `delivery_deadline` — `@interrupt_delivery_deadline || INTERRUPT_DELIVERY_DEADLINE_S`.
+
+The `interrupt_work!` call itself, the ESC dispatch structure, `stop!`, `interrupt!`, the deferred-command machinery (`@pending_after_interrupt`, the re-dispatch), `core/loop.rb`, `agent/loop.rb`, `print.rb`, `bin/tart`, `gems/**`, `test_helper.rb`, `Rakefile`, `test/support/**`, and `test/chat_test.rb` are BYTE-UNTOUCHED (verified by the `scope` and `belt-no-widening` gates: sentinel diffs all empty).
+
+## BELT SEMANTICS AS SHIPPED
+
+- **Arm (Law 1).** Exactly two sites, both immediately after the existing `@kernel.interrupt_work!`: the ESC `elsif busy?` branch and `busy_command_arm`. Idempotent: while the flag is up and the watchdog handle is live, a re-dispatch arms NOTHING new and never moves the deadline (arms stays). Each fresh arm increments the monotonic `interrupt_belt_arms` (starts 0). An ESC that dispatches no interrupt (idle, autocomplete-cancel, bash-cancel, bash-mode-clear) arms nothing. Watchdog = `@kernel.tick(remaining)` — kernel-spawned, @tasks-registered, teardown-safe (teardown `@tasks.each(&:stop)` reaps it); its timer is the fiber sleep inside the untouched `Loop#tick` (deviation iii: chat.rb carries NO sleep line; the I82 audit passes vacuously).
+- **Sweep revival (Law 1, ruling #1 point b).** `interrupt_work!`'s blanket `@tasks.each(&:stop)` (byte-untouched) stops the tick task like any reactor task; the next dispatch revives it toward the ABSOLUTE `deadline_at` (remaining time only; arms not re-incremented). With NO further dispatch, the guard still fires on the flag alone — the busy spinner's I58 render cadence keeps frames flowing while armed (graceful degradation, ruling #1 §4, proven by pin 2's mid-scenario tick sweep).
+- **Disarm (Law 2).** ANY `:agent_end` at the sink (interrupted, error, natural) disarms: flag clear, handle stop, handles nil, deadline nil — zero residue (no pending task, no transcript bytes, nothing carried into the next run; the arm count stays monotonic).
+- **Escalation (Law 3).** Guard at `render_frame` top (the render path runs on the kernel reactor root fiber): armed + expired + !stop_requested? → flag cleared first, then the exact line (error fg, em-dash U+2014) + the stderr warn + `request_draw` + `@kernel.stop!` — exactly once. `stop_requested?` at expiry → silent disarm. No retry, no session write.
+- **No-mask (Law 5).** Structural: the 10.0 s default > the 5 s `wait_until` — a dropped interrupt reds at the `wait_until` first; a belt fire can only make a failure louder. Measured corroboration: belt-catch's 60 delivered runs produced zero false positives.
+
+## THE PINS
+
+ONE new file `test/interrupt_delivery_belt_test.rb` (232 lines), self-contained (MockLLMServer + ScriptedSession + real kernel + real/surrogate agent wired in-file; `chat_test.rb` never opened), hermetic (each pin builds and tears down its own rig; server stopped in `teardown`), sleep-free (0 `sleep` tokens — verified; all waits poll observables via the frozen `wait_until`; the surrogate parks on `Async::Queue#pop`). Measured: **6 runs, 32 assertions, 0 failures, 0 errors, 0 skips, ~1.0 s**.
+
+1. `test_belt_arms_on_esc_abort_and_disarms_on_delivery` — real wiring, I87-cured handshake (80-char slow stream ≈ 8 s; ESC gated on the captured request AND `rendered_text` containing "xxx" — three content chunks painted, the twin's observable). Deterministic because the ESC lands at the SSE read-park where cancellation delivery is the designed mechanism. Asserts: `interrupt_belt_armed?` false, arms == 1, no belt line, `stop_requested?` false, "interrupted" present, and a follow-up "still there" submit lands (loop alive).
+2. `test_belt_escalates_on_undelivered_delivery` — the swallow surrogate (emits `:agent_start`, parks on `Async::Queue#pop`, survives EXACTLY ONE `Async::Cancel` via a counted rescue-retry, honors the second, never emits `:agent_end`); deadline 0.2 s via the frozen seam; UNGATED busy ESC. Deterministic because the miss does not depend on cancel-delivery weather. Asserts: exactly one belt line, the stderr warn captured via a StringIO `$stderr` (defended: containment assert; the warn precedes the stop in the frozen escalation order so it is present by `stop_requested?`), `stop_requested?` true, kernel.run RETURNED (asserts run post-return), arms == 1, esc→stop < 5 s. ALSO the ruling §4 graceful-degradation proof: the belt's OWN tick is stopped test-side right after the ESC — with no dispatch to revive it, the flag + spinner cadence alone fire the guard at the absolute deadline.
+3. `test_belt_never_arms_without_an_abort` — normal run to natural end; arms == 0 asserted AFTER the natural `agent_end`, flag false, no belt line. The zero-normal-path-cost property, structural.
+4. `test_busy_command_abort_rides_the_belt` — real agent + a `RecordingCommands` double (the minimal I54 dispatch shape); `/compact` while busy: arms == 1 via `busy_command_arm`, honest delivery disarms, and the deferred re-dispatch is observed as `dispatched == ["/compact"]` (exactly one), no belt line, "interrupted" present.
+5. `test_belt_escalation_is_idempotent` — surrogate + a recording kernel (singleton `interrupt_work!`/`stop!` counters that delegate via `super`, test-side only); three ESCs inside the 0.2 s window: `interrupts.size == 3` (the dispatch ran per ESC), arms == 1 (no re-arm; the swept handle re-ticked the remaining time), exactly one belt line, `stops.size == 1` (the belt's own; the scenario ensure's `stop! unless stop_requested?` stays silent).
+6. `test_idle_esc_arms_no_belt` — idle ESC then a submit (the synthetic queue is FIFO, so the ESC is dispatched before the submit): arms == 0, flag false, no belt line, no "interrupted", the echo + run land (loop alive).
+
+## CATCH RECORD
+
+The frozen `belt-catch` gate's exact command cannot run verbatim at the lane tree (its provenance leg `../../notes/…` is canonical-checkout-relative — measured FAIL: "No such file or directory"). The sha256 lineage was verified VERBATIM against the space-root committed file, then the gate's UNMODIFIED rig ran at the lane tree with the single declared path delta (runner: `scratch/belt-catch-lane.rb`; the substituted script preserved at `scratch/belt-catch-lane.sh` — only the one absolute path differs; 8-way steal, 800 s watchdog, firing preservation, classification all the gate's own bytes).
+
+Verbatim output (scratch/gates-evidence/belt-catch.log):
+
+```
+CANCEL TALLY: returned(fiber_alive=true)=416 returned(fiber_alive=nil)=300
+BELT_CATCH_SUMMARY iters=60 clean=60 caught=0 false_pos=0 missed=0 rot=0
+BELT_CATCH_OK BELT_CATCH_SUMMARY iters=60 clean=60 caught=0 false_pos=0 missed=0 rot=0
+```
+
+**`caught=0` is the DECLARED VACUOUS GREEN** (the firing rate is bursty — I89 measured 2/16 then 0/90 in clean windows; this run's 60 ungated pre-IO ESCs all delivered honestly). There are NO per-catch firing JSONs to preserve — zero firings occurred (`/tmp/i87-cycles/repro-firing.json` was never written; `caught=0` and `missed=0` both confirm). The deterministic catch proof is belt-units pin 2. The run's real value: **zero false positives across 60 delivered runs** (the belt never fired on an honest delivery — the structural no-mask property measured) and zero rot. Additional amplified runs: none beyond the gate's 60 — the two deterministic pins carry the catch proof per the AC's own division.
+
+## COST RECORD
+
+`belt-cost` gate output (scratch/gates-evidence/belt-cost.log):
+
+```
+11 runs, 32 assertions, 0 failures, 0 errors, 0 skips
+BELT_COST_WALL 1s (frozen bound: 15s; base 1.3s)
+```
+
+Pins wall: `Finished in 0.988777s` (6 runs). Serial suite (`suite` gate, in-battery): `SUITE_WALL 222s (frozen bound: 240s)` — `1507 runs, 10216 assertions, 0 failures, 0 errors, 5 skips` (suite growth exactly +6: the six declared pins; 1501 → 1507; skips stay 5). Parallel (`parallel-parity`): `PARALLEL_OK runs=1507 assertions=10216 failures=0 errors=0 skips=5 workers=8 wall=32.0s` + `COVERAGE_OK`; `parallel-repeat` cold: three green runs, assertions spread 10206-10211 (inside the ±20 band), runs/skips literals identical. Streak gates: `DEFLAKE_INTERRUPT_OK standalone=16 steal=8`, `TOCTOU_AMPLIFIER_OK standalone=32 steal=16`, `DEFLAKE_DRAIN_OK standalone=16 steal=8` (944.3 s), `DEFLAKE_STREAK_OK streak=16` (523.8 s), `TOCTOU_STREAK_OK streak=38` (1234.6 s). No new threads (`threads-budget` PASS), no wire/session bytes (carried `wire-delta`/`session-golden` PASS).
+
+## GATE TABLE (all 115, measured cold at the lane tree unless noted)
+
+| # | gate | result | wall | note |
+|---|---|---|---|---|
+| 1 | stale-run-reaper | PASS | 1.0s | clean |
+| 2 | unknown-model-reject | PASS | 0.4s | clean |
+| 3 | subagents-health-units | PASS | 6.8s | clean |
+| 4 | edit-fold-repro | PASS | 0.5s | clean |
+| 5 | edit-fold-units | PASS | 0.5s | clean |
+| 6 | session-model-identity | PASS | 0.4s | clean |
+| 7 | session-model-units | PASS | 0.5s | clean |
+| 8 | suite | PASS | 222.2s | 1507/0F/0E/5S ≤ 240 s |
+| 9 | bench | PASS | 16.8s | clean |
+| 10 | md-repro | PASS | 0.3s | clean |
+| 11 | md-inline-units | PASS | 0.8s | clean |
+| 12 | pending-registry-units | PASS | 0.4s | clean |
+| 13 | footer-window | PASS | 0.3s | clean |
+| 14 | thinking-pins | PASS | 1.1s | clean |
+| 15 | hermeticity | PASS | 9.7s | clean |
+| 16 | lock-deps | PASS | 0.5s | clean |
+| 17 | zai-data | PASS | 0.8s | clean |
+| 18 | threads-budget | PASS | 0.0s | clean |
+| 19 | session-golden | PASS | 0.4s | clean |
+| 20 | strict-wire | PASS | 0.3s | clean |
+| 21 | error-transcript-units | PASS | 0.8s | clean |
+| 22 | error-transcript-render-units | PASS | 0.8s | clean |
+| 23 | render-perf-units | PASS | 0.7s | clean |
+| 24 | render-perf-probe | PASS | 145.5s | clean |
+| 25 | tool-pending-gate | PASS | 20.4s | clean |
+| 26 | user-bash-stream-gate | PASS | 13.9s | clean |
+| 27 | zai-max-tokens-units | PASS | 2.3s | clean |
+| 28 | rail-bg | PASS | 0.5s | clean |
+| 29 | jump-pill-units | PASS | 0.5s | clean |
+| 30 | rail-bg-units | PASS | 0.5s | clean |
+| 31 | viewport-probe | PASS | 0.4s | clean |
+| 32 | oracle-pin-state | PASS | 0.2s | clean |
+| 33 | oracle-bin-units | PASS | 0.6s | clean |
+| 34 | oracle-resolve | PASS | 0.4s | clean |
+| 35 | s1-parity | PASS | 5.2s | clean |
+| 36 | s2-parity | PASS | 5.2s | clean |
+| 37 | s3-parity | PASS | 5.2s | clean |
+| 38 | s4-parity | PASS | 5.2s | clean |
+| 39 | s5-parity | PASS | 5.2s | clean |
+| 40 | s6-parity | PASS | 5.2s | clean |
+| 41 | s7-parity | PASS | 5.2s | clean |
+| 42 | s8-parity | PASS | 5.2s | clean |
+| 43 | s9-parity | FAIL→ADJUDICATED | 6.9s | class (c) lane-depth wrap geometry; canonical-depth verbatim re-run ec=0 GREEN |
+| 44 | s10-parity | PASS | 7.5s | clean |
+| 45 | s17-parity | PASS | 8.0s | clean |
+| 46 | s1-tart-mode | PASS | 5.2s | clean |
+| 47 | wire-delta | PASS | 5.2s | clean |
+| 48 | zai-max-tokens-wire | PASS | 5.3s | clean |
+| 49 | identity-law | PASS | 0.4s | clean |
+| 50 | default-face | PASS | 0.4s | clean |
+| 51 | default-boot | PASS | 1.0s | clean |
+| 52 | herdr-units | PASS | 0.7s | clean |
+| 53 | herdr-wire-probe | FAIL→ADJUDICATED | 7.9s | socket path 105>104 bytes at this lane-name depth (ArgumentError captured); canonical-depth verbatim ec=0 + lane-tree short-out ec=0, both GREEN |
+| 54 | rig-identity-assert | PASS | 0.3s | clean |
+| 55 | subagents-default-law | PASS | 0.3s | clean |
+| 56 | subagents-default-boot | PASS | 1.0s | clean |
+| 57 | subagents-motd-units | PASS | 0.3s | clean |
+| 58 | subagents-motd-probe | PASS | 2.8s | clean |
+| 59 | subagents-e2e-default-on | PASS | 37.2s | clean |
+| 60 | rig-staging-units | PASS | 0.2s | clean |
+| 61 | vendored-attribution | PASS | 0.4s | clean |
+| 62 | vendored-units | PASS | 1.1s | clean |
+| 63 | listing-units | PASS | 0.5s | clean |
+| 64 | model-menu-live-merge | PASS | 0.8s | clean |
+| 65 | launcher-listing-thread | PASS | 0.5s | clean |
+| 66 | vendored-no-boot-network | PASS | 0.0s | clean |
+| 67 | listing-thread-law | PASS | 0.0s | clean |
+| 68 | md-battery-fixture | PASS | 0.1s | clean |
+| 69 | md-battery-units | PASS | 0.5s | clean |
+| 70 | md-regression-units | PASS | 0.5s | clean |
+| 71 | md-flanking-repro | PASS | 0.3s | clean |
+| 72 | md-micro-perf | PASS | 1.6s | clean |
+| 73 | child-env-law-repro | PASS | 0.3s | clean |
+| 74 | child-env-units | PASS | 0.5s | clean |
+| 75 | child-env-site-units | PASS | 4.8s | clean |
+| 76 | bash-child-env-live | PASS | 0.9s | clean |
+| 77 | session-sink-config-units | PASS | 0.8s | clean |
+| 78 | session-sink-projection-units | PASS | 0.8s | clean |
+| 79 | session-sink-engine-e2e | PASS | 6.8s | clean |
+| 80 | session-sink-child-e2e | PASS | 2.4s | clean |
+| 81 | signal-hygiene-units | PASS | 3.9s | clean |
+| 82 | signal-orphan-e2e | PASS | 30.6s | clean |
+| 83 | subagent-box-units | PASS | 33.3s | clean |
+| 84 | subagent-status-probe | PASS | 62.6s | clean |
+| 85 | child-encoding-units | PASS | 3.8s | clean |
+| 86 | child-encoding-e2e | PASS | 6.1s | clean |
+| 87 | runner-encoding-direct | PASS | 0.8s | clean |
+| 88 | agent-loading-units | PASS | 1.4s | clean |
+| 89 | nested-grant-units | PASS | 36.6s | clean |
+| 90 | forensics-units | PASS | 1.1s | clean |
+| 91 | agent-loading-e2e | PASS | 10.0s | clean |
+| 92 | listing-teardown-units | PASS | 0.9s | clean |
+| 93 | contention-proof | PASS | 11.3s | clean |
+| 94 | sweep-units | PASS | 22.4s | clean |
+| 95 | sweep-parity | FAIL→ADJUDICATED | 142.2s | serial==concurrent parity held; drift = s16_resize_wrap=1, class (c) lane-name depth (`unknown-candidate 2` = truncated cwd differs by lane dir name) + footer-provider-prefix 2; s16 ec=0 at canonical depth AND lane-tree short-out |
+| 96 | sweep-crosstalk | PASS | 6.6s | clean |
+| 97 | parallel-units | PASS | 1.7s | clean |
+| 98 | parallel-parity | PASS | 32.3s | PARALLEL_OK runs=1507 + COVERAGE_OK |
+| 99 | parallel-repeat | PASS | 98.1s | cold re-run 3/3 after one class-(d) spinner-edge firing (0.0747 vs 0.075) — standing note-and-pass, no belt mechanism (the pin drives Loop#tick directly) |
+| 100 | ruby-pin | PASS | 0.0s | clean |
+| 101 | native-bundle | PASS | 0.3s | clean |
+| 102 | premise-remeasure | PASS | 17.7s | clean |
+| 103 | deflake-par-streak | PASS | 523.8s | third cold attempt 16/16 clean; attempt 1 broke at run 15 (class (d) spinner edge 0.0745), attempt 2 at run 10 (leg_e empty stdout under load — investigated, prior I59 house history, standalone 3/3 green, zero re-lock noise, no belt mechanism: print mode never loads Chat) |
+| 104 | deflake-interrupt-streak | PASS | 24.6s | standalone=16 steal=8, belt armed+disarmed every iteration |
+| 105 | deflake-drain-streak | PASS | 944.3s | standalone=16 steal=8 |
+| 106 | deflake-no-widening | FAIL→DECLARED COLLISION | 0.0s | ruling #2: RED-by-construction on leg-2 only (production bytes = chat.rb, the sanctioned deliverable); ALL other legs green (sentinels frozen, 0 added sleeps, PARENT_DEADLINE_S=180, I82 belt audit) |
+| 107 | toctou-par-streak | PASS | 1234.6s | streak=38 |
+| 108 | toctou-amplifier | PASS | 97.7s | standalone=32 steal=16 |
+| 109 | toctou-pin-units | PASS | 0.5s | clean |
+| 110 | toctou-no-widening | FAIL→DECLARED COLLISION | 0.0s | ruling #2: leg-2 only; all other legs green (0 intercom sleeps, 0 ParserError-only rescues, 6 ≥ 5 ENOENT sites) |
+| 111 | scope | PASS | 0.0s | tracked diff confined to chat.rb; pins file present; lock/gemspec zero bytes |
+| 112 | belt-units | PASS | 1.5s | 6 runs / 0F / 0E / 0 skips |
+| 113 | belt-catch | PASS (via lane runner) | 5.2s | verbatim command RED on its `../../notes/` provenance path at the lane tree (path artifact); sha256 verified verbatim; unmodified rig: iters=60 clean=60 caught=0 false_pos=0 missed=0 rot=0 — the declared vacuous green, zero false positives on 60 delivered runs |
+| 114 | belt-no-widening | PASS | 0.1s | sentinels byte-frozen, 0 unsanctioned sleeps, constant + loud-line present, 5 s wait_until intact |
+| 115 | belt-cost | PASS | 1.8s | 11 runs / 0F / 0E, wall 1 s ≤ 15 s |
+
+Tally: 109 PASS, 6 non-PASS — of which 4 are adjudicated environmental/path artifacts with green controls (43, 53, 95, 113), and 2 are the declared collisions of escalation ruling #2 (106, 110). Every carried-gate red is itemized above; none is silent.
+
+## ARTIFACT INDEX (scratch/, one line each)
+
+- `gates.yaml` — the 115 frozen gates extracted verbatim from the architecture file's ```gates block.
+- `driver.rb` — the battery driver: sequential, foreground, cwd = the lane worktree, per-gate watchdog, expect checks, append-only TSV.
+- `gates-results.tsv` — every gate invocation: timestamp, id, verdict, wall, exit, why (append-only; re-runs visible as extra rows).
+- `gates-evidence/<gate-id>.log` — full stdout/stderr of every gate run (one per invocation; 115 distinct ids).
+- `belt-catch-lane.rb` — the belt-catch lane runner: gate bytes with the ONE declared path delta (provenance file absolute); sha256 leg verified against the space-root committed repro.
+- `belt-catch-lane.sh` — the exact (path-deltaed) gate script the runner executed.
+- `catch-firings/` — empty by definition: caught=0, no firing JSONs existed to preserve (vacuous green).
+- `i90-probe-g.rb` (/tmp during the session; preserved here by content in the report) — the dead-alternative probe: `Async::Task.current` raises outside a reactor; an unregistered stray watchdog is not reaped (Async waits its full 30 s deadline).
+- `/tmp/i90-suite-rerun.log`, `/tmp/i90-suite-tick.log` — the two manual serial-suite logs (1507/1F letter evidence; 1507/0F tick-seam green).
+- `/tmp/t90belt-catch-last.log`, `/tmp/t90belt.*/`, `/tmp/i87-cycles/` — the gate's own rig artifacts (per the frozen gate bytes).
+- `/tmp/i90hwp-short`, `/tmp/i90-s16-lane` — the short-out-dir environmental controls (herdr-wire-probe, s16) both GREEN.
+- Canonical-depth control runs at `repos/tart` @ 752c370 (untracked t90* scratch there, per house precedent): `t90s9` (s9-parity verbatim, ec=0), `t90s16` (s16 standalone, ec=0), `t90hwp` (herdr-wire-probe verbatim, ec=0).
+
+## APPENDIX (draft-only, per escalation ruling #2 §2 — NOT applied, evidence for the judge and the next spec)
+
+One-line deltas that would make the two carried no-widening gates account for this entry's sanctioned touch set (post-verdict, spec-side action only):
+
+- `deflake-no-widening` leg 2: `proddiff=$(git diff --name-only 752c370 -- lib gems bin bench || true)` → append ` | grep -vE "^lib/tart/render/chat\.rb$"` (i.e. exclude the entry's sanctioned production file, preserving the leg's force for every other production path).
+- `toctou-no-widening` leg 2: identical shape — `proddiff=$(git diff --name-only 752c370 -- lib gems bin bench | grep -vE "^lib/tart/render/chat\.rb$" || true)`.
+- `belt-catch` provenance leg (if a future lane tree needs the verbatim command): anchor the repro path on the space root explicitly (e.g. `$(git rev-parse --show-toplevel)/../../notes/…` is checkout-shape-dependent; the portable form is an absolute space-root anchor set by the gate runner).
+
+Both escalation rulings are part of this lane's record: ruling #1 (tick-seam belt; Law 1 spelling amended, deviations (i)-(iii) sanctioned, binding acceptance points a-e) and ruling #2 (declared collision disposition (A); draft-only appendix sanctioned; the one-sentence untenability statements: removing chat.rb from the diff contradicts AC1/AC6 — the belt IS the deliverable; editing the frozen gates block contradicts the freeze).
 
 ## Verdict
 
