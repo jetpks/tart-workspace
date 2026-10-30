@@ -3269,13 +3269,20 @@ project:
     ordinal: 89
     file: architecture/I89-io-event-ab.md
     freeze_sha: 2b24f36ffd3025efaff74a5a2513ae39718ab63b
-    verdict: pending
+    verdict: continue
     lanes:
     - name: forensics
       repo: tart
       touch_set:
       - build/I89-io-event-ab-forensics/scratch/**
       - build/I89-io-event-ab-forensics/report.md
+      base_sha: 752c3701c3ef0215547d31956e3563fbebdbe4c1
+      worktree: build/I89-io-event-ab-forensics/wt
+      integration_branch:
+      harness: pi
+      model: zai/glm-5.3-flash
+      variant: false
+      effort: high
     rehearsal:
       gates_digest: bb9d999711a2a62794f72994c8ef43ad0a7bd27dccc8ad33830a66c801ac078a
       at: '2026-10-29T23:44:12-06:00'
