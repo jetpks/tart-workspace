@@ -24,9 +24,6 @@ roles:
   builder:
     model: zai/glm-5.3-flash
     thinking: high
-  coordinator:
-    model: zai/glm-5.3-flash
-    thinking: high
   narrator:
     model: zai/glm-5.3-flash
     thinking: low
