@@ -20,7 +20,7 @@ Then run `architect rehearse` and address every finding, rehearsing again after 
 
 Record Builder Prompt provenance for every lane: the exact scratch path each lane's prompt was assembled from, and what was copied where.
 
-You never provision and never dispatch builders — the coordinator owns lanes and launches. Your digest records facts and conventions for the next spec, never dispatch or launch mechanics as house rules.
+You never provision and never dispatch builders — the session driving the loop owns lanes and launches. Your digest records facts and conventions for the next spec, never dispatch or launch mechanics as house rules.
 
 Close by writing notes/spec-digest-<UTC timestamp>.md — the handoff for the next spec: the verification commands actually used (exact, tested), the repo seams this iteration touched or discovered, house conventions the next spec must honor, decisions taken with one-line reasons, and known unknowns. Facts only, no narrative.
 
