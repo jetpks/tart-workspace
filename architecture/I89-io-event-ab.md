@@ -853,11 +853,333 @@ suite bar stands at your lane tree (1501 runs / 0F / 0E / 5 skips, ≤
 
 ## Builder Report
 
-<!-- RAW EVIDENCE ONLY — tables, numbers, command output. The builder writes this
-to build/I89-io-event-ab-<lane>/report.md; the architect transcribes it here
-VERBATIM with `architect evidence io-event-ab --lane <lane>` (byte-for-byte, no
-interpretation). One ### subsection per lane; includes the builder's PHASE 0
-disagreements and its STATUS line. -->
+### forensics
+
+# I89 Builder Report — lane `forensics` (io-event-ab)
+
+STATUS: COMPLETE
+
+## PHASE 0 declarations
+
+No frozen fact contradicts what was measured at this tree. Verified this
+session, before running anything:
+
+- Base: `repos/tart` @ `752c3701c3ef0215547d31956e3563fbebdbe4c1` AND lane
+  worktree `build/I89-io-event-ab-forensics/wt` @ the same SHA; both
+  `git status --porcelain` empty at audit and again at protocol end
+  (zero tracked-file changes, zero commits — no-commit protocol intact).
+- Repro bytes: `scratch/repro_a.rb` sha256
+  `561812eb06c99d9f16526d0e5e422f9055c37fbfaffd317defc6c49a0d4abb21` =
+  committed evidence `notes/evidence-20261026-io-event-delivery/repro_a.rb`
+  (diff byte-identical). Probe instrumentation semantics untouched; the
+  `wrapped_selector` ring leg recorded the inert pure-ruby
+  `IO::Event::Selector::Select::Waiter` in every firing artifact this
+  session (AR0/AR1/AR2/BR1/BR2/smoke) — recorded, NOT repaired, per the
+  frozen constraint.
+- Pins: A env resolves io-event **1.22.1** + async 2.46.0; B env io-event
+  **1.22.3** + async 2.46.0 (first-hand `Gem.loaded_specs` probes, plus the
+  frozen `WANT_PIN` assertion opening every batch — all passed; zero pin
+  drift).
+- B-side scratch home: `scratch/gemhome` holds io-event-1.22.3 with built
+  `arm64-darwin-25/4.0.0-static` extensions; anchor on `Gem.default_dir`
+  (`/Users/eric/.local/share/mise/installs/ruby/4.0.9/lib/ruby/gems/4.0.0`)
+  wired through `GEM_PATH` in every B invocation.
+- Locks: `Gemfile.lock` sha256
+  `5d380f1764883ceedcc519529f37b757760548acf83dfa9435259de1eb335ad0` at
+  BOTH `repos/tart` and the lane `wt` before and after the whole protocol.
+- Reference clones at Grounds SHAs, clean: io-event @
+  `6cc4bfd62bea33f7b35726b71e4ab698051bdbf8`, async @
+  `d8f59c95c3083558aa543101ee5fdcc006054f4d`.
+- Rig layout: `require_relative "../wt/test/…"` resolves at the lane tree
+  (proven by every batch this session).
+- Suite literals at the lane tree re-established first-hand (AC7 house bar):
+  1501 runs / 10167 assertions / 0 failures / 0 errors / 5 skips, wall 222 s
+  ≤ 240 s, ec=0.
+- Inherited-state audit vs the coordinator note: the coordinator's
+  "died before any A/B measurement rounds" is imprecise — the predecessor
+  had run ONE pre-driver A batch (`AR0`, round 0) which FIRED (ring MATCH).
+  It is NOT counted (see PROTOCOL AS RUN); the "results.tsv ~1 line" and
+  "all six gates GREEN, artifacts missing" observations were accurate.
+
+No stop-and-declare contradictions found. Note (cosmetic, not a contract
+item): the dispatch text's `../../`-style relative paths from `wt/` are off
+by one (they resolve to `build/`); the space-root-relative paths named in
+the same text are correct and were used.
+
+## PROTOCOL AS RUN
+
+Resumed from the timed-out predecessor's state. Order executed (sequential,
+same session, foreground — never nohup; no other heavy work during the
+protocol):
+
+1. Inherited-state audit (above), first-hand pin/gemhome/git/lock checks.
+2. `batch.sh` harness repair (deviation 1) + validation, pre-protocol.
+3. Harvest of the predecessor's gate-run logs from `/tmp/t89*` mktemp
+   leftovers into `scratch/gates/evidence/` (deviation 3).
+4. `scope-zero` gate re-run first-hand at `repos/tart` → `SCOPE_ZERO_OK`.
+5. AC7 house bar: serial suite at the LANE tree → GREEN (222 s).
+6. The frozen interleaved protocol via the inherited `driver.sh` (rounds
+   1..15 or Law 4 settle; 8 × `ruby -e 'loop {}'` steal PIDs 67964–67971,
+   8/8 alive verified at protocol start and at each round start, killed at
+   protocol end; 300 s per-batch watchdog — no expiry occurred; batches ran
+   6–8 s each). SETTLED AT ROUND 2: NOT CLEAN.
+7. Law 5(b) wedge observation, once per pin (both not-observed).
+8. Law 6 layer isolation (verdict NOT clean ⇒ mandatory): probe ran 3000
+   raised trials + 1000 control trials under the same 8-way steal ⇒ no
+   raw-fiber swallow ⇒ FILE-UPSTREAM branch; `upstream-dossier.md` drafted.
+
+Deviations itemized-and-defended (none sanctioned; all within the frozen
+touch set `scratch/**` + `report.md`):
+
+1. **`batch.sh` dot-counter repair (pre-protocol, scratch machinery — the
+   frozen probe's bytes untouched).** The inherited counter summed only
+   pure-dot lines; the rig's IO::Buffer warning fuses onto dot lines (proven
+   by the inherited `AR0.body`: 14 dots printed, 0 counted), which would
+   corrupt `A_iters`/`N_B` (Law 4 inputs) and false-abort clean batches on
+   the `dots == 100` harness-rot leg. Replaced with a counter that sums
+   leading-dot runs on lines BEFORE the first `FIRING at iteration` /
+   `CANCEL TALLY` line (minitest's own result char lands after the tally and
+   is excluded). Validated against 4 known-shape logs (AR0=14, three clean
+   5-iter smokes=5 each); clean-batch rot detection re-legged on ec=0 +
+   `1 runs, 0 assertions, 0 failures, 0 errors, 0 skips` + `firings=0`.
+   Effect visible in the record: BR1 counted 59 dots + firing correctly.
+2. **Rehearsal firings not counted in Law 4 inputs.** Inherited `AR0`
+   (A-side, "round 0", fired at iter 14, ring MATCH, wall 6 s) predates the
+   inherited driver (which numbers rounds from 1, truncates `results.tsv`,
+   and has no steal record for AR0 — no `protocol.log`/`steal.pids` existed).
+   Law 2 requires identical continuous steal; an unverified-steal firing
+   cannot seed the A baseline without contaminating the A/B comparison the
+   protocol exists to protect. AR0 is preserved whole
+   (`results-rehearsal.tsv`, `firings/AR0.json`, `logs/AR0.*`) and disclosed
+   as a batch-mechanics rehearsal — it also independently confirms the rig
+   fires at the lane tree. Same treatment for `firings/smoke-a3-r0.json`
+   (predecessor's 5-iter smoke firing, pre-machinery). The protocol of
+   record is rounds 1–2 below.
+3. **Gate-evidence harvest.** The predecessor's "all six gates GREEN at
+   `repos/tart`" left no stdout artifacts; its mktemp run dirs survived in
+   `/tmp` and were harvested to `scratch/gates/evidence/` (two generations,
+   2026-10-29T23:4x and 2026-10-30T00:2x). Substantiated from them:
+   parallel-suite GREEN ×3 (`PARALLEL_OK runs=1501 … skips=5`, walls
+   34.5/36.1/36.1 s, no wedge samples), ab-protocol-smoke clean A+B,
+   pin-swap gem-install logs + scratch locks. NOT substantiated by artifact:
+   the `suite` gate's stdout (no artifact anywhere) — compensated first-hand
+   by the AC7 house-bar run at the lane tree (item 5, GREEN) and `scope-zero`
+   re-run (GREEN). rig-smoke / pin-swap-mechanics / ab-protocol-smoke were
+   not re-run this session; their full-size equivalents ran for real (AR0
+   rehearsal, the driver's batches, the in-place B env).
+4. **Law-6 probe extension (within the law's shape).** Beyond the mandated
+   same-thread raise-into-parked+enqueued replication (V1) and the ring's
+   double-raise (V2), a cross-thread variant (V3) was added because the
+   rig's true topology raises from the ESC thread. Still raw `Fiber` +
+   `Thread` only (no async/io-event requires), ≥ 1000 iterations under the
+   same 8-way steal, honest recording (it refused with FiberError — data
+   that STRENGTHENS the mechanism attribution).
+5. **Round-1 baseline arithmetic quirk, disclosed.** `AR1` fired at
+   iteration 0 (`dots=0 fired=1` → A_iters += 1): legitimate per Law 4
+   (`A_iters` = iterations EXECUTED, and the firing iteration executed).
+
+## A-SIDE RECORD (io-event 1.22.1, worktree env)
+
+| round | batch | pin | version probe | iters run | firing iter / clean | wait line | cancel tally | wall s | firing JSON |
+|-------|-------|-----|---------------|-----------|---------------------|-----------|--------------|--------|-------------|
+| 1 | AR1 | 1.22.1 | io-event=1.22.1 | 1 | FIRING at 0 | 154 | returned(true)=2 returned(nil)=4 firings=1 | 6 | firings/AR1.json |
+| 2 | AR2 | 1.22.1 | io-event=1.22.1 | 15 | FIRING at 14 | 154 | returned(true)=86 returned(nil)=60 firings=1 | 6 | firings/AR2.json |
+
+A totals: 2 firings / 16 iterations. (Rehearsal, not counted: AR0, round 0,
+fired at 14, wait 154, tally returned(true)=82 returned(nil)=60 firings=1,
+wall 6 s, ring MATCH — `results-rehearsal.tsv`, `logs/AR0.*`.)
+
+## B-SIDE RECORD (io-event 1.22.3, scratch env)
+
+| round | batch | pin | version probe | iters run | firing iter / clean | wait line | cancel tally | wall s | firing JSON |
+|-------|-------|-----|---------------|-----------|---------------------|-----------|--------------|--------|-------------|
+| 1 | BR1 | 1.22.3 | io-event=1.22.3 | 60 | FIRING at 59 | 154 | returned(true)=336 returned(nil)=240 firings=1 | 8 | firings/BR1.json |
+| 2 | BR2 | 1.22.3 | io-event=1.22.3 | 7 | FIRING at 6 | 154 | returned(true)=38 returned(nil)=28 firings=1 | 6 | firings/BR2.json |
+
+B totals: 2 firings / 67 iterations. Both B batches ran the byte-identical
+rig under `BUNDLE_GEMFILE=scratch/Gemfile` + scratch `GEM_HOME`/`GEM_PATH`
+anchored on `Gem.default_dir`; every batch opened with the frozen `WANT_PIN`
+assertion (all passed, captured in `logs/*.log`).
+
+## FIRING CLASSIFICATION (Law 3 — the ring, not the line)
+
+Classifier: `scratch/classify_firing.rb` (interrupt_work tasks_alive
+==[true,true] AND ≥1 scheduler_raise AND ≥1 Cancel branch `returned` with
+cancelled_after==true and fiber_after==nil). All four protocol firings
+MATCH; all four at the `:154` transcript wait (the `:153`/`:154` both being
+the delivery surface at this base per Grounds). Independent re-classification
+this session (post-protocol, from the preserved JSONs):
+
+| firing | pin | interrupt_work [true,true] | scheduler_raise | cancel returned+swallow | verdict |
+|--------|-----|---------------------------|-----------------|-------------------------|---------|
+| AR1 (iter 0) | 1.22.1 | 1 | 2 | 3 | MATCH |
+| BR1 (iter 59) | 1.22.3 | 60 | 336 | 455 | MATCH |
+| AR2 (iter 14) | 1.22.1 | 15 | 86 | 115 | MATCH |
+| BR2 (iter 6) | 1.22.3 | 7 | 38 | 51 | MATCH |
+
+(Counts accumulate over the batch's iterations; the FIRING iteration's own
+tail is the swallow sequence, identical 9-entry shape in all four — quoted
+here from `firings/AR2.json`, iter=14; AR1/BR1/BR2 byte-shape-identical with
+different oids/iters:)
+
+    {"iter":14,"kind":"interrupt_work","tasks_alive":[true,true]}
+    {"iter":14,"kind":"scheduler_raise","target":"Fiber"}
+    {"iter":14,"kind":"scheduler_raise","target":"Fiber"}
+    {"iter":14,"kind":"finish!","task_oid":3920,"on_fiber":3928,"fiber_alive":true}
+    {"iter":14,"branch":"returned","fiber_after":null,"cancelled_after":true,"fiber_alive":true,"cancelled":false,"current":false,"task_oid":3920}
+    {"iter":14,"kind":"finish!","task_oid":3912,"on_fiber":3936,"fiber_alive":true}
+    {"iter":14,"branch":"returned","fiber_after":null,"cancelled_after":true,"fiber_alive":true,"cancelled":false,"current":false,"task_oid":3912}
+    {"iter":14,"branch":"returned","fiber_after":null,"cancelled_after":true,"fiber_alive":null,"cancelled":true,"current":false,"task_oid":3920}
+
+Reading: both tasks alive at interrupt; Scheduler#raise ×2; both cancels
+RETURN; tasks finalize from fibers that are NOT the agent's (`on_fiber`
+mismatch — the interrupter's fibers); agent fiber's ensure never runs.
+Zero ANOMALY firings; zero `FiberError→Later` tally entries in any batch.
+
+## DECISION-RULE APPLICATION (Law 4, exact)
+
+Inputs (from `results.tsv`, rounds of record):
+
+- A_firings = 2 (AR1, AR2 — both ring MATCH)
+- A_iters = 16 (AR1: 0 dots + 1 fired = 1; AR2: 14 + 1 = 15)
+- B_firings = 2 (BR1, BR2 — both ring MATCH)
+- N_B = 67 (BR1: 59 + 1 = 60; BR2: 6 + 1 = 7)
+
+Arithmetic:
+
+- r_A = A_firings / A_iters = 2/16 = 0.125
+- Baseline re-established: A_firings = 2 ≥ 2 ✓ (at round 2; BR1's firing was
+  banked at round 1 per the banking clause)
+- NOT clean: B_firings = 2 ≥ 1 ✓ → verdict **NOT CLEAN** (CLEAN branch and
+  its N_B requirement never reached; for the record, required
+  N_B = max(300, ceil(3×16/2)) = max(300, 24) = 300, and the CLEAN-branch
+  survival arithmetic would have been (1 − 0.125)^67 = 0.875^67 ≈
+  1.3018×10⁻⁴ had B stayed silent)
+- Budget: settled at round 2 of R_max = 15
+
+## WEDGE RECORD (Law 5 — observation only)
+
+- Batch watchdog expiries: NONE. All four protocol batches completed in
+  6–8 s against the 300 s watchdog; no mid-run or exit-teardown
+  classification events; `scratch/wedges/` holds no batch samples because
+  none occurred.
+- Per-pin post-protocol `rake test:par`, 900 s wall watchdog
+  (`scratch/wedge_par.sh`):
+  - A pin (worktree env, lane tree): completed ec=0, wall 41 s;
+    `PARALLEL_OK runs=1501 assertions=10167 failures=0 errors=0 skips=5
+    workers=8 wall=35.7s` + `COVERAGE_OK runs=1501 enum=1501` →
+    **not-observed** (`wedges/APAR.log`, `wedges/APAR.log.body`).
+  - B pin (scratch env): completed ec=0, wall 40 s; `PARALLEL_OK runs=1501
+    assertions=10161 failures=0 errors=0 skips=5 workers=8 wall=36.6s` +
+    `COVERAGE_OK runs=1501 enum=1501` → **not-observed**
+    (`wedges/BPAR.log`, `wedges/BPAR.log.body`).
+- No cure attempted anywhere (automatic-FAIL clause respected).
+
+## LAYER ISOLATION (Law 6 — taken; verdict NOT clean ⇒ mandatory)
+
+Probe: `scratch/layer_probe.rb` (+ `layer_probe_run.sh` wrapper: the same
+8-way steal idiom, verified 8/8; foreground). Raw `Fiber` transfer + raise
+ONLY — no `require "async"`, no `require "io/event"`. 1000 iterations per
+variant under steal (`layer_probe.out`):
+
+- V1 (single `Fiber#raise` into a fiber parked at `Fiber.yield` AND enqueued
+  on a userland ready queue — the Grounds-trace interleaving): 1000/1000
+  `delivered_ensure_ran` (raise unwound the target, ensure ran, CancelError
+  propagated to the raiser).
+- V2 (double raise, the ring's repeated scheduler_raise): 1000/1000
+  `delivered_ensure_ran`.
+- V0 control (parked+enqueued, never raised): ensure ran 0/1000 before GC —
+  a suspended fiber never unwinds by itself, so a LOST raise is permanent.
+- V3 extension (cross-thread raise — the rig's true topology: the ESC thread
+  calls interrupt_work! → Scheduler#raise): 1000/1000 refused with
+  `FiberError "fiber called across threads"`.
+
+Honest verdict: the swallow **does not fire at the raw CRuby-fiber layer**
+(0 swallows in 3000 raised trials) ⇒ per Law 6's mapping this implicates
+**io-event's ready-queue machinery**, and the recommendation is
+**FILE-UPSTREAM** with the dossier drafted: `scratch/upstream-dossier.md`
+(mechanism incl. the 1.22.3 source read of `IO_Event_Selector_raise`
+(`selector.c:298`, push-interrupter-then-`IO_Event_Fiber_raise`, unchanged
+from 1.22.1's shape), ring evidence, repro reference, A/B numbers, ask).
+
+## ENVIRONMENT
+
+- ruby: `ruby 4.0.9 (2026-10-23 revision 3e93b23afc) +PRISM [arm64-darwin25]`
+  (via the committed `.ruby-version` = 4.0.9)
+- uname: `Darwin studio.slush.systems 25.6.0 Darwin Kernel Version 25.6.0:
+  Tue Aug 18 17:48:46 PDT 2026; root:xnu-12377.161.15.700.19~2/RELEASE_ARM64_T6041 arm64`
+- ncpu: 16
+- Load averages: protocol start 17.52 / 18.87 / 13.27 (elevated pre-existing
+  host load at 06:54Z — disclosed; A/B symmetry is protected by the
+  interleaving, and both pins fired under the same conditions); in-round:
+  R1 17.08/18.76/13.26, R2 15.88/18.41/13.23; protocol end 3.10/4.87/7.86.
+- Gem versions: A env io-event 1.22.1 + async 2.46.0; B env io-event 1.22.3 +
+  async 2.46.0 (pin-asserted per batch; `pin-swap`-recipe B env verified
+  first-hand: B bundle install ec=0, scratch `Gemfile.lock` resolves
+  `io-event (1.22.3)` + `async (2.46.0)`).
+- Steal verification: 8 × `ruby -e 'loop {}'` (PIDs 67964–67971), started
+  before round 1, `steal alive: 8/8` at protocol start and at every round
+  start (`protocol.log`), killed at protocol end (trap + explicit); zero
+  stray stealers after.
+- Suite at lane tree: 1501 runs / 10167 assertions / 0F / 0E / 5 skips,
+  wall 222 s (AC7 bar ≤ 240 s) — GREEN, run before the protocol.
+- Zero-footprint close-out: `git status --porcelain` empty and HEAD =
+  `752c3701c3ef0215547d31956e3563fbebdbe4c1` at BOTH the lane `wt` and
+  `repos/tart`; `Gemfile.lock` sha256
+  `5d380f1764883ceedcc519529f37b757760548acf83dfa9435259de1eb335ad0` at
+  both; socketry clones clean at Grounds SHAs.
+
+## RECOMMENDATION
+
+**FILE-UPSTREAM.**
+
+Per the frozen decision rule, the verdict is NOT CLEAN: the 1.22.1 baseline
+re-established within two rounds (2 firings / 16 iterations, both ring-MATCH
+class (a)) and 1.22.3 fired TWICE under the same continuous 8-way steal in
+the same session (2 firings / 67 iterations, same `:154` surface, same
+9-entry swallow ring) — Law 4's banking clause settled the protocol at
+round 2. 1.22.3 (= #232 + Linux futex + signing vs 1.22.1; futex inert on
+darwin) therefore does NOT fix the undelivered-cancellation class, and a
+BUMP is contraindicated. The conditional Law-6 reduction then localized the
+defect: raw CRuby fibers deliver `Fiber#raise` into a parked-and-enqueued
+fiber 2000/2000 times and refuse the cross-thread case outright, while the
+observed swallow (raise returns, cancel returns, ensure never runs, task
+finalizes from the interrupter's fiber) can only arise in io-event's
+push-interrupter-then-raise machinery — so the defect is io-event's to fix,
+not tart's and not CRuby's. ENTRY 3 (the pin bump) should NOT run on this
+evidence; the drafted upstream dossier (`scratch/upstream-dossier.md`) is
+ready for the owner to file.
+
+## ARTIFACT INDEX (scratch/, one line each)
+
+- `repro_a.rb` — byte-identical copy of the committed evidence rig (sha256 `561812eb…4abb21`); probe semantics untouched.
+- `Gemfile`, `Gemfile.lock` — Law-1 B-side scratch bundle (eval_gemfile of the wt Gemfile + `gem "io-event", "1.22.3"`; lock resolves io-event 1.22.3 / async 2.46.0).
+- `gemhome/` — B-side gem home anchored on `Gem.default_dir`; io-event-1.22.3 with built arm64-darwin extensions (+ io-console, prism transitives); `bin/tart` binstub.
+- `batch.sh` — one A/B batch under the frozen Laws 0–3 + 5a (pin assertion, 300 s watchdog, firing preservation, ring classification, TSV record); dot-counter repaired pre-protocol (deviation 1).
+- `driver.sh` — the Law-2/Law-4 driver: 8-way steal w/ traps, 8-alive verification, A→B rounds, R_max=15, Law-4 settle check per round; wrote `protocol.log`.
+- `law4_state.rb` — Law-4 state machine over `results.tsv` (A_F/A_I/B_F/N_B/REQ/SETTLED).
+- `classify_firing.rb` — Law-3 ring classifier (MATCH/ANOMALY/unreadable).
+- `quote_entries.rb`, `ring_tails.rb` — report helpers: classifying-entry extraction; firing-iteration ring tails.
+- `results.tsv` — the protocol of record: header + AR1, BR1, AR2, BR2 rows.
+- `results-rehearsal.tsv` — preserved pre-driver rehearsal row (AR0) plus its header (deviation 2 disclosure).
+- `protocol.log` — driver log: start, steal PIDs + 8/8 verifications, per-round Law-4 states, settle at round 2, steal killed at end.
+- `steal.pids` — the protocol's stealer PIDs (67964–67971).
+- `logs/AR0.log`, `logs/AR0.body` — rehearsal batch log + output (fired iter 14, MATCH).
+- `logs/AR1.log`/`.body`, `logs/AR2.log`/`.body` — A-side batch logs + outputs (pin assertions, classifications, BATCH RESULT lines, FIRING lines, tallies).
+- `logs/BR1.log`/`.body`, `logs/BR2.log`/`.body` — B-side batch logs + outputs (same shape, B env).
+- `firings/AR1.json`, `firings/AR2.json` — preserved A-side firing rings (immediately post-batch copies of `/tmp/i87-cycles/repro-firing.json`).
+- `firings/BR1.json`, `firings/BR2.json` — preserved B-side firing rings.
+- `firings/AR0.json`, `firings/smoke-a3-r0.json` — rehearsal firing rings (not counted; disclosed).
+- `wedge_par.sh` — Law-5(b) per-pin wedge runner (900 s watchdog, sample-before-kill, foreground).
+- `wedges/APAR.log`, `wedges/APAR.log.body` — A-pin par: green, not-observed.
+- `wedges/BPAR.log`, `wedges/BPAR.log.body` — B-pin par: green, not-observed.
+- `layer_probe.rb` — Law-6 raw-fiber probe (V0 control, V1 single raise, V2 double raise, V3 cross-thread).
+- `layer_probe_run.sh` — Law-6 wrapper (8-way steal + traps, foreground).
+- `layer_probe.out` — probe output: 0/3000 swallows; V1/V2 delivered 1000/1000; V3 FiberError 1000/1000; V0 ensure 0/1000.
+- `upstream-dossier.md` — Law-6 FILE-UPSTREAM dossier (mechanism, ring evidence, repro, A/B numbers, ask).
+- `gates/scope-zero.sh`, `gates/rig-smoke.sh`, `gates/pin-swap-mechanics.sh`, `gates/parallel-suite.sh`, `gates/ab-protocol-smoke.sh` — the predecessor's extracted gate scripts (5 of 6; the `suite` gate body is the AC7 house-bar run, executed directly at the lane tree this session).
+- `gates/evidence/gen1-20261029T234x/` — harvested predecessor gate artifacts: parallel-suite.par.log (GREEN), pin-swap.gem-install.log + .Gemfile.lock, ab-smoke a1/b1 logs (clean) + gem-install.log.
+- `gates/evidence/gen2-20261030T002x/` — second generation: parallel-suite.par.log + .run2.log (both GREEN), pin-swap artifacts, ab-smoke artifacts.
 
 ## Verdict
 
