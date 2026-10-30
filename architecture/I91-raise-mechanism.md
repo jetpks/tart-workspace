@@ -219,35 +219,284 @@ for the target fiber (stale-entry hazard).
 
 ## Specification
 
-<!-- WHAT / HOW — the full, self-contained delegation contract.
-Write + commit: `architect section raise-mechanism specification --from <file>`. -->
+# I91 specification — raise-mechanism (lane: forensics, repo: io-event)
 
-- **Objective** — what to build and why; cite **BRIEF §N** for durable context (e.g. `(BRIEF §3.1)`).
-- **Output format** — raw tables, numbers, commit SHAs, test output paths.
-- **Tool guidance** — exact verification commands for the target repo; the
-  APIs/formats/versions to verify against live dependencies before writing code.
-- **Boundaries** — may-touch / must-not-touch / out-of-scope; no placeholders;
-  no refactors beyond the task. (Frozen stack: cite `BRIEF §2`.)
-- **Lane plan** — 1–4 lanes, each declaring: target repo `repos/<repo>`,
-  file-touch set (overlap-checked), objective, output format, boundaries. The
-  machine-readable declaration lives in the fenced ```lanes block below — the single
-  frozen source of truth `architect freeze` records and `architect provision`
-  materializes.
-- **Effort** — per lane, set at dispatch: `architect dispatch --effort <level>`,
-  translated + clamped to the lane's harness, with one line of why (the
-  escalation keywords `think hard` … `ultrathink` still work in-prompt).
+## Objective
+
+Turn I89's attribution-by-elimination into a CAUGHT line-level
+mechanism: a self-contained async+io-event-only repro of the
+class-(a) swallowed cancellation, a per-platform firing measurement
+(darwin/kqueue + Linux/epoll), a deterministic-construction attempt,
+instrumented queue-state evidence naming the exact interleaving in
+io-event's C raise path, and a fix-shape RECOMMENDATION consumed by
+ENTRY 2's spec (plan
+`notes/plan-20261030T181034Z-io-event-raise-patch.md` ENTRY 1; defect
+thesis `build/I89-io-event-ab-forensics/scratch/upstream-dossier.md`).
+Investigate-only: the deliverable is the recommendation, never a
+patch.
+
+## Deliverable shape (frozen)
+
+ONE lane `forensics`, repo io-event. Deliverables, all under
+`build/I91-raise-mechanism/`:
+
+1. `report.md` — the Builder Report, sections frozen below.
+2. `scratch/` — every artifact the report cites: the self-contained
+   repro + its per-arm env recipes, the deterministic attempt,
+   per-batch logs, per-firing preserved JSONs, the instrumented
+   io-event copy + its trace captures, the Linux leg's recipe +
+   record, and (optional, clearly labeled ILLUSTRATIVE — NOT the
+   ENTRY 2 patch) any fix-shape sketch diff.
+
+The report's sections, frozen: `STATUS:` line; PHASE 0 declarations;
+REPRO DESIGN (the topology driven, the probe mapping, why it is the
+I89 defect stripped of tart); DETERMINISTIC ATTEMPT (achieved + the
+artifact, or the precise impossibility record — what cannot be driven
+from Ruby/public API — plus what was tried); DARWIN RECORD (per-arm
+per-batch tables: arm, batch id, pin/backend assertion lines,
+iterations run, first-firing iter or clean, wall s, firing-JSON
+artifact name); LINUX RECORD (image + build recipe, verdict, the same
+table); CAUGHT MECHANISM (the line-level attribution — named
+functions and lines in io-event source, the exact interleaving, the
+instrumented queue-state evidence, and the frozen consistency
+checklist); FIX-SHAPE RECOMMENDATION (the candidates addressed, one
+recommendation, the upstream-acceptability note); ENVIRONMENT (ruby
+-v, uname -a, ncpu, load averages at measurement start/end, gem
+versions per arm, container image digest + in-container ruby -v,
+steal verification); ARTIFACT INDEX (every scratch file, one line
+each).
+
+## The laws
+
+**Law 0 — scope zero (the constraint law).** Touch ONLY
+`build/I91-raise-mechanism/scratch/**` and
+`build/I91-raise-mechanism/report.md`. Zero tracked-file changes and
+zero commits in `repos/io-event`, the lane worktree, `repos/tart`,
+and both socketry reference clones; `git status --porcelain` empty
+and `git rev-parse HEAD` at the Grounds SHAs throughout and at the
+end (tart: tracked tree byte-frozen at `48c34de5`, the standing
+untracked `t90*` residue tolerated). All C instrumentation, builds,
+and scratch gems live in scratch copies/homes ONLY. Never commit,
+push, create branches, run under nohup, or interact upstream.
+
+**Law 1 — the self-contained repro (frozen contract).** The repro at
+`build/I91-raise-mechanism/scratch/repro.rb` (+ any support files in
+`scratch/`):
+
+- Requires `async` + `io-event` + stdlib ONLY. ZERO tart code, zero
+  tart requires, zero tart load-path entries — the repro self-asserts
+  `$LOADED_FEATURES` contains no `tart` and the gate greps the
+  sources.
+- Drives the FULL tart-shaped delivery chain (Grounds): an
+  `Async::Scheduler` reactor on the main thread with a task tree of
+  ≥ 2 tasks whose target fiber parks pre-IO (e.g. a blocking
+  `task.sleep` / IO wait loop); an interrupter THREAD invoking the
+  cancel path (`Task#stop` — the `interrupt_work!` analog); the
+  interrupt fired while both task fibers are alive.
+- Carries the ring probe (Mutex-synchronized), mapping the I89 probe
+  one level down: `Async::Task#cancel` (branch `returned` /
+  `FiberError→Later`, with `fiber_alive` pre, `cancelled_after`,
+  `fiber_after` post), `Async::Task#finish!` (`on_fiber` =
+  `Fiber.current.object_id`), `Async::Scheduler#raise` / `#push`
+  entries, the interrupter entry recording `tasks_alive`, and the
+  target fiber's ensure marker.
+- CLI/env contract (the frozen seam the gates and the ENTRY 2
+  protocol drive): `ruby repro.rb <iterations>` (default 100),
+  self-stops at the first firing; env `WANT_PIN` asserted against
+  `Gem.loaded_specs["io-event"].version` at boot (abort loudly on
+  mismatch); env `FIRING_JSON` (firing JSON path, default
+  `/tmp/i91-cycles/repro-firing.json`; the runner `mkdir -p`s its
+  dir); `$stdout.sync = true`; boot line
+  `REPRO_BOOT io-event=<v> async=<v> backend=<selector class> ruby=<v>`
+  — and the repro ABORTS LOUDLY unless the resolved selector backend
+  is native (`IO::Event::Selector::KQueue` on darwin,
+  `IO::Event::Selector::EPoll` on Linux): a pure-ruby Select fallback
+  is harness rot, never data (Grounds probe 2).
+- Output contract: per-iteration `.`; on firing, prints
+  `FIRING at iteration <n>`, writes the firing JSON (`{iter, ring,
+  ensure_ran}`), and exits 1; on clean completion prints
+  `BATCH_CLEAN iterations=<n> firings=0` and exits 0; ALWAYS prints a
+  final `TALLY …` line (cancel-branch tallies).
+- Detection surface: after the interrupt, a bounded wait (≤ 5 s) for
+  delivery (the target's ensure / task completion); a firing = the
+  wait expires with the cancel returned and the ensure un-run. On a
+  firing the repro exits 1 promptly — it must NOT wedge on the stuck
+  reactor (force whatever teardown lets it exit; if exit wedges the
+  batch watchdog catches it and the log tail classifies).
+
+**Law 2 — firing classification (the frozen ring signature).** A
+batch's firing COUNTS as the class-(a) swallow iff its preserved
+firing JSON shows ALL of: (1) the interrupter entry with
+`tasks_alive=[true,true]`; (2) ≥ 1 `scheduler_raise` entry; (3) a
+cancel branch `returned` with `cancelled_after=true` and
+`fiber_after=nil`; (4) a `finish!` entry whose `on_fiber` ≠ the
+target fiber's recorded object_id (the wrong-fiber finalize); (5)
+top-level `ensure_ran:false` at firing time. A firing missing any
+element is an ANOMALY: disclosed with its ring, never counted,
+measurement continues (the anomaly itself is a finding).
+`FiberError→Later` tallies are reported as data.
+
+**Law 3 — the two darwin arms, measured under the I89 discipline.**
+Arm A = io-event **1.22.1** (installed gem, native prebuilt) + async
+2.46.0. Arm B = the fork tip: `BUNDLE_GEMFILE=gems.rb bundle exec
+bake build` in the lane worktree, then a scratch Gemfile (`source` +
+`gem "async", "2.46.0"` + `gem "io-event", path: "<wt>"`) with the
+repro run under `-I<wt>/ext`; Arm B additionally asserts io-event
+1.22.3 LOADED FROM the worktree (the `Gem.loaded_specs` full path) —
+all three assertion lines (WANT_PIN, loaded-from, BACKEND) captured
+into every batch log. A BATCH = `repro.rb 100` under a **300 s wall
+watchdog** (expiry → TERM, KILL after 2 s, classified mid-run vs
+exit-teardown from the log tail). A ROUND = one A batch then one B
+batch, fixed order, under continuous 8-way `ruby -e 'loop {}'` steal
+(started before round 1, verified 8-alive each round start,
+re-spawned if lapsed, killed on EVERY exit path). Rounds run until
+BOTH arms have ≥ 3 batches AND (each arm has ≥ 2 counted firings OR
+10 rounds elapsed). Every firing JSON is copied into
+`scratch/firings/<arm>-<batch>.json` IMMEDIATELY after its batch (the
+probe overwrites per firing). Rates reported per arm as
+firings/iterations. Sequential, same host, same session, no other
+heavy work; NEVER nohup.
+
+**Law 4 — the Linux leg (epoll), disposable container.** Scripted
+end-to-end at `scratch/linux/` (a `run_linux.sh` the judge can
+re-run verbatim): Apple `container` CLI, `container run --rm` with
+ONLY the lane scratch mounted (repro read-only, a results dir
+read-write) — NEVER `repos/io-event`, NEVER the worktree. Image
+`docker.io/library/ruby:4.0` (or the closest available 4.0.x — the
+exact tag + digest recorded; a pull failure or a privilege demand =
+STOP and escalate, never improvise host config). Inside: record
+`ruby -v`; `gem install io-event -v 1.22.1 --no-document` (compiles
+the epoll native ext FROM SOURCE there — the build log preserved) +
+`gem install async -v 2.46.0`; WANT_PIN=1.22.1 + BACKEND=EPoll
+assertions; continuous 8-way steal INSIDE the container; ≥ 3 batches
+of `repro.rb 100` (cap 10) under 300 s watchdogs, stopping early at ≥
+2 counted firings; firing JSONs + batch logs written back to the
+mounted results dir. Verdict: **EPOLL_REPRODUCES** (≥ 1 counted
+ring-match firing) / **EPOLL_NOT_OBSERVED** (all batches clean —
+report the exact exposure) / **EPOLL_UNMEASURED** (escalation path
+taken — the ruling recorded). The per-platform comparison table
+(darwin 1.22.1, darwin fork-tip, linux 1.22.1) lands in the report.
+
+**Law 5 — the deterministic attempt.** Deliberately construct the
+suspect interleaving from Ruby/public API ONLY: a target fiber parked
+with a PENDING ready-queue entry, then a raise delivered into it.
+The construction matrix to try (record each cell's outcome): stale
+entry source ∈ {`Scheduler#push(target)` /
+`Scheduler#fiber_interrupt(target, …)` (the unblock path) / a racing
+timeout-unblock} × raise path ∈ {direct `Selector#raise` /
+`Task#cancel` from a sibling fiber / `Task#cancel` from an
+interrupter thread}, single-threaded first, then the cross-thread
+deferral topology. If ANY cell swallows deterministically (raise
+returns, ensure never runs, on demand), ship it as
+`scratch/deterministic.rb` with the interleaving annotated — that
+artifact is the spike's crown jewel and ENTRY 2's regression-test
+seed. If NO cell swallows deterministically, document precisely WHY:
+which internal state cannot be reached from public API, what each
+tried cell produced instead, and the measured probabilistic form
+(Laws 3–4) stands as the repro of record.
+
+**Law 6 — the caught mechanism (disposable C instrumentation).** Copy
+the lane worktree to `scratch/instrumented-io-event/` (the fork tip
+— the tree ENTRY 2 patches); add trace output (fprintf to stderr or a
+file) at the raise/queue sites — at minimum `queue_push`,
+`queue_pop`, `IO_Event_Selector_raise` entry/exit with the target
+fiber's identity, `IO_Event_Fiber_raise`'s outcome,
+`IO_Event_Selector_ready_push`/`ready_pop` (entry flags + fiber
+identity), and the kqueue flush path — so that a firing run yields
+QUEUE-STATE EVIDENCE AT RAISE TIME. `scratch/INSTRUMENTATION.md`
+lists every trace point (file:line, what it prints, why). Build in
+the copy via the house mechanics (`BUNDLE_GEMFILE=gems.rb bundle
+install --quiet && bundle exec bake build`); run the Arm-B-shaped env
+against the COPY under 8-way steal until ≥ 1 counted firing with its
+trace captured; preserve trace+firing-JSON pairs in
+`scratch/traces/`. The CAUGHT MECHANISM section names the exact
+interleaving with functions/lines and MUST be consistent with ALL of:
+V0 (suspended fibers never self-unwind — a lost raise is permanent),
+V1/V2 (raw same-thread raises deliver 2000/2000 — CRuby exonerated),
+V3 (cross-thread raw raises refused 1000/1000 — the deferral path
+exists), the wrong-fiber `finish!` signature, and the 1.22.1 ≡ 1.22.3
+firing equality (the #232 diff does not touch this path). If the
+instrumented evidence REFUTES the dossier thesis, the report names
+the mechanism the evidence DOES support at the same line-level
+standard — a refutation with a replacement attribution is a complete
+answer; "inconclusive" is not.
+
+**Law 7 — the fix-shape recommendation.** Address, against the caught
+mechanism: (a) invalidate-stale-entry (a raise delivered into a fiber
+invalidates/removes that fiber's pending ready-queue entries); (b)
+guarantee-delivery (when a pending entry exists, route the raise
+through the queue instead of the direct transfer, or re-arm delivery
+at pop time); (c) anything else the mechanism suggests. ONE
+recommendation, plus an upstream-acceptability note: single minimal
+patch shape, no API change, no behavior change outside the swallow
+window, io-event house style. NO patch in any tracked file; an
+illustrative sketch diff MAY live in scratch, labeled ILLUSTRATIVE.
+
+**Law 8 — escalation discipline.** Container CLI privilege demands or
+failures, image-pull failures, or any contradiction between a frozen
+Grounds fact and the lane tree: STOP and escalate (declare in PHASE
+0 / contact the coordinator) — never improvise host config, never
+silently adapt. All other deviations are itemized-and-defended in
+PROTOCOL AS RUN — none sanctioned.
+
+## Tool guidance (exact, spec-time-tested at `repos/io-event` @ 6cc4bfd)
+
+- House build/test (cwd = the io-event tree):
+  `BUNDLE_GEMFILE=gems.rb bundle install --quiet` (~4 s) &&
+  `BUNDLE_GEMFILE=gems.rb bundle exec bake build` (~5 s; artifacts
+  gitignored) && `BUNDLE_GEMFILE=gems.rb bundle exec sus` (~2 s;
+  `320 passed 21 skipped out of 341 total (1034 assertions)`).
+- Arm A env (spec-time-verified): gem activation or scratch Gemfile
+  pinning `io-event 1.22.1` + `async 2.46.0` (both preinstalled in
+  `Gem.default_dir`, native exts built).
+- Arm B env (spec-time-verified): bake-build the tree, scratch
+  Gemfile with `gem "io-event", path: "<tree>"`, run with
+  `-I<tree>/ext` (WITHOUT it, `require "IO_Event"` fails and io-event
+  silently falls back to pure-ruby Select — the BACKEND assertion is
+  the guardrail).
+- WANT_PIN assertion (per batch, captured):
+  `bundle exec ruby -e 'require "io/event"; abort "pin drift" unless
+  Gem.loaded_specs["io-event"].version.to_s == ENV["WANT_PIN"]'`.
+- Steal: `w=1; pids=""; while [ $w -le 8 ]; do ruby -e 'loop {}' &
+  pids="$pids $!"; w=$((w + 1)); done` … killed on EVERY exit path
+  (trap or explicit). The I89 `driver.sh`/`batch.sh` pair (adapted
+  copies in scratch) is the reference implementation.
+- Container preflight: `/opt/homebrew/bin/container system status`
+  (spec-time: running, CLI 1.5.0).
+- The I89 machinery to adapt (READ-ONLY sources):
+  `build/I89-io-event-ab-forensics/scratch/{driver.sh,batch.sh,
+  law4_state.rb,classify_firing.rb,layer_probe.rb}`.
+
+## Boundaries
+
+- **May touch:** ONLY `build/I91-raise-mechanism/scratch/**` and
+  `build/I91-raise-mechanism/report.md` (the frozen touch set).
+- **Must not touch:** every tracked file in `repos/io-event` AND the
+  lane worktree (porcelain empty, HEAD = the provision base
+  `6cc4bfd…`); `repos/tart` (tracked tree frozen at `48c34de5…`);
+  both socketry reference clones (read-only — no checkouts, branches,
+  fetches, writes); the I89 scratch assets (read-only sources —
+  copies into scratch, never edits); installed gem environments
+  beyond scratch GEM_HOMEs and the io-event repo's own bundle.
+- **Never:** commit, push, create branches, `gh`/upstream
+  interaction; nohup; install gems outside the sanctioned homes;
+  mount anything but the lane scratch into the container; change tart
+  or its pins; attempt the fix itself (ENTRY 2's deliverable).
+
+## Lane plan
 
 ```lanes
-# One entry per lane (1–4). The frozen out-of-bounds contract: `architect freeze`
-# writes each into space.yaml (name, repo, touch_set); `architect provision raise-mechanism`
-# materializes the worktrees + lane branches. Remove the comment markers to activate.
-# - name: lane-a            # lane name (required)
-#   repo: my-repo           # target repo under repos/ (required)
-#   touch:                  # every file this lane may write, enumerated — no globs (required, non-empty)
-#     - lib/my_repo/foo.rb
-#     - lib/my_repo/bar.rb
-#     - test/my_repo_test.rb
+- name: forensics
+  repo: io-event
+  touch:
+    - build/I91-raise-mechanism/scratch/**
+    - build/I91-raise-mechanism/report.md
 ```
+
+Effort: high at dispatch (a measurement + C-instrumentation spike
+with a frozen evidence standard; judgment is confined to firing
+classification, the deterministic-attempt matrix, and the mechanism
+attribution).
 
 ## Acceptance Criteria
 
