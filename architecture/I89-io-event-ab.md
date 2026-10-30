@@ -1183,15 +1183,109 @@ ready for the owner to file.
 
 ## Verdict
 
-<!-- ARCHITECT JUDGMENT, written in a LATER session than the dispatch.
-Write + commit: `architect section io-event-ab verdict --from <file>`. -->
+- **Disagreement / deviation rulings** (PHASE 0 raised zero stop-and-declare
+  contradictions; the builder itemized five protocol deviations + one
+  inherited-state correction — ruled here, BRIEF-equivalent cites are the
+  frozen Specification Laws):
 
-- **Disagreement rulings** — each PHASE 0 disagreement: ACCEPT / REJECT / MODIFY + why; cite the
-  BRIEF §section in tension beside file:line.
-- **Acceptance Criteria integrity** — frozen sections unchanged since freeze (`architect verify io-event-ab`)?
+  1. **`batch.sh` dot-counter repair — ACCEPT.** Scratch machinery only
+     (frozen touch set), the probe's bytes stayed sha256-frozen
+     (`561812eb…4abb21`, judge re-verified). The repair is what makes Law 4's
+     inputs defensible: the old pure-dot-line counter read 0 on
+     warning-fused dot lines (inherited `AR0.body`: 14 dots printed, 0
+     counted), which would have undercounted `A_iters`/`N_B` and inflated
+     `r_A`. Judge independently recounted leading-dot runs from the five raw
+     `logs/*.body` files: counts exactly equal the TSV (AR1 0, AR2 14, BR1
+     59, BR2 6, AR0 14) and exactly equal each batch's `firing_iter` (dots +
+     1 fired = iterations executed), with zero trailing-dot fused lines that
+     could hide undercounts. No corruption, no bias. (Spec Law 4 inputs;
+     Law 0 untouched.)
+  2. **Rehearsal firings not counted (AR0, smoke-a3-r0) — ACCEPT.** Law 2
+     requires identical continuous verified steal; AR0 predates the driver
+     and has no steal record (`protocol.log`/`steal.pids` absent for it).
+     Excluding it is the conservative direction — it makes the A baseline
+     *harder* to re-establish and cannot flatter B. Both artifacts preserved
+     whole and disclosed (`results-rehearsal.tsv`, `firings/AR0.json`,
+     `firings/smoke-a3-r0.json`).
+  3. **Gate-evidence harvest from `/tmp/t89*` — ACCEPT as disclosure;
+     superseded.** The harvested predecessor artifacts substantiated
+     parallel-suite/pin-swap/ab-smoke runs, but nothing rests on them: this
+     judge re-ran the full frozen 6-gate battery cold (6/6 PASS, transcript
+     `build/gate/I89-io-event-ab-20261030T012222.598888.md`), including the
+     `suite` house bar the predecessor left no stdout for.
+  4. **Law-6 probe extension V3 (cross-thread raise) — ACCEPT.** Still raw
+     `Fiber` + `Thread` only (zero async/io-event requires — judge grepped),
+     ≥1000 iterations under the same 8-way steal. The 1000/1000 `FiberError
+     "fiber called across threads"` refusals are mechanism data that
+     *strengthen* the io-event attribution; the probe's reduction power was
+     not widened.
+  5. **Round-1 iter-0 arithmetic (AR1: `A_iters += 1` for the firing
+     iteration) — ACCEPT.** Law 4 defines `A_iters` as iterations
+     *executed*; the firing iteration executed. `law4_state.rb` implements
+     the frozen rule exactly (judge-read: integer-ceil `max(300,
+     ceil(3·A_I/A_F))`, NOTCLEAN on `B_F ≥ 1` once `A_F ≥ 2`).
+
+  Inherited-state correction (coordinator note said "died before any A/B
+  measurement rounds"; in fact AR0 had run and fired): **ACCEPT** — the
+  artifacts confirm the builder's reading.
+
+- **Acceptance Criteria integrity** — `architect verify io-event-ab`: all
+  four lane checks PASS (frozen sections untouched since freeze
+  `2b24f36`; no builder commits — `git log 752c370..` empty, worktree
+  porcelain-clean at base; report exists; in-bounds). Judge additionally
+  diffed freeze→HEAD on the contract file: zero bytes.
+
+- **Cold gate battery** (cwd `repos/tart`, foreground, transcript
+  `build/gate/I89-io-event-ab-20261030T012222.598888.md`): **6/6 PASS** —
+  `suite` 1501/0F/0E/5S wall 220 s ≤ 240 s; `parallel-suite` PARALLEL_OK +
+  COVERAGE_OK runs=1501 skips=5, no wedge; `rig-smoke` byte-legs + clean
+  smoke; `pin-swap-mechanics` B recipe green, lock byte-frozen;
+  `ab-protocol-smoke` PASS — and notably its B mini-batch **fired class-(a)
+  at 1.22.3 judge-cold** (tolerated data per the gate's preamble; an
+  independent corroboration that the defect is live at the candidate pin);
+  `scope-zero` all legs. No stray stealers post-run.
+
+- **Judge's independent evidence verification** (nothing taken on faith):
+  own ring classifier over the four preserved firing JSONs — all MATCH Law
+  3 (`interrupt_work [true,true]` ≥1, `scheduler_raise` ≥1, Cancel
+  `returned` + `cancelled_after=true` + `fiber_after=nil` ≥1), answering
+  Grounds open question 1 for both pins; per-batch pin assertions present
+  in logs (A=1.22.1 ×2, B=1.22.3 ×2, all "pin ok"); `protocol.log` shows
+  steal 8/8 at start and every round start, fixed A→B round order, settle
+  at round 2, stealers killed; arithmetic re-computed: r_A = 2/16 = 0.125,
+  required N_B = max(300, 24) = 300, survival 0.875⁶⁷ ≈ 1.302×10⁻⁴
+  (matches report); Law-4 banking clause (BR1's round-1 firing banked until
+  A re-established at round 2) applied per the frozen text; Law-6 probe
+  output 0/3000 raw-fiber swallows with the V0 control honestly showing
+  0/1000 ensure-runs (a lost raise is permanent); wedge not-observed at
+  both pins with PARALLEL_OK/COVERAGE_OK lines in `wedges/APAR.log` /
+  `BPAR.log`; `upstream-dossier.md` carries mechanism, ring evidence, repro
+  reference, A/B numbers, ask.
 
 | AC# | Raw result | Brief § | Verdict |
 |-----|------------|---------|---------|
-|     |            |         | PASS/FAIL/INVALID |
+| AC1 | repro byte-identical (sha judge-verified); zero tracked changes/commits both trees; locks frozen; clones at SHAs; `rig-smoke`+`scope-zero` cold PASS | Spec Law 0, Boundaries | PASS |
+| AC2 | A side per Laws 1–3; baseline re-established round 2 (2/16, both ring-MATCH, judge re-classified); per-round table complete | Laws 1–3 | PASS |
+| AC3 | B side identical steal/batch/watchdog shape, interleaved; pin-asserted 1.22.3 per batch; locks unmoved; `pin-swap-mechanics`+`ab-protocol-smoke` cold PASS | Laws 1–2 | PASS |
+| AC4 | NOT CLEAN, settled round 2; exact inputs/arithmetic present and judge-recomputed identical; verdict mapping per Law 4 | Law 4 | PASS |
+| AC5 | no watchdog expiries; per-pin `test:par` green both pins (PARALLEL_OK runs=1501 skips=5); no cure attempted; `parallel-suite` cold PASS | Law 5 | PASS |
+| AC6 | Law 6 taken (verdict NOT clean): raw-Fiber probe 0/3000 swallows, honest verdict implicating io-event machinery; dossier drafted with all required content | Law 6 | PASS |
+| AC7 | all frozen report sections present; ENVIRONMENT complete; ARTIFACT INDEX complete; `suite` cold PASS 220 s | Deliverable shape | PASS |
 
-- **Iteration** — KILL / CONTINUE + the single decisive reason (e.g. "diff vs BRIEF §1/§3.3 faithful — CONTINUE").
+- **Integration** — investigate-only spike, zero tracked-file changes by
+  contract: nothing to merge; `architect integrate --lanes forensics
+  --teardown` retires the lane worktree. Evidence lives on in the space
+  (transcribed Builder Report commit + `build/I89-io-event-ab-forensics/scratch/`).
+
+- **Iteration** — **CONTINUE.** Decisive reason: the frozen decision rule
+  was applied exactly to judge-recomputed, judge-reclassified evidence —
+  the A/B is **NOT CLEAN** (A 2/16, B 2/67, all four firings ring-MATCH
+  class (a) at the `:154` surface under continuous identical 8-way steal,
+  interleaved rounds), Law 6 honestly reduced the swallow away from CRuby
+  fibers (0/3000) into io-event's ready-queue machinery, and the
+  recommendation **FILE-UPSTREAM** (dossier drafted) is the measured,
+  defensible deliverable this spike exists to produce. Consequence for the
+  plan: ENTRY 3 (`io-event-pin-bump`) is CONDITIONAL on a CLEAN A/B per
+  Specification Law 4 — this verdict is NOT CLEAN, so the coordinator
+  records an ENTRY 3 **SKIP**; the owner files the upstream dossier
+  (post-landing follow-up per plan standing context (a)).
